@@ -689,10 +689,31 @@ export async function registerRoutes(
   const LINE_BOT_BASE = env.lineBotBaseUrl;
   const SMART_SCHEDULE_BASE = env.smartScheduleBaseUrl;
 
+  function proxyHeaders(upstreamUrl: string, jsonBody = false) {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (jsonBody) headers["Content-Type"] = "application/json";
+    const token = upstreamUrl.startsWith(LINE_BOT_BASE)
+      ? env.lineBotInternalToken
+      : upstreamUrl.startsWith(SMART_SCHEDULE_BASE)
+        ? env.smartScheduleApiToken
+        : undefined;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      headers["X-Internal-Token"] = token;
+      headers["X-API-Key"] = token;
+    }
+    return headers;
+  }
+
+  function lineBotFacilityUrl(groupId: string, path: string) {
+    const prefix = env.lineBotInternalToken ? "/api/internal/facility-home" : "/api/facility-home";
+    return `${LINE_BOT_BASE}${prefix}/${encodeURIComponent(groupId)}${path}`;
+  }
+
   async function proxyGet(upstreamUrl: string, res: any, label: string) {
     try {
       const upstream = await fetch(upstreamUrl, {
-        headers: { Accept: "application/json" },
+        headers: proxyHeaders(upstreamUrl),
         signal: AbortSignal.timeout(10000),
       });
       if (!upstream.ok) {
@@ -713,7 +734,7 @@ export async function registerRoutes(
     try {
       const upstream = await fetch(upstreamUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: proxyHeaders(upstreamUrl, true),
         body: JSON.stringify(body || {}),
         signal: AbortSignal.timeout(10000),
       });
@@ -763,7 +784,7 @@ export async function registerRoutes(
 
   // ===== Portal facility-home proxies =====
   app.get("/api/facility-home/:groupId/home", (req, res) =>
-    proxyGet(`${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/home`, res, "場館首頁資料")
+    proxyGet(lineBotFacilityUrl(req.params.groupId, "/home"), res, "場館首頁資料")
   );
 
   app.get("/api/facility-home/:groupId/announcements", (req, res) => {
@@ -773,7 +794,7 @@ export async function registerRoutes(
     }
     const qsStr = qs.toString();
     proxyGet(
-      `${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/announcements${qsStr ? "?" + qsStr : ""}`,
+      `${lineBotFacilityUrl(req.params.groupId, "/announcements")}${qsStr ? "?" + qsStr : ""}`,
       res,
       "場館公告列表",
     );
@@ -781,23 +802,23 @@ export async function registerRoutes(
 
   app.get("/api/facility-home/:groupId/announcements/:id", (req, res) =>
     proxyGet(
-      `${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/announcements/${encodeURIComponent(req.params.id)}`,
+      lineBotFacilityUrl(req.params.groupId, `/announcements/${encodeURIComponent(req.params.id)}`),
       res,
       "場館公告詳情",
     )
   );
 
   app.get("/api/facility-home/:groupId/today-shift", (req, res) =>
-    proxyGet(`${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/today-shift`, res, "今日班表")
+    proxyGet(lineBotFacilityUrl(req.params.groupId, "/today-shift"), res, "今日班表")
   );
 
   app.get("/api/facility-home/:groupId/handover", (req, res) =>
-    proxyGet(`${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/handover`, res, "櫃台交接")
+    proxyGet(lineBotFacilityUrl(req.params.groupId, "/handover"), res, "櫃台交接")
   );
 
   app.post("/api/facility-home/:groupId/announcements/:id/ack", (req, res) =>
     proxyPost(
-      `${LINE_BOT_BASE}/api/facility-home/${encodeURIComponent(req.params.groupId)}/announcements/${encodeURIComponent(req.params.id)}/ack`,
+      lineBotFacilityUrl(req.params.groupId, `/announcements/${encodeURIComponent(req.params.id)}/ack`),
       req.body,
       res,
       "回報已讀",
@@ -896,7 +917,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/overview", (_req, res) =>
-    proxyGet(`${SMART_SCHEDULE_BASE}/api/admin/overview`, res, "排班系統總覽")
+    proxyGet(
+      `${SMART_SCHEDULE_BASE}${env.smartScheduleApiToken ? "/api/internal/admin/overview" : "/api/admin/overview"}`,
+      res,
+      "排班系統總覽",
+    )
   );
 
   app.get("/api/admin/interview-users", (_req, res) =>

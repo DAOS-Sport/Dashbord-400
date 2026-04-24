@@ -405,8 +405,8 @@ function BottomNav() {
 
 function LoadingState() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-[#f4f7fb]">
-      <div className="rounded-[8px] bg-white px-5 py-4 text-[14px] font-bold text-[#536175] shadow-lg">載入工作台資料中...</div>
+    <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-6">
+      <div className="w-full max-w-sm rounded-[8px] bg-white px-5 py-4 text-center text-[14px] font-bold text-[#536175] shadow-lg">載入工作台資料中...</div>
     </div>
   );
 }
@@ -422,7 +422,7 @@ export default function EmployeeHomePage() {
   if (error || !data) {
     return (
       <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-6">
-        <WorkbenchCard className="max-w-md p-6 text-center">
+        <WorkbenchCard className="w-full max-w-md p-6 text-center">
           <Gauge className="mx-auto h-10 w-10 text-[#ef7d22]" />
           <h1 className="mt-4 text-[20px] font-black text-[#10233f]">工作台暫時無法載入</h1>
           <p className="mt-2 text-[14px] text-[#637185]">BFF 資料來源尚未回應，請稍後再試。</p>

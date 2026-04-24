@@ -116,15 +116,32 @@ export const getSystemOverviewMock = (): SystemOverviewDto => ({
   auditSummary: ok({ todayEvents: 248, rawInspectorQueries: 0 }, syncTime),
 });
 
-const fetchJson = async <T>(url: string): Promise<T> => {
+const integrationHeaders = (token?: string): Record<string, string> => {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    headers["X-Internal-Token"] = token;
+    headers["X-API-Key"] = token;
+  }
+  return headers;
+};
+
+const smartScheduleOverviewUrl = () => {
+  const path = env.smartScheduleApiToken ? "/api/internal/admin/overview" : "/api/admin/overview";
+  return new URL(path, env.smartScheduleBaseUrl).toString();
+};
+
+const fetchJson = async <T>(url: string, token?: string): Promise<T> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), env.externalApiTimeoutMs);
   try {
     const response = await fetch(url, {
-      headers: { Accept: "application/json" },
+      headers: integrationHeaders(token),
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) throw new Error("Non-JSON response");
     return await response.json() as T;
   } finally {
     clearTimeout(timeout);
@@ -135,13 +152,21 @@ export const getSupervisorDashboardFromSources = async (): Promise<SupervisorDas
   const now = new Date().toISOString();
   const [announcementSummary, scheduleOverview] = await Promise.allSettled([
     fetchJson<Record<string, unknown>>(new URL("/api/announcement-dashboard/summary", env.lineBotBaseUrl).toString()),
-    fetchJson<Record<string, unknown>>(new URL("/api/admin/overview", env.smartScheduleBaseUrl).toString()),
+    fetchJson<Record<string, unknown>>(smartScheduleOverviewUrl(), env.smartScheduleApiToken),
   ]);
 
   const announcementData = announcementSummary.status === "fulfilled" ? announcementSummary.value : null;
   const scheduleData = scheduleOverview.status === "fulfilled" ? scheduleOverview.value : null;
+  const employees = scheduleData?.employees && typeof scheduleData.employees === "object"
+    ? scheduleData.employees as Record<string, unknown>
+    : {};
+  const shiftsToday = scheduleData?.shiftsToday && typeof scheduleData.shiftsToday === "object"
+    ? scheduleData.shiftsToday as Record<string, unknown>
+    : {};
   const pendingReviewCount = Number(announcementData?.pendingReviewCount ?? 0);
-  const activeUsers = Number(scheduleData?.activeUsers ?? scheduleData?.todayActiveUsers ?? 0);
+  const activeUsers = Number(scheduleData?.activeUsers ?? scheduleData?.todayActiveUsers ?? employees.totalActive ?? 0);
+  const totalUsers = Number(scheduleData?.totalUsers ?? employees.totalAll ?? activeUsers ?? 0);
+  const onShift = Number(scheduleData?.onShift ?? shiftsToday.total ?? activeUsers ?? 0);
 
   return {
     facility: {
@@ -151,7 +176,7 @@ export const getSupervisorDashboardFromSources = async (): Promise<SupervisorDas
       statusLabel: "即時資料",
     },
     staffing: scheduleData
-      ? ok({ active: activeUsers || 0, total: Number(scheduleData.totalUsers ?? activeUsers ?? 0), onShift: activeUsers || 0, absent: 0 }, now)
+      ? ok({ active: activeUsers || 0, total: totalUsers || 0, onShift: onShift || 0, absent: Math.max((totalUsers || 0) - (activeUsers || 0), 0) }, now)
       : unavailable("Smart Schedule overview unavailable"),
     pendingAnomalies: ok([], now),
     incompleteTasks: ok([], now),
@@ -168,7 +193,7 @@ export const getSystemOverviewFromSources = async (): Promise<SystemOverviewDto>
   const now = new Date().toISOString();
   const checks = await Promise.allSettled([
     fetchJson<Record<string, unknown>>(new URL("/api/announcement-dashboard/summary", env.lineBotBaseUrl).toString()),
-    fetchJson<Record<string, unknown>>(new URL("/api/admin/overview", env.smartScheduleBaseUrl).toString()),
+    fetchJson<Record<string, unknown>>(smartScheduleOverviewUrl(), env.smartScheduleApiToken),
   ]);
   const healthyCount = checks.filter((check) => check.status === "fulfilled").length;
   const score = Math.round((healthyCount / checks.length) * 1000) / 10;

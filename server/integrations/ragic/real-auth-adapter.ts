@@ -61,13 +61,20 @@ export const realRagicAuthAdapter: RagicAuthAdapter = {
       }
 
       const department = row[RAGIC_KEY.department];
+      const departments = Array.isArray(department)
+        ? department.map((item) => String(item).trim()).filter(Boolean)
+        : String(department || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
       const title = String(row[RAGIC_KEY.title] || "");
       return sourceOk("ragic-auth", {
         userId: String(row[RAGIC_KEY.employeeNumber] || employeeNumber),
         displayName: String(row[RAGIC_KEY.name] || employeeNumber),
         employeeNumber: String(row[RAGIC_KEY.employeeNumber] || employeeNumber),
         title,
-        department: Array.isArray(department) ? department.join(", ") : String(department || ""),
+        department: departments.join(", "),
+        departments,
         status,
         isSupervisor: isSupervisorTitle(title),
       });

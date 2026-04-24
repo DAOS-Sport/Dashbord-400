@@ -11,6 +11,7 @@ export interface RagicAuthUser {
   employeeNumber: string;
   title?: string;
   department?: string;
+  departments?: string[];
   status?: string;
   isSupervisor?: boolean;
 }

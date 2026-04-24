@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import type { AuthMeDto, WorkbenchRole } from "@shared/auth/me";
+import { facilityKeysFromRagicDepartments, facilityLineGroups } from "@shared/domain/facilities";
 import { env } from "../../shared/config/env";
+import type { RagicAuthUser } from "../../integrations/ragic/auth-adapter";
 
 export interface SessionRecord extends AuthMeDto {
   issuedAt: string;
@@ -62,15 +64,14 @@ export const createMockSession = (
   userId: string,
   displayName: string,
   isSupervisor = true,
+  departments: string[] = [],
 ): Omit<SessionRecord, "issuedAt" | "lastActive"> => ({
   userId,
   displayName,
   grantedRoles: isSupervisor ? ["employee", "supervisor", "system"] : ["employee"],
   activeRole: isSupervisor ? "system" : "employee",
-  grantedFacilities: isSupervisor
-    ? ["xinbei_pool", "salu_counter", "songshan_pool", "sanmin_pool"]
-    : ["xinbei_pool"],
-  activeFacility: "xinbei_pool",
+  grantedFacilities: resolveGrantedFacilities(isSupervisor, departments),
+  activeFacility: resolveGrantedFacilities(isSupervisor, departments)[0] ?? "xinbei_pool",
   permissionsSnapshot: [
     "employee:home:read",
     "supervisor:dashboard:read",
@@ -82,3 +83,17 @@ export const createMockSession = (
 });
 
 export const hasRole = (session: SessionRecord, role: WorkbenchRole) => session.grantedRoles.includes(role);
+
+const resolveGrantedFacilities = (isSupervisor: boolean, departments: string[]) => {
+  if (isSupervisor) return facilityLineGroups.map((facility) => facility.facilityKey);
+  const granted = facilityKeysFromRagicDepartments(departments);
+  return granted.length > 0 ? granted : ["xinbei_pool"];
+};
+
+export const createSessionFromAuthUser = (user: RagicAuthUser): Omit<SessionRecord, "issuedAt" | "lastActive"> =>
+  createMockSession(
+    user.userId,
+    user.displayName,
+    user.isSupervisor ?? true,
+    user.departments ?? (user.department ? [user.department] : []),
+  );

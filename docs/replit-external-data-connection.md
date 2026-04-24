@@ -36,7 +36,10 @@ BOOKING_ADAPTER_MODE=mock
 STORAGE_ADAPTER_MODE=mock
 
 LINE_BOT_BASE_URL=https://line-bot-assistant-ronchen2.replit.app
+INTERNAL_API_TOKEN=<shared internal token for LINE Bot and Smart Schedule>
+LINE_BOT_INTERNAL_TOKEN=<optional; defaults to INTERNAL_API_TOKEN when omitted>
 SMART_SCHEDULE_BASE_URL=https://smart-schedule-manager.replit.app
+SMART_SCHEDULE_API_TOKEN=<optional; defaults to INTERNAL_API_TOKEN when omitted>
 EXTERNAL_API_TIMEOUT_MS=10000
 
 RAGIC_API_KEY=<Ragic Basic Auth token, already base64 encoded>
@@ -58,6 +61,51 @@ REPLIT_DATA_TIMEOUT_MS=8000
 ```
 
 目前 `realReplitDataAdapter` 預設走 `LINE_BOT_BASE_URL` 的場館首頁 API，不強制使用 `REPLIT_DATA_BASE_URL`。
+
+若上游有 server-to-server token，系統會自動同時帶：
+
+```text
+Authorization: Bearer <token>
+X-Internal-Token: <token>
+X-API-Key: <token>
+```
+
+LINE Bot Assistant 可使用 `LINE_BOT_INTERNAL_TOKEN`、既有 `REPLIT_DATA_API_TOKEN`，或共用 `INTERNAL_API_TOKEN`。
+Smart Schedule Manager 可使用 `SMART_SCHEDULE_API_TOKEN`、`SMART_SCHEDULE_INTERNAL_TOKEN`，或共用 `INTERNAL_API_TOKEN`。
+
+## 1.1 目前上游 API 狀態與修正方式
+
+已確認可 server-to-server 直打：
+
+```text
+GET {LINE_BOT_BASE_URL}/api/announcement-dashboard/summary
+GET {LINE_BOT_BASE_URL}/api/announcement-candidates
+GET {LINE_BOT_BASE_URL}/api/announcement-reports/weekly
+GET Ragic employee sheet with RAGIC_API_KEY
+GET/POST Portal DB routes
+```
+
+新的 internal API 應優先使用：
+
+```text
+GET {LINE_BOT_BASE_URL}/api/internal/facility-home/{lineGroupId}/home
+GET {LINE_BOT_BASE_URL}/api/internal/facility-home/{lineGroupId}/announcements
+GET {LINE_BOT_BASE_URL}/api/internal/facility-home/{lineGroupId}/today-shift
+GET {LINE_BOT_BASE_URL}/api/internal/facility-home/{lineGroupId}/handover
+GET {SMART_SCHEDULE_BASE_URL}/api/internal/admin/overview
+GET {SMART_SCHEDULE_BASE_URL}/api/internal/schedules/today?facilityKey=A
+```
+
+2026-04-24 實測：Smart Schedule internal API 已回 JSON；LINE Bot internal facility-home API 已回 JSON。若 LINE Bot `/home` 暫時回空公告，BFF 會忠實顯示該館目前無發布公告；若整個 internal source 非 JSON / 失敗，才會用公開 `announcement-candidates?groupId=...` 降級，只取該 LINE 群組的有效候選，並排除 `candidateType=ignore` / `status=vip_chat`。
+
+本 repo 已完成兩層修正：
+
+1. 若上游放行 token，本 repo adapter 會自動帶 token header 呼叫。
+2. 若上游仍回 HTML / 401 / 403，本 repo 的 `/api/bff/employee/home` 會降級回傳可渲染 DTO：
+   - 公告：優先 Portal system announcements，再用 public announcement candidates。
+   - 交接：使用 Portal DB `handover_entries`。
+   - 快速入口 / 文件：使用 Portal DB `quick_links`。
+   - 班表：使用 Smart Schedule adapter，失敗時 section 標 `unavailable`，不讓前端白屏。
 
 ## 2. 前端固定入口
 
