@@ -10,6 +10,8 @@ import { corsMiddleware } from "./app/http/cors";
 import { registerNewArchitectureRoutes } from "./app/http/register-routes";
 import { env } from "./shared/config/env";
 import type { OperationalHandover } from "@shared/schema";
+import { findFacilityLineGroup, findScheduleRegionKey } from "@shared/domain/facilities";
+import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "anomaly-reports");
 
@@ -19,6 +21,91 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"]);
 const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"]);
+
+const readScheduleText = (value: unknown, fallback = "") => (typeof value === "string" && value.trim() ? value.trim() : fallback);
+
+const readScheduleNestedText = (value: unknown, keys: string[], fallback = "") => {
+  if (!value || typeof value !== "object") return fallback;
+  const row = value as Record<string, unknown>;
+  for (const key of keys) {
+    const text = readScheduleText(row[key]);
+    if (text) return text;
+  }
+  return fallback;
+};
+
+const inferShiftLabelFromStart = (startsAt: string) => {
+  const parsed = new Date(startsAt);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const hour = parsed.getHours();
+  if (hour >= 16) return "晚班";
+  if (hour >= 12) return "中班";
+  return "早班";
+};
+
+const resolveOperationalHandoverAssignee = async (input: {
+  facilityKey: string;
+  targetDate: string;
+  targetShiftLabel: string;
+}): Promise<{ assigneeEmployeeNumber: string | null; assigneeName: string | null; scheduleRawId?: string; matchedBy?: string; confidence?: number }> => {
+  if (!env.smartScheduleBaseUrl || !env.smartScheduleApiToken) return { assigneeEmployeeNumber: null, assigneeName: null };
+  const url = new URL("/api/internal/export/snapshot", env.smartScheduleBaseUrl);
+  url.searchParams.set("facilityKey", findScheduleRegionKey(input.facilityKey));
+  url.searchParams.set("from", input.targetDate);
+  url.searchParams.set("to", input.targetDate);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${env.smartScheduleApiToken}`,
+    "X-Internal-Token": env.smartScheduleApiToken,
+    "X-API-Key": env.smartScheduleApiToken,
+  };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), env.externalApiTimeoutMs);
+  try {
+    const response = await fetch(url, { headers, signal: controller.signal });
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok || !contentType.includes("application/json")) return { assigneeEmployeeNumber: null, assigneeName: null };
+    const payload = await response.json() as Record<string, unknown>;
+    const facility = findFacilityLineGroup(input.facilityKey);
+    const rows = Array.isArray(payload.schedules) ? payload.schedules : [];
+    const matched = rows
+      .filter((row): row is Record<string, unknown> => Boolean(row && typeof row === "object"))
+      .find((row) => {
+        const venue = row.venue && typeof row.venue === "object" ? row.venue as Record<string, unknown> : {};
+        const shift = row.shift && typeof row.shift === "object" ? row.shift as Record<string, unknown> : {};
+        const assignment = row.assignment && typeof row.assignment === "object" ? row.assignment as Record<string, unknown> : {};
+        const venueNames = [
+          readScheduleText(venue.name),
+          readScheduleText(venue.shortName),
+          ...((Array.isArray(venue.aliases) ? venue.aliases : []) as unknown[]).map((item) => readScheduleText(item)),
+        ].filter(Boolean);
+        const start = readScheduleText(shift.startAt);
+        const period = readScheduleText(shift.period, inferShiftLabelFromStart(start));
+        const label = `${readScheduleText(shift.label)} ${readScheduleText(shift.name)} ${period}`;
+        const sameFacility = !facility || venueNames.length === 0 || venueNames.some((name) => [facility.shortName, facility.fullName, ...facility.ragicDepartmentAliases].some((alias) => name.includes(alias) || alias.includes(name)));
+        const active = ["", "scheduled", "changed", "completed"].includes(readScheduleText(assignment.status));
+        return active && sameFacility && (
+          label.includes(input.targetShiftLabel) ||
+          (input.targetShiftLabel.includes("早") && period === "early") ||
+          (input.targetShiftLabel.includes("中") && period === "mid") ||
+          (input.targetShiftLabel.includes("晚") && period === "late")
+        );
+      });
+    if (!matched) return { assigneeEmployeeNumber: null, assigneeName: null };
+    const employee = matched.employee && typeof matched.employee === "object" ? matched.employee as Record<string, unknown> : {};
+    return {
+      assigneeEmployeeNumber: readScheduleText(employee.employeeNumber) || null,
+      assigneeName: readScheduleText(employee.name) || null,
+      scheduleRawId: readScheduleText(matched.rawId),
+      matchedBy: "date+facility+period",
+      confidence: 0.9,
+    };
+  } catch {
+    return { assigneeEmployeeNumber: null, assigneeName: null };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -1071,6 +1158,13 @@ export async function registerRoutes(
       const parsed = operationalHandoverCreateBodySchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const resolvedAssignee = parsed.data.assigneeEmployeeNumber || parsed.data.assigneeName
+        ? { assigneeEmployeeNumber: parsed.data.assigneeEmployeeNumber ?? null, assigneeName: parsed.data.assigneeName ?? null }
+        : await resolveOperationalHandoverAssignee({
+          facilityKey: parsed.data.facilityKey,
+          targetDate: parsed.data.targetDate,
+          targetShiftLabel: parsed.data.targetShiftLabel,
+        });
       const created = await storage.createOperationalHandover({
         facilityKey: parsed.data.facilityKey,
         title: parsed.data.title,
@@ -1081,8 +1175,8 @@ export async function registerRoutes(
         targetShiftLabel: parsed.data.targetShiftLabel,
         visibleFrom: toDateOrNull(parsed.data.visibleFrom),
         dueAt: toDateOrNull(parsed.data.dueAt),
-        assigneeEmployeeNumber: parsed.data.assigneeEmployeeNumber ?? null,
-        assigneeName: parsed.data.assigneeName ?? null,
+        assigneeEmployeeNumber: resolvedAssignee.assigneeEmployeeNumber,
+        assigneeName: resolvedAssignee.assigneeName,
         createdByEmployeeNumber: caller.employeeNumber,
         createdByName: caller.name,
         linkedActionType: parsed.data.linkedActionType ?? null,
@@ -1095,7 +1189,14 @@ export async function registerRoutes(
         eventType: "handover_create",
         target: String(created.id),
         targetLabel: created.title,
-        metadata: JSON.stringify({ targetDate: created.targetDate, targetShiftLabel: created.targetShiftLabel }),
+        metadata: JSON.stringify({
+          targetDate: created.targetDate,
+          targetShiftLabel: created.targetShiftLabel,
+          autoAssigned: Boolean(resolvedAssignee.assigneeEmployeeNumber || resolvedAssignee.assigneeName),
+          scheduleRawId: resolvedAssignee.scheduleRawId,
+          matchedBy: resolvedAssignee.matchedBy,
+          confidence: resolvedAssignee.confidence,
+        }),
       });
       res.status(201).json(mapOperationalHandoverForResponse(created));
     } catch (err) {
@@ -1176,6 +1277,69 @@ export async function registerRoutes(
     }
   });
 
+  // -------- Portal: Widget Layout Settings --------
+  app.get("/api/portal/layout-settings", requireEmployee(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
+      const role = String(req.query.role || "employee");
+      const layoutKey = String(req.query.layoutKey || "employee-home");
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const setting = await storage.getWidgetLayout({ facilityKey, role, layoutKey });
+      res.json({
+        facilityKey,
+        role,
+        layoutKey,
+        widgets: normalizeWidgetLayout(setting?.widgets, defaultEmployeeHomeWidgets),
+        updatedAt: setting?.updatedAt ?? null,
+      });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "版面設定查詢失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.patch("/api/portal/layout-settings", requireSupervisor(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const bodySchema = z.object({
+        facilityKey: z.string().min(1),
+        role: z.enum(["employee", "supervisor", "system"]).default("employee"),
+        layoutKey: z.string().min(1).default("employee-home"),
+        widgets: z.array(z.object({
+          key: z.string().min(1),
+          label: z.string().min(1),
+          area: z.string().min(1),
+          enabled: z.boolean(),
+          size: z.enum(["wide", "card"]),
+          sortOrder: z.number().int(),
+        })),
+      });
+      const parsed = bodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const saved = await storage.upsertWidgetLayout({
+        ...parsed.data,
+        widgets: normalizeWidgetLayout(parsed.data.widgets, defaultEmployeeHomeWidgets),
+        updatedByEmployeeNumber: caller.employeeNumber,
+        updatedByName: caller.name,
+      });
+      await storage.recordPortalEvent({
+        employeeNumber: caller.employeeNumber,
+        employeeName: caller.name,
+        facilityKey: parsed.data.facilityKey,
+        eventType: "layout_update",
+        target: parsed.data.layoutKey,
+        targetLabel: `${parsed.data.role}:${parsed.data.layoutKey}`,
+        metadata: JSON.stringify({ widgetCount: parsed.data.widgets.length }),
+      });
+      res.json(saved);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "版面設定儲存失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
   // -------- Portal: Quick Links (主管維護) --------
   app.get("/api/portal/quick-links", async (req, res) => {
     try {
@@ -1226,6 +1390,93 @@ export async function registerRoutes(
       res.json({ ok: true });
     } catch (err) {
       const m = err instanceof Error ? err.message : "刪除失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  // -------- Portal: Employee Resources (員工自建活動 / 文件 / 便利貼) --------
+  app.get("/api/portal/employee-resources", requireEmployee(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
+      const category = req.query.category ? String(req.query.category) : undefined;
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const items = await storage.listEmployeeResources({ facilityKey, category, limit: req.query.limit ? Number(req.query.limit) : 100 });
+      res.json({ items });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "員工資源查詢失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.post("/api/portal/employee-resources", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const { insertEmployeeResourceSchema } = await import("@shared/schema");
+      const parsed = insertEmployeeResourceSchema.safeParse({
+        ...req.body,
+        createdByEmployeeNumber: caller.employeeNumber,
+        createdByName: caller.name,
+      });
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const created = await storage.createEmployeeResource(parsed.data);
+      await storage.recordPortalEvent({
+        employeeNumber: caller.employeeNumber,
+        employeeName: caller.name,
+        facilityKey: parsed.data.facilityKey,
+        eventType: "resource_create",
+        target: String(created.id),
+        targetLabel: `${created.category}:${created.title}`,
+        metadata: JSON.stringify({ category: created.category }),
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "員工資源建立失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.patch("/api/portal/employee-resources/:id", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = (await storage.listEmployeeResources({ limit: 300 })).find((item) => item.id === id);
+      if (!existing) return res.status(404).json({ message: "找不到員工資源" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const canEdit = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      if (!canEdit) return res.status(403).json({ message: "只能編輯自己建立的資料" });
+      const patchSchema = z.object({
+        title: z.string().min(1).max(120).optional(),
+        content: z.string().max(1000).nullable().optional(),
+        url: z.string().url().nullable().optional(),
+        isPinned: z.boolean().optional(),
+      });
+      const parsed = patchSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      const updated = await storage.updateEmployeeResource(id, parsed.data);
+      res.json(updated);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "員工資源更新失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.delete("/api/portal/employee-resources/:id", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = (await storage.listEmployeeResources({ limit: 300 })).find((item) => item.id === id);
+      if (!existing) return res.status(404).json({ message: "找不到員工資源" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const canDelete = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      if (!canDelete) return res.status(403).json({ message: "只能刪除自己建立的資料" });
+      const ok = await storage.deleteEmployeeResource(id);
+      res.json({ ok });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "員工資源刪除失敗";
       res.status(500).json({ message: m });
     }
   });

@@ -1,4 +1,5 @@
 import type { BffSection } from "../bff/envelope";
+import type { WorkbenchWidgetLayoutItem } from "./layout";
 
 export interface FacilitySummary {
   key: string;
@@ -68,19 +69,34 @@ export interface ShiftSummary {
 
 export interface CampaignSummary {
   id: string;
+  resourceId?: number;
   title: string;
   statusLabel: string;
   effectiveRange: string;
+  linkUrl?: string;
 }
 
 export interface DocumentSummary {
   id: string;
+  resourceId?: number;
   title: string;
   updatedAt: string;
+  url?: string;
+  description?: string;
+}
+
+export interface StickyNoteSummary {
+  id: string;
+  resourceId?: number;
+  title: string;
+  content: string;
+  authorName?: string | null;
+  createdAt: string;
 }
 
 export interface EmployeeHomeDto {
   facility: FacilitySummary;
+  layout?: BffSection<WorkbenchWidgetLayoutItem[]>;
   weather: BffSection<WeatherSummary>;
   tasks: BffSection<TaskSummary[]>;
   announcements: BffSection<AnnouncementSummary[]>;
@@ -89,6 +105,7 @@ export interface EmployeeHomeDto {
   shifts: BffSection<ShiftSummary[]>;
   campaigns: BffSection<CampaignSummary[]>;
   documents: BffSection<DocumentSummary[]>;
+  stickyNotes: BffSection<StickyNoteSummary[]>;
 }
 
 export interface SupervisorStaffingSummary {

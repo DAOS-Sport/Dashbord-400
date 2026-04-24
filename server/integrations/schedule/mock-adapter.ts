@@ -2,6 +2,26 @@ import type { ScheduleAdapter } from "./adapter";
 import { sourceOk } from "../../shared/integrations/source-status";
 
 export const mockScheduleAdapter: ScheduleAdapter = {
+  async getScheduleSnapshot(input) {
+    return sourceOk("mock-schedule", {
+      range: { from: input.from, to: input.to },
+      venues: [],
+      shifts: [],
+      employees: [],
+      schedules: [],
+      changes: [],
+      generatedAt: new Date().toISOString(),
+    });
+  },
+
+  async listRangeShifts(input) {
+    return this.listTodayShifts(input.facilityKey);
+  },
+
+  async resolveHandoverAssignee() {
+    return sourceOk("mock-schedule", null);
+  },
+
   async listTodayShifts(facilityKey) {
     return sourceOk("mock-schedule", [
       {

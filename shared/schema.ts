@@ -204,6 +204,35 @@ export const insertQuickLinkSchema = createInsertSchema(quickLinks).omit({
 export type InsertQuickLink = z.infer<typeof insertQuickLinkSchema>;
 export type QuickLink = typeof quickLinks.$inferSelect;
 
+export const employeeResources = pgTable("employee_resources", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  content: text("content"),
+  url: text("url"),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  createdByEmployeeNumber: text("created_by_employee_number"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertEmployeeResourceSchema = createInsertSchema(employeeResources).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  category: z.enum(["event", "document", "sticky_note"]),
+  title: z.string().min(1, "標題不可為空").max(120, "標題過長"),
+  content: z.string().max(1000, "內容過長").optional().nullable(),
+  url: z.string().url("網址格式不正確").optional().nullable(),
+});
+
+export type InsertEmployeeResource = z.infer<typeof insertEmployeeResourceSchema>;
+export type EmployeeResource = typeof employeeResources.$inferSelect;
+
 export const systemAnnouncements = pgTable("system_announcements", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -244,11 +273,76 @@ export const insertPortalEventSchema = createInsertSchema(portalEvents).omit({
   id: true,
   createdAt: true,
 }).extend({
-  eventType: z.enum(["pageview", "link_click", "announcement_open", "handover_create", "handover_report", "handover_claim", "layout_update"]),
+  eventType: z.enum(["pageview", "link_click", "announcement_open", "handover_create", "handover_report", "handover_claim", "layout_update", "widget_click", "search", "resource_create"]),
 });
 
 export type InsertPortalEvent = z.infer<typeof insertPortalEventSchema>;
 export type PortalEvent = typeof portalEvents.$inferSelect;
+
+export const widgetLayoutSettings = pgTable("widget_layout_settings", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  role: text("role").notNull(),
+  layoutKey: text("layout_key").default("employee-home").notNull(),
+  widgets: jsonb("widgets").$type<Array<{
+    key: string;
+    label: string;
+    area: string;
+    enabled: boolean;
+    size: "wide" | "card";
+    sortOrder: number;
+  }>>().notNull(),
+  updatedByEmployeeNumber: text("updated_by_employee_number"),
+  updatedByName: text("updated_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertWidgetLayoutSettingSchema = createInsertSchema(widgetLayoutSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  role: z.enum(["employee", "supervisor", "system"]),
+  layoutKey: z.string().min(1),
+  widgets: z.array(z.object({
+    key: z.string().min(1),
+    label: z.string().min(1),
+    area: z.string().min(1),
+    enabled: z.boolean(),
+    size: z.enum(["wide", "card"]),
+    sortOrder: z.number().int(),
+  })),
+});
+
+export type InsertWidgetLayoutSetting = z.infer<typeof insertWidgetLayoutSettingSchema>;
+export type WidgetLayoutSetting = typeof widgetLayoutSettings.$inferSelect;
+
+export const watchdogEvents = pgTable("watchdog_events", {
+  id: serial("id").primaryKey(),
+  source: text("source").notNull(),
+  serviceName: text("service_name").notNull(),
+  status: text("status").notNull(),
+  severity: text("severity").default("info").notNull(),
+  message: text("message"),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  observedAt: timestamp("observed_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWatchdogEventSchema = createInsertSchema(watchdogEvents).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  source: z.string().min(1),
+  serviceName: z.string().min(1),
+  status: z.enum(["ok", "degraded", "down", "unknown"]),
+  severity: z.enum(["info", "warning", "critical"]).default("info"),
+});
+
+export type InsertWatchdogEvent = z.infer<typeof insertWatchdogEventSchema>;
+export type WatchdogEvent = typeof watchdogEvents.$inferSelect;
 
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),

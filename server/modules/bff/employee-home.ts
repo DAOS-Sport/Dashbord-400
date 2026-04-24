@@ -62,6 +62,7 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
     { id: "doc-2", title: "緊急應變流程", updatedAt: "2026/03/15" },
     { id: "doc-3", title: "設備檢修記錄表", updatedAt: "2026/04/01" },
   ], syncTime),
+  stickyNotes: ok([], syncTime),
 });
 
 export const getSupervisorDashboardMock = (): SupervisorDashboardDto => ({

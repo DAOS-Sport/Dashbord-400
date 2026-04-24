@@ -66,7 +66,7 @@ export default function SystemRawInspectorPage() {
         <WorkbenchCard className="p-4">
           <div className="flex items-start gap-3">
             <Search className="mt-0.5 h-5 w-5 shrink-0 text-[#ef7d22]" />
-            <p className="text-[12px] font-bold leading-5 text-[#637185]">下一階段可把每次查詢寫入 audit log；目前已先完成白名單與前後端切割，避免任意 URL 直連。</p>
+            <p className="text-[12px] font-bold leading-5 text-[#637185]">每次查詢會寫入 telemetry 事件，供系統端追蹤 Raw Inspector 使用情況。</p>
           </div>
         </WorkbenchCard>
       </div>

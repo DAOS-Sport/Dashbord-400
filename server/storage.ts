@@ -5,10 +5,14 @@ import {
   type HandoverEntry, type InsertHandoverEntry,
   type OperationalHandover, type InsertOperationalHandover,
   type QuickLink, type InsertQuickLink,
+  type EmployeeResource, type InsertEmployeeResource,
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type PortalEvent, type InsertPortalEvent,
+  type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
+  type WatchdogEvent, type InsertWatchdogEvent,
   users, anomalyReports, notificationRecipients,
-  handoverEntries, operationalHandovers, quickLinks, systemAnnouncements, portalEvents,
+  handoverEntries, operationalHandovers, quickLinks, employeeResources, systemAnnouncements, portalEvents,
+  widgetLayoutSettings, watchdogEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
@@ -57,6 +61,12 @@ export interface IStorage {
   updateQuickLink(id: number, data: Partial<InsertQuickLink>): Promise<QuickLink | undefined>;
   deleteQuickLink(id: number): Promise<boolean>;
 
+  // Employee resources (員工自建入口 / 便利貼)
+  listEmployeeResources(opts: { facilityKey?: string; category?: string; limit?: number }): Promise<EmployeeResource[]>;
+  createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource>;
+  updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined>;
+  deleteEmployeeResource(id: number): Promise<boolean>;
+
   // SystemAnnouncements (主管維護)
   listSystemAnnouncements(facilityKey?: string, includeInactive?: boolean): Promise<SystemAnnouncement[]>;
   createSystemAnnouncement(ann: InsertSystemAnnouncement): Promise<SystemAnnouncement>;
@@ -65,6 +75,10 @@ export interface IStorage {
 
   // Portal Events (analytics)
   recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent>;
+  getWidgetLayout(opts: { facilityKey: string; role: string; layoutKey: string }): Promise<WidgetLayoutSetting | undefined>;
+  upsertWidgetLayout(layout: InsertWidgetLayoutSetting): Promise<WidgetLayoutSetting>;
+  createWatchdogEvent(event: InsertWatchdogEvent): Promise<WatchdogEvent>;
+  listWatchdogEvents(limit?: number): Promise<WatchdogEvent[]>;
   getEventStats(opts: { sinceDays?: number; facilityKey?: string }): Promise<{
     totalEvents: number;
     byType: Array<{ eventType: string; count: number }>;
@@ -239,6 +253,34 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async listEmployeeResources(opts: { facilityKey?: string; category?: string; limit?: number }): Promise<EmployeeResource[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(employeeResources.facilityKey, opts.facilityKey));
+    if (opts.category) conditions.push(eq(employeeResources.category, opts.category));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = where ? db.select().from(employeeResources).where(where) : db.select().from(employeeResources);
+    return query.orderBy(desc(employeeResources.isPinned), desc(employeeResources.createdAt)).limit(Math.min(opts.limit ?? 100, 200));
+  }
+
+  async createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource> {
+    const [created] = await db.insert(employeeResources).values(resource).returning();
+    return created;
+  }
+
+  async updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined> {
+    const [updated] = await db
+      .update(employeeResources)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(employeeResources.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmployeeResource(id: number): Promise<boolean> {
+    const result = await db.delete(employeeResources).where(eq(employeeResources.id, id)).returning();
+    return result.length > 0;
+  }
+
   async listSystemAnnouncements(facilityKey?: string, includeInactive = false): Promise<SystemAnnouncement[]> {
     const conditions = [];
     if (!includeInactive) conditions.push(eq(systemAnnouncements.isActive, true));
@@ -268,6 +310,47 @@ export class DatabaseStorage implements IStorage {
   async recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent> {
     const [created] = await db.insert(portalEvents).values(event).returning();
     return created;
+  }
+
+  async getWidgetLayout(opts: { facilityKey: string; role: string; layoutKey: string }): Promise<WidgetLayoutSetting | undefined> {
+    const [row] = await db
+      .select()
+      .from(widgetLayoutSettings)
+      .where(and(
+        eq(widgetLayoutSettings.facilityKey, opts.facilityKey),
+        eq(widgetLayoutSettings.role, opts.role),
+        eq(widgetLayoutSettings.layoutKey, opts.layoutKey),
+      ))
+      .orderBy(desc(widgetLayoutSettings.updatedAt))
+      .limit(1);
+    return row;
+  }
+
+  async upsertWidgetLayout(layout: InsertWidgetLayoutSetting): Promise<WidgetLayoutSetting> {
+    const existing = await this.getWidgetLayout({
+      facilityKey: layout.facilityKey,
+      role: layout.role,
+      layoutKey: layout.layoutKey,
+    });
+    if (existing) {
+      const [updated] = await db
+        .update(widgetLayoutSettings)
+        .set({ ...layout, updatedAt: new Date() })
+        .where(eq(widgetLayoutSettings.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(widgetLayoutSettings).values(layout).returning();
+    return created;
+  }
+
+  async createWatchdogEvent(event: InsertWatchdogEvent): Promise<WatchdogEvent> {
+    const [created] = await db.insert(watchdogEvents).values(event).returning();
+    return created;
+  }
+
+  async listWatchdogEvents(limit = 50): Promise<WatchdogEvent[]> {
+    return db.select().from(watchdogEvents).orderBy(desc(watchdogEvents.observedAt)).limit(Math.min(limit, 200));
   }
 
   async getEventStats(opts: { sinceDays?: number; facilityKey?: string }): Promise<{

@@ -1,0 +1,211 @@
+你現在是 400qian-duan-yi-biao-ban 工作台專案的 Senior Fullstack Engineer。
+
+請直接修改本專案，不要只提出設計。目標是把班表系統剛開好的 Internal Export API 接進工作台 BFF，並取代目前只吃 /api/internal/schedules/today 的簡化邏輯。
+
+# 一、目前班表系統已提供
+
+BASE:
+SMART_SCHEDULE_BASE_URL=https://smart-schedule-manager.replit.app
+
+TOKEN:
+SMART_SCHEDULE_API_TOKEN=0935314711
+也可用 INTERNAL_API_TOKEN=0935314711 fallback。
+
+Header 三選一都可：
+Authorization: Bearer <TOKEN>
+X-Internal-Token: <TOKEN>
+X-API-Key: <TOKEN>
+
+新增 API：
+GET /api/internal/export/schedules
+GET /api/internal/export/employees
+GET /api/internal/export/venues
+GET /api/internal/export/shifts
+GET /api/internal/export/changes
+GET /api/internal/export/snapshot
+
+優先使用：
+GET /api/internal/export/snapshot?from=YYYY-MM-DD&to=YYYY-MM-DD&facilityKey=A
+
+# 二、工作台必做目標
+
+請把 `server/integrations/schedule/real-adapter.ts` 升級成優先吃 export snapshot。
+
+資料流必須維持：
+
+Frontend
+↓
+BFF / Portal API
+↓
+Schedule Adapter
+↓
+Smart Schedule Internal Export API
+
+嚴禁前端直接打 Smart Schedule。
+
+# 三、實作要求
+
+1. 新增或擴充 Schedule Adapter 型別
+
+目前應該有 listTodayShifts(facilityKey)。
+
+請新增：
+- getScheduleSnapshot(input)
+- listRangeShifts(input)
+- resolveHandoverAssignee(input)
+
+建議型別：
+
+type ScheduleSnapshot = {
+  range: { from: string; to: string };
+  venues: ExportVenue[];
+  shifts: ExportShift[];
+  employees: ExportEmployee[];
+  schedules: ExportSchedule[];
+  changes: ExportChange[];
+  counts?: Record<string, number>;
+  generatedAt: string;
+};
+
+2. Adapter 優先吃 snapshot
+
+呼叫：
+/api/internal/export/snapshot?from=<today>&to=<today+7days>&facilityKey=<regionKey>
+
+facilityKey 對應：
+- 工作台 facilityKey = xinbei_pool / salu_counter / songshan_pool / sanmin_pool
+- 班表 API facilityKey 目前可先用 region A
+- 實際場館要用 snapshot.venues aliases/name/key 再由 BFF 自行映射
+
+3. 館別映射
+
+請使用既有：
+shared/domain/facilities.ts
+
+映射規則：
+- schedule venue.name / shortName / aliases
+- 對照 facilityLineGroups.ragicDepartmentAliases / fullName / shortName
+- 命中後轉成工作台 facilityKey
+
+不要把班表系統的 venue.key 直接當工作台 facilityKey。
+
+4. 班別判斷
+
+優先使用 export schedule.shift.period：
+early | mid | late | custom
+
+若 period=custom 或資料異常，再 fallback：
+- startAt hour < 12 => early
+- 12 <= hour < 16 => mid
+- hour >= 16 => late
+
+但 UI 顯示仍用：
+早班 / 中班 / 晚班
+
+5. 員工端今日班表
+
+員工端 `/api/bff/employee/home` 的 shifts 必須改為：
+
+- 如果使用者 activeFacility = xinbei_pool，只顯示新北高中相關 venue 的今日所有當班人員
+- 如果 activeFacility 是三蘆區其他館，只顯示該館別今日當班
+- 若使用者有多館權限，仍依目前 activeFacility 切換
+- 顯示格式維持簡潔：
+  場館 => 早班 / 人名，晚班 / 人名
+- 排除休假、取消、deleted、非 scheduled 的資料
+- dispatch/support/substitute 可以保留，但要標記 kind
+
+6. 主管端 staffing
+
+主管端 `/api/bff/supervisor/dashboard` staffing 要使用：
+- Ragic active employees：現職人員基礎
+- schedule snapshot schedules：當班 / 下個當班
+- snapshot employees：輔助比對 employeeNumber/name
+
+主管端要能看到：
+- 所有授權區域現職
+- 目前當班人員
+- 下一個當班人員
+- byFacility 統計
+
+7. 交班自動配對
+
+目前 `/api/portal/operational-handovers` 建立交班時有簡易配對。
+
+請改成使用 export snapshot：
+
+配對條件：
+- targetDate
+- facilityKey 對應 venue
+- targetShiftLabel 對應 period 或 shift.label/name
+- 若有 dueAt / visibleFrom，也用 startAt/endAt 做更精準匹配
+
+配對結果：
+- assigneeEmployeeNumber
+- assigneeName
+- metadata 記錄：
+  {
+    "autoAssigned": true,
+    "scheduleRawId": "...",
+    "matchedBy": "date+facility+period",
+    "confidence": 0.9
+  }
+
+若找不到：
+- 不要報錯
+- assignee 保持 null
+- metadata 記錄 autoAssigned false 與原因
+
+8. BFF 降級策略
+
+如果 export snapshot 掛掉：
+- fallback 到既有 /api/internal/schedules/today
+- 再不行才回 unavailable section
+- 前端不可白屏
+
+9. Raw Inspector
+
+請把以下 endpoint 加入 System Raw Inspector 白名單：
+- /api/bff/system/integration-overview
+- /api/bff/supervisor/dashboard
+- /api/bff/employee/home
+- /api/admin/overview
+- /api/internal export 不要讓前端直接打外部 URL，但可以新增本機 BFF debug route，如：
+  GET /api/bff/system/schedule-snapshot?facilityKey=xinbei_pool&from=YYYY-MM-DD&to=YYYY-MM-DD
+
+10. 文件更新
+
+請更新：
+docs/replit-workbench-connection-update.md
+
+補上：
+- schedule export snapshot 已接入
+- env
+- adapter fallback
+- BFF route 對應
+- Replit pull 後需 npm run db:push
+
+# 四、驗收標準
+
+請完成後跑：
+
+1. TypeScript check
+2. Production build
+3. Smoke test:
+   - GET /api/bff/employee/home
+   - GET /api/bff/supervisor/dashboard
+   - POST /api/portal/operational-handovers 建立一筆今日交班，確認會自動配對 assignee 或寫入 autoAssigned false metadata
+   - GET /api/bff/employee/search?q=班表
+
+4. 請確認：
+   - 前端沒有直接呼叫 smart-schedule-manager.replit.app
+   - 所有外部呼叫都在 server adapter 內
+   - 失敗時 BFF 回 section unavailable/degraded，不白屏
+
+# 五、最後輸出
+
+請輸出：
+1. 修改檔案清單
+2. 實際接到的班表 export endpoint
+3. BFF 資料流說明
+4. smoke test 結果
+5. 還沒完成或仍需人工確認的模組

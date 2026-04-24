@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -49,6 +50,7 @@ import { useAuthMe } from "@/shared/auth/session";
 import { roleHomePath } from "@shared/auth/me";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
+import { apiPost } from "@/shared/api/client";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "營運戰情總覽",
@@ -272,6 +274,33 @@ function WorkbenchAuthGate() {
   return <WorkbenchRouter />;
 }
 
+function WidgetTelemetryCapture() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const clickable = target?.closest<HTMLElement>("[data-widget-id], a, button");
+      if (!clickable) return;
+      const componentId = clickable.dataset.widgetId || clickable.getAttribute("href") || clickable.getAttribute("aria-label") || clickable.textContent?.trim().slice(0, 40);
+      if (!componentId) return;
+      apiPost("/api/telemetry/ui-events", {
+        eventType: "CARD_CLICK",
+        page: location,
+        componentId,
+        actionType: "click",
+        payload: { tagName: clickable.tagName.toLowerCase() },
+        occurredAt: new Date().toISOString(),
+      }).catch(() => undefined);
+    };
+
+    document.addEventListener("click", onClick, { capture: true });
+    return () => document.removeEventListener("click", onClick, { capture: true });
+  }, [location]);
+
+  return null;
+}
+
 const sidebarStyle = {
   "--sidebar-width": "16rem",
   "--sidebar-width-icon": "3rem",
@@ -301,6 +330,7 @@ function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          {isWorkbench ? <WidgetTelemetryCapture /> : null}
           {isLogin ? <LoginRedirector /> : isWorkbench ? <WorkbenchAuthGate /> : <PortalRouter />}
           <Toaster />
         </TooltipProvider>

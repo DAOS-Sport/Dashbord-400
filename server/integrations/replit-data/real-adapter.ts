@@ -121,6 +121,7 @@ const normalizeFacilityHome = (facilityKey: string, raw: unknown): EmployeeHomeD
     shifts: { status: "ok", data: shifts, meta: { lastSyncAt: new Date().toISOString() } },
     campaigns: { status: "ok", data: campaigns, meta: { lastSyncAt: new Date().toISOString() } },
     documents: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
+    stickyNotes: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
   };
 };
 

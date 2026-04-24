@@ -1,6 +1,28 @@
 import type { EmployeeHomeDto } from "@shared/domain/workbench";
-import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { HandoverEntryDTO, QuickLinkDTO } from "@/types/portal";
+
+export interface EmployeeSearchResultDTO {
+  id: string;
+  type: "announcement" | "handover" | "task" | "shift" | "shortcut" | "document" | "campaign";
+  title: string;
+  summary: string;
+  href: string;
+}
+
+export interface EmployeeResourceDTO {
+  id: number;
+  facilityKey: string;
+  category: "event" | "document" | "sticky_note";
+  title: string;
+  content: string | null;
+  url: string | null;
+  isPinned: boolean;
+  createdByEmployeeNumber: string | null;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface OperationalHandoverDTO {
   id: number;
@@ -31,11 +53,35 @@ export interface OperationalHandoverDTO {
 
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
 
+export const searchEmployeeWorkbench = (query: string, facilityKey?: string) => {
+  const params = new URLSearchParams({ q: query });
+  if (facilityKey) params.set("facilityKey", facilityKey);
+  return apiGet<{ query: string; items: EmployeeSearchResultDTO[] }>(`/api/bff/employee/search?${params.toString()}`);
+};
+
 export const fetchEmployeeHandovers = (facilityKey: string) =>
   apiGet<{ items: HandoverEntryDTO[] }>(`/api/portal/handovers?facilityKey=${encodeURIComponent(facilityKey)}&limit=50`);
 
 export const createEmployeeHandover = (facilityKey: string, content: string) =>
   apiPost<HandoverEntryDTO>("/api/portal/handovers", { facilityKey, content, shiftLabel: "員工工作台" });
+
+export const createEmployeeResource = (input: {
+  facilityKey: string;
+  category: "event" | "document" | "sticky_note";
+  title: string;
+  content?: string;
+  url?: string;
+  isPinned?: boolean;
+}) => apiPost<EmployeeResourceDTO>("/api/portal/employee-resources", input);
+
+export const updateEmployeeResource = (id: number, input: Partial<{
+  title: string;
+  content: string | null;
+  url: string | null;
+  isPinned: boolean;
+}>) => apiPatch<EmployeeResourceDTO>(`/api/portal/employee-resources/${id}`, input);
+
+export const deleteEmployeeResource = (id: number) => apiDelete<{ ok: boolean }>(`/api/portal/employee-resources/${id}`);
 
 export const fetchEmployeeQuickLinks = (facilityKey: string) =>
   apiGet<{ items: QuickLinkDTO[] }>(`/api/portal/quick-links?facilityKey=${encodeURIComponent(facilityKey)}`);

@@ -16,7 +16,6 @@ export const registerAuthRoutes = (app: Express, container: AppContainer) => {
   app.post("/api/auth/login", async (req, res) => {
     const username = String(req.body?.username || req.body?.employeeNumber || "employee");
     const password = String(req.body?.password || "mock");
-
     const adapter =
       username === "1111" && password === "1111"
         ? mockRagicAuthAdapter

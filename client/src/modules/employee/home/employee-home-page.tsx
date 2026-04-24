@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   Bell,
@@ -16,6 +17,7 @@ import {
   Menu,
   MessageSquareText,
   MoreHorizontal,
+  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -25,15 +27,28 @@ import {
 } from "lucide-react";
 import type {
   AnnouncementSummary,
+  CampaignSummary,
+  DocumentSummary,
   EmployeeHomeDto,
+  HandoverSummary,
+  ShiftSummary,
   ShortcutSummary,
+  StickyNoteSummary,
   TaskSummary,
 } from "@shared/domain/workbench";
+import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 import { Link, useLocation } from "wouter";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { riseIn, staggerContainer } from "@/shared/motion/tokens";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
-import { fetchEmployeeHome } from "./api";
+import {
+  createEmployeeResource,
+  deleteEmployeeResource,
+  fetchEmployeeHome,
+  searchEmployeeWorkbench,
+  updateEmployeeResource,
+  type EmployeeSearchResultDTO,
+} from "./api";
 import { cn } from "@/lib/utils";
 import { facilityConfigs } from "@/config/facility-configs";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
@@ -67,6 +82,45 @@ const toneClass: Record<ShortcutSummary["tone"], string> = {
   violet: "bg-[#f2efff] text-[#6947d8]",
   rose: "bg-[#fff0f1] text-[#db4b5a]",
   cyan: "bg-[#ecfbff] text-[#1487a8]",
+};
+
+const formatShiftTime = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+};
+
+const shiftPeriodLabel = (shift: ShiftSummary) => {
+  if (shift.startsAt) {
+    const parsed = new Date(shift.startsAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      const hour = parsed.getHours();
+      if (hour >= 16) return "晚班";
+      if (hour >= 12) return "中班";
+      return "早班";
+    }
+  }
+  const label = `${shift.label} ${shift.startsAt ?? ""}`;
+  if (/晚|16:|17:|18:|19:|20:|21:|22:/.test(label)) return "晚班";
+  if (/中|12:|13:|14:|15:/.test(label)) return "中班";
+  return "早班";
+};
+
+const buildShiftRows = (shifts: ShiftSummary[] = []) => {
+  const groups = new Map<string, { facilityName: string; early: string[]; mid: string[]; late: string[]; timeRange: string }>();
+  shifts.forEach((shift) => {
+    const facilityName = shift.venueName || "本館";
+    const current = groups.get(facilityName) ?? { facilityName, early: [], mid: [], late: [], timeRange: "" };
+    const period = shiftPeriodLabel(shift);
+    const name = shift.employeeName || shift.label.split("/")[0]?.trim() || "未命名";
+    if (period === "晚班") current.late.push(name);
+    else if (period === "中班") current.mid.push(name);
+    else current.early.push(name);
+    if (!current.timeRange) current.timeRange = shift.startsAt && shift.endsAt ? `${formatShiftTime(shift.startsAt)} - ${formatShiftTime(shift.endsAt)}` : shift.timeRange;
+    groups.set(facilityName, current);
+  });
+  return Array.from(groups.values());
 };
 
 function SectionTitle({
@@ -173,19 +227,15 @@ function TopBar() {
           </button>
           <p className="text-[15px] font-black">駿斯 Kinetic Ops</p>
         </div>
-        <nav className="hidden items-center gap-8 lg:flex">
-          {["DASHBOARD", "ACTIVITY", "DIRECTORY"].map((label, index) => (
-            <button
-              key={label}
-              className={cn(
-                "h-16 border-b-2 px-2 text-[11px] font-black tracking-[0.08em]",
-                index === 0 ? "border-[#79d146] text-[#79d146]" : "border-transparent text-[#536175]",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        <div className="hidden min-w-0 items-center gap-3 lg:flex">
+          <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff] text-[#1f6fd1]">
+            <Home className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-black text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? "新北高中游泳池&運動中心"}</p>
+            <p className="text-[11px] font-bold text-[#79b943]">DASHBOARD</p>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <div className="hidden lg:block">
             <RoleSwitcher />
@@ -202,9 +252,6 @@ function TopBar() {
               ))}
             </select>
           ) : null}
-          <button aria-label="搜尋" className="workbench-focus hidden h-10 w-10 place-items-center rounded-full bg-[#f0f4f8] text-[#10233f] lg:grid">
-            <Search className="h-4 w-4" />
-          </button>
           <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 lg:bg-[#f0f4f8] lg:text-[#10233f]">
             <Bell className="h-4 w-4" />
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#ff4964]" />
@@ -219,14 +266,57 @@ function TopBar() {
   );
 }
 
-function Hero({ home }: { home: EmployeeHomeDto }) {
+const searchTypeLabel: Record<EmployeeSearchResultDTO["type"], string> = {
+  announcement: "公告",
+  handover: "交接",
+  task: "交班",
+  shift: "班表",
+  shortcut: "入口",
+  document: "文件",
+  campaign: "活動",
+};
+
+function Hero({
+  home,
+  searchQuery,
+  onSearchQueryChange,
+  searchResults,
+  isSearching,
+}: {
+  home: EmployeeHomeDto;
+  searchQuery: string;
+  onSearchQueryChange: (value: string) => void;
+  searchResults: EmployeeSearchResultDTO[];
+  isSearching: boolean;
+}) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_180px] lg:items-center">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#007166]">Duty Dashboard</p>
-        <h1 className="mt-2 max-w-[820px] text-[28px] font-black leading-tight text-[#10233f] sm:text-[34px] lg:text-[40px]">
-          {home.facility.name}
-        </h1>
+        <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#007166]">Quick Search</p>
+        <label className="mt-2 flex min-h-14 max-w-[820px] items-center gap-3 rounded-[8px] border border-[#dfe7ef] bg-white px-4 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.45)]">
+          <Search className="h-5 w-5 shrink-0 text-[#2f6fe8]" />
+          <input
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            className="min-w-0 flex-1 bg-transparent text-[16px] font-bold text-[#10233f] outline-none placeholder:text-[#8b9aae]"
+            placeholder="搜尋公告、交接、班表、入口、常見問題"
+          />
+        </label>
+        {searchQuery.trim().length >= 2 ? (
+          <div className="mt-2 max-w-[820px] rounded-[8px] border border-[#dfe7ef] bg-white p-2 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.45)]">
+            {isSearching ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">搜尋中...</div> : null}
+            {!isSearching && searchResults.length === 0 ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">沒有找到符合的資訊。</div> : null}
+            {searchResults.map((item) => (
+              <Link key={item.id} href={item.href} className="flex min-h-11 items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-[#f7f9fb]">
+                <span className="shrink-0 rounded-[6px] bg-[#eef5ff] px-2 py-1 text-[11px] font-black text-[#1f6fd1]">{searchTypeLabel[item.type]}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-black text-[#10233f]">{item.title}</span>
+                  <span className="block truncate text-[11px] font-bold text-[#8b9aae]">{item.summary}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : null}
         <p className="mt-3 flex items-center gap-2 text-[13px] font-medium text-[#637185]">
           <CalendarDays className="h-4 w-4 text-[#007166]" />
           {home.facility.businessDate}
@@ -246,45 +336,50 @@ function Hero({ home }: { home: EmployeeHomeDto }) {
   );
 }
 
-function HandoverCard({ count }: { count: number }) {
+function HandoverCard({ handovers, tasks }: { handovers: HandoverSummary[]; tasks: TaskSummary[] }) {
+  const total = handovers.length + tasks.length;
   return (
     <WorkbenchCard className="p-5">
       <SectionTitle title="交接事項" eyebrow="Handover" />
-      <div className="flex min-h-[170px] flex-col items-center justify-center rounded-[8px] bg-[#f7f9fb] px-4 text-center">
-        <div className="grid h-14 w-14 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
-          <MessageSquareText className="h-7 w-7" />
+      {total > 0 ? (
+        <div className="space-y-3">
+          {tasks.slice(0, 3).map((task) => (
+            <Link key={`task-${task.id}`} href="/employee/tasks" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
+              <p className="truncate text-[13px] font-black text-[#10233f]">{task.title}</p>
+              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{task.dueLabel ?? "今日交班"} · {task.status}</p>
+            </Link>
+          ))}
+          {handovers.slice(0, Math.max(0, 4 - tasks.length)).map((item) => (
+            <Link key={`handover-${item.id}`} href="/employee/handover" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
+              <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
+              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{item.authorName} · {item.dueLabel ?? item.status}</p>
+            </Link>
+          ))}
         </div>
-        <p className="mt-4 text-[16px] font-black text-[#10233f]">{count > 0 ? `${count} 則待確認交接` : "尚未設定交接事項"}</p>
-        <p className="mt-1 text-[12px] font-medium text-[#637185]">請聯絡 當班人員</p>
-        <button className="mt-5 min-h-10 rounded-[8px] bg-[#32af5c] px-5 text-[13px] font-black text-white">新增交接事項</button>
-      </div>
+      ) : (
+        <div className="flex min-h-[170px] flex-col items-center justify-center rounded-[8px] bg-[#f7f9fb] px-4 text-center">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
+            <MessageSquareText className="h-7 w-7" />
+          </div>
+          <p className="mt-4 text-[16px] font-black text-[#10233f]">尚未設定交接事項</p>
+          <p className="mt-1 text-[12px] font-medium text-[#637185]">交班與交接會合併顯示在這裡</p>
+        </div>
+      )}
     </WorkbenchCard>
   );
 }
 
-function TaskCard({ tasks }: { tasks: TaskSummary[] }) {
-  const done = tasks.filter((task) => task.status === "done").length;
+function TutorBookingCard() {
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="今日交班" eyebrow="Handover Board" />
-      <div className="grid min-h-[170px] grid-cols-[82px_1fr] items-center gap-4">
-        <div className="grid h-[82px] w-[82px] place-items-center rounded-full border-[8px] border-[#eef2f6]">
-          <div className="text-center">
-            <p className="text-[24px] font-black text-[#10233f]">{done}/{tasks.length}</p>
-            <p className="text-[11px] font-bold text-[#8b9aae]">已完成</p>
+      <SectionTitle title="今日家教預約" eyebrow="Private Coaching" />
+      <div className="grid min-h-[170px] place-items-center rounded-[8px] bg-[#f7f9fb] px-4 text-center">
+        <div>
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-[#8b9aae] shadow-sm">
+            <CalendarDays className="h-7 w-7" />
           </div>
-        </div>
-        <div className="space-y-2">
-          <p className="text-right text-[12px] font-black text-[#10233f]">{tasks.length - done} 項待處理</p>
-          {tasks.slice(0, 5).map((task) => (
-            <div key={task.id} className="flex items-center gap-2 text-[13px]">
-              <span className={cn("h-2 w-2 rounded-full", task.status === "done" ? "bg-[#32af5c]" : "bg-[#007166]")} />
-              <span className="min-w-0 flex-1 truncate font-bold text-[#4d5b70]">{task.title}</span>
-              <span className={cn("rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", task.priority === "high" ? "bg-[#fff1e7] text-[#ef7d22]" : "bg-[#edfbf4] text-[#32af5c]")}>
-                {task.priority === "high" ? "高" : "低"}
-              </span>
-            </div>
-          ))}
+          <p className="mt-4 text-[16px] font-black text-[#10233f]">功能尚未開放</p>
+          <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">之後接課程 / 預約資料來源</p>
         </div>
       </div>
     </WorkbenchCard>
@@ -335,60 +430,256 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
   );
 }
 
-function LowerGrid({ home }: { home: EmployeeHomeDto }) {
+function AddResourceForm({
+  category,
+  facilityKey,
+  titlePlaceholder,
+  contentPlaceholder,
+  urlPlaceholder,
+  onCreated,
+}: {
+  category: "event" | "document" | "sticky_note";
+  facilityKey: string;
+  titlePlaceholder: string;
+  contentPlaceholder: string;
+  urlPlaceholder?: string;
+  onCreated: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [url, setUrl] = useState("");
+  const mutation = useMutation({
+    mutationFn: () => createEmployeeResource({
+      facilityKey,
+      category,
+      title,
+      content: content.trim() || undefined,
+      url: url.trim() || undefined,
+      isPinned: category === "sticky_note",
+    }),
+    onSuccess: () => {
+      setTitle("");
+      setContent("");
+      setUrl("");
+      onCreated();
+    },
+  });
+  const canSubmit = title.trim().length > 0 && !mutation.isPending;
+
+  return (
+    <div className="rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
+      <div className="grid gap-2">
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+          placeholder={titlePlaceholder}
+        />
+        <input
+          value={content}
+          onChange={(event) => setContent(event.target.value)}
+          className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+          placeholder={contentPlaceholder}
+        />
+        {urlPlaceholder ? (
+          <input
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+            placeholder={urlPlaceholder}
+          />
+        ) : null}
+        <button
+          type="button"
+          disabled={!canSubmit}
+          onClick={() => mutation.mutate()}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          {mutation.isPending ? "新增中..." : "新增"}
+        </button>
+        {mutation.isError ? <p className="text-[11px] font-bold text-[#ff4964]">新增失敗，請確認欄位格式。</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function ResourceActions({
+  resourceId,
+  title,
+  content,
+  url,
+  onChanged,
+}: {
+  resourceId?: number;
+  title: string;
+  content?: string;
+  url?: string;
+  onChanged: () => void;
+}) {
+  const updateMutation = useMutation({
+    mutationFn: (next: { title: string; content?: string | null; url?: string | null }) => updateEmployeeResource(resourceId!, next),
+    onSuccess: onChanged,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteEmployeeResource(resourceId!),
+    onSuccess: onChanged,
+  });
+  if (!resourceId) return null;
+  return (
+    <div className="mt-2 flex gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          const nextTitle = window.prompt("標題", title);
+          if (nextTitle === null) return;
+          const nextContent = window.prompt("內容 / 備註", content || "");
+          if (nextContent === null) return;
+          const nextUrl = url === undefined ? undefined : window.prompt("連結", url || "");
+          updateMutation.mutate({ title: nextTitle, content: nextContent || null, url: nextUrl === undefined ? undefined : nextUrl || null });
+        }}
+        className="rounded-[6px] bg-white px-2 py-1 text-[10px] font-black text-[#536175]"
+      >
+        編輯
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm("確認刪除？")) deleteMutation.mutate();
+        }}
+        className="rounded-[6px] bg-[#fff0f1] px-2 py-1 text-[10px] font-black text-[#db4b5a]"
+      >
+        刪除
+      </button>
+    </div>
+  );
+}
+
+function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onChanged: () => void }) {
+  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動 / 課程快訊。</div>;
+  return (
+    <div className="space-y-3">
+      {campaigns.map((campaign) => (
+        <div key={campaign.id} className="rounded-[8px] bg-[#f7f9fb] p-3">
+          <a href={campaign.linkUrl || "#"} className="flex items-center gap-3">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[8px] bg-[#eaf8ef] text-[#15935d]">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-black text-[#10233f]">{campaign.title}</p>
+              <p className="mt-1 truncate text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</p>
+            </div>
+            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
+          </a>
+          <ResourceActions resourceId={campaign.resourceId} title={campaign.title} content={campaign.effectiveRange} url={campaign.linkUrl} onChanged={onChanged} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; onChanged: () => void }) {
+  if (!documents.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>;
+  return (
+    <div className="space-y-2">
+      {documents.map((doc) => (
+        <div key={doc.id} className="rounded-[8px] px-2 py-2 hover:bg-[#f7f9fb]">
+          <a href={doc.url || "#"} className="flex min-h-12 w-full items-center gap-3 text-left">
+            <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
+              <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
+            </span>
+          </a>
+          <ResourceActions resourceId={doc.resourceId} title={doc.title} content={doc.description} url={doc.url} onChanged={onChanged} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteSummary[]; facilityKey: string; onCreated: () => void }) {
+  return (
+    <WorkbenchCard className="p-5">
+      <SectionTitle title="便利貼" eyebrow="Notes" action="員工自建" />
+      <div className="space-y-3">
+        <AddResourceForm
+          category="sticky_note"
+          facilityKey={facilityKey}
+          titlePlaceholder="便利貼標題"
+          contentPlaceholder="提醒內容"
+          onCreated={onCreated}
+        />
+        {notes.map((note) => (
+          <div key={note.id} className="rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3">
+            <p className="text-[13px] font-black text-[#10233f]">{note.title}</p>
+            <p className="mt-1 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
+            <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
+            <ResourceActions resourceId={note.resourceId} title={note.title} content={note.content} onChanged={onCreated} />
+          </div>
+        ))}
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
+  const shiftRows = buildShiftRows(home.shifts.data ?? []);
+  const activeTime = home.shifts.data?.find((shift) => shift.status === "active") ?? home.shifts.data?.[0];
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <WorkbenchCard className="p-5">
+      {visibleKeys.has("shifts") ? <WorkbenchCard className="p-5">
         <SectionTitle title="今日班表" eyebrow="Shift" action="查看班表" />
-        <div className="space-y-4">
-          {home.shifts.data?.map((shift) => (
-            <div key={shift.id}>
-              <div className="flex items-center justify-between">
-                <p className="text-[14px] font-black text-[#10233f]">{shift.label} <span className="ml-2 font-bold">{shift.timeRange}</span></p>
-                <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", shift.status === "active" ? "bg-[#eaf8ef] text-[#32af5c]" : "bg-[#eef2f6] text-[#637185]")}>
-                  {shift.status === "active" ? "進行中" : "未開始"}
-                </span>
-              </div>
-              <div className="mt-3 h-1.5 rounded-full bg-[#e9eef4]">
-                <div className={cn("h-1.5 rounded-full", shift.status === "active" ? "w-1/2 bg-[#32af5c]" : "w-0 bg-[#32af5c]")} />
+        <div className="space-y-3">
+          <div className="rounded-[8px] bg-[#eef5ff] px-3 py-2">
+            <p className="text-[11px] font-black text-[#536175]">當班時段</p>
+            <p className="mt-0.5 text-[14px] font-black text-[#10233f]">
+              {activeTime?.startsAt && activeTime?.endsAt ? `${formatShiftTime(activeTime.startsAt)} - ${formatShiftTime(activeTime.endsAt)}` : activeTime?.timeRange ?? "尚無班表"}
+            </p>
+          </div>
+          {shiftRows.map((row) => (
+            <div key={row.facilityName} className="rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
+              <p className="text-[14px] font-black text-[#10233f]">{row.facilityName}</p>
+              <div className="mt-3 grid gap-2 text-[13px]">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="shrink-0 font-black text-[#536175]">早班</span>
+                  <span className="min-w-0 text-right font-bold text-[#10233f]">{row.early.join("、") || "-"}</span>
+                </div>
+                {row.mid.length ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 font-black text-[#536175]">中班</span>
+                    <span className="min-w-0 text-right font-bold text-[#10233f]">{row.mid.join("、")}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-start justify-between gap-3">
+                  <span className="shrink-0 font-black text-[#536175]">晚班</span>
+                  <span className="min-w-0 text-right font-bold text-[#10233f]">{row.late.join("、") || "-"}</span>
+                </div>
               </div>
             </div>
           ))}
+          {!shiftRows.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有班表資料。</div> : null}
           <div className="flex items-center justify-between pt-1 text-[13px]">
             <span className="font-bold text-[#637185]">本日出勤</span>
-            <span className="font-black text-[#10233f]">1 / 2 人</span>
+            <span className="font-black text-[#10233f]">{home.shifts.data?.length ?? 0} 人</span>
           </div>
         </div>
-      </WorkbenchCard>
-      <WorkbenchCard className="p-5">
-        <SectionTitle title="活動 / 課程快訊" eyebrow="Events" action="查看更多" />
+      </WorkbenchCard> : null}
+      {visibleKeys.has("events") ? <WorkbenchCard className="p-5">
+        <SectionTitle title="活動 / 課程快訊" eyebrow="Events" action="員工可新增" />
         <div className="space-y-3">
-          {home.campaigns.data?.map((campaign) => (
-            <div key={campaign.id} className="flex items-center gap-3 rounded-[8px] bg-[#f7f9fb] p-3">
-              <div className="h-14 w-20 rounded-[8px] bg-gradient-to-br from-[#0d7f77] to-[#9dd84f]" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black text-[#10233f]">{campaign.title}</p>
-                <p className="mt-1 text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</p>
-              </div>
-              <span className="rounded-full bg-[#eaf8ef] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
-            </div>
-          ))}
+          <AddResourceForm category="event" facilityKey={home.facility.key} titlePlaceholder="活動 / 課程名稱" contentPlaceholder="時間或備註" urlPlaceholder="報名或說明連結 https://..." onCreated={onResourceCreated} />
+          <EventList campaigns={home.campaigns.data ?? []} onChanged={onResourceCreated} />
         </div>
-      </WorkbenchCard>
-      <WorkbenchCard className="p-5">
-        <SectionTitle title="常用文件" eyebrow="Documents" action="查看更多" />
+      </WorkbenchCard> : null}
+      {visibleKeys.has("documents") ? <WorkbenchCard className="p-5">
+        <SectionTitle title="常用文件" eyebrow="Documents" action="員工可新增" />
         <div className="space-y-3">
-          {home.documents.data?.map((doc) => (
-            <button key={doc.id} className="flex min-h-12 w-full items-center gap-3 rounded-[8px] px-2 text-left hover:bg-[#f7f9fb]">
-              <FileText className="h-5 w-5 text-[#1f6fd1]" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
-                <span className="block text-[11px] font-medium text-[#8b9aae]">更新：{doc.updatedAt}</span>
-              </span>
-            </button>
-          ))}
+          <AddResourceForm category="document" facilityKey={home.facility.key} titlePlaceholder="文件名稱" contentPlaceholder="用途或備註" urlPlaceholder="文件連結 https://..." onCreated={onResourceCreated} />
+          <DocumentList documents={home.documents.data ?? []} onChanged={onResourceCreated} />
         </div>
-      </WorkbenchCard>
+      </WorkbenchCard> : null}
+      {visibleKeys.has("stickyNotes") ? <StickyNotesCard notes={home.stickyNotes.data ?? []} facilityKey={home.facility.key} onCreated={onResourceCreated} /> : null}
     </div>
   );
 }
@@ -427,9 +718,20 @@ function LoadingState() {
 }
 
 export default function EmployeeHomePage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/bff/employee/home"],
     queryFn: fetchEmployeeHome,
+  });
+  const layoutItems = useMemo(() => normalizeWidgetLayout(data?.layout?.data, defaultEmployeeHomeWidgets), [data?.layout?.data]);
+  const visibleWidgets = useMemo(() => new Set(layoutItems.filter((item) => item.enabled).map((item) => item.key)), [layoutItems]);
+  const primaryWidgets = layoutItems.filter((item) => item.enabled && item.area === "primary");
+  const lowerWidgets = layoutItems.filter((item) => item.enabled && item.area === "lower");
+  const searchQueryResult = useQuery({
+    queryKey: ["/api/bff/employee/search", data?.facility.key, searchQuery],
+    queryFn: () => searchEmployeeWorkbench(searchQuery, data?.facility.key),
+    enabled: Boolean(data?.facility.key && searchQuery.trim().length >= 2),
   });
 
   if (isLoading) return <LoadingState />;
@@ -455,19 +757,40 @@ export default function EmployeeHomePage() {
           <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-7 lg:py-8">
             <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-5">
               <motion.div variants={riseIn}>
-                <Hero home={data} />
+                {visibleWidgets.has("search") ? (
+                  <Hero
+                    home={data}
+                    searchQuery={searchQuery}
+                    onSearchQueryChange={setSearchQuery}
+                    searchResults={searchQueryResult.data?.items ?? []}
+                    isSearching={searchQueryResult.isFetching}
+                  />
+                ) : null}
               </motion.div>
-              <motion.div variants={riseIn} className="grid gap-4 lg:grid-cols-3">
-                <HandoverCard count={data.handover.data?.length ?? 0} />
-                <TaskCard tasks={data.tasks.data ?? []} />
-                <AnnouncementCard announcements={data.announcements.data ?? []} />
-              </motion.div>
-              <motion.div variants={riseIn}>
-                <Shortcuts shortcuts={data.shortcuts.data ?? []} />
-              </motion.div>
-              <motion.div variants={riseIn}>
-                <LowerGrid home={data} />
-              </motion.div>
+              {primaryWidgets.length ? (
+                <motion.div variants={riseIn} className="grid gap-4 lg:grid-cols-3">
+                  {primaryWidgets.map((widget) => {
+                    if (widget.key === "handover") return <HandoverCard key={widget.key} handovers={data.handover.data ?? []} tasks={data.tasks.data ?? []} />;
+                    if (widget.key === "tutorBooking") return <TutorBookingCard key={widget.key} />;
+                    if (widget.key === "announcements") return <AnnouncementCard key={widget.key} announcements={data.announcements.data ?? []} />;
+                    return null;
+                  })}
+                </motion.div>
+              ) : null}
+              {visibleWidgets.has("shortcuts") ? (
+                <motion.div variants={riseIn}>
+                  <Shortcuts shortcuts={data.shortcuts.data ?? []} />
+                </motion.div>
+              ) : null}
+              {lowerWidgets.length ? (
+                <motion.div variants={riseIn}>
+                  <LowerGrid
+                    home={data}
+                    visibleKeys={new Set(lowerWidgets.map((item) => item.key))}
+                    onResourceCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
+                  />
+                </motion.div>
+              ) : null}
             </motion.div>
           </main>
         </div>
