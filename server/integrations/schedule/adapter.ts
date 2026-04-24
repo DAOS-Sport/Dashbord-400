@@ -10,6 +10,10 @@ export interface ScheduleShift {
   label: string;
   startsAt: string;
   endsAt: string;
+  employeeNumber?: string;
+  employeeName?: string;
+  venueName?: string;
+  kind?: string;
 }
 
 export interface ScheduleAdapter {

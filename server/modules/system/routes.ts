@@ -30,10 +30,10 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         {
           name: "replit-data",
           mode: container.config.replitDataAdapterMode,
-          configured: Boolean(container.config.replitDataBaseUrl && container.config.replitDataApiToken),
+          configured: container.config.replitDataAdapterMode === "mock" || Boolean(container.config.lineBotBaseUrl && container.config.lineBotInternalToken),
         },
-        { name: "ragic-auth", mode: container.config.ragicAdapterMode, configured: container.config.ragicAdapterMode === "mock" },
-        { name: "schedule", mode: container.config.scheduleAdapterMode, configured: container.config.scheduleAdapterMode === "mock" },
+        { name: "ragic-auth", mode: container.config.ragicAdapterMode, configured: container.config.ragicAdapterMode === "mock" || Boolean(container.config.ragicApiKey) },
+        { name: "schedule", mode: container.config.scheduleAdapterMode, configured: container.config.scheduleAdapterMode === "mock" || Boolean(container.config.smartScheduleBaseUrl && container.config.smartScheduleApiToken) },
         { name: "booking", mode: container.config.bookingAdapterMode, configured: container.config.bookingAdapterMode === "mock" },
         { name: "storage", mode: container.config.storageAdapterMode, configured: true },
         { name: "redis", mode: container.config.redisUrl ? "real" : "mock", configured: Boolean(container.config.redisUrl) },

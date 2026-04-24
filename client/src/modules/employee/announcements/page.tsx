@@ -11,7 +11,7 @@ export default function EmployeeAnnouncementsPage() {
   const required = announcements.filter((item) => item.priority === "required").length;
 
   return (
-    <EmployeeShell title="群組公告" subtitle="公告資料由 LINE Bot Assistant 代理進 BFF，員工端只負責閱讀與後續已讀回報。">
+    <EmployeeShell title="群組公告" subtitle="公告固定顯示標題、結束時間與內容，來源由 400 小幫手 Internal API 映射。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <WorkbenchCard className="p-4">
@@ -52,7 +52,8 @@ export default function EmployeeAnnouncementsPage() {
                           {item.priority === "required" ? "必讀" : "提醒"}
                         </span>
                       </div>
-                      <p className="mt-2 text-[13px] font-medium leading-6 text-[#536175]">{item.summary}</p>
+                      <p className="mt-2 text-[12px] font-black text-[#8b9aae]">結束時間：{item.deadlineLabel ?? item.effectiveRange}</p>
+                      <p className="mt-2 text-[13px] font-medium leading-6 text-[#536175]">{item.content || item.summary}</p>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[11px] font-bold text-[#8b9aae]">{item.effectiveRange}</span>
                         <button className="workbench-focus inline-flex min-h-9 items-center gap-2 rounded-[8px] bg-[#edf7f4] px-3 text-[12px] font-black text-[#007166]">

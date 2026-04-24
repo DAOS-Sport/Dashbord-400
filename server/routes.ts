@@ -5,9 +5,11 @@ import nodemailer from "nodemailer";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { z } from "zod";
 import { corsMiddleware } from "./app/http/cors";
 import { registerNewArchitectureRoutes } from "./app/http/register-routes";
 import { env } from "./shared/config/env";
+import type { OperationalHandover } from "@shared/schema";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "anomaly-reports");
 
@@ -988,6 +990,188 @@ export async function registerRoutes(
       res.json({ ok: true });
     } catch (err) {
       const m = err instanceof Error ? err.message : "刪除失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  const operationalHandoverCreateBodySchema = z.object({
+    facilityKey: z.string().min(1),
+    title: z.string().min(1).max(120),
+    content: z.string().min(1).max(2000),
+    priority: z.enum(["low", "normal", "high"]).default("normal"),
+    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    targetShiftLabel: z.string().min(1),
+    visibleFrom: z.string().datetime().optional().nullable(),
+    dueAt: z.string().datetime().optional().nullable(),
+    assigneeEmployeeNumber: z.string().optional().nullable(),
+    assigneeName: z.string().optional().nullable(),
+    linkedActionType: z.string().optional().nullable(),
+    linkedActionUrl: z.string().url().optional().nullable(),
+  });
+
+  const operationalHandoverPatchBodySchema = z.object({
+    title: z.string().min(1).max(120).optional(),
+    content: z.string().min(1).max(2000).optional(),
+    priority: z.enum(["low", "normal", "high"]).optional(),
+    status: z.enum(["pending", "claimed", "in_progress", "reported", "done", "cancelled"]).optional(),
+    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    targetShiftLabel: z.string().min(1).optional(),
+    visibleFrom: z.string().datetime().optional().nullable(),
+    dueAt: z.string().datetime().optional().nullable(),
+    assigneeEmployeeNumber: z.string().optional().nullable(),
+    assigneeName: z.string().optional().nullable(),
+    linkedActionType: z.string().optional().nullable(),
+    linkedActionUrl: z.string().url().optional().nullable(),
+  });
+
+  const operationalHandoverReportBodySchema = z.object({
+    status: z.enum(["claimed", "in_progress", "reported", "done"]).default("reported"),
+    reportNote: z.string().max(2000).optional().nullable(),
+  });
+
+  const toDateOrNull = (value: string | null | undefined) => value ? new Date(value) : null;
+
+  const canAccessFacility = (req: import("express").Request, facilityKey: string) =>
+    !req.workbenchSession || req.workbenchSession.grantedFacilities.includes(facilityKey);
+
+  const mapOperationalHandoverForResponse = (handover: OperationalHandover) => ({
+    ...handover,
+    visibleFrom: handover.visibleFrom?.toISOString?.() ?? handover.visibleFrom,
+    dueAt: handover.dueAt?.toISOString?.() ?? handover.dueAt,
+    completedAt: handover.completedAt?.toISOString?.() ?? handover.completedAt,
+    createdAt: handover.createdAt?.toISOString?.() ?? handover.createdAt,
+    updatedAt: handover.updatedAt?.toISOString?.() ?? handover.updatedAt,
+  });
+
+  // -------- Portal: Operational Handovers / 交班交接 --------
+  app.get("/api/portal/operational-handovers", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const requestedFacilityKey = req.query.facilityKey ? String(req.query.facilityKey) : req.workbenchSession?.activeFacility;
+      if (!requestedFacilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      if (!caller.isSupervisor && !canAccessFacility(req, requestedFacilityKey)) {
+        return res.status(403).json({ message: "無此館別權限" });
+      }
+      const items = await storage.listOperationalHandovers({
+        facilityKey: requestedFacilityKey,
+        status: req.query.status ? String(req.query.status) : undefined,
+        targetDate: req.query.targetDate ? String(req.query.targetDate) : undefined,
+        limit: req.query.limit ? Number(req.query.limit) : 100,
+      });
+      res.json({ items: items.map(mapOperationalHandoverForResponse) });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "交班交接查詢失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.post("/api/portal/operational-handovers", requireSupervisor(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const parsed = operationalHandoverCreateBodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const created = await storage.createOperationalHandover({
+        facilityKey: parsed.data.facilityKey,
+        title: parsed.data.title,
+        content: parsed.data.content,
+        priority: parsed.data.priority,
+        status: "pending",
+        targetDate: parsed.data.targetDate,
+        targetShiftLabel: parsed.data.targetShiftLabel,
+        visibleFrom: toDateOrNull(parsed.data.visibleFrom),
+        dueAt: toDateOrNull(parsed.data.dueAt),
+        assigneeEmployeeNumber: parsed.data.assigneeEmployeeNumber ?? null,
+        assigneeName: parsed.data.assigneeName ?? null,
+        createdByEmployeeNumber: caller.employeeNumber,
+        createdByName: caller.name,
+        linkedActionType: parsed.data.linkedActionType ?? null,
+        linkedActionUrl: parsed.data.linkedActionUrl ?? null,
+      });
+      await storage.recordPortalEvent({
+        employeeNumber: caller.employeeNumber,
+        employeeName: caller.name,
+        facilityKey: parsed.data.facilityKey,
+        eventType: "handover_create",
+        target: String(created.id),
+        targetLabel: created.title,
+        metadata: JSON.stringify({ targetDate: created.targetDate, targetShiftLabel: created.targetShiftLabel }),
+      });
+      res.status(201).json(mapOperationalHandoverForResponse(created));
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "交班交接建立失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.patch("/api/portal/operational-handovers/:id", requireSupervisor(), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = await storage.getOperationalHandoverById(id);
+      if (!existing) return res.status(404).json({ message: "找不到交班交接" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const parsed = operationalHandoverPatchBodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      const updated = await storage.updateOperationalHandover(id, {
+        ...parsed.data,
+        visibleFrom: parsed.data.visibleFrom === undefined ? undefined : toDateOrNull(parsed.data.visibleFrom),
+        dueAt: parsed.data.dueAt === undefined ? undefined : toDateOrNull(parsed.data.dueAt),
+        completedAt: parsed.data.status === "done" ? new Date() : undefined,
+      });
+      res.json(updated ? mapOperationalHandoverForResponse(updated) : null);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "交班交接更新失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.patch("/api/portal/operational-handovers/:id/report", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = await storage.getOperationalHandoverById(id);
+      if (!existing) return res.status(404).json({ message: "找不到交班交接" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const parsed = operationalHandoverReportBodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      const updated = await storage.updateOperationalHandover(id, {
+        status: parsed.data.status,
+        reportNote: parsed.data.reportNote ?? null,
+        claimedByEmployeeNumber: parsed.data.status === "claimed" ? caller.employeeNumber : undefined,
+        claimedByName: parsed.data.status === "claimed" ? caller.name : undefined,
+        reportedByEmployeeNumber: caller.employeeNumber,
+        reportedByName: caller.name,
+        completedAt: parsed.data.status === "done" ? new Date() : null,
+      });
+      await storage.recordPortalEvent({
+        employeeNumber: caller.employeeNumber,
+        employeeName: caller.name,
+        facilityKey: existing.facilityKey,
+        eventType: parsed.data.status === "claimed" ? "handover_claim" : "handover_report",
+        target: String(existing.id),
+        targetLabel: existing.title,
+        metadata: JSON.stringify({ status: parsed.data.status }),
+      });
+      res.json(updated ? mapOperationalHandoverForResponse(updated) : null);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "交班交接回報失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.delete("/api/portal/operational-handovers/:id", requireSupervisor(), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = await storage.getOperationalHandoverById(id);
+      if (!existing) return res.status(404).json({ message: "找不到交班交接" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const ok = await storage.deleteOperationalHandover(id);
+      res.json({ ok });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "交班交接刪除失敗";
       res.status(500).json({ message: m });
     }
   });

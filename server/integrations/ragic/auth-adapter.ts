@@ -16,6 +16,12 @@ export interface RagicAuthUser {
   isSupervisor?: boolean;
 }
 
+export interface RagicEmployeeRecord extends RagicAuthUser {
+  phone?: string;
+  grantedFacilities: string[];
+}
+
 export interface RagicAuthAdapter {
   verifyCredentials(username: string, password: string): Promise<SourceResult<RagicAuthUser>>;
+  listActiveEmployees(): Promise<SourceResult<RagicEmployeeRecord[]>>;
 }

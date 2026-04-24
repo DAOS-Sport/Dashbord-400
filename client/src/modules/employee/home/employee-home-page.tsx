@@ -35,6 +35,8 @@ import { riseIn, staggerContainer } from "@/shared/motion/tokens";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { fetchEmployeeHome } from "./api";
 import { cn } from "@/lib/utils";
+import { facilityConfigs } from "@/config/facility-configs";
+import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
 
 const navItems = [
   { label: "首頁", icon: Home, href: "/employee" },
@@ -42,11 +44,9 @@ const navItems = [
   { label: "群組公告", icon: Bell, href: "/employee/announcements", badge: "2" },
   { label: "活動檔期", icon: CalendarDays, href: "/employee/shift" },
   { label: "班表入口", icon: ClipboardCheck, href: "/employee/shift" },
-  { label: "任務管理", icon: ListChecks, href: "/employee/tasks" },
+  { label: "交班事項", icon: ListChecks, href: "/employee/tasks" },
   { label: "報名 / 課程", icon: BookOpen, href: "/employee/more" },
   { label: "點名 / 打卡", icon: ShieldCheck, href: "/employee/more" },
-  { label: "匯款確認", icon: CheckCircle2, href: "/employee/more" },
-  { label: "設備回報", icon: Wrench, href: "/employee/more" },
   { label: "知識庫 Q&A", icon: MessageSquareText, href: "/employee/more" },
   { label: "個人記事", icon: FileText, href: "/employee/more" },
 ];
@@ -161,6 +161,9 @@ function DesktopSidebar() {
 }
 
 function TopBar() {
+  const { data: session } = useAuthMe();
+  const switchFacility = useSwitchFacility();
+  const granted = session?.grantedFacilities ?? [];
   return (
     <header className="sticky top-0 z-20 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/80 lg:text-[#10233f] lg:backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between px-4 lg:h-16 lg:px-7">
@@ -187,6 +190,18 @@ function TopBar() {
           <div className="hidden lg:block">
             <RoleSwitcher />
           </div>
+          {granted.length > 1 ? (
+            <select
+              value={session?.activeFacility ?? granted[0]}
+              onChange={(event) => switchFacility.mutate(event.target.value)}
+              className="hidden min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:block"
+              aria-label="切換館別"
+            >
+              {granted.map((facilityKey) => (
+                <option key={facilityKey} value={facilityKey}>{facilityConfigs[facilityKey]?.shortName ?? facilityKey}</option>
+              ))}
+            </select>
+          ) : null}
           <button aria-label="搜尋" className="workbench-focus hidden h-10 w-10 place-items-center rounded-full bg-[#f0f4f8] text-[#10233f] lg:grid">
             <Search className="h-4 w-4" />
           </button>
@@ -251,7 +266,7 @@ function TaskCard({ tasks }: { tasks: TaskSummary[] }) {
   const done = tasks.filter((task) => task.status === "done").length;
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="今日任務" eyebrow="Tasks" />
+      <SectionTitle title="今日交班" eyebrow="Handover Board" />
       <div className="grid min-h-[170px] grid-cols-[82px_1fr] items-center gap-4">
         <div className="grid h-[82px] w-[82px] place-items-center rounded-full border-[8px] border-[#eef2f6]">
           <div className="text-center">
@@ -260,7 +275,7 @@ function TaskCard({ tasks }: { tasks: TaskSummary[] }) {
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-right text-[12px] font-black text-[#10233f]">{tasks.length - done} 項待完成</p>
+          <p className="text-right text-[12px] font-black text-[#10233f]">{tasks.length - done} 項待處理</p>
           {tasks.slice(0, 5).map((task) => (
             <div key={task.id} className="flex items-center gap-2 text-[13px]">
               <span className={cn("h-2 w-2 rounded-full", task.status === "done" ? "bg-[#32af5c]" : "bg-[#007166]")} />
@@ -381,7 +396,7 @@ function LowerGrid({ home }: { home: EmployeeHomeDto }) {
 function BottomNav() {
   const items = [
     { label: "首頁", icon: Home, href: "/employee" },
-    { label: "任務", icon: ListChecks, href: "/employee/tasks" },
+    { label: "交班", icon: ListChecks, href: "/employee/tasks" },
     { label: "公告", icon: Bell, href: "/employee/announcements" },
     { label: "交接", icon: MessageSquareText, href: "/employee/handover" },
     { label: "更多", icon: MoreHorizontal, href: "/employee/more" },

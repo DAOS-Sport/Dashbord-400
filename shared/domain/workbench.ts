@@ -18,6 +18,8 @@ export interface TaskSummary {
   title: string;
   status: "pending" | "in_progress" | "reported" | "done";
   priority: "low" | "normal" | "high";
+  dueLabel?: string;
+  reportNote?: string | null;
 }
 
 export interface AnnouncementSummary {
@@ -26,6 +28,10 @@ export interface AnnouncementSummary {
   summary: string;
   priority: "required" | "high" | "normal";
   effectiveRange: string;
+  content?: string;
+  deadlineLabel?: string;
+  linkUrl?: string;
+  linkLabel?: string;
 }
 
 export interface HandoverSummary {
@@ -33,6 +39,13 @@ export interface HandoverSummary {
   title: string;
   authorName: string;
   status: "unread" | "read" | "confirmed";
+  content?: string;
+  facilityKey?: string;
+  targetDate?: string;
+  targetShiftLabel?: string;
+  dueLabel?: string;
+  reportNote?: string | null;
+  assigneeName?: string | null;
 }
 
 export interface ShortcutSummary {
@@ -47,6 +60,10 @@ export interface ShiftSummary {
   label: string;
   timeRange: string;
   status: "active" | "upcoming" | "finished";
+  employeeName?: string;
+  venueName?: string;
+  startsAt?: string;
+  endsAt?: string;
 }
 
 export interface CampaignSummary {
@@ -79,6 +96,22 @@ export interface SupervisorStaffingSummary {
   total: number;
   onShift: number;
   absent: number;
+  activeEmployees?: StaffMemberSummary[];
+  currentOnDuty?: StaffMemberSummary[];
+  nextOnDuty?: StaffMemberSummary[];
+  byFacility?: Array<{ facilityKey: string; facilityName: string; active: number; onShift: number; next: number }>;
+}
+
+export interface StaffMemberSummary {
+  employeeNumber?: string;
+  name: string;
+  facilityKey?: string;
+  facilityName?: string;
+  title?: string;
+  department?: string;
+  shiftLabel?: string;
+  timeRange?: string;
+  status?: "active" | "upcoming" | "off";
 }
 
 export interface SupervisorAnomalySummary {

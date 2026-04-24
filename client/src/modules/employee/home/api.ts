@@ -1,6 +1,33 @@
 import type { EmployeeHomeDto } from "@shared/domain/workbench";
-import { apiGet, apiPost } from "@/shared/api/client";
+import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { HandoverEntryDTO, QuickLinkDTO } from "@/types/portal";
+
+export interface OperationalHandoverDTO {
+  id: number;
+  facilityKey: string;
+  title: string;
+  content: string;
+  priority: "low" | "normal" | "high";
+  status: "pending" | "claimed" | "in_progress" | "reported" | "done" | "cancelled";
+  targetDate: string;
+  targetShiftLabel: string;
+  visibleFrom: string | null;
+  dueAt: string | null;
+  assigneeEmployeeNumber: string | null;
+  assigneeName: string | null;
+  claimedByEmployeeNumber: string | null;
+  claimedByName: string | null;
+  createdByEmployeeNumber: string | null;
+  createdByName: string | null;
+  reportedByEmployeeNumber: string | null;
+  reportedByName: string | null;
+  reportNote: string | null;
+  linkedActionType: string | null;
+  linkedActionUrl: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
 
@@ -12,3 +39,9 @@ export const createEmployeeHandover = (facilityKey: string, content: string) =>
 
 export const fetchEmployeeQuickLinks = (facilityKey: string) =>
   apiGet<{ items: QuickLinkDTO[] }>(`/api/portal/quick-links?facilityKey=${encodeURIComponent(facilityKey)}`);
+
+export const fetchEmployeeOperationalHandovers = (facilityKey: string) =>
+  apiGet<{ items: OperationalHandoverDTO[] }>(`/api/portal/operational-handovers?facilityKey=${encodeURIComponent(facilityKey)}&limit=100`);
+
+export const reportEmployeeOperationalHandover = (id: number, input: { status: "claimed" | "in_progress" | "reported" | "done"; reportNote?: string }) =>
+  apiPatch<OperationalHandoverDTO>(`/api/portal/operational-handovers/${id}/report`, input);

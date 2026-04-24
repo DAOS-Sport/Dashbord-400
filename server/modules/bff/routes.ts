@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { AppContainer } from "../../app/container";
-import { findFacilityLineGroup } from "@shared/domain/facilities";
+import { facilityLabel, facilityLineGroups, findFacilityLineGroup } from "@shared/domain/facilities";
 import type {
   AnnouncementSummary,
   CampaignSummary,
@@ -9,7 +9,10 @@ import type {
   HandoverSummary,
   ShiftSummary,
   ShortcutSummary,
+  StaffMemberSummary,
+  TaskSummary,
 } from "@shared/domain/workbench";
+import type { OperationalHandover } from "@shared/schema";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
 import { degraded, ok, unavailable } from "../../shared/bff/section";
@@ -24,7 +27,7 @@ const shortcutTones: ShortcutSummary["tone"][] = ["blue", "green", "amber", "vio
 
 const defaultEmployeeShortcuts: ShortcutSummary[] = [
   { id: "clock", label: "點名 / 打卡", href: "/employee/more", tone: "blue" },
-  { id: "tasks", label: "今日任務", href: "/employee/tasks", tone: "green" },
+  { id: "handover-board", label: "交班事項", href: "/employee/tasks", tone: "green" },
   { id: "handover", label: "櫃台交接", href: "/employee/handover", tone: "amber" },
   { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
   { id: "shift", label: "今日班表", href: "/employee/shift", tone: "rose" },
@@ -85,8 +88,10 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
       id: String(item.id ?? `candidate-${index}`),
       title: readText(item.title, "未命名公告"),
       summary: readText(item.summary ?? item.originalText, ""),
+      content: readText(item.body ?? item.content ?? item.originalText ?? item.summary, ""),
       priority: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "normal",
       effectiveRange: readText(item.detectedAt ?? item.startAt, "即時"),
+      deadlineLabel: readText(item.effectiveEndAt ?? item.endAt ?? item.expiresAt ?? item.detectedAt ?? item.startAt, "未設定"),
     }));
 };
 
@@ -98,8 +103,9 @@ const buildEmployeeHomeFallback = async (
   const now = new Date().toISOString();
   const facility = findFacilityLineGroup(facilityKey);
   const normalizedFacilityKey = facility?.facilityKey ?? facilityKey;
-  const [handoversResult, quickLinksResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult] = await Promise.allSettled([
+  const [handoversResult, operationalHandoversResult, quickLinksResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult] = await Promise.allSettled([
     storage.listHandovers(normalizedFacilityKey, 20),
+    storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listQuickLinks(normalizedFacilityKey, false),
     storage.listSystemAnnouncements(normalizedFacilityKey, false),
     container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
@@ -107,6 +113,7 @@ const buildEmployeeHomeFallback = async (
   ]);
 
   const handovers = handoversResult.status === "fulfilled" ? handoversResult.value : [];
+  const operationalHandovers = operationalHandoversResult.status === "fulfilled" ? operationalHandoversResult.value : [];
   const quickLinks = quickLinksResult.status === "fulfilled" ? quickLinksResult.value : [];
   const systemAnnouncements = systemAnnouncementsResult.status === "fulfilled" ? systemAnnouncementsResult.value : [];
   const scheduleResult = shiftsResult.status === "fulfilled" ? shiftsResult.value : null;
@@ -116,16 +123,23 @@ const buildEmployeeHomeFallback = async (
     id: `portal-ann-${item.id}`,
     title: item.title,
     summary: item.content,
+    content: item.content,
     priority: item.severity === "critical" ? "required" : item.severity === "warning" ? "high" : "normal",
     effectiveRange: item.publishedAt ? new Date(item.publishedAt).toLocaleString("zh-TW") : "即時",
+    deadlineLabel: item.expiresAt ? new Date(item.expiresAt).toLocaleDateString("zh-TW") : "未設定",
   }));
 
-  const mappedHandovers: HandoverSummary[] = handovers.map((item) => ({
-    id: String(item.id),
-    title: item.content,
-    authorName: item.authorName || "值班人員",
-    status: "unread",
-  }));
+  const mappedHandovers: HandoverSummary[] = [
+    ...operationalHandovers.map(mapOperationalHandoverSummary),
+    ...handovers.map((item) => ({
+      id: `entry-${item.id}`,
+      title: item.content,
+      content: item.content,
+      authorName: item.authorName || "值班人員",
+      status: "unread" as const,
+      facilityKey: item.facilityKey,
+    })),
+  ];
 
   const shortcuts: ShortcutSummary[] = [
     ...defaultEmployeeShortcuts,
@@ -148,6 +162,10 @@ const buildEmployeeHomeFallback = async (
     label: item.label,
     timeRange: item.startsAt && item.endsAt ? `${item.startsAt} - ${item.endsAt}` : "依排班系統",
     status: index === 0 ? "active" : "upcoming",
+    employeeName: item.employeeName,
+    venueName: item.venueName,
+    startsAt: item.startsAt,
+    endsAt: item.endsAt,
   }));
 
   const campaigns: CampaignSummary[] = candidateAnnouncements
@@ -170,7 +188,7 @@ const buildEmployeeHomeFallback = async (
       statusLabel: "降級資料",
     },
     weather: unavailable("天氣資料尚未接入員工 BFF", "WEATHER_NOT_CONNECTED"),
-    tasks: degraded([], ["task-projection"], now),
+    tasks: ok(operationalHandovers.filter((item) => item.status !== "done" && item.status !== "cancelled").map(mapOperationalHandoverTask), now),
     announcements: announcements.length
       ? degraded(announcements, ["line-bot-facility-home"], now)
       : unavailable("公告候選池與 Portal announcement 目前都沒有可用資料", "ANNOUNCEMENT_FALLBACK_EMPTY"),
@@ -188,13 +206,116 @@ const buildEmployeeHomeFallback = async (
   };
 };
 
-const mapScheduleShifts = (items: Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>["data"]): ShiftSummary[] =>
-  (items ?? []).map((item, index) => ({
+const mapScheduleShifts = (items: Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>["data"]): ShiftSummary[] => {
+  const now = Date.now();
+  return (items ?? []).map((item, index) => ({
     id: item.id,
     label: item.label,
     timeRange: item.startsAt && item.endsAt ? `${item.startsAt} - ${item.endsAt}` : "依排班系統",
-    status: index === 0 ? "active" : "upcoming",
+    status: item.startsAt && item.endsAt && Date.parse(item.startsAt) <= now && Date.parse(item.endsAt) >= now
+      ? "active"
+      : item.endsAt && Date.parse(item.endsAt) < now
+        ? "finished"
+        : index === 0 ? "active" : "upcoming",
+    employeeName: item.employeeName,
+    venueName: item.venueName,
+    startsAt: item.startsAt,
+    endsAt: item.endsAt,
   }));
+};
+
+const handoverStatusToTaskStatus = (status: string): TaskSummary["status"] =>
+  status === "done" ? "done" : status === "reported" ? "reported" : status === "in_progress" || status === "claimed" ? "in_progress" : "pending";
+
+const mapOperationalHandoverTask = (handover: OperationalHandover): TaskSummary => ({
+  id: String(handover.id),
+  title: `${handover.targetDate} ${handover.targetShiftLabel} · ${handover.title}`,
+  status: handoverStatusToTaskStatus(handover.status),
+  priority: handover.priority === "high" || handover.priority === "low" ? handover.priority : "normal",
+  dueLabel: handover.dueAt ? new Date(handover.dueAt).toLocaleString("zh-TW") : `${handover.targetDate} ${handover.targetShiftLabel}`,
+  reportNote: handover.reportNote,
+});
+
+const mapOperationalHandoverSummary = (handover: OperationalHandover): HandoverSummary => ({
+  id: String(handover.id),
+  title: handover.title,
+  content: handover.content,
+  authorName: handover.createdByName || "主管",
+  status: handover.status === "done" ? "confirmed" : handover.status === "reported" ? "read" : "unread",
+  facilityKey: handover.facilityKey,
+  targetDate: handover.targetDate,
+  targetShiftLabel: handover.targetShiftLabel,
+  dueLabel: handover.dueAt ? new Date(handover.dueAt).toLocaleString("zh-TW") : `${handover.targetDate} ${handover.targetShiftLabel}`,
+  reportNote: handover.reportNote,
+  assigneeName: handover.assigneeName,
+});
+
+const toTimeRange = (startsAt?: string, endsAt?: string) => startsAt && endsAt
+  ? `${new Date(startsAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} - ${new Date(endsAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`
+  : undefined;
+
+const buildStaffingSummary = async (container: AppContainer, facilityKeys: string[]) => {
+  const now = Date.now();
+  const [employeeResult, ...shiftResults] = await Promise.all([
+    container.integrations.ragicAuth.listActiveEmployees(),
+    ...facilityKeys.map((facilityKey) => container.integrations.schedule.listTodayShifts(facilityKey)),
+  ]);
+  const employees = employeeResult.data ?? [];
+  const activeEmployees: StaffMemberSummary[] = employees
+    .filter((employee) => facilityKeys.length === 0 || employee.grantedFacilities.some((key) => facilityKeys.includes(key)))
+    .map((employee) => ({
+      employeeNumber: employee.employeeNumber,
+      name: employee.displayName,
+      facilityKey: employee.grantedFacilities[0],
+      facilityName: employee.grantedFacilities[0] ? facilityLabel(employee.grantedFacilities[0]) : employee.department,
+      title: employee.title,
+      department: employee.department,
+      status: "off" as const,
+    }));
+
+  const shifts = shiftResults.flatMap((result) => result.data ?? []);
+  const currentOnDuty: StaffMemberSummary[] = shifts
+    .filter((shift) => shift.startsAt && shift.endsAt && Date.parse(shift.startsAt) <= now && Date.parse(shift.endsAt) >= now)
+    .map((shift) => ({
+      employeeNumber: shift.employeeNumber,
+      name: shift.employeeName || shift.label,
+      facilityKey: shift.facilityKey,
+      facilityName: shift.venueName || facilityLabel(shift.facilityKey),
+      shiftLabel: shift.kind || "當班",
+      timeRange: toTimeRange(shift.startsAt, shift.endsAt),
+      status: "active" as const,
+    }));
+  const nextOnDuty: StaffMemberSummary[] = shifts
+    .filter((shift) => shift.startsAt && Date.parse(shift.startsAt) > now)
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
+    .slice(0, 20)
+    .map((shift) => ({
+      employeeNumber: shift.employeeNumber,
+      name: shift.employeeName || shift.label,
+      facilityKey: shift.facilityKey,
+      facilityName: shift.venueName || facilityLabel(shift.facilityKey),
+      shiftLabel: shift.kind || "下一班",
+      timeRange: toTimeRange(shift.startsAt, shift.endsAt),
+      status: "upcoming" as const,
+    }));
+
+  return {
+    active: activeEmployees.length,
+    total: activeEmployees.length,
+    onShift: currentOnDuty.length,
+    absent: Math.max(activeEmployees.length - currentOnDuty.length, 0),
+    activeEmployees,
+    currentOnDuty,
+    nextOnDuty,
+    byFacility: facilityKeys.map((facilityKey) => ({
+      facilityKey,
+      facilityName: facilityLabel(facilityKey),
+      active: activeEmployees.filter((employee) => employee.facilityKey === facilityKey || employee.department?.includes(findFacilityLineGroup(facilityKey)?.ragicDepartmentAliases[0] ?? facilityKey)).length,
+      onShift: currentOnDuty.filter((employee) => employee.facilityKey === facilityKey).length,
+      next: nextOnDuty.filter((employee) => employee.facilityKey === facilityKey).length,
+    })),
+  };
+};
 
 const enrichEmployeeHome = async (
   dto: EmployeeHomeDto,
@@ -204,14 +325,27 @@ const enrichEmployeeHome = async (
   const normalizedFacilityKey = findFacilityLineGroup(facilityKey)?.facilityKey ?? facilityKey;
   const now = new Date().toISOString();
   const currentShiftCount = dto.shifts.data?.length ?? 0;
+  const currentTaskCount = dto.tasks.data?.length ?? 0;
+  let nextDto = dto;
 
-  if (currentShiftCount > 0) return dto;
+  if (currentTaskCount === 0) {
+    const handovers = await storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 });
+    if (handovers.length > 0) {
+      nextDto = {
+        ...nextDto,
+        tasks: ok(handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").map(mapOperationalHandoverTask), now),
+        handover: ok([...(nextDto.handover.data ?? []), ...handovers.map(mapOperationalHandoverSummary)], now),
+      };
+    }
+  }
+
+  if (currentShiftCount > 0) return nextDto;
 
   const scheduleResult = await container.integrations.schedule.listTodayShifts(normalizedFacilityKey);
-  if (!scheduleResult.data?.length) return dto;
+  if (!scheduleResult.data?.length) return nextDto;
 
   return {
-    ...dto,
+    ...nextDto,
     shifts: degraded(mapScheduleShifts(scheduleResult.data), ["line-bot-facility-home-today-shift"], now),
   };
 };
@@ -240,8 +374,37 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     return res.json(await enrichEmployeeHome(result.data, facilityKey, container));
   });
 
-  app.get("/api/bff/supervisor/dashboard", async (_req, res) => {
-    return res.json(env.dataSourceMode === "mock" ? getSupervisorDashboardMock() : await getSupervisorDashboardFromSources());
+  app.get("/api/bff/supervisor/dashboard", async (req, res) => {
+    const dashboard = env.dataSourceMode === "mock" ? getSupervisorDashboardMock() : await getSupervisorDashboardFromSources();
+    const facilityKeys = req.workbenchSession?.grantedFacilities?.length
+      ? req.workbenchSession.grantedFacilities
+      : facilityLineGroups.map((facility) => facility.facilityKey);
+    const facilityKey = req.workbenchSession?.activeFacility || dashboard.facility.key || "xinbei_pool";
+    try {
+      const [handovers, staffing] = await Promise.all([
+        storage.listOperationalHandovers({ facilityKey, limit: 100 }),
+        buildStaffingSummary(container, facilityKeys),
+      ]);
+      return res.json({
+        ...dashboard,
+        staffing: ok(staffing),
+        incompleteTasks: ok(handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").map(mapOperationalHandoverTask)),
+        handoverOverview: ok({
+          open: handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").length,
+          confirmed: handovers.filter((handover) => handover.status === "done").length,
+        }),
+        shifts: ok([...staffing.currentOnDuty, ...staffing.nextOnDuty].slice(0, 12).map((member, index) => ({
+          id: `${member.employeeNumber || member.name}-${index}`,
+          label: `${member.name} / ${member.facilityName ?? ""}`.trim(),
+          timeRange: member.timeRange ?? "依排班系統",
+          status: member.status === "active" ? "active" : "upcoming",
+          employeeName: member.name,
+          venueName: member.facilityName,
+        }))),
+      });
+    } catch {
+      return res.json(dashboard);
+    }
   });
 
   app.get("/api/bff/system/overview", async (_req, res) => {

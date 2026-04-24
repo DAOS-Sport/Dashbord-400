@@ -29,8 +29,8 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
   salu_counter: {
     facilityKey: "salu_counter",
     facilityLineGroupId: "Cc2100498c7c5627c1e86e93f7c4eb817",
-    facilityName: "駿斯-三蘆區櫃台",
-    shortName: "三蘆",
+    facilityName: "三重商工 / 三蘆區櫃台",
+    shortName: "商工",
     portalPath: "/portal/salu_counter",
     isActive: true,
     sections: {

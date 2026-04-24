@@ -42,6 +42,10 @@ export const useSwitchFacility = () => {
   return useMutation({
     mutationFn: (activeFacility: string) =>
       apiPost<AuthMeDto>("/api/auth/active-facility", { activeFacility } satisfies SwitchFacilityRequestDto),
-    onSuccess: (session) => queryClient.setQueryData(authMeKey, session),
+    onSuccess: (session) => {
+      queryClient.setQueryData(authMeKey, session);
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
+    },
   });
 };

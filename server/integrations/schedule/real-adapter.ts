@@ -70,6 +70,10 @@ export const realScheduleAdapter: ScheduleAdapter = {
           .map((row, index) => ({
             id: String(row.shiftId ?? row.id ?? row._id ?? `smart-schedule-${index}`),
             facilityKey: String(row.facilityKey ?? facilityKey),
+            employeeNumber: readNestedText(row.employee, ["employeeNumber", "employeeCode", "code"]),
+            employeeName: readNestedText(row.employee, ["name", "employeeName", "displayName"]),
+            venueName: readNestedText(row.venue, ["name", "venueName", "facilityName"]),
+            kind: readText(row.kind),
             label: [
               readNestedText(row.employee, ["name", "employeeName", "displayName"]),
               readNestedText(row.venue, ["name", "venueName", "facilityName"]),

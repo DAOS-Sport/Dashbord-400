@@ -137,6 +137,50 @@ export const insertHandoverEntrySchema = createInsertSchema(handoverEntries).omi
 export type InsertHandoverEntry = z.infer<typeof insertHandoverEntrySchema>;
 export type HandoverEntry = typeof handoverEntries.$inferSelect;
 
+export const operationalHandovers = pgTable("operational_handovers", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending").notNull(),
+  targetDate: text("target_date").notNull(),
+  targetShiftLabel: text("target_shift_label").notNull(),
+  visibleFrom: timestamp("visible_from"),
+  dueAt: timestamp("due_at"),
+  assigneeEmployeeNumber: text("assignee_employee_number"),
+  assigneeName: text("assignee_name"),
+  claimedByEmployeeNumber: text("claimed_by_employee_number"),
+  claimedByName: text("claimed_by_name"),
+  createdByEmployeeNumber: text("created_by_employee_number"),
+  createdByName: text("created_by_name"),
+  reportedByEmployeeNumber: text("reported_by_employee_number"),
+  reportedByName: text("reported_by_name"),
+  reportNote: text("report_note"),
+  linkedActionType: text("linked_action_type"),
+  linkedActionUrl: text("linked_action_url"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOperationalHandoverSchema = createInsertSchema(operationalHandovers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  title: z.string().min(1, "標題不可為空").max(120, "標題過長"),
+  content: z.string().min(1, "內容不可為空").max(2000, "內容過長"),
+  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  status: z.enum(["pending", "claimed", "in_progress", "reported", "done", "cancelled"]).default("pending"),
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式需為 YYYY-MM-DD"),
+  targetShiftLabel: z.string().min(1, "請指定班別"),
+});
+
+export type InsertOperationalHandover = z.infer<typeof insertOperationalHandoverSchema>;
+export type OperationalHandover = typeof operationalHandovers.$inferSelect;
+
 export const quickLinks = pgTable("quick_links", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key"),
@@ -200,7 +244,7 @@ export const insertPortalEventSchema = createInsertSchema(portalEvents).omit({
   id: true,
   createdAt: true,
 }).extend({
-  eventType: z.enum(["pageview", "link_click", "announcement_open", "handover_create"]),
+  eventType: z.enum(["pageview", "link_click", "announcement_open", "handover_create", "handover_report", "handover_claim", "layout_update"]),
 });
 
 export type InsertPortalEvent = z.infer<typeof insertPortalEventSchema>;

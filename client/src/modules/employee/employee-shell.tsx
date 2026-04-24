@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
+import { facilityConfigs } from "@/config/facility-configs";
+import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
 
 type EmployeeNavItem = readonly [label: string, href: string, Icon: LucideIcon, badge?: string];
 
 const employeeNav: readonly EmployeeNavItem[] = [
   ["首頁", "/employee", Home],
-  ["任務管理", "/employee/tasks", ClipboardCheck],
+  ["交班事項", "/employee/tasks", ClipboardCheck],
   ["群組公告", "/employee/announcements", Bell, "2"],
   ["櫃台交接", "/employee/handover", MessageSquareText],
   ["今日班表", "/employee/shift", CalendarDays],
@@ -30,7 +32,7 @@ const employeeNav: readonly EmployeeNavItem[] = [
 
 const mobileNav: readonly EmployeeNavItem[] = [
   ["首頁", "/employee", Home],
-  ["任務", "/employee/tasks", ClipboardCheck],
+  ["交班", "/employee/tasks", ClipboardCheck],
   ["公告", "/employee/announcements", Bell],
   ["交接", "/employee/handover", MessageSquareText],
   ["更多", "/employee/more", MoreHorizontal],
@@ -43,6 +45,28 @@ interface EmployeeShellProps {
   title: string;
   subtitle: string;
   children: ReactNode;
+}
+
+function FacilitySwitcher() {
+  const { data: session } = useAuthMe();
+  const switchFacility = useSwitchFacility();
+  const granted = session?.grantedFacilities ?? [];
+  if (granted.length <= 1) return null;
+
+  return (
+    <select
+      value={session?.activeFacility ?? granted[0]}
+      onChange={(event) => switchFacility.mutate(event.target.value)}
+      className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f]"
+      aria-label="切換館別"
+    >
+      {granted.map((facilityKey) => (
+        <option key={facilityKey} value={facilityKey}>
+          {facilityConfigs[facilityKey]?.shortName ?? facilityKey}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps) {
@@ -144,6 +168,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
               <Link href="/employee" className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
                 回首頁
               </Link>
+              <FacilitySwitcher />
             </div>
             {children}
           </main>

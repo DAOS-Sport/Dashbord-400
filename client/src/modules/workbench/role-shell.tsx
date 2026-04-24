@@ -21,7 +21,7 @@ import { RoleSwitcher } from "./role-switcher";
 const roleNav = {
   supervisor: [
     ["首頁總覽", "/supervisor", Home],
-    ["任務管理", "/supervisor/tasks", ClipboardList],
+    ["交班狀態", "/supervisor/tasks", ClipboardList],
     ["公告管理", "/supervisor/announcements", Bell],
     ["交接管理", "/supervisor/handover", FileText],
     ["異常審核", "/supervisor/anomalies", ShieldCheck],
@@ -45,7 +45,7 @@ type MobileNavItem = readonly [label: string, href: string, Icon: LucideIcon];
 const roleMobileNav: Record<"supervisor" | "system", readonly MobileNavItem[]> = {
   supervisor: [
     ["首頁", "/supervisor", Home],
-    ["任務", "/supervisor/tasks", ClipboardList],
+    ["交班", "/supervisor/tasks", ClipboardList],
     ["公告", "/supervisor/announcements", Bell],
     ["人力", "/supervisor/people", Users],
     ["更多", "/supervisor/reports", MoreHorizontal],

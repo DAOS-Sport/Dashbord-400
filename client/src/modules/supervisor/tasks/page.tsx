@@ -26,7 +26,7 @@ const statusTone: Record<TaskSummary["status"], string> = {
 };
 
 const metricCards: readonly (readonly [label: string, key: MetricKey, Icon: LucideIcon, tone: string])[] = [
-  ["任務總數", "total", ClipboardList, "text-[#10233f]"],
+  ["交班總數", "total", ClipboardList, "text-[#10233f]"],
   ["高優先", "high", AlertCircle, "text-[#ff4964]"],
   ["進行中", "progress", Clock3, "text-[#2f6fe8]"],
   ["已完成", "done", CheckCircle2, "text-[#15935d]"],
@@ -73,7 +73,7 @@ export default function SupervisorTasksPage() {
   };
 
   return (
-    <RoleShell role="supervisor" title="任務管理" subtitle="以主管 BFF 任務投影集中檢視待辦、優先序與現場處理狀態。">
+    <RoleShell role="supervisor" title="交班狀態" subtitle="以主管 BFF 交班投影集中檢視待辦、優先序與現場處理狀態。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {metricCards.map(([label, key, Icon, tone]) => (
@@ -98,8 +98,8 @@ export default function SupervisorTasksPage() {
                 <Filter className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-[15px] font-black">任務篩選</h2>
-                <p className="text-[12px] font-bold text-[#8b9aae]">目前先讀主管首頁任務投影，後續接正式任務 state machine。</p>
+                <h2 className="text-[15px] font-black">交班篩選</h2>
+                <p className="text-[12px] font-bold text-[#8b9aae]">讀主管首頁交班投影，狀態由交接管理更新。</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -130,16 +130,16 @@ export default function SupervisorTasksPage() {
 
         <WorkbenchCard className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[15px] font-black">任務清單</h2>
+            <h2 className="text-[15px] font-black">交班清單</h2>
             <span className="text-[12px] font-bold text-[#8b9aae]">{filteredTasks.length} 筆</span>
           </div>
           <div className="space-y-3">
             {isLoading ? (
-              <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入任務資料...</div>
+              <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入交班資料...</div>
             ) : isError ? (
               <div className="flex items-center gap-3 rounded-[8px] bg-[#fff7f8] p-4 text-[#ff4964]">
                 <AlertCircle className="h-5 w-5" />
-                <p className="text-[13px] font-black">任務投影暫時無法載入，請確認 BFF 或外部排班來源。</p>
+                <p className="text-[13px] font-black">交班投影暫時無法載入，請確認 BFF 或 Portal DB。</p>
               </div>
             ) : filteredTasks.length > 0 ? (
               filteredTasks.map((task) => <TaskRow key={task.id} task={task} />)
@@ -147,8 +147,8 @@ export default function SupervisorTasksPage() {
               <div className="grid min-h-48 place-items-center rounded-[8px] bg-[#fbfcfd] p-6 text-center">
                 <div>
                   <ListChecks className="mx-auto h-10 w-10 text-[#8b9aae]" />
-                  <p className="mt-3 text-[14px] font-black text-[#10233f]">沒有符合條件的任務</p>
-                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">正式任務模組接入後，這裡會顯示指派、回報與完成狀態。</p>
+                  <p className="mt-3 text-[14px] font-black text-[#10233f]">沒有符合條件的交班</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">建立交班後，這裡會顯示指派、回報與完成狀態。</p>
                 </div>
               </div>
             )}

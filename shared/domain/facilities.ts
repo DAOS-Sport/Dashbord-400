@@ -6,6 +6,7 @@ export interface FacilityLineGroup {
   lineGroupId: string;
   scheduleRegionKey?: string;
   ragicDepartmentAliases: string[];
+  isPrimary?: boolean;
 }
 
 export const facilityLineGroups: readonly FacilityLineGroup[] = [
@@ -17,15 +18,17 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
     lineGroupId: "C66a4b3bb3fbc3dcf52d42626ec512484",
     scheduleRegionKey: "A",
     ragicDepartmentAliases: ["新北高中", "新北高中游泳池", "新北高中游泳池&運動中心"],
+    isPrimary: true,
   },
   {
     facilityKey: "salu_counter",
-    fullName: "駿斯-三蘆區櫃台",
-    shortName: "三蘆",
+    fullName: "三重商工 / 三蘆區櫃台",
+    shortName: "商工",
     area: "三蘆區",
     lineGroupId: "Cc2100498c7c5627c1e86e93f7c4eb817",
     scheduleRegionKey: "A",
     ragicDepartmentAliases: ["三蘆", "三蘆區", "三重商工", "駿斯-三蘆區櫃台"],
+    isPrimary: true,
   },
   {
     facilityKey: "songshan_pool",
@@ -35,6 +38,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
     lineGroupId: "C9b3c5dfe2e005adafd2ed914714a1930",
     scheduleRegionKey: "A",
     ragicDepartmentAliases: ["松山國小", "松山國小室內溫水游泳池"],
+    isPrimary: true,
   },
   {
     facilityKey: "sanmin_pool",
@@ -44,6 +48,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
     lineGroupId: "C2dc6991e51074dd47d5d275d568318f7",
     scheduleRegionKey: "A",
     ragicDepartmentAliases: ["三民高中", "三民高中游泳池"],
+    isPrimary: true,
   },
 ] as const;
 
@@ -76,3 +81,6 @@ export const findScheduleRegionKey = (facilityKey: string): string => {
   const facility = findFacilityLineGroup(facilityKey);
   return facility?.scheduleRegionKey || "A";
 };
+
+export const facilityLabel = (facilityKey: string): string =>
+  findFacilityLineGroup(facilityKey)?.fullName ?? facilityKey;

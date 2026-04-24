@@ -3,11 +3,12 @@ import {
   type AnomalyReport, type InsertAnomalyReport,
   type NotificationRecipient, type InsertNotificationRecipient,
   type HandoverEntry, type InsertHandoverEntry,
+  type OperationalHandover, type InsertOperationalHandover,
   type QuickLink, type InsertQuickLink,
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type PortalEvent, type InsertPortalEvent,
   users, anomalyReports, notificationRecipients,
-  handoverEntries, quickLinks, systemAnnouncements, portalEvents,
+  handoverEntries, operationalHandovers, quickLinks, systemAnnouncements, portalEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
@@ -33,6 +34,22 @@ export interface IStorage {
   getHandoverById(id: number): Promise<HandoverEntry | undefined>;
   createHandover(entry: InsertHandoverEntry): Promise<HandoverEntry>;
   deleteHandover(id: number): Promise<boolean>;
+
+  // Operational Handovers / 交班交接
+  listOperationalHandovers(opts: { facilityKey?: string; status?: string; targetDate?: string; limit?: number }): Promise<OperationalHandover[]>;
+  getOperationalHandoverById(id: number): Promise<OperationalHandover | undefined>;
+  createOperationalHandover(task: InsertOperationalHandover): Promise<OperationalHandover>;
+  updateOperationalHandover(id: number, data: Partial<InsertOperationalHandover & {
+    assigneeEmployeeNumber: string | null;
+    assigneeName: string | null;
+    claimedByEmployeeNumber: string | null;
+    claimedByName: string | null;
+    reportedByEmployeeNumber: string | null;
+    reportedByName: string | null;
+    reportNote: string | null;
+    completedAt: Date | null;
+  }>): Promise<OperationalHandover | undefined>;
+  deleteOperationalHandover(id: number): Promise<boolean>;
 
   // QuickLinks (主管維護)
   listQuickLinks(facilityKey?: string, includeInactive?: boolean): Promise<QuickLink[]>;
@@ -148,6 +165,51 @@ export class DatabaseStorage implements IStorage {
 
   async deleteHandover(id: number): Promise<boolean> {
     const result = await db.delete(handoverEntries).where(eq(handoverEntries.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listOperationalHandovers(opts: { facilityKey?: string; status?: string; targetDate?: string; limit?: number }): Promise<OperationalHandover[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(operationalHandovers.facilityKey, opts.facilityKey));
+    if (opts.status) conditions.push(eq(operationalHandovers.status, opts.status));
+    if (opts.targetDate) conditions.push(eq(operationalHandovers.targetDate, opts.targetDate));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = where ? db.select().from(operationalHandovers).where(where) : db.select().from(operationalHandovers);
+    return query
+      .orderBy(desc(operationalHandovers.targetDate), desc(operationalHandovers.createdAt))
+      .limit(Math.min(opts.limit ?? 100, 300));
+  }
+
+  async getOperationalHandoverById(id: number): Promise<OperationalHandover | undefined> {
+    const [row] = await db.select().from(operationalHandovers).where(eq(operationalHandovers.id, id)).limit(1);
+    return row;
+  }
+
+  async createOperationalHandover(task: InsertOperationalHandover): Promise<OperationalHandover> {
+    const [created] = await db.insert(operationalHandovers).values(task).returning();
+    return created;
+  }
+
+  async updateOperationalHandover(id: number, data: Partial<InsertOperationalHandover & {
+    assigneeEmployeeNumber: string | null;
+    assigneeName: string | null;
+    claimedByEmployeeNumber: string | null;
+    claimedByName: string | null;
+    reportedByEmployeeNumber: string | null;
+    reportedByName: string | null;
+    reportNote: string | null;
+    completedAt: Date | null;
+  }>): Promise<OperationalHandover | undefined> {
+    const [updated] = await db
+      .update(operationalHandovers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(operationalHandovers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOperationalHandover(id: number): Promise<boolean> {
+    const result = await db.delete(operationalHandovers).where(eq(operationalHandovers.id, id)).returning();
     return result.length > 0;
   }
 

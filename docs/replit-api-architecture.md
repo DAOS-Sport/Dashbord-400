@@ -8,6 +8,7 @@
 - 前端只呼叫本專案 BFF，不直接打 Ragic、LINE Bot、Smart Schedule。
 - BFF 依登入 session 的 `activeFacility` 決定資料範圍。
 - Ragic 的 `部門` 欄位是館別授權來源；LINE group id 只做外部公告資料定位。
+- 本平台自己的交班/交接、入口連結、Widget 記錄與稽核資料都存 Portal DB，不寫回外部 SaaS。
 - 外部 API 若回 HTML / 401 / 403，BFF 必須回可渲染 JSON section，不讓 dashboard 白屏。
 
 ## 2. Replit Secrets / Config
@@ -100,7 +101,59 @@ GET {SMART_SCHEDULE_BASE_URL}/api/internal/schedules/today?facilityKey=A
 
 `today` 回傳的 `shifts[]` 需含 `employee` 與 `venue`。BFF 會用 `venue.name` 比對目前館別，只顯示該館班表。
 
-## 5. BFF 對前端 API
+## 5. 本平台 Portal API
+
+### 5.1 交班 / 交接主資料
+
+主管建立交班，員工端依館別與班別顯示、回報：
+
+```http
+GET    /api/portal/operational-handovers?facilityKey=xinbei_pool&limit=100
+POST   /api/portal/operational-handovers
+PATCH  /api/portal/operational-handovers/{id}
+PATCH  /api/portal/operational-handovers/{id}/report
+DELETE /api/portal/operational-handovers/{id}
+```
+
+建立 body：
+
+```json
+{
+  "facilityKey": "xinbei_pool",
+  "title": "更衣室施工提醒",
+  "content": "今日晚班交接時確認施工圍籬與告示是否完成。",
+  "priority": "normal",
+  "targetDate": "2026-04-24",
+  "targetShiftLabel": "晚班",
+  "visibleFrom": "2026-04-24T08:00:00+08:00",
+  "dueAt": "2026-04-24T22:00:00+08:00",
+  "linkedActionType": "clock",
+  "linkedActionUrl": "https://example.com"
+}
+```
+
+員工回報 body：
+
+```json
+{
+  "status": "reported",
+  "reportNote": "已確認，告示貼在櫃台與入口。"
+}
+```
+
+狀態值：
+
+`pending | claimed | in_progress | reported | done | cancelled`
+
+### 5.2 快速入口
+
+```http
+GET /api/portal/quick-links?facilityKey=xinbei_pool
+```
+
+目前前端保留「點名 / 打卡」與「報名 / 課程」入口；設備回報與會款管理先不進員工端主要入口。
+
+## 6. BFF 對前端 API
 
 前端固定呼叫：
 
@@ -121,9 +174,9 @@ GET /api/bff/employee/home?facilityKey=xinbei_pool
 ```json
 {
   "facility": { "key": "xinbei_pool", "name": "新北高中游泳池&運動中心" },
-  "announcements": { "status": "ok", "data": [] },
-  "shifts": { "status": "ok", "data": [] },
-  "handover": { "status": "ok", "data": [] },
+  "announcements": { "status": "ok", "data": [{ "title": "公告", "deadlineLabel": "2026/04/30", "content": "內容" }] },
+  "shifts": { "status": "ok", "data": [{ "employeeName": "王小明", "venueName": "新北高中", "timeRange": "08:00 - 16:00" }] },
+  "handover": { "status": "ok", "data": [{ "title": "交班", "targetDate": "2026-04-24", "targetShiftLabel": "晚班" }] },
   "tasks": { "status": "ok", "data": [] },
   "shortcuts": { "status": "ok", "data": [] },
   "campaigns": { "status": "ok", "data": [] },
@@ -133,7 +186,31 @@ GET /api/bff/employee/home?facilityKey=xinbei_pool
 
 `status` 可能是 `ok | degraded | unavailable`。前端只能依 section status 顯示狀態，不自行呼叫外部來源。
 
-## 6. 降級規則
+`tasks` 欄位目前作為舊前端相容的「交班待處理摘要」，正式主資料仍是 `/api/portal/operational-handovers`。
+
+主管端固定呼叫：
+
+```http
+GET /api/bff/supervisor/dashboard
+```
+
+其中：
+
+- `staffing.activeEmployees`：Ragic 現職人員。
+- `staffing.currentOnDuty`：Smart Schedule 當前當班人員。
+- `staffing.nextOnDuty`：Smart Schedule 下一班人員。
+- `incompleteTasks`：交班/交接未完成摘要。
+- `handoverOverview`：交班/交接開啟與完成數。
+
+系統端固定呼叫：
+
+```http
+GET /api/bff/system/overview
+GET /api/bff/system/integration-overview
+GET /api/bff/system/ui-event-overview
+```
+
+## 7. 降級規則
 
 如果 LINE Bot internal `/home` 回 HTML 或非 JSON：
 
@@ -142,15 +219,17 @@ GET /api/bff/employee/home?facilityKey=xinbei_pool
 3. Smart Schedule 仍從 internal schedule API 補今日班表。
 4. 回傳 `announcements.status="degraded"`，但畫面照常渲染。
 
-## 7. Smoke Test
+## 8. Smoke Test
 
 ```bash
 BASE=https://<400qian-duan-yi-biao-ban-replit-url>
 
 curl -s "$BASE/api/auth/me"
 curl -s "$BASE/api/bff/employee/home" | jq '.facility,.announcements.status,.shifts.status'
+curl -s "$BASE/api/bff/supervisor/dashboard" | jq '.staffing.data.active,.staffing.data.onShift'
 curl -s "$BASE/api/admin/overview" | jq .
 curl -s "$BASE/api/portal/handovers?facilityKey=xinbei_pool" | jq .
+curl -s "$BASE/api/portal/operational-handovers?facilityKey=xinbei_pool" | jq .
 ```
 
 上游直打測試：

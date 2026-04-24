@@ -12,7 +12,7 @@ const layoutOptions = [
   ["kpis", "核心 KPI"],
   ["staffing", "人力狀態"],
   ["anomalies", "待審異常"],
-  ["tasks", "未完成任務"],
+  ["tasks", "未完成交班"],
   ["quickActions", "快速操作"],
   ["activity", "近期活動"],
 ] as const;
@@ -115,7 +115,7 @@ export default function SupervisorDashboardPage() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Kpi title="當班人力" value={`${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`} helper={`在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`} icon={Users} tone="text-[#15935d]" />
               <Kpi title="待審核異常" value={`${data.pendingAnomalies.data?.length ?? 0}`} helper="需儘速處理" icon={AlertCircle} tone="text-[#ff4964]" />
-              <Kpi title="未完成任務" value={`${data.incompleteTasks.data?.length ?? 0}`} helper="較昨日 +6" icon={ClipboardList} tone="text-[#10233f]" />
+              <Kpi title="未完成交班" value={`${data.incompleteTasks.data?.length ?? 0}`} helper="待回報 / 待完成" icon={ClipboardList} tone="text-[#10233f]" />
               <Kpi title="未確認公告人數" value={`${data.announcementAcks.data?.unconfirmed ?? 0}`} helper="需補強通知" icon={Megaphone} tone="text-[#ef7d22]" />
               <Kpi title="今日剩餘交接" value={`${data.handoverOverview.data?.open ?? 0}`} helper="提醒 / 服務 / 櫃台" icon={CheckSquare} tone="text-[#2f6fe8]" />
             </div>
@@ -138,9 +138,9 @@ export default function SupervisorDashboardPage() {
                 </div>
                 <div className="space-y-3 text-[13px] font-bold">
                   {[
-                    ["在線", "12 人", "75%", "bg-[#2f6fe8]"],
-                    ["請假", "2 人", "12%", "bg-[#45b76b]"],
-                    ["缺班", "3 人", "13%", "bg-[#ff4964]"],
+                    ["現職", `${data.staffing.data?.active ?? 0} 人`, "Ragic", "bg-[#2f6fe8]"],
+                    ["當班", `${data.staffing.data?.onShift ?? 0} 人`, "排班", "bg-[#45b76b]"],
+                    ["未當班", `${data.staffing.data?.absent ?? 0} 人`, "推估", "bg-[#ff4964]"],
                   ].map(([label, count, pct, color]) => (
                     <div key={label} className="flex items-center gap-3">
                       <span className={cn("h-2 w-2 rounded-full", color)} />
@@ -178,7 +178,7 @@ export default function SupervisorDashboardPage() {
             {layout.tasks ? (
             <WorkbenchCard className="p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[15px] font-black">未完成任務 Top 5</h2>
+                <h2 className="text-[15px] font-black">未完成交班 Top 5</h2>
                 <button className="text-[11px] font-black text-[#007166]">查看全部 →</button>
               </div>
               <div className="space-y-3">
@@ -201,7 +201,7 @@ export default function SupervisorDashboardPage() {
             <WorkbenchCard className="p-5">
               <h2 className="mb-4 text-[15px] font-black">快速操作</h2>
               <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-                {["新增任務", "指派任務", "發布公告", "交接紀錄", "新增活動", "異常審核"].map((label, index) => (
+                {["新增交班", "指派交接", "發布公告", "交接紀錄", "新增活動", "異常審核"].map((label, index) => (
                   <button key={label} className="min-h-[72px] rounded-[8px] bg-[#fbfcfd] p-3 text-[12px] font-black text-[#263b56] hover:bg-white hover:shadow">
                     <CalendarDays className={cn("mx-auto mb-2 h-5 w-5", index % 2 ? "text-[#ff4964]" : "text-[#2f6fe8]")} />
                     {label}

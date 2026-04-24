@@ -61,12 +61,16 @@ const normalizeFacilityHome = (facilityKey: string, raw: unknown): EmployeeHomeD
     id: String(item.id ?? item._id ?? `ann-${index}`),
     title: readText(item.title, "未命名公告"),
     summary: readText(item.summary ?? item.body ?? item.content ?? item.originalText, ""),
+    content: readText(item.body ?? item.content ?? item.originalText ?? item.summary, ""),
     priority: item.isMustRead || item.priority === "critical" || item.priority === "required"
       ? "required"
       : item.priority === "high"
         ? "high"
         : "normal",
     effectiveRange: readText(item.effectiveRange ?? item.dateRange ?? item.effectiveStartAt ?? item.publishedAt ?? item.detectedAt, "即時"),
+    deadlineLabel: readText(item.effectiveEndAt ?? item.endAt ?? item.expiresAt ?? item.effectiveRange, "未設定"),
+    linkUrl: readText(item.linkUrl ?? item.actionUrl),
+    linkLabel: readText(item.linkLabel ?? item.recommendedAction),
   }));
 
   const campaigns: CampaignSummary[] = announcementsRaw
@@ -81,8 +85,14 @@ const normalizeFacilityHome = (facilityKey: string, raw: unknown): EmployeeHomeD
   const handover: HandoverSummary[] = handoverRaw.map((item, index) => ({
     id: String(item.id ?? item._id ?? `handover-${index}`),
     title: readText(item.title ?? item.content, "交接事項"),
+    content: readText(item.content ?? item.summary ?? item.title, ""),
     authorName: readText(item.authorName ?? item.employeeName, "值班人員"),
     status: "unread",
+    facilityKey,
+    targetDate: readText(item.targetDate),
+    targetShiftLabel: readText(item.targetShiftLabel ?? item.shiftLabel),
+    dueLabel: readText(item.dueAt ?? item.effectiveEndAt),
+    reportNote: readText(item.reportNote),
   }));
 
   const shifts: ShiftSummary[] = shiftsRaw.map((item, index) => ({
@@ -90,6 +100,10 @@ const normalizeFacilityHome = (facilityKey: string, raw: unknown): EmployeeHomeD
     label: readText(item.label ?? item.shiftLabel ?? item.name, "班別"),
     timeRange: readText(item.timeRange ?? `${readText(item.startsAt)} - ${readText(item.endsAt)}`, "依排班系統"),
     status: index === 0 ? "active" : "upcoming",
+    employeeName: readText(item.employeeName ?? item.displayName),
+    venueName: readText(item.venueName ?? item.facilityName),
+    startsAt: readText(item.startsAt ?? item.startAt ?? item.startTime),
+    endsAt: readText(item.endsAt ?? item.endAt ?? item.endTime),
   }));
 
   return {
