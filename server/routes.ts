@@ -1395,6 +1395,11 @@ export async function registerRoutes(
   });
 
   // -------- Portal: Employee Resources (員工自建活動 / 文件 / 便利貼) --------
+  const employeeResourceDatabaseUnavailable = () => ({
+    message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用員工資源寫入功能。",
+    code: "DATABASE_NOT_CONNECTED",
+  });
+
   app.get("/api/portal/employee-resources", requireEmployee(), async (req, res) => {
     try {
       const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
@@ -1404,6 +1409,7 @@ export async function registerRoutes(
       const items = await storage.listEmployeeResources({ facilityKey, category, limit: req.query.limit ? Number(req.query.limit) : 100 });
       res.json({ items });
     } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源查詢失敗";
       res.status(500).json({ message: m });
     }
@@ -1432,6 +1438,7 @@ export async function registerRoutes(
       });
       res.status(201).json(created);
     } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源建立失敗";
       res.status(500).json({ message: m });
     }
@@ -1458,6 +1465,7 @@ export async function registerRoutes(
       const updated = await storage.updateEmployeeResource(id, parsed.data);
       res.json(updated);
     } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源更新失敗";
       res.status(500).json({ message: m });
     }
@@ -1476,6 +1484,7 @@ export async function registerRoutes(
       const ok = await storage.deleteEmployeeResource(id);
       res.json({ ok });
     } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源刪除失敗";
       res.status(500).json({ message: m });
     }

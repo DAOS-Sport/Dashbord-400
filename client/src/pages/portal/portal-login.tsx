@@ -68,7 +68,7 @@ export default function PortalLogin() {
           >
             <MaterialIcon name="bolt" className="text-white text-3xl" />
           </div>
-          <p className="portal-label text-stitch-secondary mb-2">KINETIC OPS PORTAL</p>
+          <p className="portal-label text-stitch-secondary mb-2">JUNSI CMS PORTAL</p>
           <h1
             className="font-headline text-3xl md:text-4xl font-black text-stitch-primary tracking-tight"
             data-testid="text-portal-login-title"

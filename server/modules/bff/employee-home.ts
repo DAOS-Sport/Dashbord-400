@@ -42,7 +42,7 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
   handover: ok([], syncTime),
   shortcuts: ok([
     { id: "clock", label: "點名 / 打卡", href: "#clock", tone: "blue" },
-    { id: "booking", label: "報名 / 課程", href: "#booking", tone: "green" },
+    { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
     { id: "cash", label: "匯款確認", href: "#cash", tone: "amber" },
     { id: "events", label: "活動 / 檔期", href: "#events", tone: "violet" },
     { id: "feedback", label: "設備回報", href: "#feedback", tone: "rose" },

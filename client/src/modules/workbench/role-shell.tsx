@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   ClipboardList,
@@ -15,49 +16,41 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "./role-switcher";
+import { fetchModuleNavigation } from "@/shared/modules/api";
+import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
+import { BrandLockup } from "@/shared/brand";
 
-const roleNav = {
-  supervisor: [
-    ["首頁總覽", "/supervisor", Home],
-    ["交班狀態", "/supervisor/tasks", ClipboardList],
-    ["公告管理", "/supervisor/announcements", Bell],
-    ["交接管理", "/supervisor/handover", FileText],
-    ["異常審核", "/supervisor/anomalies", ShieldCheck],
-    ["人力狀態", "/supervisor/people", Users],
-    ["報表分析", "/supervisor/reports", BarChart3],
-    ["系統設定", "/supervisor/settings", Settings],
-  ],
-  system: [
-    ["總覽 Dashboard", "/system", Home],
-    ["系統健康", "/system/health", Gauge],
-    ["告警中心", "/system/alerts", Bell],
-    ["整合監控", "/system/integrations", ShieldCheck],
-    ["操作稽核", "/system/audit", FileText],
-    ["Raw Inspector", "/system/raw-inspector", Search],
-  ],
-} as const;
-
-type NavItem = readonly [label: string, href: string, Icon: LucideIcon];
-type MobileNavItem = readonly [label: string, href: string, Icon: LucideIcon];
-
-const roleMobileNav: Record<"supervisor" | "system", readonly MobileNavItem[]> = {
-  supervisor: [
-    ["首頁", "/supervisor", Home],
-    ["交班", "/supervisor/tasks", ClipboardList],
-    ["公告", "/supervisor/announcements", Bell],
-    ["人力", "/supervisor/people", Users],
-    ["更多", "/supervisor/reports", MoreHorizontal],
-  ],
-  system: [
-    ["首頁", "/system", Home],
-    ["健康", "/system/health", Gauge],
-    ["告警", "/system/alerts", Bell],
-    ["整合", "/system/integrations", ShieldCheck],
-    ["更多", "/system/raw-inspector", MoreHorizontal],
-  ],
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  Icon: LucideIcon;
 };
+
+const iconByKey: Record<string, LucideIcon> = {
+  home: Home,
+  bell: Bell,
+  "clipboard-check": ClipboardList,
+  "message-square-text": FileText,
+  "file-text": FileText,
+  gauge: Gauge,
+  "shield-check": ShieldCheck,
+  search: Search,
+  link: MoreHorizontal,
+};
+
+const toRoleNavItems = (role: "supervisor" | "system", items: NavigationModuleDto[] | undefined): NavItem[] =>
+  (items ?? [])
+    .filter((item) => item.routePath.startsWith(`/${role}`))
+    .map((item) => ({
+      id: item.id,
+      label: item.name,
+      href: item.routePath,
+      Icon: iconByKey[item.iconKey] ?? Home,
+    }));
 
 interface RoleShellProps {
   role: "supervisor" | "system";
@@ -68,7 +61,14 @@ interface RoleShellProps {
 
 export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const [location] = useLocation();
-  const nav: readonly NavItem[] = roleNav[role];
+  const trackEvent = useTrackEvent();
+  const navigation = useQuery({
+    queryKey: ["/api/modules/navigation", role],
+    queryFn: fetchModuleNavigation,
+    staleTime: 60_000,
+  });
+  const nav = toRoleNavItems(role, navigation.data?.items);
+  const mobileItems = nav.slice(0, 5);
   const userLabel = role === "system" ? "System (IT)" : "張主任";
   const roleLabel = role === "system" ? "系統管理員" : "主管・台中館";
 
@@ -76,12 +76,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
     <div className="workbench-shell">
       <div className="flex min-h-dvh">
         <aside className="workbench-sidebar hidden w-[216px] shrink-0 flex-col p-4 text-white lg:flex">
-          <div className="mb-5 flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-[8px] bg-[#143058] text-[#9dd84f]">
-              <Gauge className="h-4 w-4" />
-            </div>
-            <p className="text-[14px] font-black">駿斯 Kinetic Ops</p>
-          </div>
+          <BrandLockup className="mb-5" markClassName="h-8 w-8 rounded-[8px]" titleClassName="text-[14px] text-white" />
           <div className="mb-5 flex items-center gap-3 rounded-[8px] bg-white/8 p-3">
             <div className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-[#1f3f68]">
               <Users className="h-4 w-4" />
@@ -92,14 +87,18 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
             </div>
           </div>
           <nav className="flex flex-1 flex-col gap-1">
-            {nav.map(([label, href, Icon], index) => {
-              const roleRoot = href === "/supervisor" || href === "/system";
-              const active = roleRoot ? location === href : location === href || location.startsWith(`${href}/`);
+            {!nav.length && navigation.isLoading ? (
+              <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d8e3ef]">導覽載入中...</div>
+            ) : null}
+            {nav.map((item, index) => {
+              const roleRoot = item.href === "/supervisor" || item.href === "/system";
+              const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
               const rootActive = index === 0 && role === "supervisor" && location === "/";
               return (
                 <Link
-                  key={label}
-                  href={href}
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
                   className={cn(
                     "workbench-focus flex min-h-10 items-center gap-3 rounded-[8px] px-3 text-[13px] font-bold transition",
                     active || rootActive
@@ -107,9 +106,9 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                       : "text-[#d8e3ef] hover:bg-white/10",
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span className="truncate">{label}</span>
-                  {label.includes("異常") || label.includes("告警") ? (
+                  <item.Icon className="h-4 w-4" />
+                  <span className="truncate">{item.label}</span>
+                  {item.label.includes("異常") || item.label.includes("告警") ? (
                     <span className="ml-auto grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">5</span>
                   ) : null}
                 </Link>
@@ -166,21 +165,25 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
       </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
-        {roleMobileNav[role].map(([label, href, Icon]) => {
-          const roleRoot = href === "/supervisor" || href === "/system";
-          const active = roleRoot ? location === href : location === href || location.startsWith(`${href}/`);
+        {!mobileItems.length && navigation.isLoading ? (
+          <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中...</div>
+        ) : null}
+        {mobileItems.map((item) => {
+          const roleRoot = item.href === "/supervisor" || item.href === "/system";
+          const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
           return (
             <Link
-              key={String(label)}
-              href={href}
-              aria-label={label}
+              key={item.id}
+              href={item.href}
+              aria-label={item.label}
+              onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
               className={cn(
                 "workbench-focus flex min-h-12 flex-col items-center justify-center gap-1 rounded-[8px] text-[11px] font-black",
                 active ? "bg-[#eef5ff] text-[#1f6fd1]" : "text-[#6c7a8e]",
               )}
             >
-              <Icon className="h-5 w-5" />
-              {label}
+              <item.Icon className="h-5 w-5" />
+              {item.label}
             </Link>
           );
         })}

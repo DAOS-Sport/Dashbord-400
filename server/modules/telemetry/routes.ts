@@ -49,4 +49,21 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
   app.get("/api/bff/system/ui-event-overview", async (_req, res) => {
     return res.json(await container.repositories.telemetry.getUiEventOverview());
   });
+
+  app.get("/api/telemetry/module-events", async (_req, res) => {
+    const overview = await container.repositories.telemetry.getUiEventOverview();
+    return res.json({
+      items: overview.latestEvents.map((event) => ({
+        eventType: event.eventType,
+        moduleId: typeof event.payload === "object" && event.payload && "moduleId" in event.payload
+          ? (event.payload as { moduleId?: string }).moduleId
+          : undefined,
+        routePath: event.page,
+        role: event.role,
+        facilityKey: event.facilityKey,
+        occurredAt: event.occurredAt ?? event.receivedAt,
+      })),
+      total: overview.totalEvents,
+    });
+  });
 };

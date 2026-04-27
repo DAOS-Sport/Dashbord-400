@@ -25,6 +25,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { BrandMark } from "@/shared/brand";
 
 const navItems = [
   { title: "營運戰情總覽", url: "/", icon: LayoutDashboard, group: "營運管理" },
@@ -81,12 +82,10 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
-            <LayoutDashboard className="h-4 w-4" />
-          </div>
+          <BrandMark className="h-8 w-8 rounded-md" />
           <div>
             <p className="text-sm font-semibold tracking-heading text-foreground" data-testid="text-app-title">
-              DAOS
+              駿斯 CMS
             </p>
             <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">v2.1</p>
           </div>

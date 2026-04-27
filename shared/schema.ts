@@ -174,7 +174,7 @@ export const insertOperationalHandoverSchema = createInsertSchema(operationalHan
   content: z.string().min(1, "內容不可為空").max(2000, "內容過長"),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   status: z.enum(["pending", "claimed", "in_progress", "reported", "done", "cancelled"]).default("pending"),
-  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "���期格式需為 YYYY-MM-DD"),
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式需為 YYYY-MM-DD"),
   targetShiftLabel: z.string().min(1, "請指定班別"),
 });
 
@@ -259,7 +259,7 @@ export const insertEmployeeResourceSchema = createInsertSchema(employeeResources
   updatedAt: true,
 }).extend({
   facilityKey: z.string().min(1),
-  category: z.enum(["event", "document", "sticky_note"]),
+  category: z.enum(["event", "document", "sticky_note", "announcement"]),
   title: z.string().min(1, "標題不可為空").max(120, "標題過長"),
   content: z.string().max(1000, "內容過長").optional().nullable(),
   url: z.string().url("網址格式不正確").optional().nullable(),
@@ -378,6 +378,42 @@ export const insertWidgetLayoutSettingSchema = createInsertSchema(widgetLayoutSe
 export type InsertWidgetLayoutSetting = z.infer<typeof insertWidgetLayoutSettingSchema>;
 export type WidgetLayoutSetting = typeof widgetLayoutSettings.$inferSelect;
 
+export const moduleSettings = pgTable("module_settings", {
+  moduleId: text("module_id").primaryKey(),
+  enabled: boolean("enabled").default(true).notNull(),
+  stage: text("stage").notNull(),
+  menuOrder: integer("menu_order").default(100).notNull(),
+  cardOrder: integer("card_order"),
+  configJson: jsonb("config_json").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const moduleRolePermissions = pgTable("module_role_permissions", {
+  id: serial("id").primaryKey(),
+  moduleId: text("module_id").notNull(),
+  role: text("role").notNull(),
+  canView: boolean("can_view").default(false).notNull(),
+  canManage: boolean("can_manage").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const moduleFacilityOverrides = pgTable("module_facility_overrides", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  moduleId: text("module_id").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  sortOrder: integer("sort_order").default(100).notNull(),
+  configJson: jsonb("config_json").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ModuleSetting = typeof moduleSettings.$inferSelect;
+export type ModuleRolePermission = typeof moduleRolePermissions.$inferSelect;
+export type ModuleFacilityOverride = typeof moduleFacilityOverrides.$inferSelect;
+
 export const watchdogEvents = pgTable("watchdog_events", {
   id: serial("id").primaryKey(),
   source: text("source").notNull(),
@@ -449,6 +485,27 @@ export const insertUiEventSchema = createInsertSchema(uiEvents).omit({
 
 export type InsertUiEvent = z.infer<typeof insertUiEventSchema>;
 export type UiEvent = typeof uiEvents.$inferSelect;
+
+export const clientErrors = pgTable("client_errors", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  role: text("role"),
+  facilityKey: text("facility_key"),
+  routePath: text("route_path"),
+  message: text("message").notNull(),
+  stack: text("stack"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClientErrorSchema = createInsertSchema(clientErrors).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertClientError = z.infer<typeof insertClientErrorSchema>;
+export type ClientError = typeof clientErrors.$inferSelect;
 
 export const integrationErrorLogs = pgTable("integration_error_logs", {
   id: serial("id").primaryKey(),

@@ -1,4 +1,4 @@
-import type { EmployeeHomeDto } from "@shared/domain/workbench";
+import type { EmployeeHomeDto, HandoverItemDto, HandoverListDto, HandoverSummaryDto, ShiftBoardDto } from "@shared/domain/workbench";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { HandoverEntryDTO, QuickLinkDTO } from "@/types/portal";
 
@@ -13,7 +13,7 @@ export interface EmployeeSearchResultDTO {
 export interface EmployeeResourceDTO {
   id: number;
   facilityKey: string;
-  category: "event" | "document" | "sticky_note";
+  category: "event" | "document" | "sticky_note" | "announcement";
   title: string;
   content: string | null;
   url: string | null;
@@ -71,6 +71,43 @@ export interface EmployeeTaskDTO {
 
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
 
+export const fetchEmployeeHandoverSummary = () =>
+  apiGet<HandoverSummaryDto>("/api/bff/employee/handover/summary");
+
+export const fetchEmployeeHandoverList = (facilityKey?: string) => {
+  const params = new URLSearchParams();
+  if (facilityKey) params.set("facilityKey", facilityKey);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiGet<HandoverListDto>(`/api/bff/employee/handover/list${suffix}`);
+};
+
+export const createEmployeeFrontDeskHandover = (input: {
+  facilityKey: string;
+  title: string;
+  content: string;
+  dueDate: string;
+  priority?: "low" | "normal" | "high";
+}) => apiPost<HandoverItemDto>("/api/handover", input);
+
+export const completeEmployeeFrontDeskHandover = (id: string) =>
+  apiPatch<HandoverItemDto>(`/api/handover/${encodeURIComponent(id)}/complete`, {});
+
+export const readEmployeeFrontDeskHandover = (id: string) =>
+  apiPatch<HandoverItemDto>(`/api/handover/${encodeURIComponent(id)}/read`, {});
+
+export const replyEmployeeFrontDeskHandover = (id: string, reportNote: string) =>
+  apiPatch<HandoverItemDto>(`/api/handover/${encodeURIComponent(id)}/reply`, { reportNote });
+
+export const deleteEmployeeFrontDeskHandover = (id: string) =>
+  apiDelete<{ ok: boolean }>(`/api/handover/${encodeURIComponent(id)}`);
+
+export const fetchEmployeeShiftBoard = (facilityKey?: string) => {
+  const params = new URLSearchParams();
+  if (facilityKey) params.set("facilityKey", facilityKey);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiGet<ShiftBoardDto>(`/api/bff/employee/shifts/today${suffix}`);
+};
+
 export const searchEmployeeWorkbench = (query: string, facilityKey?: string) => {
   const params = new URLSearchParams({ q: query });
   if (facilityKey) params.set("facilityKey", facilityKey);
@@ -85,7 +122,7 @@ export const createEmployeeHandover = (facilityKey: string, content: string) =>
 
 export const createEmployeeResource = (input: {
   facilityKey: string;
-  category: "event" | "document" | "sticky_note";
+  category: "event" | "document" | "sticky_note" | "announcement";
   title: string;
   content?: string;
   url?: string;

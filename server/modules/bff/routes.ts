@@ -1,5 +1,6 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import type { AppContainer } from "../../app/container";
+import type { ScheduleShift } from "../../integrations/schedule/adapter";
 import { facilityLabel, facilityLineGroups, findFacilityLineGroup } from "@shared/domain/facilities";
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 import type {
@@ -8,6 +9,7 @@ import type {
   DocumentSummary,
   EmployeeHomeDto,
   HandoverSummary,
+  ShiftBoardDto,
   ShiftSummary,
   ShortcutSummary,
   StaffMemberSummary,
@@ -15,9 +17,12 @@ import type {
   TaskSummary,
 } from "@shared/domain/workbench";
 import type { OperationalHandover, Task } from "@shared/schema";
+import type { BffSection } from "@shared/bff/envelope";
+import { getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
 import { degraded, ok, unavailable } from "../../shared/bff/section";
+import { sourceUnavailable } from "../../shared/integrations/source-status";
 import {
   getSupervisorDashboardFromSources,
   getSupervisorDashboardMock,
@@ -28,13 +33,210 @@ import {
 const shortcutTones: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
 
 const defaultEmployeeShortcuts: ShortcutSummary[] = [
-  { id: "clock", label: "點名 / 打卡", href: "/employee/more", tone: "blue" },
-  { id: "handover-board", label: "交班事項", href: "/employee/tasks", tone: "green" },
-  { id: "handover", label: "櫃台交接", href: "/employee/handover", tone: "amber" },
-  { id: "announcements", label: "群組公��", href: "/employee/announcements", tone: "violet" },
-  { id: "shift", label: "今日班表", href: "/employee/shift", tone: "rose" },
+  { id: "clock", label: "點名 / 打卡", href: "/employee/checkins", tone: "blue" },
+  { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
+  { id: "counter-handover", label: "櫃位交接", href: "/employee/handover", tone: "amber" },
+  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
+  { id: "today-ticket", label: "今日鑰票", href: "/employee/more", tone: "rose" },
   { id: "more", label: "更多入口", href: "/employee/more", tone: "cyan" },
+  { id: "sticky-notes", label: "我的便利貼", href: "/employee/personal-note", tone: "blue" },
 ];
+
+const employeeModuleDescriptorMap = new Map(
+  getModuleDescriptorsByRole("employee").map((descriptor) => [descriptor.id, descriptor]),
+);
+
+const sectionToCard = <T>(
+  moduleId: string,
+  title: string,
+  order: number,
+  routePath: string | undefined,
+  section: BffSection<T>,
+  emptyText: string,
+  notConnectedText: string,
+): HomeCardDto => {
+  const descriptor = employeeModuleDescriptorMap.get(moduleId);
+  const stage = descriptor?.stage ?? "planned";
+  const data = section.data;
+  const isArray = Array.isArray(data);
+  const isEmpty = data == null || (isArray && data.length === 0);
+  const notConnected = section.status === "unavailable";
+  const status: HomeCardDto["status"] = stage === "production-ready"
+    ? notConnected
+      ? "error"
+      : isEmpty
+        ? "empty"
+        : "ready"
+    : stage === "bff-wired"
+      ? "incomplete"
+      : "not_connected";
+  return {
+    moduleId,
+    title,
+    status,
+    routePath,
+    order,
+    payload: data,
+    sourceStatus: {
+      source: descriptor?.bffEndpoint ?? section.meta.errorCode ?? moduleId,
+      connected: stage === "production-ready" || stage === "bff-wired",
+      lastSyncedAt: section.meta.lastSyncAt,
+      errorMessage: status === "not_connected"
+        ? notConnectedText
+        : status === "incomplete"
+          ? `${title} 已接上 BFF，但尚未達到 production-ready。`
+          : status === "error"
+            ? section.meta.fallbackReason ?? notConnectedText
+            : isEmpty
+              ? emptyText
+              : undefined,
+    },
+  };
+};
+
+const formatBusinessDate = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+
+const buildShiftBoardFromSummaries = (
+  facilityKey: string,
+  userId: string,
+  shifts: ShiftSummary[] | null | undefined,
+  source: { connected: boolean; lastSyncedAt?: string; errorMessage?: string },
+): ShiftBoardDto => {
+  const nowIso = new Date().toISOString();
+  const nowTime = Date.parse(nowIso);
+  const grouped = new Map<string, ShiftBoardDto["shifts"][number]>();
+
+  (shifts ?? [])
+    .filter((shift) => shift.startsAt && shift.endsAt)
+    .forEach((shift) => {
+      const start = shift.startsAt!;
+      const end = shift.endsAt!;
+      const key = `${start}|${end}`;
+      const startTime = Date.parse(start);
+      const endTime = Date.parse(end);
+      const current = grouped.get(key) ?? {
+        shiftId: key,
+        start,
+        end,
+        isCurrent: Number.isFinite(startTime) && Number.isFinite(endTime) && nowTime >= startTime && nowTime < endTime,
+        isFuture: Number.isFinite(startTime) && startTime > nowTime,
+        people: [],
+      };
+      const personId = shift.id || `${shift.employeeName ?? "unknown"}-${current.people.length}`;
+      current.people.push({
+        userId: personId,
+        name: shift.employeeName || shift.label.split("/")[0]?.trim() || "未命名",
+        role: shift.kind || shift.label.split("/")[1]?.trim() || "當班",
+        isCurrentUser: Boolean(userId && (personId === userId || shift.employeeName === userId)),
+      });
+      grouped.set(key, current);
+    });
+
+  const boardShifts = Array.from(grouped.values())
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+
+  return {
+    facility: {
+      key: facilityKey,
+      name: facilityLabel(facilityKey),
+    },
+    date: formatBusinessDate(),
+    now: nowIso,
+    currentUserId: userId,
+    shifts: boardShifts,
+    totalCount: boardShifts.reduce((sum, shift) => sum + shift.people.length, 0),
+    sourceStatus: {
+      connected: source.connected,
+      lastSyncedAt: source.lastSyncedAt,
+      errorMessage: source.errorMessage,
+    },
+  };
+};
+
+const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): EmployeeHomeDto => {
+  const session = req.workbenchSession;
+  const facilityName = facilityLabel(session?.activeFacility ?? dto.facility.key);
+  const navigation = getNavigationModules("employee", session?.permissionsSnapshot);
+  const bookingSnapshotCard: HomeCardDto = {
+    moduleId: "booking-snapshot",
+    title: "報名 / 課程",
+    status: "not_connected",
+    routePath: "/employee/more",
+    order: 55,
+    payload: null,
+    sourceStatus: {
+      source: "/api/bff/employee/home",
+      connected: false,
+      errorMessage: "報名 / 課程模組已註冊，但 booking provider 尚未接線。",
+    },
+  };
+  const todayTasks = sectionToCard("tasks", "今日任務", 10, "/employee/tasks", dto.tasks, "今日沒有任務。", "任務模組已註冊，但資料來源尚未接線。");
+  const handover = sectionToCard("handover", "櫃台交辦", 20, "/employee/handover", dto.handover, "尚未設定櫃台交辦。", "櫃台交辦資料暫時無法取得。");
+  const handoverItems = (dto.handover.data ?? [])
+    .filter((item) => item.status === "pending" || item.status === "unread" || item.status === "read")
+    .filter((item) => !item.dueLabel || Date.parse(item.dueLabel) >= Date.now() || Number.isNaN(Date.parse(item.dueLabel)))
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      preview: item.content ?? item.reportNote ?? "",
+      dueDate: item.dueLabel ?? item.targetDate ?? "",
+      status: item.status === "expired" ? "expired" : item.status === "completed" || item.status === "confirmed" ? "completed" : "pending",
+    }))
+    .slice(0, 5);
+  handover.payload = {
+    title: "櫃台交辦",
+    items: handoverItems,
+    totalPending: handoverItems.length,
+    primaryAction: {
+      label: "新增交辦事項",
+      action: "open_drawer",
+    },
+    viewAllRoute: "/employee/handover",
+  };
+  const announcements = sectionToCard("announcements", "群組重要公告", 30, "/employee/announcements", dto.announcements, "目前沒有公告。", "公告模組已註冊，但資料來源尚未接線。");
+  const quickActions = sectionToCard("quick-links", "快速操作", 40, "/employee/more", dto.shortcuts, "目前沒有快速操作。", "快速操作已註冊，但資料來源尚未接線。");
+  quickActions.payload = defaultEmployeeShortcuts;
+  const shiftReminder = sectionToCard("shift-reminder", "今日班表", 50, "/employee/shift", dto.shifts, "目前沒有班表資料。", "班表模組已註冊，但外部排班來源尚未接線。");
+  shiftReminder.payload = buildShiftBoardFromSummaries(dto.facility.key, session?.userId ?? "", dto.shifts.data, {
+    connected: dto.shifts.status !== "unavailable",
+    lastSyncedAt: dto.shifts.meta.lastSyncAt,
+    errorMessage: dto.shifts.status === "unavailable" ? dto.shifts.meta.fallbackReason ?? "班表資料暫時無法取得。" : undefined,
+  });
+  return {
+    ...dto,
+    homeCards: {
+      todayTasks,
+      announcements,
+      handover,
+      quickActions,
+      shiftReminder,
+      bookingSnapshot: bookingSnapshotCard,
+    },
+    currentUser: {
+      id: session?.userId ?? "anonymous",
+      displayName: session?.displayName ?? "未登入員工",
+      role: "employee",
+      facilityName,
+    },
+    date: dto.facility.businessDate,
+    quickSearch: {
+      placeholder: "搜尋模組、公告、交接、班表或 Q&A",
+      enabledModules: ["tasks", "handover", "announcements", "shift-reminder", "knowledge-base-qna"],
+    },
+    todayTasks,
+    handoverSummary: handover,
+    importantAnnouncements: announcements,
+    quickActions,
+    todayShift: shiftReminder,
+    weatherCard: sectionToCard("weather-widget", "天氣卡片", 60, undefined, dto.weather, "目前沒有天氣資料。", "天氣卡片已註冊，但資料來源尚未接線。"),
+    navigation,
+    unreadCounts: {
+      announcements: (dto.announcements.data ?? []).filter((item) => item.priority === "required" && !item.isAcknowledged).length,
+      tasks: (dto.tasks.data ?? []).filter((item) => item.status !== "done").length,
+      handovers: (dto.handover.data ?? []).filter((item) => item.status !== "confirmed" && item.status !== "completed").length,
+    },
+  };
+};
 
 const asArray = <T>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
@@ -45,6 +247,54 @@ const asArray = <T>(value: unknown): T[] => {
 };
 
 const readText = (value: unknown, fallback = "") => (typeof value === "string" && value.trim() ? value : fallback);
+
+const isImageUrl = (value: unknown) =>
+  typeof value === "string" && /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(value.trim());
+
+const isAnnouncementType = (value: unknown): value is NonNullable<AnnouncementSummary["type"]> =>
+  value === "required" || value === "sop" || value === "notice" || value === "event" || value === "general";
+
+const parseAnnouncementResourceContent = (content: string | null) => {
+  if (!content) return { body: "", type: "notice" as NonNullable<AnnouncementSummary["type"]>, scheduledAt: undefined as string | undefined };
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    const body = typeof parsed.body === "string" ? parsed.body : content;
+    const type = isAnnouncementType(parsed.type) ? parsed.type : "notice";
+    const scheduledAt = typeof parsed.scheduledAt === "string" && parsed.scheduledAt.trim() ? parsed.scheduledAt : undefined;
+    return { body, type, scheduledAt };
+  } catch {
+    return { body: content, type: "notice" as NonNullable<AnnouncementSummary["type"]>, scheduledAt: undefined as string | undefined };
+  }
+};
+
+const mapEmployeeAnnouncementResource = (item: {
+  id: number;
+  title: string;
+  content: string | null;
+  isPinned: boolean;
+  createdAt: Date | null;
+}): AnnouncementSummary => {
+  const parsed = parseAnnouncementResourceContent(item.content);
+  const publishedAt = item.createdAt ? item.createdAt.toISOString() : new Date().toISOString();
+  return {
+    id: `employee-ann-${item.id}`,
+    resourceId: item.id,
+    title: item.title,
+    summary: parsed.body || "員工新增公告",
+    content: parsed.body,
+    priority: parsed.type === "required" ? "required" : "normal",
+    type: parsed.type,
+    isPinned: item.isPinned,
+    effectiveRange: parsed.scheduledAt ? new Date(parsed.scheduledAt).toLocaleString("zh-TW") : new Date(publishedAt).toLocaleString("zh-TW"),
+    publishedAt,
+    scheduledAt: parsed.scheduledAt,
+  };
+};
+
+const announcementSortTime = (item: AnnouncementSummary) => {
+  const parsed = Date.parse(item.scheduledAt ?? item.publishedAt ?? item.effectiveRange ?? "");
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const fetchJsonIfAvailable = async <T>(url: URL, token?: string): Promise<T | null> => {
   const controller = new AbortController();
@@ -92,7 +342,10 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
       summary: readText(item.summary ?? item.originalText, ""),
       content: readText(item.body ?? item.content ?? item.originalText ?? item.summary, ""),
       priority: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "normal",
+      type: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "notice",
+      isPinned: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8,
       effectiveRange: readText(item.detectedAt ?? item.startAt, "即時"),
+      publishedAt: readText(item.detectedAt ?? item.startAt, new Date().toISOString()),
       deadlineLabel: readText(item.effectiveEndAt ?? item.endAt ?? item.expiresAt ?? item.detectedAt ?? item.startAt, "未設定"),
     }));
 };
@@ -112,7 +365,9 @@ const buildEmployeeHomeFallback = async (
     storage.listQuickLinks(normalizedFacilityKey, false),
     storage.listEmployeeResources({ facilityKey: normalizedFacilityKey, limit: 100 }),
     storage.listSystemAnnouncements(normalizedFacilityKey, false),
-    container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
+    env.dataSourceMode === "mock"
+      ? Promise.resolve(sourceUnavailable<ScheduleShift[]>("smart-schedule", "Smart Schedule is not connected; mock schedule data is disabled for employee shift board.", "SMART_SCHEDULE_NOT_CONNECTED"))
+      : container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
     fetchAnnouncementCandidateFallback(normalizedFacilityKey),
   ]);
 
@@ -131,9 +386,15 @@ const buildEmployeeHomeFallback = async (
     summary: item.content,
     content: item.content,
     priority: item.severity === "critical" ? "required" : item.severity === "warning" ? "high" : "normal",
+    type: item.severity === "critical" ? "required" : "notice",
+    isPinned: item.severity === "critical",
     effectiveRange: item.publishedAt ? new Date(item.publishedAt).toLocaleString("zh-TW") : "即時",
+    publishedAt: item.publishedAt ? item.publishedAt.toISOString() : now,
     deadlineLabel: item.expiresAt ? new Date(item.expiresAt).toLocaleDateString("zh-TW") : "未設定",
   }));
+  const resourceAnnouncements = employeeResources
+    .filter((item) => item.category === "announcement")
+    .map(mapEmployeeAnnouncementResource);
 
   const mappedHandovers: HandoverSummary[] = [
     ...operationalHandovers.map(mapOperationalHandoverSummary),
@@ -175,16 +436,7 @@ const buildEmployeeHomeFallback = async (
     })),
   ].slice(0, 10);
 
-  const shifts: ShiftSummary[] = (scheduleResult?.data ?? []).map((item, index) => ({
-    id: item.id,
-    label: item.label,
-    timeRange: item.startsAt && item.endsAt ? `${item.startsAt} - ${item.endsAt}` : "依排班系統",
-    status: index === 0 ? "active" : "upcoming",
-    employeeName: item.employeeName,
-    venueName: item.venueName,
-    startsAt: item.startsAt,
-    endsAt: item.endsAt,
-  }));
+  const shifts: ShiftSummary[] = mapScheduleShifts(scheduleResult?.data ?? []);
 
   const campaigns: CampaignSummary[] = [
     ...employeeResources.filter((item) => item.category === "event").map((item) => ({
@@ -194,6 +446,7 @@ const buildEmployeeHomeFallback = async (
       statusLabel: "員工新增",
       effectiveRange: item.content || "未設定時間",
       linkUrl: item.url ?? undefined,
+      imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
     })),
     ...candidateAnnouncements
       .filter((item) => /活動|課程|營隊|報名|檔期/.test(`${item.title}${item.summary}`))
@@ -218,7 +471,9 @@ const buildEmployeeHomeFallback = async (
       createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "今日",
     }));
 
-  const announcements = [...portalAnnouncements, ...candidateAnnouncements].slice(0, 10);
+  const announcements = [...resourceAnnouncements, ...portalAnnouncements, ...candidateAnnouncements]
+    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
+    .slice(0, 10);
 
   return {
     facility: {
@@ -250,24 +505,33 @@ const buildEmployeeHomeFallback = async (
 
 const mapScheduleShifts = (items: Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>["data"]): ShiftSummary[] => {
   const now = Date.now();
-  return (items ?? []).map((item, index) => ({
-    id: item.id,
-    label: item.label,
-    timeRange: item.startsAt && item.endsAt ? `${item.startsAt} - ${item.endsAt}` : "依排班系統",
-    status: item.startsAt && item.endsAt && Date.parse(item.startsAt) <= now && Date.parse(item.endsAt) >= now
-      ? "active"
-      : item.endsAt && Date.parse(item.endsAt) < now
-        ? "finished"
-        : index === 0 ? "active" : "upcoming",
-    employeeName: item.employeeName,
-    venueName: item.venueName,
-    startsAt: item.startsAt,
-    endsAt: item.endsAt,
-  }));
+  return (items ?? [])
+    .map((item) => {
+      const status: ShiftSummary["status"] = item.startsAt && item.endsAt && Date.parse(item.startsAt) <= now && Date.parse(item.endsAt) >= now
+        ? "active"
+        : item.endsAt && Date.parse(item.endsAt) < now
+          ? "finished"
+          : "upcoming";
+      return {
+        id: item.id,
+        label: item.label,
+        timeRange: item.startsAt && item.endsAt ? `${item.startsAt} - ${item.endsAt}` : "依排班系統",
+        status,
+        employeeName: item.employeeName,
+        venueName: item.venueName,
+        startsAt: item.startsAt,
+        endsAt: item.endsAt,
+        kind: item.kind,
+      };
+    })
+    .sort((a, b) => Date.parse(a.startsAt ?? "") - Date.parse(b.startsAt ?? ""));
 };
 
 const getEmployeeResourceSections = async (facilityKey: string) => {
   const resources = await storage.listEmployeeResources({ facilityKey, limit: 100 }).catch(() => []);
+  const announcements: AnnouncementSummary[] = resources
+    .filter((item) => item.category === "announcement")
+    .map(mapEmployeeAnnouncementResource);
   const campaigns: CampaignSummary[] = resources
     .filter((item) => item.category === "event")
     .map((item) => ({
@@ -277,6 +541,7 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       statusLabel: "員工新增",
       effectiveRange: item.content || "未設定時間",
       linkUrl: item.url ?? undefined,
+      imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
     }));
   const documents: DocumentSummary[] = resources
     .filter((item) => item.category === "document")
@@ -298,7 +563,7 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       authorName: item.createdByName,
       createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "今日",
     }));
-  return { campaigns, documents, stickyNotes };
+  return { announcements, campaigns, documents, stickyNotes };
 };
 
 type SearchItem = {
@@ -400,7 +665,11 @@ const mapOperationalHandoverSummary = (handover: OperationalHandover): HandoverS
   title: handover.title,
   content: handover.content,
   authorName: handover.createdByName || "主管",
-  status: handover.status === "done" ? "confirmed" : handover.status === "reported" ? "read" : "unread",
+  status: handover.status === "done"
+    ? "completed"
+    : handover.dueAt && handover.dueAt.getTime() < Date.now()
+      ? "expired"
+      : "pending",
   facilityKey: handover.facilityKey,
   targetDate: handover.targetDate,
   targetShiftLabel: handover.targetShiftLabel,
@@ -499,6 +768,13 @@ const enrichEmployeeHome = async (
   nextDto = {
     ...nextDto,
     tasks: ok(localTasks.map(mapTaskSummary), now),
+    shortcuts: ok(defaultEmployeeShortcuts, now),
+    announcements: ok(
+      [...employeeResources.announcements, ...(nextDto.announcements.data ?? [])]
+        .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
+        .slice(0, 10),
+      now,
+    ),
     campaigns: ok([...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(0, 10), now),
     documents: ok([...employeeResources.documents, ...(nextDto.documents.data ?? [])].slice(0, 10), now),
     stickyNotes: ok([...employeeResources.stickyNotes, ...(nextDto.stickyNotes.data ?? [])].slice(0, 8), now),
@@ -513,6 +789,7 @@ const enrichEmployeeHome = async (
   }
 
   if (currentShiftCount > 0) return nextDto;
+  if (env.dataSourceMode === "mock") return nextDto;
 
   const scheduleResult = await container.integrations.schedule.listTodayShifts(normalizedFacilityKey);
   if (!scheduleResult.data?.length) return nextDto;
@@ -579,11 +856,38 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
         container,
         result.meta.fallbackReason || "Employee home projection is unavailable",
       );
-      return res.json(await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, req.workbenchSession?.userId));
+      const home = await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, req.workbenchSession?.userId);
+      return res.json(attachEmployeeHomeContract(home, req));
     }
 
     const home = await enrichEmployeeHome(result.data, facilityKey, container);
-    return res.json(await attachAnnouncementAcknowledgements(home, facilityKey, req.workbenchSession?.userId));
+    const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, req.workbenchSession?.userId);
+    return res.json(attachEmployeeHomeContract(acknowledgedHome, req));
+  });
+
+  app.get("/api/bff/employee/shifts/today", async (req, res) => {
+    const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    if (
+      requestedFacilityKey &&
+      req.workbenchSession &&
+      !req.workbenchSession.grantedFacilities.includes(requestedFacilityKey)
+    ) {
+      return res.status(403).json({ message: "Facility is not granted" });
+    }
+    const facilityKey = requestedFacilityKey || req.workbenchSession?.activeFacility || "xinbei_pool";
+    if (env.dataSourceMode === "mock") {
+      return res.json(buildShiftBoardFromSummaries(facilityKey, req.workbenchSession?.userId ?? "", [], {
+        connected: false,
+        errorMessage: "班表資料暫時無法取得。",
+      }));
+    }
+    const result = await container.integrations.schedule.listTodayShifts(facilityKey);
+    const shifts = mapScheduleShifts(result.data ?? []);
+    return res.json(buildShiftBoardFromSummaries(facilityKey, req.workbenchSession?.userId ?? "", shifts, {
+      connected: Boolean(result.data),
+      lastSyncedAt: new Date().toISOString(),
+      errorMessage: result.data ? undefined : result.meta.fallbackReason || "班表資料暫時無法取得。",
+    }));
   });
 
   app.get("/api/bff/employee/search", async (req, res) => {
@@ -615,6 +919,35 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     }).catch(() => undefined);
 
     return res.json({ query, items });
+  });
+
+  app.get("/api/search/global", async (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const role = req.workbenchSession?.activeRole ?? "employee";
+    const normalizedQuery = query.toLowerCase();
+    const moduleMatches = getModuleDescriptorsByRole(role)
+      .filter((module) => {
+        if (!normalizedQuery) return false;
+        return `${module.name} ${module.description} ${module.searchKeywords.join(" ")}`.toLowerCase().includes(normalizedQuery);
+      })
+      .slice(0, 12)
+      .map((module) => ({
+        id: `module-${module.id}`,
+        type: "module",
+        moduleId: module.id,
+        title: module.name,
+        summary: module.description,
+        href: module.routePath ?? module.bffEndpoint ?? "#",
+      }));
+    return res.json({
+      query,
+      items: moduleMatches,
+      sourceStatus: {
+        source: "MODULE_REGISTRY",
+        connected: true,
+        errorMessage: moduleMatches.length ? undefined : "全文搜尋尚未接線；目前只搜尋已註冊模組。",
+      },
+    });
   });
 
   app.get("/api/bff/supervisor/dashboard", async (req, res) => {
@@ -651,7 +984,10 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     }
   });
 
-  app.get("/api/bff/system/overview", async (_req, res) => {
+  const systemDashboardHandler = async (_req: Request, res: Response) => {
     return res.json(env.dataSourceMode === "mock" ? getSystemOverviewMock() : await getSystemOverviewFromSources());
-  });
+  };
+
+  app.get("/api/bff/system/overview", systemDashboardHandler);
+  app.get("/api/bff/system/dashboard", systemDashboardHandler);
 };

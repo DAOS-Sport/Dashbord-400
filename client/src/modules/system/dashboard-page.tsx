@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle, Database, FileSearch, Gauge, Server, Settings, ShieldAlert, Users } from "lucide-react";
 import type { SystemOverviewDto } from "@shared/domain/workbench";
+import type { ModuleHealthDto } from "@shared/modules";
 import { apiGet } from "@/shared/api/client";
+import { fetchModuleHealth } from "@/shared/modules/api";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { cn } from "@/lib/utils";
@@ -26,8 +28,33 @@ function StatusBadge({ status }: { status: "ok" | "warning" | "critical" }) {
   );
 }
 
+function ModuleHealthBadge({ status }: { status: ModuleHealthDto["status"] }) {
+  return (
+    <span className={cn(
+      "rounded-full px-2 py-1 text-[10px] font-black",
+      status === "ready"
+        ? "bg-[#eaf8ef] text-[#15935d]"
+        : status === "degraded"
+          ? "bg-[#fff6e7] text-[#ef7d22]"
+          : status === "error"
+            ? "bg-[#ffe8eb] text-[#ff4964]"
+            : "bg-[#eef2f6] text-[#637185]",
+    )}>
+      {status}
+    </span>
+  );
+}
+
 export default function SystemDashboardPage() {
   const { data, isLoading } = useQuery({ queryKey: ["/api/bff/system/overview"], queryFn: fetchSystemOverview });
+  const healthQuery = useQuery({ queryKey: ["/api/modules/health", "system-dashboard"], queryFn: fetchModuleHealth, staleTime: 30_000 });
+  const healthItems = healthQuery.data?.items ?? [];
+  const healthCounts = {
+    ready: healthItems.filter((item) => item.status === "ready").length,
+    degraded: healthItems.filter((item) => item.status === "degraded").length,
+    notConnected: healthItems.filter((item) => item.status === "not_connected").length,
+    error: healthItems.filter((item) => item.status === "error").length,
+  };
 
   return (
     <RoleShell title="系統總覽" subtitle="掌握系統狀態與異常推播" role="system">
@@ -56,21 +83,40 @@ export default function SystemDashboardPage() {
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_1fr]">
             <WorkbenchCard className="p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[15px] font-black">系統健康趨勢</h2>
-                <button className="rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[11px] font-black text-[#637185]">過去 24 小時</button>
+                <h2 className="text-[15px] font-black">模組健康總覽</h2>
+                <button className="rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[11px] font-black text-[#637185]">/api/modules/health</button>
               </div>
-              <div className="grid gap-4 sm:grid-cols-[150px_1fr]">
-                <div className="mx-auto grid h-[140px] w-[140px] place-items-center rounded-full border-[14px] border-[#45b76b]">
-                  <div className="text-center">
-                    <p className="text-[26px] font-black text-[#15935d]">{data.healthScore.data?.score}%</p>
-                    <p className="text-[11px] font-bold text-[#8b9aae]">{data.healthScore.data?.statusLabel}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4">
+                  <p className="text-[12px] font-bold text-[#637185]">Ready</p>
+                  <p className="mt-2 text-[24px] font-black text-[#15935d]">{healthCounts.ready}</p>
+                </div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4">
+                  <p className="text-[12px] font-bold text-[#637185]">Degraded</p>
+                  <p className="mt-2 text-[24px] font-black text-[#ef7d22]">{healthCounts.degraded}</p>
+                </div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4">
+                  <p className="text-[12px] font-bold text-[#637185]">Not Connected</p>
+                  <p className="mt-2 text-[24px] font-black text-[#637185]">{healthCounts.notConnected}</p>
+                </div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4">
+                  <p className="text-[12px] font-bold text-[#637185]">Error</p>
+                  <p className="mt-2 text-[24px] font-black text-[#ff4964]">{healthCounts.error}</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {healthQuery.isLoading ? (
+                  <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入 module health...</div>
+                ) : null}
+                {healthItems.slice(0, 6).map((item) => (
+                  <div key={item.moduleId} className="flex items-start justify-between gap-3 rounded-[8px] border border-[#e6edf4] bg-white px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-black text-[#10233f]">{item.moduleId}</p>
+                      <p className="truncate text-[11px] font-medium text-[#8b9aae]">{item.issues[0] ?? "module ready"}</p>
+                    </div>
+                    <ModuleHealthBadge status={item.status} />
                   </div>
-                </div>
-                <div className="flex items-end gap-1 rounded-[8px] bg-[#fbfcfd] p-4">
-                  {[60, 70, 66, 74, 72, 69, 73, 68, 77, 71, 75, 70, 72, 74].map((h, i) => (
-                    <div key={i} className="flex-1 rounded-t bg-[#15935d]" style={{ height: `${h}%` }} />
-                  ))}
-                </div>
+                ))}
               </div>
             </WorkbenchCard>
 

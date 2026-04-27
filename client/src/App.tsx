@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -27,9 +27,12 @@ import PortalManage from "@/pages/portal/portal-manage";
 import PortalAnalytics from "@/pages/portal/portal-analytics";
 import PortalReview from "@/pages/portal/portal-review";
 import EmployeeHomePage from "@/modules/employee/home/employee-home-page";
+import EmployeeActivityPeriodsPage from "@/modules/employee/activity-periods/page";
 import EmployeeAnnouncementsPage from "@/modules/employee/announcements/page";
+import EmployeeDocumentsPage from "@/modules/employee/documents/page";
 import EmployeeHandoverPage from "@/modules/employee/handover/page";
 import EmployeeMorePage from "@/modules/employee/more/page";
+import EmployeePersonalNotePage from "@/modules/employee/personal-note/page";
 import EmployeeShiftPage from "@/modules/employee/shift/page";
 import EmployeeTasksPage from "@/modules/employee/tasks/page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
@@ -46,6 +49,7 @@ import SystemAuditPage from "@/modules/system/audit/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemRawInspectorPage from "@/modules/system/raw-inspector/page";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
+import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe } from "@/shared/auth/session";
 import { roleHomePath } from "@shared/auth/me";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
@@ -82,7 +86,11 @@ function AppRouter() {
 function PortalAuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading } = usePortalAuth();
   if (isLoading) {
-    return <div className="grid min-h-dvh place-items-center bg-stitch-surface text-sm font-bold text-slate-500">載入員工登入狀態...</div>;
+    return (
+      <div className="grid min-h-dvh place-items-center bg-stitch-surface">
+        <DreamLoader label="員工登入狀態載入中" />
+      </div>
+    );
   }
   if (!isLoggedIn) {
     return <Redirect to="/portal/login" />;
@@ -101,7 +109,11 @@ function PortalIndexPage() {
   const validFacility = facilityKey ? getFacilityConfig(facilityKey) : null;
 
   if (isLoading) {
-    return <div className="grid min-h-dvh place-items-center bg-stitch-surface text-sm font-bold text-slate-500">載入員工入口...</div>;
+    return (
+      <div className="grid min-h-dvh place-items-center bg-stitch-surface">
+        <DreamLoader label="員工入口載入中" />
+      </div>
+    );
   }
 
   if (!isLoggedIn) {
@@ -237,6 +249,9 @@ function WorkbenchRouter() {
       <Route path="/employee/tasks">
         <EmployeeTasksPage />
       </Route>
+      <Route path="/employee/announcements/:id">
+        {(params) => <EmployeeAnnouncementsPage announcementId={params.id} />}
+      </Route>
       <Route path="/employee/announcements">
         <EmployeeAnnouncementsPage />
       </Route>
@@ -245,6 +260,24 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/shift">
         <EmployeeShiftPage />
+      </Route>
+      <Route path="/employee/activity-periods">
+        <EmployeeActivityPeriodsPage />
+      </Route>
+      <Route path="/employee/registration-courses">
+        <EmployeeMorePage />
+      </Route>
+      <Route path="/employee/documents">
+        <EmployeeDocumentsPage />
+      </Route>
+      <Route path="/employee/personal-note">
+        <EmployeePersonalNotePage />
+      </Route>
+      <Route path="/employee/qna">
+        <EmployeeMorePage />
+      </Route>
+      <Route path="/employee/checkins">
+        <EmployeeMorePage />
       </Route>
       <Route path="/employee/more">
         <EmployeeMorePage />
@@ -261,8 +294,8 @@ function WorkbenchAuthGate() {
 
   if (isLoading) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] text-[14px] font-bold text-[#637185]">
-        載入登入狀態...
+      <div className="grid min-h-dvh place-items-center bg-[#f4f7fb]">
+        <DreamLoader label="Dreams 登入狀態確認中" />
       </div>
     );
   }
@@ -301,6 +334,58 @@ function WidgetTelemetryCapture() {
   return null;
 }
 
+function DebugDreamLoaderOverlay() {
+  const [location] = useLocation();
+  const [visible, setVisible] = useState(false);
+  const [pinned, setPinned] = useState(false);
+
+  useEffect(() => {
+    if (import.meta.env.PROD) return;
+    const params = new URLSearchParams(window.location.search);
+    const queryValue = params.get("debugLoader");
+    if (queryValue === "off") {
+      window.sessionStorage.removeItem("dreams.debugLoader");
+      setVisible(false);
+      setPinned(false);
+      return;
+    }
+    if (queryValue) {
+      window.sessionStorage.setItem("dreams.debugLoader", queryValue);
+    }
+    const value = queryValue || window.sessionStorage.getItem("dreams.debugLoader");
+    if (!value) {
+      setVisible(false);
+      setPinned(false);
+      return;
+    }
+
+    const isPinned = value === "always";
+    const duration = Math.min(Math.max(Number(params.get("debugLoaderMs") ?? 1600), 300), 10000);
+    setVisible(true);
+    setPinned(isPinned);
+    if (isPinned) return;
+
+    const timer = window.setTimeout(() => {
+      setVisible(false);
+      window.sessionStorage.removeItem("dreams.debugLoader");
+    }, duration);
+    return () => window.clearTimeout(timer);
+  }, [location]);
+
+  if (!visible) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[9999] grid place-items-center bg-[#f3f6fb]/90 backdrop-blur-sm">
+      <div className="rounded-[18px] border border-white/70 bg-white/80 px-8 py-7 shadow-[0_28px_80px_-36px_rgba(13,42,80,0.85)]">
+        <DreamLoader compact label={pinned ? "DreamLoader 預覽模式" : "Dreams 緩衝動畫預覽"} />
+        <p className="mt-2 text-center text-[11px] font-bold text-[#8b9aae]">
+          DEV only · {pinned ? "debugLoader=always" : "debugLoader=1"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const sidebarStyle = {
   "--sidebar-width": "16rem",
   "--sidebar-width-icon": "3rem",
@@ -308,7 +393,7 @@ const sidebarStyle = {
 
 function HeaderTitle() {
   const [location] = useLocation();
-  const title = PAGE_TITLES[location] || "DAOS 管理後台";
+  const title = PAGE_TITLES[location] || "駿斯 CMS";
   return <span className="text-[13px] font-medium text-muted-foreground" data-testid="text-page-title">{title}</span>;
 }
 
@@ -332,6 +417,7 @@ function App() {
         <TooltipProvider>
           {isWorkbench ? <WidgetTelemetryCapture /> : null}
           {isLogin ? <LoginRedirector /> : isWorkbench ? <WorkbenchAuthGate /> : <PortalRouter />}
+          <DebugDreamLoaderOverlay />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
@@ -356,6 +442,7 @@ function App() {
             </div>
           </div>
         </SidebarProvider>
+        <DebugDreamLoaderOverlay />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

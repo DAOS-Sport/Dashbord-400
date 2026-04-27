@@ -9,6 +9,7 @@ import { registerSystemRoutes } from "../../modules/system/routes";
 import { registerTelemetryRoutes } from "../../modules/telemetry/routes";
 import { registerModuleRegistryRoutes } from "../../modules/registry/moduleRegistryController";
 import { registerTaskRoutes } from "../../modules/tasks";
+import { registerHandoverRoutes } from "../../modules/handover";
 
 export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express) => {
   const container = createAppContainer();
@@ -19,5 +20,6 @@ export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express)
   registerSystemRoutes(app, container);
   registerModuleRegistryRoutes(app);
   registerTaskRoutes(app, container);
+  registerHandoverRoutes(app);
   registerBffRoutes(app, container);
 };

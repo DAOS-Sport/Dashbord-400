@@ -367,7 +367,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   },
   {
     id: "handover",
-    label: "Handover",
+    label: "櫃台交接",
     description: "Legacy handover notes plus operational handover assignment/reporting flow.",
     domainType: "core",
     status: implemented,
@@ -381,6 +381,10 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
       api("GET", "/api/portal/handovers", "crud"),
       api("POST", "/api/portal/handovers", "crud"),
       api("DELETE", "/api/portal/handovers/:id", "crud"),
+      api("POST", "/api/handover", "crud"),
+      api("PATCH", "/api/handover/:id/complete", "crud"),
+      api("GET", "/api/bff/employee/handover/summary", "bff"),
+      api("GET", "/api/bff/employee/handover/list", "bff"),
       api("GET", "/api/portal/operational-handovers", "crud"),
       api("POST", "/api/portal/operational-handovers", "crud"),
       api("PATCH", "/api/portal/operational-handovers/:id", "crud"),
@@ -511,6 +515,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     routes: [portalRoute("/portal/:facilityKey/shift"), roleRoute("employee", "/employee/shift")],
     apis: [
       api("GET", "/api/facility-home/:groupId/today-shift", "proxy", legacy),
+      api("GET", "/api/bff/employee/shifts/today", "bff", partial),
       api("GET", "/api/bff/system/schedule-snapshot", "bff", partial),
     ],
     data: [{ table: "source_snapshots", entity: "schedule source snapshot", source: "external", status: partial }],

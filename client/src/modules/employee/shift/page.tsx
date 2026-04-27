@@ -3,15 +3,27 @@ import { CalendarDays, Clock3, Megaphone } from "lucide-react";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
-import { fetchEmployeeHome } from "../home/api";
+import { useAuthMe } from "@/shared/auth/session";
+import { fetchEmployeeHome, fetchEmployeeShiftBoard } from "../home/api";
+
+const formatShiftTime = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+};
 
 export default function EmployeeShiftPage() {
-  const { data, isLoading, isError } = useQuery({ queryKey: ["/api/bff/employee/home", "shift"], queryFn: fetchEmployeeHome });
-  const shifts = data?.shifts.data ?? [];
-  const campaigns = data?.campaigns.data ?? [];
+  const { data: session } = useAuthMe();
+  const facilityKey = session?.activeFacility ?? "xinbei_pool";
+  const shiftQuery = useQuery({ queryKey: ["/api/bff/employee/shifts/today", facilityKey], queryFn: () => fetchEmployeeShiftBoard(facilityKey) });
+  const homeQuery = useQuery({ queryKey: ["/api/bff/employee/home", "shift"], queryFn: fetchEmployeeHome });
+  const campaigns = homeQuery.data?.campaigns.data ?? [];
+  const board = shiftQuery.data;
+  const shifts = board?.shifts ?? [];
 
   return (
-    <EmployeeShell title="今日班表" subtitle="班表與活動檔期由外部排班 / LINE 場館首頁來源進 BFF 後呈現。">
+    <EmployeeShell title="今日班表" subtitle="班表由 Smart Schedule / schedule integration 透過 BFF 唯讀呈現。">
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <WorkbenchCard className="p-5">
           <div className="mb-4 flex items-center gap-3">
@@ -20,30 +32,41 @@ export default function EmployeeShiftPage() {
             </div>
             <h2 className="text-[15px] font-black text-[#10233f]">班表狀態</h2>
           </div>
-          {isLoading ? (
+          {shiftQuery.isLoading ? (
             <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入班表中...</div>
-          ) : isError ? (
+          ) : shiftQuery.isError || !board?.sourceStatus.connected ? (
             <div className="rounded-[8px] bg-[#fff7f8] p-4 text-[13px] font-bold text-[#ff4964]">班表資料暫時無法取得。</div>
-          ) : (
+          ) : shifts.length ? (
             <div className="space-y-4">
               {shifts.map((shift) => (
-                <div key={shift.id} className="rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-4">
-                  <div className="flex items-center justify-between gap-3">
+                <div key={shift.shiftId} className={cn("rounded-[8px] border p-4", shift.isCurrent ? "border-[#9dd84f] bg-[#f1fbec]" : "border-[#e6edf4] bg-[#fbfcfd]")}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-[14px] font-black text-[#10233f]">{shift.label}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#637185]">{shift.timeRange}</p>
+                      <p className={cn("font-black text-[#10233f]", shift.isCurrent ? "text-[18px]" : "text-[15px]")}>
+                        {formatShiftTime(shift.start)} – {formatShiftTime(shift.end)}
+                      </p>
+                      <p className="mt-1 text-[12px] font-bold text-[#637185]">{board.facility.name}</p>
                     </div>
-                    <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", shift.status === "active" ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#eef2f6] text-[#637185]")}>
-                      {shift.status === "active" ? "進行中" : shift.status === "finished" ? "已結束" : "未開始"}
+                    <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", shift.isCurrent ? "bg-[#15935d] text-white" : "bg-[#eef2f6] text-[#637185]")}>
+                      {shift.isCurrent ? "目前班別" : shift.isFuture ? "未來" : "已結束"}
                     </span>
                   </div>
-                  <div className="mt-4 h-1.5 rounded-full bg-[#e9eef4]">
-                    <div className={cn("h-1.5 rounded-full bg-[#32af5c]", shift.status === "active" ? "w-1/2" : shift.status === "finished" ? "w-full" : "w-0")} />
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    {shift.people.map((person) => (
+                      <div key={`${shift.shiftId}-${person.userId}-${person.name}`} className={cn("rounded-[8px] bg-white px-3 py-2 text-[13px] font-bold", person.isCurrentUser ? "text-[#007166]" : "text-[#263b56]")}>
+                        {person.name}{person.isCurrentUser ? "（你）" : ""} / {person.role}
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
-              {!shifts.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有班表資料。</div> : null}
+              <div className="flex items-center justify-between rounded-[8px] bg-[#eef5ff] px-3 py-2 text-[13px]">
+                <span className="font-bold text-[#637185]">本日出勤</span>
+                <span className="font-black text-[#10233f]">{board.totalCount} 人</span>
+              </div>
             </div>
+          ) : (
+            <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
           )}
         </WorkbenchCard>
 

@@ -1,5 +1,15 @@
 import type { BffSection } from "../bff/envelope";
 import type { WorkbenchWidgetLayoutItem } from "./layout";
+import type { HomeCardDto, NavigationModuleDto } from "../modules/types";
+
+export interface EmployeeHomeCardSet {
+  todayTasks: HomeCardDto;
+  announcements: HomeCardDto;
+  handover: HomeCardDto;
+  quickActions: HomeCardDto;
+  shiftReminder: HomeCardDto;
+  bookingSnapshot: HomeCardDto;
+}
 
 export interface FacilitySummary {
   key: string;
@@ -30,10 +40,15 @@ export interface TaskSummary {
 
 export interface AnnouncementSummary {
   id: string;
+  resourceId?: number;
   title: string;
   summary: string;
   priority: "required" | "high" | "normal";
   effectiveRange: string;
+  type?: "required" | "sop" | "notice" | "event" | "general";
+  isPinned?: boolean;
+  publishedAt?: string;
+  scheduledAt?: string;
   content?: string;
   deadlineLabel?: string;
   linkUrl?: string;
@@ -46,7 +61,7 @@ export interface HandoverSummary {
   id: string;
   title: string;
   authorName: string;
-  status: "unread" | "read" | "confirmed";
+  status: "unread" | "read" | "confirmed" | "pending" | "completed" | "expired";
   content?: string;
   facilityKey?: string;
   targetDate?: string;
@@ -54,6 +69,43 @@ export interface HandoverSummary {
   dueLabel?: string;
   reportNote?: string | null;
   assigneeName?: string | null;
+}
+
+export interface HandoverItemDto {
+  id: string;
+  facilityKey: string;
+  title: string;
+  content: string;
+  dueDate: string;
+  preview: string;
+  status: "pending" | "completed" | "expired";
+  priority?: "low" | "normal" | "high";
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  reportNote?: string | null;
+}
+
+export interface HandoverSummaryDto {
+  moduleId: "handover";
+  title: "櫃台交辦";
+  items: Array<Pick<HandoverItemDto, "id" | "title" | "dueDate" | "preview" | "status">>;
+  totalPending: number;
+  sourceStatus: {
+    connected: boolean;
+    lastSyncedAt?: string;
+    errorMessage?: string;
+  };
+}
+
+export interface HandoverListDto {
+  moduleId: "handover";
+  items: HandoverItemDto[];
+  sourceStatus: {
+    connected: boolean;
+    lastSyncedAt?: string;
+    errorMessage?: string;
+  };
 }
 
 export interface ShortcutSummary {
@@ -72,6 +124,36 @@ export interface ShiftSummary {
   venueName?: string;
   startsAt?: string;
   endsAt?: string;
+  kind?: string;
+}
+
+export interface ShiftBoardDto {
+  facility: {
+    key: string;
+    name: string;
+  };
+  date: string;
+  now: string;
+  currentUserId: string;
+  shifts: Array<{
+    shiftId: string;
+    start: string;
+    end: string;
+    isCurrent: boolean;
+    isFuture: boolean;
+    people: Array<{
+      userId: string;
+      name: string;
+      role: string;
+      isCurrentUser: boolean;
+    }>;
+  }>;
+  totalCount: number;
+  sourceStatus: {
+    connected: boolean;
+    lastSyncedAt?: string;
+    errorMessage?: string;
+  };
 }
 
 export interface CampaignSummary {
@@ -81,6 +163,7 @@ export interface CampaignSummary {
   statusLabel: string;
   effectiveRange: string;
   linkUrl?: string;
+  imageUrl?: string;
 }
 
 export interface DocumentSummary {
@@ -102,6 +185,30 @@ export interface StickyNoteSummary {
 }
 
 export interface EmployeeHomeDto {
+  homeCards?: EmployeeHomeCardSet;
+  currentUser?: {
+    id: string;
+    displayName: string;
+    role: "employee";
+    facilityName: string;
+  };
+  date?: string;
+  quickSearch?: {
+    placeholder: string;
+    enabledModules: string[];
+  };
+  todayTasks?: HomeCardDto;
+  handoverSummary?: HomeCardDto;
+  importantAnnouncements?: HomeCardDto;
+  quickActions?: HomeCardDto;
+  todayShift?: HomeCardDto;
+  weatherCard?: HomeCardDto;
+  navigation?: NavigationModuleDto[];
+  unreadCounts?: {
+    announcements: number;
+    tasks: number;
+    handovers: number;
+  };
   facility: FacilitySummary;
   layout?: BffSection<WorkbenchWidgetLayoutItem[]>;
   weather: BffSection<WeatherSummary>;

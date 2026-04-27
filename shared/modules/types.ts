@@ -142,3 +142,88 @@ export interface ModuleDefinition {
     migrationNotes?: string;
   };
 }
+
+export type ModuleStage =
+  | "planned"
+  | "ui-only"
+  | "api-wired"
+  | "bff-wired"
+  | "production-ready"
+  | "disabled";
+
+export type ModuleDescriptorDomain =
+  | "dashboard"
+  | "operations"
+  | "people"
+  | "schedule"
+  | "announcement"
+  | "handover"
+  | "attendance"
+  | "knowledge"
+  | "system"
+  | "integration";
+
+export interface ModuleDescriptor {
+  id: string;
+  name: string;
+  shortName?: string;
+  description: string;
+  domain: ModuleDescriptorDomain;
+  stage: ModuleStage;
+  roles: Extract<AppRole, "employee" | "supervisor" | "system">[];
+  defaultEnabled: boolean;
+  navVisible: boolean;
+  cardVisible: boolean;
+  routePath?: string;
+  bffEndpoint?: string;
+  apiPrefix?: string;
+  iconKey?: string;
+  menuOrder: number;
+  cardOrder?: number;
+  requiredPermissions: string[];
+  dependencies: string[];
+  searchKeywords: string[];
+  telemetryEvents: string[];
+  emptyStateText: string;
+  notConnectedText: string;
+}
+
+export interface NavigationModuleDto {
+  id: string;
+  name: string;
+  routePath: string;
+  iconKey: string;
+  badgeCount?: number;
+  enabled: boolean;
+  stage: ModuleStage;
+  menuOrder: number;
+}
+
+export interface SourceStatusDto {
+  source: string;
+  connected: boolean;
+  lastSyncedAt?: string;
+  errorMessage?: string;
+}
+
+export interface HomeCardDto {
+  moduleId: string;
+  title: string;
+  subtitle?: string;
+  status: "ready" | "empty" | "not_connected" | "incomplete" | "error";
+  routePath?: string;
+  order: number;
+  payload: unknown;
+  sourceStatus: SourceStatusDto;
+}
+
+export interface ModuleHealthDto {
+  moduleId: string;
+  status: "ready" | "degraded" | "not_connected" | "error";
+  routeOk: boolean;
+  bffOk: boolean;
+  permissionOk: boolean;
+  telemetryOk: boolean;
+  lastCheckedAt: string;
+  issues: string[];
+}

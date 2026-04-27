@@ -1,8 +1,9 @@
 import { FormEvent, useState } from "react";
 import { useLocation } from "wouter";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { roleHomePath } from "@shared/auth/me";
 import { useLogin } from "@/shared/auth/session";
+import { BrandMark } from "@/shared/brand";
 
 export default function WorkbenchLoginPage() {
   const [, setLocation] = useLocation();
@@ -24,11 +25,9 @@ export default function WorkbenchLoginPage() {
     <main className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-4 text-[#10233f]">
       <form onSubmit={submit} className="w-full max-w-[420px] rounded-[8px] border border-[#dfe7ef] bg-white p-6 shadow-[0_28px_70px_-42px_rgba(15,34,58,0.45)]">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-[8px] bg-[#0d2a50] text-[#9dd84f]">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
+          <BrandMark className="h-11 w-11 rounded-[8px]" />
           <div>
-            <h1 className="text-[22px] font-black">駿斯 Kinetic Ops</h1>
+            <h1 className="text-[22px] font-black">駿斯 CMS</h1>
             <p className="mt-1 text-[13px] font-bold text-[#637185]">全端開發測試登入</p>
           </div>
         </div>
