@@ -17,9 +17,14 @@ export interface WeatherSummary {
 export interface TaskSummary {
   id: string;
   title: string;
+  content?: string | null;
   status: "pending" | "in_progress" | "reported" | "done";
   priority: "low" | "normal" | "high";
   dueLabel?: string;
+  dueAt?: string | null;
+  createdByName?: string | null;
+  assignedToName?: string | null;
+  source?: "employee" | "supervisor" | "system";
   reportNote?: string | null;
 }
 
@@ -33,6 +38,8 @@ export interface AnnouncementSummary {
   deadlineLabel?: string;
   linkUrl?: string;
   linkLabel?: string;
+  acknowledgedAt?: string | null;
+  isAcknowledged?: boolean;
 }
 
 export interface HandoverSummary {

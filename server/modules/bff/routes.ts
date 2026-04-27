@@ -14,7 +14,7 @@ import type {
   StickyNoteSummary,
   TaskSummary,
 } from "@shared/domain/workbench";
-import type { OperationalHandover } from "@shared/schema";
+import type { OperationalHandover, Task } from "@shared/schema";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
 import { degraded, ok, unavailable } from "../../shared/bff/section";
@@ -31,7 +31,7 @@ const defaultEmployeeShortcuts: ShortcutSummary[] = [
   { id: "clock", label: "點名 / 打卡", href: "/employee/more", tone: "blue" },
   { id: "handover-board", label: "交班事項", href: "/employee/tasks", tone: "green" },
   { id: "handover", label: "櫃台交接", href: "/employee/handover", tone: "amber" },
-  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
+  { id: "announcements", label: "群組公��", href: "/employee/announcements", tone: "violet" },
   { id: "shift", label: "今日班表", href: "/employee/shift", tone: "rose" },
   { id: "more", label: "更多入口", href: "/employee/more", tone: "cyan" },
 ];
@@ -105,9 +105,10 @@ const buildEmployeeHomeFallback = async (
   const now = new Date().toISOString();
   const facility = findFacilityLineGroup(facilityKey);
   const normalizedFacilityKey = facility?.facilityKey ?? facilityKey;
-  const [handoversResult, operationalHandoversResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult] = await Promise.allSettled([
+  const [handoversResult, operationalHandoversResult, tasksResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult] = await Promise.allSettled([
     storage.listHandovers(normalizedFacilityKey, 20),
     storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }),
+    storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listQuickLinks(normalizedFacilityKey, false),
     storage.listEmployeeResources({ facilityKey: normalizedFacilityKey, limit: 100 }),
     storage.listSystemAnnouncements(normalizedFacilityKey, false),
@@ -117,6 +118,7 @@ const buildEmployeeHomeFallback = async (
 
   const handovers = handoversResult.status === "fulfilled" ? handoversResult.value : [];
   const operationalHandovers = operationalHandoversResult.status === "fulfilled" ? operationalHandoversResult.value : [];
+  const employeeTasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
   const quickLinks = quickLinksResult.status === "fulfilled" ? quickLinksResult.value : [];
   const employeeResources = employeeResourcesResult.status === "fulfilled" ? employeeResourcesResult.value : [];
   const systemAnnouncements = systemAnnouncementsResult.status === "fulfilled" ? systemAnnouncementsResult.value : [];
@@ -227,7 +229,7 @@ const buildEmployeeHomeFallback = async (
     },
     layout: ok(defaultEmployeeHomeWidgets, now),
     weather: unavailable("天氣資料尚未接入員工 BFF", "WEATHER_NOT_CONNECTED"),
-    tasks: ok(operationalHandovers.filter((item) => item.status !== "done" && item.status !== "cancelled").map(mapOperationalHandoverTask), now),
+    tasks: ok(employeeTasks.map(mapTaskSummary), now),
     announcements: announcements.length
       ? degraded(announcements, ["line-bot-facility-home"], now)
       : unavailable("公告候選池與 Portal announcement 目前都沒有可用資料", "ANNOUNCEMENT_FALLBACK_EMPTY"),
@@ -377,16 +379,20 @@ const buildEmployeeSearchItems = (home: EmployeeHomeDto, query: string): SearchI
     .slice(0, 12);
 };
 
-const handoverStatusToTaskStatus = (status: string): TaskSummary["status"] =>
-  status === "done" ? "done" : status === "reported" ? "reported" : status === "in_progress" || status === "claimed" ? "in_progress" : "pending";
+const taskStatusToSummaryStatus = (status: string): TaskSummary["status"] =>
+  status === "done" ? "done" : status === "in_progress" ? "in_progress" : "pending";
 
-const mapOperationalHandoverTask = (handover: OperationalHandover): TaskSummary => ({
-  id: String(handover.id),
-  title: `${handover.targetDate} ${handover.targetShiftLabel} · ${handover.title}`,
-  status: handoverStatusToTaskStatus(handover.status),
-  priority: handover.priority === "high" || handover.priority === "low" ? handover.priority : "normal",
-  dueLabel: handover.dueAt ? new Date(handover.dueAt).toLocaleString("zh-TW") : `${handover.targetDate} ${handover.targetShiftLabel}`,
-  reportNote: handover.reportNote,
+const mapTaskSummary = (task: Task): TaskSummary => ({
+  id: String(task.id),
+  title: task.title,
+  content: task.content,
+  status: taskStatusToSummaryStatus(task.status),
+  priority: task.priority === "high" || task.priority === "low" ? task.priority : "normal",
+  dueLabel: task.dueAt ? new Date(task.dueAt).toLocaleString("zh-TW") : undefined,
+  dueAt: task.dueAt ? new Date(task.dueAt).toISOString() : null,
+  createdByName: task.createdByName,
+  assignedToName: task.assignedToName,
+  source: task.source === "supervisor" || task.source === "system" ? task.source : "employee",
 });
 
 const mapOperationalHandoverSummary = (handover: OperationalHandover): HandoverSummary => ({
@@ -478,7 +484,6 @@ const enrichEmployeeHome = async (
   const normalizedFacilityKey = findFacilityLineGroup(facilityKey)?.facilityKey ?? facilityKey;
   const now = new Date().toISOString();
   const currentShiftCount = dto.shifts.data?.length ?? 0;
-  const currentTaskCount = dto.tasks.data?.length ?? 0;
   const layoutSetting = await storage.getWidgetLayout({
     facilityKey: normalizedFacilityKey,
     role: "employee",
@@ -490,22 +495,21 @@ const enrichEmployeeHome = async (
     stickyNotes: dto.stickyNotes ?? ok([], now),
   };
   const employeeResources = await getEmployeeResourceSections(normalizedFacilityKey);
+  const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
   nextDto = {
     ...nextDto,
+    tasks: ok(localTasks.map(mapTaskSummary), now),
     campaigns: ok([...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(0, 10), now),
     documents: ok([...employeeResources.documents, ...(nextDto.documents.data ?? [])].slice(0, 10), now),
     stickyNotes: ok([...employeeResources.stickyNotes, ...(nextDto.stickyNotes.data ?? [])].slice(0, 8), now),
   };
 
-  if (currentTaskCount === 0) {
-    const handovers = await storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 });
-    if (handovers.length > 0) {
-      nextDto = {
-        ...nextDto,
-        tasks: ok(handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").map(mapOperationalHandoverTask), now),
-        handover: ok([...(nextDto.handover.data ?? []), ...handovers.map(mapOperationalHandoverSummary)], now),
-      };
-    }
+  const handovers = await storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
+  if (handovers.length > 0) {
+    nextDto = {
+      ...nextDto,
+      handover: ok([...(nextDto.handover.data ?? []), ...handovers.map(mapOperationalHandoverSummary)], now),
+    };
   }
 
   if (currentShiftCount > 0) return nextDto;
@@ -516,6 +520,43 @@ const enrichEmployeeHome = async (
   return {
     ...nextDto,
     shifts: degraded(mapScheduleShifts(scheduleResult.data), ["line-bot-facility-home-today-shift"], now),
+  };
+};
+
+const attachAnnouncementAcknowledgements = async (
+  dto: EmployeeHomeDto,
+  facilityKey: string,
+  userId?: string,
+): Promise<EmployeeHomeDto> => {
+  if (!userId || !dto.announcements.data?.length) return dto;
+  const normalizedFacilityKey = findFacilityLineGroup(facilityKey)?.facilityKey ?? facilityKey;
+  const acknowledgements = await storage.listAnnouncementAcknowledgements({
+    facilityKey: normalizedFacilityKey,
+    userId,
+  }).catch(() => []);
+  if (!acknowledgements.length) {
+    return {
+      ...dto,
+      announcements: {
+        ...dto.announcements,
+        data: dto.announcements.data.map((item) => ({ ...item, isAcknowledged: false })),
+      },
+    };
+  }
+  const acknowledgementById = new Map(acknowledgements.map((item) => [item.announcementId, item]));
+  return {
+    ...dto,
+    announcements: {
+      ...dto.announcements,
+      data: dto.announcements.data.map((item) => {
+        const acknowledgement = acknowledgementById.get(item.id);
+        return {
+          ...item,
+          isAcknowledged: Boolean(acknowledgement),
+          acknowledgedAt: acknowledgement?.acknowledgedAt?.toISOString(),
+        };
+      }),
+    },
   };
 };
 
@@ -533,14 +574,16 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     const result = await container.integrations.replitData.getEmployeeHomeProjection(facilityKey);
 
     if (!result.data) {
-      return res.json(await buildEmployeeHomeFallback(
+      const fallbackHome = await buildEmployeeHomeFallback(
         facilityKey,
         container,
         result.meta.fallbackReason || "Employee home projection is unavailable",
-      ));
+      );
+      return res.json(await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, req.workbenchSession?.userId));
     }
 
-    return res.json(await enrichEmployeeHome(result.data, facilityKey, container));
+    const home = await enrichEmployeeHome(result.data, facilityKey, container);
+    return res.json(await attachAnnouncementAcknowledgements(home, facilityKey, req.workbenchSession?.userId));
   });
 
   app.get("/api/bff/employee/search", async (req, res) => {
@@ -581,14 +624,15 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
       : facilityLineGroups.map((facility) => facility.facilityKey);
     const facilityKey = req.workbenchSession?.activeFacility || dashboard.facility.key || "xinbei_pool";
     try {
-      const [handovers, staffing] = await Promise.all([
-        storage.listOperationalHandovers({ facilityKey, limit: 100 }),
+      const [handovers, tasks, staffing] = await Promise.all([
+        storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),
+        storage.listTasks({ facilityKey, limit: 100 }).catch(() => []),
         buildStaffingSummary(container, facilityKeys),
       ]);
       return res.json({
         ...dashboard,
         staffing: ok(staffing),
-        incompleteTasks: ok(handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").map(mapOperationalHandoverTask)),
+        incompleteTasks: ok(tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").map(mapTaskSummary)),
         handoverOverview: ok({
           open: handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").length,
           confirmed: handovers.filter((handover) => handover.status === "done").length,

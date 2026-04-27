@@ -8,6 +8,7 @@ import { checkinsModule } from "./checkins";
 import { dashboardModule } from "./dashboard";
 import { integrationsModule } from "./integrations";
 import { portalModule } from "./portal";
+import { registryModule } from "./registry";
 import { schedulesModule } from "./schedules";
 import { systemModule } from "./system";
 import { tasksModule } from "./tasks";
@@ -26,6 +27,7 @@ export const backendModules: BackendModule[] = [
   dashboardModule,
   telemetryModule,
   systemModule,
+  registryModule,
   integrationsModule,
   bffModule,
 ];

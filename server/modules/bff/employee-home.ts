@@ -18,7 +18,7 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
   }, syncTime),
   tasks: ok([
     { id: "task-1", title: "設備巡檢抽查", status: "pending", priority: "high" },
-    { id: "task-2", title: "泳池水質檢測紀錄", status: "pending", priority: "high" },
+    { id: "task-2", title: "設備巡檢紀錄", status: "pending", priority: "high" },
     { id: "task-3", title: "課程教室準備", status: "in_progress", priority: "normal" },
     { id: "task-4", title: "櫃台收據整理", status: "done", priority: "normal" },
     { id: "task-5", title: "環境清潔檢查", status: "done", priority: "normal" },
@@ -79,7 +79,7 @@ export const getSupervisorDashboardMock = (): SupervisorDashboardDto => ({
     { id: "a-3", employeeName: "陳小華", issue: "未打卡", waitingMinutes: 0, priority: "medium" },
   ], syncTime),
   incompleteTasks: ok([
-    { id: "t-1", title: "更新泳池水質檢測紀錄", status: "pending", priority: "high" },
+    { id: "t-1", title: "更新設備巡檢紀錄", status: "pending", priority: "high" },
     { id: "t-2", title: "活動場地佈置確認", status: "in_progress", priority: "high" },
     { id: "t-3", title: "救生員證照到期提醒", status: "pending", priority: "normal" },
     { id: "t-4", title: "櫃台交接資料確認", status: "done", priority: "normal" },

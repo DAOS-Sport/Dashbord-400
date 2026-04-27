@@ -336,20 +336,45 @@ function Hero({
   );
 }
 
-function HandoverCard({ handovers, tasks }: { handovers: HandoverSummary[]; tasks: TaskSummary[] }) {
-  const total = handovers.length + tasks.length;
+function TasksCard({ tasks }: { tasks: TaskSummary[] }) {
+  const activeTasks = tasks.filter((task) => task.status !== "done");
+  return (
+    <WorkbenchCard className="p-5">
+      <SectionTitle title="今日任務" eyebrow="Tasks" />
+      {activeTasks.length > 0 ? (
+        <div className="space-y-3">
+          {activeTasks.slice(0, 4).map((task) => (
+            <Link key={`task-${task.id}`} href="/employee/tasks" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-black text-[#10233f]">{task.title}</p>
+                  <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">
+                    {task.assignedToName ? `指派：${task.assignedToName}` : task.createdByName ? `建立：${task.createdByName}` : "員工任務"}
+                    {task.dueLabel ? ` · ${task.dueLabel}` : ""}
+                  </p>
+                </div>
+                <span className={cn("shrink-0 rounded-full px-2 py-1 text-[10px] font-black", task.priority === "high" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#eef2f6] text-[#637185]")}>
+                  {task.priority === "high" ? "高" : task.priority === "low" ? "低" : "一般"}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有待辦任務。</div>
+      )}
+    </WorkbenchCard>
+  );
+}
+
+function HandoverCard({ handovers }: { handovers: HandoverSummary[] }) {
+  const total = handovers.length;
   return (
     <WorkbenchCard className="p-5">
       <SectionTitle title="交接事項" eyebrow="Handover" />
       {total > 0 ? (
         <div className="space-y-3">
-          {tasks.slice(0, 3).map((task) => (
-            <Link key={`task-${task.id}`} href="/employee/tasks" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
-              <p className="truncate text-[13px] font-black text-[#10233f]">{task.title}</p>
-              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{task.dueLabel ?? "今日交班"} · {task.status}</p>
-            </Link>
-          ))}
-          {handovers.slice(0, Math.max(0, 4 - tasks.length)).map((item) => (
+          {handovers.slice(0, 4).map((item) => (
             <Link key={`handover-${item.id}`} href="/employee/handover" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
               <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
               <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{item.authorName} · {item.dueLabel ?? item.status}</p>
@@ -712,7 +737,7 @@ function BottomNav() {
 function LoadingState() {
   return (
     <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-6">
-      <div className="w-full max-w-sm rounded-[8px] bg-white px-5 py-4 text-center text-[14px] font-bold text-[#536175] shadow-lg">載入工作台資料中...</div>
+      <div className="w-full max-w-sm rounded-[8px] bg-white px-5 py-4 text-center text-[14px] font-bold text-[#536175] shadow-lg">��入工作台資料中...</div>
     </div>
   );
 }
@@ -770,8 +795,8 @@ export default function EmployeeHomePage() {
               {primaryWidgets.length ? (
                 <motion.div variants={riseIn} className="grid gap-4 lg:grid-cols-3">
                   {primaryWidgets.map((widget) => {
-                    if (widget.key === "handover") return <HandoverCard key={widget.key} handovers={data.handover.data ?? []} tasks={data.tasks.data ?? []} />;
-                    if (widget.key === "tutorBooking") return <TutorBookingCard key={widget.key} />;
+                    if (widget.key === "tasks") return <TasksCard key={widget.key} tasks={data.tasks.data ?? []} />;
+                    if (widget.key === "handover") return <HandoverCard key={widget.key} handovers={data.handover.data ?? []} />;
                     if (widget.key === "announcements") return <AnnouncementCard key={widget.key} announcements={data.announcements.data ?? []} />;
                     return null;
                   })}

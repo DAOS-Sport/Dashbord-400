@@ -66,7 +66,7 @@ Enterprise-grade dashboard for the 駿斯 LINE Bot system. Multi-page SaaS appli
 - Feature keys from API are Chinese with emoji prefixes (e.g., "任務管理", "竹科天氣預報")
 - `VENUE_FEATURES` array: 10 feature specs with label, instruction, apiKeys mapping, icon, colors (no emoji field)
   - `API_FEATURE_KEYWORDS` maps API feature names to frontend spec labels via keyword matching
-  - 10 features: 交辦任務, 處理事項查詢, 任務完成, 排程提醒, 水質監控, 天氣預報, 風力預報, 合併報告推送, 滿意度調查, GPT小助理
+  - Current feature mapping excludes the previously deferred pool-measurement prototype; do not add local routes or widgets for it in this workbench.
 - Venue names: prefer `group.venue` from API, fallback to `VENUE_NAME_MAP` for groupId→display name
 - `completionRate` from tasks API is a string like "64.9%" — parsed via `parseRate()`
 - Non-feature keys excluded via `EXCLUDED_KEYS`: name, groupId, totalEnabled
@@ -101,7 +101,7 @@ Enterprise-grade dashboard for the 駿斯 LINE Bot system. Multi-page SaaS appli
 3. **實體場館自動化矩陣**: Only enabled features shown (filtered), 10-feature CSS Grid, instruction line per badge. Each feature badge is clickable and opens a **FeatureDetailDrawer** with content based on the feature type:
    - 交辦任務/處理事項查詢/任務完成 → TaskSwimlaneContent (dual-column Kanban with real API data)
    - 天氣預報/風力預報 → WeatherPanel (empty state — awaiting weather API)
-   - 水質監控 → WaterQualityPanel (empty state — awaiting water quality API)
+   - Deferred pool-measurement prototype is excluded from current Employee Home module work.
    - GPT小助理 → GptChatPanel (ChatGPT-style conversation preview)
    - Others → GenericFeaturePanel ("建置中" placeholder)
 4. **架構與依賴關係**: Microservices with health status from API or empty state

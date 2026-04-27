@@ -174,12 +174,47 @@ export const insertOperationalHandoverSchema = createInsertSchema(operationalHan
   content: z.string().min(1, "內容不可為空").max(2000, "內容過長"),
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   status: z.enum(["pending", "claimed", "in_progress", "reported", "done", "cancelled"]).default("pending"),
-  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式需為 YYYY-MM-DD"),
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "���期格式需為 YYYY-MM-DD"),
   targetShiftLabel: z.string().min(1, "請指定班別"),
 });
 
 export type InsertOperationalHandover = z.infer<typeof insertOperationalHandoverSchema>;
 export type OperationalHandover = typeof operationalHandovers.$inferSelect;
+
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  title: text("title").notNull(),
+  content: text("content"),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending").notNull(),
+  source: text("source").default("employee").notNull(),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdByName: text("created_by_name").notNull(),
+  assignedToUserId: text("assigned_to_user_id"),
+  assignedToName: text("assigned_to_name"),
+  dueAt: timestamp("due_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  title: z.string().min(1, "標題不可為空").max(140, "標題過長"),
+  content: z.string().max(2000, "內容過長").optional().nullable(),
+  priority: z.enum(["low", "normal", "high"]).default("normal"),
+  status: z.enum(["pending", "in_progress", "done", "cancelled"]).default("pending"),
+  source: z.enum(["employee", "supervisor", "system"]).default("employee"),
+});
+
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Task = typeof tasks.$inferSelect;
 
 export const quickLinks = pgTable("quick_links", {
   id: serial("id").primaryKey(),
@@ -257,6 +292,30 @@ export const insertSystemAnnouncementSchema = createInsertSchema(systemAnnouncem
 export type InsertSystemAnnouncement = z.infer<typeof insertSystemAnnouncementSchema>;
 export type SystemAnnouncement = typeof systemAnnouncements.$inferSelect;
 
+export const announcementAcknowledgements = pgTable("announcement_acknowledgements", {
+  id: serial("id").primaryKey(),
+  announcementId: text("announcement_id").notNull(),
+  facilityKey: text("facility_key").notNull(),
+  userId: text("user_id").notNull(),
+  employeeName: text("employee_name").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAnnouncementAcknowledgementSchema = createInsertSchema(announcementAcknowledgements).omit({
+  id: true,
+  acknowledgedAt: true,
+  createdAt: true,
+}).extend({
+  announcementId: z.string().min(1),
+  facilityKey: z.string().min(1),
+  userId: z.string().min(1),
+  employeeName: z.string().min(1),
+});
+
+export type InsertAnnouncementAcknowledgement = z.infer<typeof insertAnnouncementAcknowledgementSchema>;
+export type AnnouncementAcknowledgement = typeof announcementAcknowledgements.$inferSelect;
+
 export const portalEvents = pgTable("portal_events", {
   id: serial("id").primaryKey(),
   employeeNumber: text("employee_number"),
@@ -273,7 +332,7 @@ export const insertPortalEventSchema = createInsertSchema(portalEvents).omit({
   id: true,
   createdAt: true,
 }).extend({
-  eventType: z.enum(["pageview", "link_click", "announcement_open", "handover_create", "handover_report", "handover_claim", "layout_update", "widget_click", "search", "resource_create"]),
+  eventType: z.enum(["pageview", "link_click", "announcement_open", "announcement_ack", "handover_create", "handover_report", "handover_claim", "layout_update", "widget_click", "search", "resource_create"]),
 });
 
 export type InsertPortalEvent = z.infer<typeof insertPortalEventSchema>;

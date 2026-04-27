@@ -4,15 +4,17 @@ import {
   type NotificationRecipient, type InsertNotificationRecipient,
   type HandoverEntry, type InsertHandoverEntry,
   type OperationalHandover, type InsertOperationalHandover,
+  type Task, type InsertTask,
   type QuickLink, type InsertQuickLink,
   type EmployeeResource, type InsertEmployeeResource,
   type SystemAnnouncement, type InsertSystemAnnouncement,
+  type AnnouncementAcknowledgement, type InsertAnnouncementAcknowledgement,
   type PortalEvent, type InsertPortalEvent,
   type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
   type WatchdogEvent, type InsertWatchdogEvent,
   users, anomalyReports, notificationRecipients,
-  handoverEntries, operationalHandovers, quickLinks, employeeResources, systemAnnouncements, portalEvents,
-  widgetLayoutSettings, watchdogEvents,
+  handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
+  announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
@@ -55,6 +57,13 @@ export interface IStorage {
   }>): Promise<OperationalHandover | undefined>;
   deleteOperationalHandover(id: number): Promise<boolean>;
 
+  // Tasks / 員工任務
+  listTasks(opts: { facilityKey?: string; status?: string; userId?: string; includeCancelled?: boolean; limit?: number }): Promise<Task[]>;
+  getTaskById(id: number): Promise<Task | undefined>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: number, data: Partial<InsertTask & { completedAt: Date | null }>): Promise<Task | undefined>;
+  deleteTask(id: number): Promise<boolean>;
+
   // QuickLinks (主管維護)
   listQuickLinks(facilityKey?: string, includeInactive?: boolean): Promise<QuickLink[]>;
   createQuickLink(link: InsertQuickLink): Promise<QuickLink>;
@@ -72,6 +81,8 @@ export interface IStorage {
   createSystemAnnouncement(ann: InsertSystemAnnouncement): Promise<SystemAnnouncement>;
   updateSystemAnnouncement(id: number, data: Partial<InsertSystemAnnouncement>): Promise<SystemAnnouncement | undefined>;
   deleteSystemAnnouncement(id: number): Promise<boolean>;
+  listAnnouncementAcknowledgements(opts: { facilityKey?: string; userId?: string; announcementId?: string }): Promise<AnnouncementAcknowledgement[]>;
+  acknowledgeAnnouncement(input: InsertAnnouncementAcknowledgement): Promise<AnnouncementAcknowledgement>;
 
   // Portal Events (analytics)
   recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent>;
@@ -227,6 +238,43 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async listTasks(opts: { facilityKey?: string; status?: string; userId?: string; includeCancelled?: boolean; limit?: number }): Promise<Task[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(tasks.facilityKey, opts.facilityKey));
+    if (opts.status) conditions.push(eq(tasks.status, opts.status));
+    if (!opts.includeCancelled) conditions.push(sql`${tasks.status} <> 'cancelled'`);
+    if (opts.userId) {
+      conditions.push(or(eq(tasks.createdByUserId, opts.userId), eq(tasks.assignedToUserId, opts.userId), isNull(tasks.assignedToUserId))!);
+    }
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = where ? db.select().from(tasks).where(where) : db.select().from(tasks);
+    return query.orderBy(desc(tasks.dueAt), desc(tasks.createdAt)).limit(Math.min(opts.limit ?? 100, 300));
+  }
+
+  async getTaskById(id: number): Promise<Task | undefined> {
+    const [row] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return row;
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const [created] = await db.insert(tasks).values(task).returning();
+    return created;
+  }
+
+  async updateTask(id: number, data: Partial<InsertTask & { completedAt: Date | null }>): Promise<Task | undefined> {
+    const [updated] = await db
+      .update(tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tasks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTask(id: number): Promise<boolean> {
+    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+    return result.length > 0;
+  }
+
   async listQuickLinks(facilityKey?: string, includeInactive = false): Promise<QuickLink[]> {
     const conditions = [];
     if (!includeInactive) conditions.push(eq(quickLinks.isActive, true));
@@ -305,6 +353,27 @@ export class DatabaseStorage implements IStorage {
   async deleteSystemAnnouncement(id: number): Promise<boolean> {
     const result = await db.delete(systemAnnouncements).where(eq(systemAnnouncements.id, id)).returning();
     return result.length > 0;
+  }
+
+  async listAnnouncementAcknowledgements(opts: { facilityKey?: string; userId?: string; announcementId?: string }): Promise<AnnouncementAcknowledgement[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(announcementAcknowledgements.facilityKey, opts.facilityKey));
+    if (opts.userId) conditions.push(eq(announcementAcknowledgements.userId, opts.userId));
+    if (opts.announcementId) conditions.push(eq(announcementAcknowledgements.announcementId, opts.announcementId));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = where ? db.select().from(announcementAcknowledgements).where(where) : db.select().from(announcementAcknowledgements);
+    return query.orderBy(desc(announcementAcknowledgements.acknowledgedAt));
+  }
+
+  async acknowledgeAnnouncement(input: InsertAnnouncementAcknowledgement): Promise<AnnouncementAcknowledgement> {
+    const [existing] = await this.listAnnouncementAcknowledgements({
+      facilityKey: input.facilityKey,
+      userId: input.userId,
+      announcementId: input.announcementId,
+    });
+    if (existing) return existing;
+    const [created] = await db.insert(announcementAcknowledgements).values(input).returning();
+    return created;
   }
 
   async recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent> {
