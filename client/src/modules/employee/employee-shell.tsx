@@ -146,7 +146,7 @@ function FacilitySwitcher() {
     >
       {granted.map((facilityKey) => (
         <option key={facilityKey} value={facilityKey}>
-          {facilityConfigs[facilityKey]?.shortName ?? facilityKey}
+          {facilityConfigs[facilityKey]?.facilityName ?? facilityKey}
         </option>
       ))}
     </select>
@@ -185,7 +185,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
                   <Home className="h-4 w-4" />
                 </Link>
                 <div>
-                  <p className="text-[15px] font-black lg:text-[13px] lg:text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.shortName ?? "新北泳池館"}</p>
+                  <p className="max-w-[300px] truncate text-[15px] font-black lg:text-[13px] lg:text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? "新北泳池館"}</p>
                   <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] lg:block">Dashboard</p>
                 </div>
               </div>

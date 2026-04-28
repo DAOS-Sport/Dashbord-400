@@ -1,31 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
   BookOpen,
+  Building2,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   CloudSun,
   FileText,
   Gauge,
+  GripVertical,
   Home,
   Link as LinkIcon,
   ListChecks,
   Menu,
   MessageSquareText,
   MoreHorizontal,
-  MoveDown,
-  MoveUp,
-  Pencil,
+  PlusCircle,
   Plus,
-  RotateCcw,
   Search,
   Settings,
   ShieldCheck,
+  StickyNote,
+  Trash2,
   UserRound,
   Wrench,
 } from "lucide-react";
@@ -86,7 +89,20 @@ const toneClass: Record<ShortcutSummary["tone"], string> = {
 
 const shortcutToneOptions: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
 const shortcutPreferenceKey = "junsi.cms.employee.quick-actions.v1";
+const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
 const shortcutLimit = 7;
+
+const shortcutCandidates: ShortcutSummary[] = [
+  { id: "clock", label: "點名 / 打卡", href: "/employee/checkins", tone: "blue" },
+  { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
+  { id: "counter-handover", label: "櫃位交接", href: "/employee/handover", tone: "amber" },
+  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
+  { id: "events", label: "活動快訊", href: "/employee/activity-periods", tone: "green" },
+  { id: "documents", label: "常用文件", href: "/employee/documents", tone: "cyan" },
+  { id: "sticky-notes", label: "我的便利貼", href: "/employee/personal-note", tone: "blue" },
+  { id: "qna", label: "相關問題", href: "/employee/qna", tone: "violet" },
+  { id: "more", label: "更多入口", href: "/employee/more", tone: "rose" },
+];
 
 const iconByKey: Record<string, LucideIcon> = {
   home: Home,
@@ -124,6 +140,13 @@ const formatShiftTime = (value?: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatShiftTimeLong = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: true });
 };
 
 type HandoverHomePayload = {
@@ -257,6 +280,8 @@ function TopBar() {
   const { data: session } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
+  const activeFacility = session?.activeFacility ?? granted[0] ?? "xinbei_pool";
+  const activeFacilityName = facilityConfigs[activeFacility]?.facilityName ?? activeFacility;
   return (
     <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/90 lg:text-[#10233f] lg:backdrop-blur-xl">
       <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
@@ -267,31 +292,34 @@ function TopBar() {
           <BrandMark className="h-8 w-8 rounded-[8px]" />
           <p className="text-[15px] font-black">駿斯 CMS</p>
         </div>
-        <div className="hidden min-w-0 items-center gap-3 lg:flex">
+        <label className="relative hidden min-w-0 cursor-pointer items-center gap-3 rounded-[8px] px-1 py-1 transition hover:bg-[#f5f8fb] lg:flex">
           <div className="grid h-8 w-8 place-items-center rounded-[7px] border border-[#e2e9f2] bg-white text-[#9aa8ba]">
-            <Home className="h-4 w-4" />
+            <Building2 className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-black text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.shortName ?? "新北泳池館"}</p>
+            <div className="flex items-center gap-1">
+              <span className="max-w-[280px] truncate text-[13px] font-black text-[#10233f]">{activeFacilityName}</span>
+              {granted.length > 1 ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#8b9aae]" /> : null}
+            </div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae]">Dashboard</p>
           </div>
-        </div>
+          {granted.length > 1 ? (
+            <select
+              value={activeFacility}
+              onChange={(event) => switchFacility.mutate(event.target.value)}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label="切換場館"
+            >
+              {granted.map((facilityKey) => (
+                <option key={facilityKey} value={facilityKey}>{facilityConfigs[facilityKey]?.facilityName ?? facilityKey}</option>
+              ))}
+            </select>
+          ) : null}
+        </label>
         <div className="flex items-center gap-2">
           <div className="hidden lg:block">
             <RoleSwitcher />
           </div>
-          {granted.length > 1 ? (
-            <select
-              value={session?.activeFacility ?? granted[0]}
-              onChange={(event) => switchFacility.mutate(event.target.value)}
-              className="hidden min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:block"
-              aria-label="切換館別"
-            >
-              {granted.map((facilityKey) => (
-                <option key={facilityKey} value={facilityKey}>{facilityConfigs[facilityKey]?.shortName ?? facilityKey}</option>
-              ))}
-            </select>
-          ) : null}
           <button className="workbench-focus hidden min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:inline-flex">
             員工
           </button>
@@ -679,6 +707,8 @@ const mergeShortcutPreference = (source: ShortcutSummary[], preference: Shortcut
 function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
   const baseShortcuts = useMemo(() => shortcuts.slice(0, shortcutLimit), [shortcuts]);
   const [isEditing, setIsEditing] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [customShortcuts, setCustomShortcuts] = useState<ShortcutSummary[]>(() => mergeShortcutPreference(baseShortcuts, readShortcutPreference()));
 
   useEffect(() => {
@@ -700,22 +730,6 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
     });
   };
 
-  const updateShortcut = (id: string, patch: Partial<Pick<ShortcutSummary, "label" | "href" | "tone">>) => {
-    setCustomShortcuts((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...patch,
-              label: patch.label ?? item.label,
-              href: patch.href ?? item.href,
-              tone: patch.tone && isShortcutTone(patch.tone) ? patch.tone : item.tone,
-            }
-          : item,
-      ),
-    );
-  };
-
   const resetShortcuts = () => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(shortcutPreferenceKey);
@@ -723,84 +737,116 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
     setCustomShortcuts(baseShortcuts);
   };
 
+  const dropShortcut = (targetIndex: number) => {
+    if (dragIndex === null || dragIndex === targetIndex) return;
+    setCustomShortcuts((current) => {
+      const next = [...current];
+      const [moved] = next.splice(dragIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDragIndex(null);
+  };
+
+  const removeShortcut = (id: string) => {
+    setCustomShortcuts((current) => current.filter((item) => item.id !== id));
+  };
+
+  const addShortcut = (shortcut: ShortcutSummary) => {
+    setCustomShortcuts((current) => {
+      if (current.some((item) => item.id === shortcut.id) || current.length >= shortcutLimit) return current;
+      return [...current, shortcut];
+    });
+    setShowAddMenu(false);
+  };
+
+  const remainingCandidates = shortcutCandidates.filter((candidate) => !customShortcuts.some((item) => item.id === candidate.id));
+
   return (
     <WorkbenchCard className="p-5">
       <SectionTitle
         title="快速操作"
         eyebrow="Shortcuts"
         action={isEditing ? "完成" : "自訂排序"}
-        onAction={() => setIsEditing((current) => !current)}
+        onAction={() => {
+          setIsEditing((current) => !current);
+          setShowAddMenu(false);
+        }}
       />
       {isEditing ? (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] px-3 py-2">
-          <div className="flex items-center gap-2 text-[12px] font-bold text-[#536175]">
-            <Pencil className="h-4 w-4 text-[#007166]" />
-            可自由調整順序、顯示名稱、連結與顏色。這只會儲存為個人 UI 偏好。
+        <div className="mb-3 rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[12px] font-bold text-[#536175]">
+              <GripVertical className="h-4 w-4 text-[#007166]" />
+              拖曳圖示即可調整順序，點擊加號新增模組入口。
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={customShortcuts.length >= shortcutLimit || !remainingCandidates.length}
+                onClick={() => setShowAddMenu((current) => !current)}
+                className="inline-flex min-h-8 items-center gap-1 rounded-[8px] bg-[#0d2a50] px-2 text-[11px] font-black text-white disabled:opacity-45"
+              >
+                <PlusCircle className="h-3.5 w-3.5" />
+                新增模組
+              </button>
+              <button
+                type="button"
+                onClick={resetShortcuts}
+                className="inline-flex min-h-8 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[11px] font-black text-[#536175]"
+              >
+                重設
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={resetShortcuts}
-            className="inline-flex min-h-8 items-center gap-1 rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[11px] font-black text-[#536175]"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            重設
-          </button>
+          {showAddMenu ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {remainingCandidates.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => addShortcut(candidate)}
+                  className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-left text-[12px] font-black text-[#263b56] hover:border-[#9dd84f]"
+                >
+                  <Plus className="h-4 w-4 text-[#007166]" />
+                  {candidate.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <div className={cn("grid gap-3", isEditing ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-7" : "grid-cols-3 sm:grid-cols-4 lg:grid-cols-7")}>
         {customShortcuts.map((shortcut, index) => {
           const Icon = shortcutIcons[shortcut.tone];
           return isEditing ? (
-            <div key={shortcut.id} className="rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className={cn("grid h-9 w-9 place-items-center rounded-[8px]", toneClass[shortcut.tone])}>
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    disabled={index === 0}
-                    onClick={() => moveShortcut(index, -1)}
-                    className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#dfe7ef] bg-white text-[#536175] disabled:opacity-35"
-                    aria-label={`上移 ${shortcut.label}`}
-                  >
-                    <MoveUp className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={index === customShortcuts.length - 1}
-                    onClick={() => moveShortcut(index, 1)}
-                    className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#dfe7ef] bg-white text-[#536175] disabled:opacity-35"
-                    aria-label={`下移 ${shortcut.label}`}
-                  >
-                    <MoveDown className="h-4 w-4" />
-                  </button>
-                </div>
+            <div
+              key={shortcut.id}
+              draggable
+              onDragStart={() => setDragIndex(index)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => dropShortcut(index)}
+              onDragEnd={() => setDragIndex(null)}
+              className={cn(
+                "relative flex min-h-[92px] cursor-grab flex-col items-center justify-center gap-2 rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3 text-center transition",
+                dragIndex === index ? "scale-[0.98] opacity-60" : "hover:border-[#9dd84f] hover:bg-white",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => removeShortcut(shortcut.id)}
+                className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-[#fff0f1] text-[#db4b5a]"
+                aria-label={`移除 ${shortcut.label}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+              <div className="absolute left-2 top-2 text-[#9aa8ba]" aria-hidden>
+                <GripVertical className="h-4 w-4" />
               </div>
-              <div className="grid gap-2">
-                <input
-                  value={shortcut.label}
-                  onChange={(event) => updateShortcut(shortcut.id, { label: event.target.value })}
-                  className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[12px] font-black text-[#263b56] outline-none"
-                  aria-label={`${shortcut.label} 顯示名稱`}
-                />
-                <input
-                  value={shortcut.href}
-                  onChange={(event) => updateShortcut(shortcut.id, { href: event.target.value })}
-                  className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[12px] font-bold text-[#536175] outline-none"
-                  aria-label={`${shortcut.label} 連結`}
-                />
-                <select
-                  value={shortcut.tone}
-                  onChange={(event) => updateShortcut(shortcut.id, { tone: event.target.value as ShortcutSummary["tone"] })}
-                  className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[12px] font-bold text-[#536175] outline-none"
-                  aria-label={`${shortcut.label} 顏色`}
-                >
-                  {shortcutToneOptions.map((tone) => (
-                    <option key={tone} value={tone}>{tone}</option>
-                  ))}
-                </select>
-              </div>
+              <span className={cn("grid h-10 w-10 place-items-center rounded-[8px]", toneClass[shortcut.tone])}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="max-w-full truncate text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
             </div>
           ) : (
             <a key={shortcut.id} href={shortcut.href} className="group flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[8px] bg-[#fbfcfd] px-2 text-center transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
@@ -1009,10 +1055,41 @@ function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteS
   );
 }
 
-function CompactEventsCard({ campaigns }: { campaigns: CampaignSummary[] }) {
+function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: CampaignSummary[]; facilityKey: string; onChanged: () => void }) {
+  const [showComposer, setShowComposer] = useState(false);
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="活動 / 課程快訊" eyebrow="Events" action="查看更多" actionHref="/employee/activity-periods" />
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-bold text-[#10233f]">活動 / 課程快訊</h2>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Events</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={() => setShowComposer((current) => !current)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+            員工可新增
+            <span aria-hidden>＋</span>
+          </button>
+          <Link href="/employee/activity-periods" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+            查看更多
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
+      </div>
+      {showComposer ? (
+        <div className="mb-3">
+          <AddResourceForm
+            category="event"
+            facilityKey={facilityKey}
+            titlePlaceholder="活動 / 課程名稱"
+            contentPlaceholder="時間或備註"
+            urlPlaceholder="報名或說明連結 https://..."
+            onCreated={() => {
+              setShowComposer(false);
+              onChanged();
+            }}
+          />
+        </div>
+      ) : null}
       <div className="space-y-2">
         {campaigns.length ? campaigns.slice(0, 4).map((campaign) => (
           <Link key={campaign.id} href="/employee/activity-periods" className="flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2 hover:bg-[#f7f9fb]">
@@ -1039,14 +1116,27 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
       <SectionTitle title="常用文件" eyebrow="Documents" action="查看更多" actionHref="/employee/documents" />
       <div className="space-y-2">
         {documents.length ? documents.slice(0, 4).map((doc) => (
-          <Link key={doc.id} href="/employee/documents" className="flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2 hover:bg-[#f7f9fb]">
+          <a
+            key={doc.id}
+            href={doc.url || undefined}
+            target={doc.url ? "_blank" : undefined}
+            rel={doc.url ? "noreferrer" : undefined}
+            aria-disabled={!doc.url}
+            className={cn(
+              "flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2",
+              doc.url ? "hover:bg-[#f7f9fb]" : "cursor-not-allowed opacity-70",
+            )}
+            onClick={(event) => {
+              if (!doc.url) event.preventDefault();
+            }}
+          >
             <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
               <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
             </span>
             <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
-          </Link>
+          </a>
         )) : (
           <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>
         )}
@@ -1055,61 +1145,235 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
   );
 }
 
-function CompactStickyNotesCard({ notes }: { notes: StickyNoteSummary[] }) {
+function StickyNoteComposer({
+  facilityKey,
+  notes,
+  onClose,
+  onCreated,
+}: {
+  facilityKey: string;
+  notes: StickyNoteSummary[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [portalTarget] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : document.body));
+  const [draft, setDraft] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(quickNoteDraftKey) ?? "";
+  });
+  const [savedMessage, setSavedMessage] = useState("");
+  const canSubmit = draft.trim().length > 0;
+  const mutation = useMutation({
+    mutationFn: () => {
+      const content = draft.trim();
+      const firstLine = content.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "便利貼";
+      return createEmployeeResource({
+        facilityKey,
+        category: "sticky_note",
+        title: firstLine.slice(0, 60),
+        content,
+        isPinned: true,
+      });
+    },
+    onSuccess: () => {
+      setDraft("");
+      setSavedMessage("已新增，可繼續記下一則。");
+      if (typeof window !== "undefined") window.localStorage.removeItem(quickNoteDraftKey);
+      window.setTimeout(() => setSavedMessage(""), 1800);
+      onCreated();
+    },
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (draft.trim()) window.localStorage.setItem(quickNoteDraftKey, draft);
+    else window.localStorage.removeItem(quickNoteDraftKey);
+  }, [draft]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined" || !portalTarget) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    textareaRef.current?.focus({ preventScroll: true });
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [portalTarget]);
+
+  const composer = (
+    <div className="fixed inset-0 z-50 overflow-hidden bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="快速新增便利貼">
+      <button type="button" aria-label="關閉便利貼新增視窗" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <aside className="fixed bottom-0 right-0 top-0 z-[51] flex h-dvh w-full max-w-[420px] shrink-0 flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
+        <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
+          <div>
+            <h2 className="text-[18px] font-black text-[#10233f]">快速便利貼</h2>
+            <p className="text-[12px] font-bold text-[#8b9aae]">先記下來，稍後再整理。</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[#637185]" aria-label="關閉">
+            ×
+          </button>
+        </div>
+        <div data-quick-note-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
+          <div className="rounded-[12px] border border-[#f0dfaa] bg-[#fffdf0] p-4 shadow-[0_20px_50px_-42px_rgba(15,34,58,0.4)]">
+            <label className="sr-only" htmlFor="quick-note-draft">今天要記什麼</label>
+            <textarea
+              id="quick-note-draft"
+              ref={textareaRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSubmit && !mutation.isPending) {
+                  event.preventDefault();
+                  mutation.mutate();
+                }
+              }}
+              className="min-h-[220px] w-full resize-none rounded-[10px] border border-[#eadba8] bg-white/80 p-4 text-[15px] font-bold leading-7 text-[#10233f] outline-none placeholder:text-[#9a8b65] focus:border-[#d3b95f]"
+              placeholder={"今天要記什麼？\n例如：王小姐下次來要補發票"}
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold text-[#9a8b65]">Ctrl / Cmd + Enter 新增，Esc 關閉。草稿會暫存。</p>
+              <button
+                type="button"
+                disabled={!canSubmit || mutation.isPending}
+                onClick={() => mutation.mutate()}
+                className="min-h-10 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50"
+              >
+                {mutation.isPending ? "新增中..." : "新增便利貼"}
+              </button>
+            </div>
+            {savedMessage ? <p className="mt-2 text-[12px] font-black text-[#15935d]" role="status">{savedMessage}</p> : null}
+            {mutation.isError ? <p className="mt-2 text-[12px] font-bold text-[#ff4964]" role="alert">新增失敗，請確認資料庫連線後再試。</p> : null}
+          </div>
+
+          <div className="mt-7 flex items-center justify-between gap-3">
+            <h3 className="text-[15px] font-black text-[#10233f]">最近便利貼</h3>
+            <Link href="/employee/personal-note" className="text-[12px] font-black text-[#007166]" onClick={onClose}>查看全部</Link>
+          </div>
+          <div className="mt-3 space-y-2">
+            {notes.length ? notes.slice(0, 5).map((note) => (
+              <article key={note.id} className="rounded-[10px] border border-[#f0dfaa] bg-[#fff9df] p-3">
+                <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
+                <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
+              </article>
+            )) : (
+              <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增便利貼。</div>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+
+  return portalTarget ? createPortal(composer, portalTarget) : null;
+}
+
+function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: StickyNoteSummary[]; facilityKey: string; onChanged: () => void }) {
+  const [composerOpen, setComposerOpen] = useState(false);
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="便利貼" eyebrow="Notes" action="查看全部" actionHref="/employee/personal-note" />
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-bold text-[#10233f]">便利貼</h2>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Notes</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+            新增
+            <span aria-hidden>＋</span>
+          </button>
+          <Link href="/employee/personal-note" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+            查看全部
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
+      </div>
       <div className="space-y-2">
         {notes.length ? notes.slice(0, 3).map((note) => (
-          <Link key={note.id} href="/employee/personal-note" className="block rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3 hover:bg-[#fff4c8]">
+          <button key={note.id} type="button" onClick={() => setComposerOpen(true)} className="block w-full rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3 text-left hover:bg-[#fff4c8]">
             <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
             <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
             <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
-          </Link>
+          </button>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增便利貼。</div>
+          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185] hover:bg-[#f3f6f9]">
+            尚未新增便利貼。
+          </button>
         )}
       </div>
+      {composerOpen ? (
+        <StickyNoteComposer
+          facilityKey={facilityKey}
+          notes={notes}
+          onClose={() => setComposerOpen(false)}
+          onCreated={onChanged}
+        />
+      ) : null}
     </WorkbenchCard>
   );
 }
 
 function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   const shifts = board?.shifts ?? [];
+  const previewRows = shifts.flatMap((shift) =>
+    shift.people.map((person) => ({
+      shift,
+      person,
+      status: shift.isCurrent ? "進行中" : shift.isFuture ? "未來" : "已結束",
+    })),
+  );
   return (
     <WorkbenchCard className="p-5">
       <SectionTitle title="今日班表" eyebrow="Shift" showAction={false} />
       {!board?.sourceStatus.connected ? (
         <div className="rounded-[8px] bg-[#fff7f8] p-6 text-center text-[13px] font-bold text-[#ff4964]">班表資料暫時無法取得</div>
-      ) : shifts.length ? (
+      ) : previewRows.length ? (
         <div className="space-y-3">
-          {shifts.map((shift) => (
+          {previewRows.slice(0, 6).map(({ shift, person, status }) => (
             <div
-              key={shift.shiftId}
+              key={`${shift.shiftId}-${person.userId}-${person.name}`}
               className={cn(
-                "rounded-[8px] border p-3",
+                "flex min-h-[64px] items-center gap-3 rounded-[8px] border px-3 py-2",
                 shift.isCurrent ? "border-[#9dd84f] bg-[#f1fbec]" : "border-[#e6edf4] bg-[#fbfcfd]",
               )}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className={cn("font-black text-[#10233f]", shift.isCurrent ? "text-[16px]" : "text-[14px]")}>
-                  {formatShiftTime(shift.start)} – {formatShiftTime(shift.end)}
+              <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-black text-white", shift.isCurrent ? "bg-[#15935d]" : "bg-[#6c7a8e]")}>
+                {person.name.slice(0, 1)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-black text-[#10233f]">
+                  {person.name}{person.isCurrentUser ? "（你）" : ""} · {person.role}
                 </p>
-                {shift.isCurrent ? (
-                  <span className="rounded-full bg-[#15935d] px-2 py-1 text-[10px] font-black text-white">進行中</span>
-                ) : shift.isFuture ? (
-                  <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[10px] font-black text-[#637185]">未來</span>
-                ) : (
-                  <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[10px] font-black text-[#8b9aae]">已結束</span>
-                )}
+                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">
+                  {formatShiftTimeLong(shift.start)} - {formatShiftTimeLong(shift.end)}
+                </p>
               </div>
-              <div className="mt-3 space-y-1">
-                {shift.people.map((person) => (
-                  <p key={`${shift.shiftId}-${person.userId}-${person.name}`} className={cn("text-[12px] font-bold", person.isCurrentUser ? "text-[#007166]" : "text-[#536175]")}>
-                    {person.name}{person.isCurrentUser ? "（你）" : ""} / {person.role}
-                  </p>
-                ))}
-              </div>
+              <span className={cn(
+                "shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-black",
+                shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
+              )}>
+                {status}
+              </span>
             </div>
           ))}
           <div className="flex items-center justify-between pt-1 text-[13px]">
@@ -1124,14 +1388,14 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   );
 }
 
-function LowerGrid({ home, visibleKeys }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
+function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
   const shiftBoard = isShiftBoardPayload(home.homeCards?.shiftReminder.payload) ? home.homeCards?.shiftReminder.payload : undefined;
   return (
     <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
       {visibleKeys.has("shifts") ? <ShiftBoardCard board={shiftBoard} /> : null}
-      {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} /> : null}
+      {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
       {visibleKeys.has("documents") ? <CompactDocumentsCard documents={home.documents.data ?? []} /> : null}
-      {visibleKeys.has("stickyNotes") ? <CompactStickyNotesCard notes={home.stickyNotes.data ?? []} /> : null}
+      {visibleKeys.has("stickyNotes") ? <CompactStickyNotesCard notes={home.stickyNotes.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
     </div>
   );
 }
