@@ -111,13 +111,13 @@ flowchart TD
 - `0.1.5`：五棒 domain writes 成功後補 `recordAudit()`，涵蓋 `quick_links`、`employee_resources`、`operational_handovers`、`system_announcements`、`tasks update/status` 共 11 個寫入點
 - `0.1.6`：`tasks create` 改走 `withTaskCreateMetadata()`，成功建立後補 `TASK_CREATED` audit；`audit-writer.ts` 移除未接線 reserved writer，只保留 repository 使用的 `AuditEventInput`
 - `Phase 0 Closure Batch`：`handover_entries` create、`anomaly_reports` create/resolve/batch resolve、`notification_recipients` create/update/delete 已補 audit；`HANDOVER_ENTRY_UPDATED` 因無 update endpoint 標記 skipped
+- `Phase 0 Replit Gate`：commit `94dd613` 已由部署環境驗證通過；`ui_events`、`client_errors`、`audit_logs` 三表皆完成真實寫入，`CLIENT_ERROR_REPORTED` audit row 已確認 actor / role / facility / correlation_id。
 - `Phase 1 UIUX 第一輪`：Employee 首頁 / shell / documents / notes 補焦點狀態、表單 name、placeholder ellipsis、內部文件連結 SPA 導航、手機底部導覽文字截斷保護
 
 下一個 Phase 0 候選：
 
-1. Replit DB migration 驗證：確認 `0003_domain_5w1h_metadata.sql` 已套用到部署資料庫。
-2. 寫入路徑實資料驗收：常用文件、便利貼、交辦、公告、任務、異常收件者、異常回報逐一新增/更新/處理，並查 `audit_logs` 是否有對應 row。
-3. 權限 guard 收斂：legacy 管理 API 逐步加上 supervisor/system guard。
+1. 權限 guard 收斂：legacy 管理 API 逐步加上 supervisor/system guard。
+2. 後續 DB migration 驗證：從 Phase 1 起每個新增 migration 都必須在 Replit 套用並查真實 row。
 
 Phase 0 出口條件：
 
@@ -137,6 +137,7 @@ flowchart TD
   Handover["櫃台交辦\noperational_handovers"]
   Events["活動 / 課程快訊\nemployee_resources/event"]
   Training["員工教材\nemployee_resources/training"]
+  Qna["相關問題詢問\nknowledge_base_qna"]
   Shift["今日班表\nexternal schedule read-only"]
 
   Home --> Documents
@@ -144,6 +145,7 @@ flowchart TD
   Home --> Handover
   Home --> Events
   Home --> Training
+  Home --> Qna
   Home --> Shift
 ```
 
@@ -154,17 +156,22 @@ flowchart TD
 3. 櫃台交辦：新增、完成、已完成查詢、剩餘時間排序。
 4. 活動 / 課程快訊：圖片 URL、分類 filter、詳情頁。
 5. 員工教材：影片 / 圖片 / 注意事項查閱，觀看事件落 telemetry。
-6. Employee UIUX 全面審查：用 `web-design-reviewer`、`design-taste-frontend`、`frontend-design` 重新審 `/employee` 核心頁。
+6. 相關問題詢問：Q&A CRUD、可自問自答、首頁模糊搜尋。
+7. Employee UIUX 全面審查：用 `web-design-reviewer`、`design-taste-frontend`、`frontend-design` 重新審 `/employee` 核心頁。
 
 已完成註記：
 
 - `Employee UIUX 第一輪`：對照 `ui-ux-pro-max` 與 Vercel Web Interface Guidelines，補強焦點狀態、表單可及性、SPA 內部文件連結、手機導覽長文字保護與 loading ellipsis。
+- `T1.1 Employee UI Audit`：新增 `docs/audits/employee-ui-consistency.md`，記錄 `/employee/*` 頁面盤點、已修項與殘留 UI debt。
+- `T1.3 活動卡片強化`：`employee_resources` 補 `image_url/event_category/event_start_at/event_end_at` nullable 欄位，Employee BFF `CampaignSummary` 補圖片、類型、起訖時間，`/employee/activity-periods/:id` 新增詳情模式。
+- `T1.4 相關問題詢問`：新增 `knowledge_base_qna` table、`/employee/qna` 問答資料庫頁、`/api/portal/knowledge-base-qna` CRUD、audit actions，並把 Q&A 問題/答案/分類/標籤接進 `/api/bff/employee/search`。
 
 Phase 1 出口條件：
 
 - `/employee` 首頁每張卡都有 `ready / empty / not_connected / error`。
 - 員工左導覽與 quick actions 都由 registry / API truth 產生。
 - 常用文件、便利貼、交辦、活動、教材都能在 Replit DB 驗證新增與查詢。
+- 相關問題詢問可在 Replit DB 驗證新增、補答、刪除，且首頁搜尋能查到 Q&A。
 - `/employee`、`/employee/handover`、`/employee/documents`、`/employee/personal-note` 通過 UI/UX skill review 與多 viewport browser review。
 
 ## 5. Phase 2：主管治理閉環
@@ -174,12 +181,14 @@ Phase 1 出口條件：
 ```mermaid
 flowchart TD
   SupervisorHome["Supervisor Dashboard\nOverview only"]
+  DutyDrawer["Now On Duty Drawer\n場館 -> 職位 -> 人員"]
   FacilityDetail["Facility Detail\n下鑽到單館"]
   EmployeeView["Employee View Embedded\n單館員工端視角"]
   Announcements["公告治理\n手動發 + 場館定向"]
   Tasks["任務派發\n同館 task"]
   HandoverReview["交辦審閱\n跨班 / 未完成 / 已完成"]
 
+  SupervisorHome --> DutyDrawer
   SupervisorHome --> FacilityDetail
   FacilityDetail --> EmployeeView
   SupervisorHome --> Announcements
@@ -200,45 +209,54 @@ Phase 2 出口條件：
 - 主管可管理公告、任務、交辦，但不污染員工個人資料。
 - 公告有已讀 / 確認狀態，員工端只讀。
 
-## 6. Phase 3：系統配置與觀測
+已完成註記：
 
-目標：上線前先做 module_configs 的最小可用版本，完整自由配置留到上線後。
+- `T2.1 Supervisor Layout Refactor`：Role tabs 改為 URL navigation；`WorkbenchAuthGate` 依 URL + `grantedRoles` 做前端 route guard，進入授權 layout 後同步 `activeRole`，維持既有 BFF 相容。
+- `T2.2 Supervisor Home Overview`：`/api/bff/supervisor/dashboard` 新增 authorized facility overview section，主管首頁先顯示各館主理人、人力、未完成交辦與任務，detail 下鑽留後續。
+- `T2.3 Supervisor UIUX Shell Alignment`：參考 `主管端ui.zip` 與員工端完成版，主管/system 共用 `RoleShell` 改為全視窗自適應工作台；主管導覽收斂為營運總覽、場館、任務、公告、櫃台交接、員工教材、異常審核、報表。`/supervisor/settings` 與 widget layout 編輯已自本階段移除；主管首頁桌機版只保留 KPI、授權場館狀態、快速操作、未完成交班 Top 5，場館營運模組只保留在手機端。
+- `T2.4 Supervisor Core Flow Hardening`：任務管理改為列表 + 右側新增抽屜；場館頁新增授權場館卡片與場館篩選；主管櫃台交接改成不要求固定班別，只依館別、內容、到期時間與狀態治理。`module-smoke` 已鎖定這些防回歸條件。
+- `T2.5 Supervisor Announcement Closure`：公告管理從候選審核頁升級為完整主管公告工作台，可手動發布、選類型、置頂、啟用/停用、設定發布時間與下架時間；員工 BFF 會依 pinned/type/time 排序與顯示。
+- `T2.6 Supervisor Report Closure`：報表頁不再呼叫 system-only overview，改由 supervisor BFF 與 portal analytics 組成，並提供可下載 CSV。
+- `T2.7 Supervisor Facility Duty Drawer`：主管首頁場館模組新增「查看當班人員」入口；右側抽屜依營運中場館、職位、當班人員分層顯示，資料只吃 supervisor BFF，不在 component 直連外部排班 API。
+
+## 6. Phase 3：系統觀測與治理
+
+目標：上線前先把 system-only health、audit、raw inspector 與 integration status 收斂到可驗收狀態。`module_configs` / widget layout builder 已移出近期計畫，不作為首版上線阻塞項。
 
 ```mermaid
 flowchart TD
-  Configs["module_configs\nlabel / enabled / sort order"]
   Registry["Module Registry\nstatic truth"]
-  Runtime["Runtime Overrides\nDB overrides"]
   Health["Module Health\nroute / BFF / permission / telemetry"]
   Audit["Audit / Telemetry\nDB-backed"]
   SystemUI["System UI\nIT 管理"]
+  Raw["Raw Inspector\nrestricted queries"]
+  Integrations["Integration Status\nRagic / LINE / Schedule"]
 
-  Registry --> Runtime
-  Configs --> Runtime
-  Runtime --> Health
-  Runtime --> SystemUI
+  Registry --> Health
   Audit --> Health
+  Raw --> Audit
+  Integrations --> Health
+  Health --> SystemUI
 ```
 
 上線前範圍：
 
-- `module_configs` table
-- module label 編輯
-- module enabled / disabled
-- nav / card sort order
+- module health 正式顯示
+- audit / telemetry DB-backed 驗證
+- raw inspector 權限與查詢範圍限制
+- integration status sourceStatus 顯示
 - system-only 管理頁
 
 上線後範圍：
 
-- 完整 module CRUD
-- 複雜排版設定
-- 多角色差異化 layout builder
+- 完整 module CRUD（需重新評估產品必要性）
+- 複雜排版設定（已暫停，不列入近期施工）
+- 多角色差異化 layout builder（已暫停，不列入近期施工）
 - LINE webhook agent / 自動摘要 / AI assist
 
 Phase 3 出口條件：
 
 - IT 可以看 module health。
-- IT 可以調整 label 與排序。
 - 所有變更寫 audit。
 - employee / supervisor 不可看到 system-only config。
 
@@ -278,5 +296,5 @@ Phase 3 出口條件：
 不建議現在先做：
 
 - LINE webhook agent：放 post-launch。
-- 完整 module layout builder：Phase 3 上線後範圍。
+- 完整 module layout builder：已暫停；除非重新完成 UX/ADR 決策，否則不要排入下一輪。
 - Redis session store：目前先走 Postgres / cookie session 路線。

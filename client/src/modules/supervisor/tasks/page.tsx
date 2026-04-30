@@ -6,6 +6,7 @@ import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { useAuthMe } from "@/shared/auth/session";
 import { cn } from "@/lib/utils";
+import { SupervisorKpiCard } from "../supervisor-ui";
 import {
   createEmployeeTask,
   deleteEmployeeTask,
@@ -102,24 +103,40 @@ function SupervisorTaskForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3 rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-4 xl:grid-cols-[1.2fr_1fr_auto]">
-      <div className="space-y-2">
-        <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="派發任務標題" className="workbench-focus min-h-11 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[14px] font-black text-[#10233f]" />
-        <textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="任務內容或主管備註" rows={2} className="workbench-focus w-full resize-none rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-2 text-[13px] font-bold text-[#536175]" />
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <select value={priority} onChange={(event) => setPriority(event.target.value as Priority)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]">
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+        任務標題
+        <input value={title} onChange={(event) => setTitle(event.target.value)} className="workbench-focus min-h-11 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[14px] font-black text-[#10233f]" />
+      </label>
+      <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+        任務內容
+        <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={5} className="workbench-focus w-full resize-none rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-2 text-[13px] font-bold leading-6 text-[#536175]" />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+          優先度
+          <select value={priority} onChange={(event) => setPriority(event.target.value as Priority)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]">
           <option value="low">低優先</option>
           <option value="normal">一般</option>
           <option value="high">高優先</option>
-        </select>
-        <input value={assignedToName} onChange={(event) => setAssignedToName(event.target.value)} placeholder="指派姓名，可空白" className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
-        <input value={assignedToUserId} onChange={(event) => setAssignedToUserId(event.target.value)} placeholder="員工編號，可空白" className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
-        <input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
+          </select>
+        </label>
+        <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+          到期時間
+          <input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
+        </label>
+        <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+          指派姓名
+          <input value={assignedToName} onChange={(event) => setAssignedToName(event.target.value)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
+        </label>
+        <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+          員工編號
+          <input value={assignedToUserId} onChange={(event) => setAssignedToUserId(event.target.value)} className="workbench-focus min-h-11 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]" />
+        </label>
       </div>
       <button type="submit" disabled={createMutation.isPending || !title.trim()} className="workbench-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-[8px] bg-[#10233f] px-4 text-[13px] font-black text-white disabled:opacity-50">
         <Plus className="h-4 w-4" />
-        派發
+        {createMutation.isPending ? "派發中" : "派發任務"}
       </button>
     </form>
   );
@@ -217,6 +234,7 @@ export default function SupervisorTasksPage() {
   });
   const [statusFilter, setStatusFilter] = useState<TaskStatus>("all");
   const [priorityOnly, setPriorityOnly] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/tasks", "supervisor", facilityKey] });
     queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
@@ -243,17 +261,13 @@ export default function SupervisorTasksPage() {
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {metricCards.map(([label, key, Icon, tone]) => (
-            <WorkbenchCard key={key} className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[12px] font-bold text-[#637185]">{label}</p>
-                  <p className={cn("mt-2 text-[26px] font-black", tone)}>{metricValue[key]}</p>
-                </div>
-                <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff]">
-                  <Icon className="h-5 w-5 text-[#2f6fe8]" />
-                </div>
-              </div>
-            </WorkbenchCard>
+            <SupervisorKpiCard
+              key={key}
+              label={label}
+              value={metricValue[key]}
+              icon={Icon}
+              tone={tone.includes("ff4964") ? "red" : tone.includes("15935d") ? "green" : tone.includes("2f6fe8") ? "blue" : "navy"}
+            />
           ))}
         </div>
 
@@ -292,10 +306,19 @@ export default function SupervisorTasksPage() {
 
         <WorkbenchCard className="p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-[15px] font-black">任務清單</h2>
-            <span className="text-[12px] font-bold text-[#8b9aae]">{filteredTasks.length} 筆</span>
+            <div>
+              <h2 className="text-[15px] font-black">任務清單</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">{filteredTasks.length} 筆，新增任務從右側抽屜派發。</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="workbench-focus inline-flex min-h-10 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[13px] font-black text-white"
+            >
+              <Plus className="h-4 w-4" />
+              新增任務
+            </button>
           </div>
-          <SupervisorTaskForm facilityKey={facilityKey} onCreated={invalidate} />
           <div className="mt-4 space-y-3">
             {isLoading ? (
               <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入任務資料...</div>
@@ -327,6 +350,30 @@ export default function SupervisorTasksPage() {
           </div>
         </WorkbenchCard>
       </div>
+      {createOpen ? (
+        <div className="supervisor-drawer">
+          <div className="supervisor-drawer-panel">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-[#dfe7ef] bg-white p-5">
+              <div className="border-l-4 border-[#16b6b1] pl-3">
+                <h2 className="text-[20px] font-black text-[#10233f]">新增任務</h2>
+                <p className="mt-1 text-[12px] font-bold text-[#637185]">派發同館任務，員工可直接標記完成。</p>
+              </div>
+              <button type="button" onClick={() => setCreateOpen(false)} aria-label="關閉新增任務" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-[#f1f5f9] text-[#536175]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5">
+              <SupervisorTaskForm
+                facilityKey={facilityKey}
+                onCreated={() => {
+                  invalidate();
+                  setCreateOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </RoleShell>
   );
 }

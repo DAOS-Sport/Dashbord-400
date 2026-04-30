@@ -1197,8 +1197,8 @@ export async function registerRoutes(
     title: z.string().min(1).max(120),
     content: z.string().min(1).max(2000),
     priority: z.enum(["low", "normal", "high"]).default("normal"),
-    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    targetShiftLabel: z.string().min(1),
+    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    targetShiftLabel: z.string().min(1).optional(),
     visibleFrom: z.string().datetime().optional().nullable(),
     dueAt: z.string().datetime().optional().nullable(),
     assigneeEmployeeNumber: z.string().optional().nullable(),
@@ -1228,6 +1228,11 @@ export async function registerRoutes(
   });
 
   const toDateOrNull = (value: string | null | undefined) => value ? new Date(value) : null;
+  const datePartFromIso = (value: string | null | undefined) => {
+    if (!value) return new Date().toISOString().slice(0, 10);
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
+  };
 
   const canAccessFacility = (req: import("express").Request, facilityKey: string) =>
     !req.workbenchSession || req.workbenchSession.grantedFacilities.includes(facilityKey);
@@ -1259,22 +1264,36 @@ export async function registerRoutes(
       res.json({ items: items.map(mapOperationalHandoverForResponse) });
     } catch (err) {
       const m = err instanceof Error ? err.message : "交班交接查詢失敗";
-      res.status(500).json({ message: m });
+      console.error("[operational-handovers:list_failed]", err);
+      res.json({
+        items: [],
+        sourceStatus: {
+          connected: false,
+          errorMessage: m,
+        },
+      });
     }
   });
 
   app.post("/api/portal/operational-handovers", requireSupervisor(), async (req, res) => {
     try {
       const caller = (req as unknown as { caller: EmployeeProfile }).caller;
-      const parsed = operationalHandoverCreateBodySchema.safeParse(req.body || {});
+      const body = req.body || {};
+      const parsed = operationalHandoverCreateBodySchema.safeParse({
+        ...body,
+        targetDate: body.targetDate || datePartFromIso(body.dueAt),
+        targetShiftLabel: body.targetShiftLabel || "櫃台交辦",
+      });
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const targetDate = parsed.data.targetDate ?? datePartFromIso(parsed.data.dueAt);
+      const targetShiftLabel = parsed.data.targetShiftLabel ?? "櫃台交辦";
       const resolvedAssignee = parsed.data.assigneeEmployeeNumber || parsed.data.assigneeName
         ? { assigneeEmployeeNumber: parsed.data.assigneeEmployeeNumber ?? null, assigneeName: parsed.data.assigneeName ?? null }
         : await resolveOperationalHandoverAssignee({
           facilityKey: parsed.data.facilityKey,
-          targetDate: parsed.data.targetDate,
-          targetShiftLabel: parsed.data.targetShiftLabel,
+          targetDate,
+          targetShiftLabel,
         });
       const created = await storage.createOperationalHandover(withEmployeeCreateMetadata({
         facilityKey: parsed.data.facilityKey,
@@ -1282,8 +1301,8 @@ export async function registerRoutes(
         content: parsed.data.content,
         priority: parsed.data.priority,
         status: "pending",
-        targetDate: parsed.data.targetDate,
-        targetShiftLabel: parsed.data.targetShiftLabel,
+        targetDate,
+        targetShiftLabel,
         visibleFrom: toDateOrNull(parsed.data.visibleFrom),
         dueAt: toDateOrNull(parsed.data.dueAt),
         assigneeEmployeeNumber: resolvedAssignee.assigneeEmployeeNumber,
@@ -1685,6 +1704,10 @@ export async function registerRoutes(
         subCategory: z.string().max(60).nullable().optional(),
         content: z.string().max(1000).nullable().optional(),
         url: z.string().refine((value) => value.startsWith("/") || z.string().url().safeParse(value).success, "網址格式不正確").nullable().optional(),
+        imageUrl: z.string().refine((value) => value.startsWith("/") || z.string().url().safeParse(value).success, "圖片網址格式不正確").nullable().optional(),
+        eventCategory: z.string().max(60).nullable().optional(),
+        eventStartAt: z.coerce.date().nullable().optional(),
+        eventEndAt: z.coerce.date().nullable().optional(),
         isPinned: z.boolean().optional(),
         isPrivate: z.boolean().optional(),
         sortOrder: z.number().int().optional(),
@@ -1737,6 +1760,145 @@ export async function registerRoutes(
     }
   });
 
+  // -------- Portal: Knowledge Base Q&A (相關問題詢問) --------
+  const qnaDatabaseUnavailable = () => ({
+    message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用相關問題詢問功能。",
+    code: "DATABASE_NOT_CONNECTED",
+  });
+
+  app.get("/api/portal/knowledge-base-qna", requireEmployee(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const query = typeof req.query.q === "string" ? req.query.q : undefined;
+      const items = await storage.listKnowledgeBaseQna({
+        facilityKey,
+        query,
+        limit: req.query.limit ? Number(req.query.limit) : 100,
+      });
+      res.json({ items });
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "相關問題查詢失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.post("/api/portal/knowledge-base-qna", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const { insertKnowledgeBaseQnaSchema } = await import("@shared/schema");
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+      const parsed = insertKnowledgeBaseQnaSchema.safeParse({
+        ...body,
+        tags: Array.isArray(body.tags) ? body.tags : [],
+        createdByEmployeeNumber: caller.employeeNumber,
+        createdByName: caller.name,
+      });
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const role = caller.isSupervisor ? "supervisor" : "employee";
+      const created = await storage.createKnowledgeBaseQna(withEmployeeCreateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role,
+        facilityKey: parsed.data.facilityKey,
+      }, caller.name));
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: parsed.data.facilityKey,
+        action: "KNOWLEDGE_QNA_CREATED",
+        resource: "knowledge_base_qna",
+        resourceId: String(created.id),
+        payload: { question: created.question, category: created.category, tags: created.tags },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
+      res.status(201).json(created);
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "相關問題建立失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.patch("/api/portal/knowledge-base-qna/:id", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = await storage.getKnowledgeBaseQnaById(id);
+      if (!existing || existing.status === "archived") return res.status(404).json({ message: "找不到相關問題" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const canEdit = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      if (!canEdit) return res.status(403).json({ message: "只能編輯自己建立的問答" });
+      const patchSchema = z.object({
+        question: z.string().min(1).max(240).optional(),
+        answer: z.string().max(4000).nullable().optional(),
+        category: z.string().max(60).nullable().optional(),
+        tags: z.array(z.string().max(32)).max(12).optional(),
+        isPinned: z.boolean().optional(),
+        status: z.enum(["draft", "published", "archived"]).optional(),
+      });
+      const parsed = patchSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      const role = caller.isSupervisor ? "supervisor" : "employee";
+      const updated = await storage.updateKnowledgeBaseQna(id, withUpdateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role,
+        facilityKey: existing.facilityKey,
+      }));
+      if (!updated) return res.status(404).json({ message: "找不到相關問題" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: existing.facilityKey,
+        action: "KNOWLEDGE_QNA_UPDATED",
+        resource: "knowledge_base_qna",
+        resourceId: String(updated.id),
+        payload: { question: updated.question, category: updated.category, status: updated.status },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
+      res.json(updated);
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "相關問題更新失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  app.delete("/api/portal/knowledge-base-qna/:id", requireEmployee(), async (req, res) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const existing = await storage.getKnowledgeBaseQnaById(id);
+      if (!existing || existing.status === "archived") return res.status(404).json({ message: "找不到相關問題" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const canDelete = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      if (!canDelete) return res.status(403).json({ message: "只能刪除自己建立的問答" });
+      const ok = await storage.deleteKnowledgeBaseQna(id);
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role: caller.isSupervisor ? "supervisor" : "employee",
+        facilityKey: existing.facilityKey,
+        action: "KNOWLEDGE_QNA_DELETED",
+        resource: "knowledge_base_qna",
+        resourceId: String(existing.id),
+        payload: { question: existing.question, category: existing.category },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
+      res.json({ ok });
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "相關問題刪除失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
   // -------- Portal: System Announcements (主管維護) --------
   app.get("/api/portal/system-announcements", async (req, res) => {
     try {
@@ -1746,7 +1908,14 @@ export async function registerRoutes(
       res.json({ items });
     } catch (err) {
       const m = err instanceof Error ? err.message : "查詢失敗";
-      res.status(500).json({ message: m });
+      console.error("[system-announcements:list_failed]", err);
+      res.json({
+        items: [],
+        sourceStatus: {
+          connected: false,
+          errorMessage: m,
+        },
+      });
     }
   });
 
@@ -1781,6 +1950,7 @@ export async function registerRoutes(
       res.status(201).json(created);
     } catch (err) {
       const m = err instanceof Error ? err.message : "建立失敗";
+      console.error("[system-announcements:create_failed]", err);
       res.status(500).json({ message: m });
     }
   });

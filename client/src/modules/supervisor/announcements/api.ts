@@ -5,7 +5,8 @@ import type {
   AnnouncementFilters,
   AnnouncementSummaryResponse,
 } from "@/types/announcement";
-import { apiGet, apiPost } from "@/shared/api/client";
+import type { SystemAnnouncementDTO } from "@/types/portal";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 
 const buildQueryString = (filters: AnnouncementFilters) => {
   const params = new URLSearchParams();
@@ -36,3 +37,29 @@ export const rejectAnnouncementCandidate = (candidate: AnnouncementCandidate, re
     reviewedBy,
     reason,
   });
+
+export type SupervisorAnnouncementInput = {
+  id?: number;
+  facilityKey: string;
+  title: string;
+  content: string;
+  announcementType: SystemAnnouncementDTO["announcementType"];
+  severity: SystemAnnouncementDTO["severity"];
+  isPinned: boolean;
+  isActive: boolean;
+  publishedAt?: string;
+  expiresAt?: string | null;
+};
+
+export const fetchSupervisorSystemAnnouncements = (facilityKey: string) =>
+  apiGet<{ items: SystemAnnouncementDTO[] }>(`/api/portal/system-announcements?facilityKey=${encodeURIComponent(facilityKey)}&includeInactive=true`);
+
+export const upsertSupervisorSystemAnnouncement = (input: SupervisorAnnouncementInput) => {
+  const { id, ...body } = input;
+  return id
+    ? apiPatch<SystemAnnouncementDTO>(`/api/portal/system-announcements/${id}`, body)
+    : apiPost<SystemAnnouncementDTO>("/api/portal/system-announcements", body);
+};
+
+export const deleteSupervisorSystemAnnouncement = (id: number) =>
+  apiDelete<{ ok: true }>(`/api/portal/system-announcements/${id}`);

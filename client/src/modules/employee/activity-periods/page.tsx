@@ -97,7 +97,7 @@ function ActivityCard({ campaign, onChanged }: { campaign: CampaignSummary; onCh
   );
 }
 
-export default function EmployeeActivityPeriodsPage() {
+export default function EmployeeActivityPeriodsPage({ activityId: _activityId }: { activityId?: string } = {}) {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [title, setTitle] = useState("");

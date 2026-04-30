@@ -1,5 +1,5 @@
 import { apiGet } from "@/shared/api/client";
-import type { SupervisorDashboardDto, SystemOverviewDto } from "@shared/domain/workbench";
+import type { SupervisorDashboardDto } from "@shared/domain/workbench";
 import type { PortalEventStats } from "@/types/portal";
 
 export const fetchSupervisorReportDashboard = () =>
@@ -7,6 +7,3 @@ export const fetchSupervisorReportDashboard = () =>
 
 export const fetchSupervisorReportAnalytics = (facilityKey: string) =>
   apiGet<PortalEventStats>(`/api/portal/analytics?facilityKey=${encodeURIComponent(facilityKey)}&sinceDays=30`);
-
-export const fetchSupervisorReportSystem = () =>
-  apiGet<SystemOverviewDto>("/api/bff/system/overview");

@@ -413,6 +413,8 @@ const searchTypeLabel: Record<EmployeeSearchResultDTO["type"], string> = {
   shortcut: "入口",
   document: "文件",
   campaign: "活動",
+  training: "教材",
+  qna: "問答",
 };
 
 function Hero({

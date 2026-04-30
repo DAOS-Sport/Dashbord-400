@@ -270,6 +270,18 @@ export interface SupervisorAnomalySummary {
   priority: "high" | "medium" | "low";
 }
 
+export interface SupervisorFacilityOverview {
+  facilityKey: string;
+  facilityName: string;
+  area?: string;
+  active: number;
+  onShift: number;
+  next: number;
+  openHandovers?: number;
+  incompleteTasks?: number;
+  currentLead?: { name: string; title?: string };
+}
+
 export interface SupervisorDashboardDto {
   facility: FacilitySummary;
   staffing: BffSection<SupervisorStaffingSummary>;
@@ -279,6 +291,7 @@ export interface SupervisorDashboardDto {
   handoverOverview: BffSection<{ open: number; confirmed: number }>;
   shifts: BffSection<ShiftSummary[]>;
   campaigns: BffSection<CampaignSummary[]>;
+  facilities?: BffSection<SupervisorFacilityOverview[]>;
 }
 
 export interface SystemMetricSummary {

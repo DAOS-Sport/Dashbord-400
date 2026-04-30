@@ -13,6 +13,7 @@ import {
 } from "@/modules/employee/home/api";
 import { fetchSupervisorTrainingResources } from "./api";
 import { cn } from "@/lib/utils";
+import { SupervisorKpiCard, SupervisorPill } from "../supervisor-ui";
 
 const categories = ["影片", "圖片", "注意事項", "流程", "新人訓練", "其他"];
 
@@ -116,18 +117,12 @@ export default function SupervisorTrainingPage() {
   };
 
   return (
-    <RoleShell role="supervisor" title="員工教材管理" subtitle="主管可新增工作影片、圖片、注意事項；員工端只負責查閱與觀看。">
+    <RoleShell role="supervisor" title="員工教材" subtitle="TRAINING · 主管可新增工作影片、圖片、SOP 與注意事項；員工端只負責查閱與觀看。">
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
-            <WorkbenchCard className="p-4">
-              <p className="text-[12px] font-bold text-[#637185]">教材總數</p>
-              <p className="mt-2 text-[26px] font-black text-[#0d2a50]">{items.length}</p>
-            </WorkbenchCard>
-            <WorkbenchCard className="p-4">
-              <p className="text-[12px] font-bold text-[#637185]">目前場館</p>
-              <p className="mt-2 truncate text-[22px] font-black text-[#15935d]">{facilityKey}</p>
-            </WorkbenchCard>
+            <SupervisorKpiCard label="教材總數" value={items.length} helper="employee_resources / training" icon={BookOpen} tone="navy" />
+            <SupervisorKpiCard label="目前場館" value={facilityKey} helper="依 session active facility" icon={LinkIcon} tone="green" />
             <WorkbenchCard className="p-4">
               <p className="text-[12px] font-bold text-[#637185]">員工端入口</p>
               <a href="/employee/training" className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-[8px] bg-[#eef5ff] px-3 text-[12px] font-black text-[#2f6fe8]">
@@ -181,24 +176,24 @@ export default function SupervisorTrainingPage() {
                 </div>
               </div>
             ) : filtered.length ? (
-              <div className="grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                 {filtered.map((item) => {
                   const media = inferMediaType(item);
                   const Icon = mediaIcon(media);
                   return (
-                    <article key={item.id} className="flex flex-col gap-3 rounded-[8px] border border-[#dfe7ef] bg-[#fbfcfd] p-4 md:flex-row md:items-center">
-                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[8px] bg-[#eef5ff] text-[#2f6fe8]">
+                    <article key={item.id} className="flex min-h-[220px] flex-col gap-3 rounded-[12px] border border-[#dfe7ef] bg-[#fbfcfd] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[10px] bg-[#eef5ff] text-[#2f6fe8]">
                         <Icon className="h-5 w-5" />
+                        </div>
+                        <SupervisorPill tone="green">{item.subCategory ?? media}</SupervisorPill>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-[14px] font-black text-[#10233f]">{item.title}</h3>
-                          <span className="rounded-full bg-[#eaf8ef] px-2 py-1 text-[10px] font-black text-[#15935d]">{item.subCategory ?? media}</span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#637185]">{item.content || item.url || "未填補充內容"}</p>
-                        <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">更新：{item.updatedAt}</p>
+                        <h3 className="line-clamp-2 text-[15px] font-black leading-5 text-[#10233f]">{item.title}</h3>
+                        <p className="mt-2 line-clamp-3 text-[12px] font-bold leading-5 text-[#637185]">{item.content || item.url || "未填補充內容"}</p>
+                        <p className="mt-3 text-[11px] font-bold text-[#8b9aae]">更新：{item.updatedAt}</p>
                       </div>
-                      <div className="flex shrink-0 gap-2">
+                      <div className="mt-auto flex shrink-0 gap-2 border-t border-[#e5e8ec] pt-3">
                         <button type="button" onClick={() => startEdit(item)} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
                           編輯
                         </button>

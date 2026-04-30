@@ -8,8 +8,8 @@ export const createSupervisorHandover = (input: {
   facilityKey: string;
   title: string;
   content: string;
-  targetDate: string;
-  targetShiftLabel: string;
+  targetDate?: string;
+  targetShiftLabel?: string;
   dueAt?: string | null;
   priority?: "low" | "normal" | "high";
   linkedActionUrl?: string | null;

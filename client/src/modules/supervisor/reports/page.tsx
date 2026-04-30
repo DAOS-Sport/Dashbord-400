@@ -4,41 +4,62 @@ import { Activity, BarChart3, ClipboardList, Download, Megaphone, Users } from "
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { useAuthMe } from "@/shared/auth/session";
-import { fetchSupervisorReportAnalytics, fetchSupervisorReportDashboard, fetchSupervisorReportSystem } from "./api";
+import { fetchSupervisorReportAnalytics, fetchSupervisorReportDashboard } from "./api";
+import { SupervisorKpiCard } from "../supervisor-ui";
 
 export default function SupervisorReportsPage() {
   const { data: session } = useAuthMe();
   const facilityKey = session?.activeFacility ?? "xinbei_pool";
   const dashboardQuery = useQuery({ queryKey: ["/api/bff/supervisor/dashboard", "reports"], queryFn: fetchSupervisorReportDashboard });
   const analyticsQuery = useQuery({ queryKey: ["/api/portal/analytics", facilityKey], queryFn: () => fetchSupervisorReportAnalytics(facilityKey) });
-  const systemQuery = useQuery({ queryKey: ["/api/bff/system/overview", "reports"], queryFn: fetchSupervisorReportSystem });
   const dashboard = dashboardQuery.data;
   const analytics = analyticsQuery.data;
-  const system = systemQuery.data;
+  const exportReport = () => {
+    const rows = [
+      ["metric", "value"],
+      ["active_staff", dashboard?.staffing.data?.active ?? 0],
+      ["pending_anomalies", dashboard?.pendingAnomalies.data?.length ?? 0],
+      ["incomplete_tasks", dashboard?.incompleteTasks.data?.length ?? 0],
+      ["unconfirmed_announcements", dashboard?.announcementAcks.data?.unconfirmed ?? 0],
+      ["ui_events", analytics?.totalEvents ?? 0],
+      [],
+      ["date", "event_count"],
+      ...(analytics?.dailyCounts ?? []).map((day) => [day.day, day.count]),
+      [],
+      ["event_type", "target", "target_label", "count"],
+      ...(analytics?.topTargets ?? []).map((item) => [item.eventType, item.target ?? "", item.targetLabel ?? "", item.count]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll("\"", "\"\"")}"`).join(","))
+      .join("\n");
+    const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `supervisor-report-${facilityKey}-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
   const metrics: readonly (readonly [label: string, value: number, Icon: LucideIcon, tone: string])[] = [
     ["在班人力", dashboard?.staffing.data?.active ?? 0, Users, "text-[#15935d]"],
     ["待審異常", dashboard?.pendingAnomalies.data?.length ?? 0, Activity, "text-[#ff4964]"],
     ["未完成任務", dashboard?.incompleteTasks.data?.length ?? 0, ClipboardList, "text-[#10233f]"],
     ["未確認公告", dashboard?.announcementAcks.data?.unconfirmed ?? 0, Megaphone, "text-[#ef7d22]"],
-    ["UI 事件", analytics?.totalEvents ?? system?.auditSummary.data?.todayEvents ?? 0, BarChart3, "text-[#2f6fe8]"],
+    ["UI 事件", analytics?.totalEvents ?? 0, BarChart3, "text-[#2f6fe8]"],
   ];
 
   return (
-    <RoleShell role="supervisor" title="報表分析" subtitle="以 BFF 與 Portal analytics 彙整主管常用指標，後續可接匯出服務。">
+    <RoleShell role="supervisor" title="報表" subtitle="REPORTS · 以 supervisor BFF 與 Portal analytics 彙整主管常用指標，不回接 system overview。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map(([label, value, Icon, tone]) => (
-            <WorkbenchCard key={label} className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[12px] font-bold text-[#637185]">{label}</p>
-                  <p className={`mt-2 text-[26px] font-black ${tone}`}>{value}</p>
-                </div>
-                <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff]">
-                  <Icon className="h-5 w-5 text-[#2f6fe8]" />
-                </div>
-              </div>
-            </WorkbenchCard>
+            <SupervisorKpiCard
+              key={label}
+              label={label}
+              value={value}
+              icon={Icon}
+              tone={tone.includes("ff4964") ? "red" : tone.includes("ef7d22") ? "amber" : tone.includes("15935d") ? "green" : tone.includes("2f6fe8") ? "blue" : "navy"}
+            />
           ))}
         </div>
 
@@ -46,9 +67,13 @@ export default function SupervisorReportsPage() {
           <WorkbenchCard className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-[15px] font-black">事件趨勢</h2>
-              <button className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
+              <button
+                type="button"
+                onClick={exportReport}
+                className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]"
+              >
                 <Download className="h-4 w-4" />
-                預留匯出
+                匯出 CSV
               </button>
             </div>
             <div className="flex h-56 items-end gap-2 rounded-[8px] bg-[#fbfcfd] p-4">

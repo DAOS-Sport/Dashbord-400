@@ -7,6 +7,7 @@ import {
   type Task, type InsertTask,
   type QuickLink, type InsertQuickLink,
   type EmployeeResource, type InsertEmployeeResource,
+  type KnowledgeBaseQna, type InsertKnowledgeBaseQna,
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type AnnouncementAcknowledgement, type InsertAnnouncementAcknowledgement,
   type PortalEvent, type InsertPortalEvent,
@@ -14,10 +15,10 @@ import {
   type WatchdogEvent, type InsertWatchdogEvent,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
-  announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
+  knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
+import { eq, desc, asc, inArray, and, or, isNull, gte, lte, sql, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface AnomalyResolutionActor {
@@ -79,6 +80,13 @@ export interface IStorage {
   createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource>;
   updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined>;
   deleteEmployeeResource(id: number): Promise<boolean>;
+
+  // Knowledge Base Q&A (相關問題詢問)
+  listKnowledgeBaseQna(opts: { facilityKey?: string; query?: string; includeArchived?: boolean; limit?: number }): Promise<KnowledgeBaseQna[]>;
+  getKnowledgeBaseQnaById(id: number): Promise<KnowledgeBaseQna | undefined>;
+  createKnowledgeBaseQna(entry: InsertKnowledgeBaseQna): Promise<KnowledgeBaseQna>;
+  updateKnowledgeBaseQna(id: number, data: Partial<InsertKnowledgeBaseQna>): Promise<KnowledgeBaseQna | undefined>;
+  deleteKnowledgeBaseQna(id: number): Promise<boolean>;
 
   // SystemAnnouncements (主管維護)
   listSystemAnnouncements(facilityKey?: string, includeInactive?: boolean): Promise<SystemAnnouncement[]>;
@@ -328,7 +336,7 @@ export class DatabaseStorage implements IStorage {
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const query = where ? db.select().from(employeeResources).where(where) : db.select().from(employeeResources);
     return query
-      .orderBy(desc(employeeResources.isPinned), asc(employeeResources.sortOrder), asc(employeeResources.scheduledAt), desc(employeeResources.createdAt))
+      .orderBy(desc(employeeResources.isPinned), asc(employeeResources.sortOrder), asc(employeeResources.eventStartAt), asc(employeeResources.scheduledAt), desc(employeeResources.createdAt))
       .limit(Math.min(opts.limit ?? 100, 200));
   }
 
@@ -351,15 +359,69 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async listKnowledgeBaseQna(opts: { facilityKey?: string; query?: string; includeArchived?: boolean; limit?: number }): Promise<KnowledgeBaseQna[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(knowledgeBaseQna.facilityKey, opts.facilityKey));
+    if (!opts.includeArchived) conditions.push(sql`${knowledgeBaseQna.status} <> 'archived'`);
+    const query = opts.query?.trim();
+    if (query) {
+      const pattern = `%${query}%`;
+      conditions.push(or(
+        ilike(knowledgeBaseQna.question, pattern),
+        ilike(knowledgeBaseQna.answer, pattern),
+        ilike(knowledgeBaseQna.category, pattern),
+        sql`array_to_string(${knowledgeBaseQna.tags}, ' ') ILIKE ${pattern}`,
+      )!);
+    }
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const q = where ? db.select().from(knowledgeBaseQna).where(where) : db.select().from(knowledgeBaseQna);
+    return q
+      .orderBy(desc(knowledgeBaseQna.isPinned), desc(knowledgeBaseQna.updatedAt), desc(knowledgeBaseQna.createdAt))
+      .limit(Math.min(opts.limit ?? 100, 200));
+  }
+
+  async getKnowledgeBaseQnaById(id: number): Promise<KnowledgeBaseQna | undefined> {
+    const [row] = await db.select().from(knowledgeBaseQna).where(eq(knowledgeBaseQna.id, id)).limit(1);
+    return row;
+  }
+
+  async createKnowledgeBaseQna(entry: InsertKnowledgeBaseQna): Promise<KnowledgeBaseQna> {
+    const [created] = await db.insert(knowledgeBaseQna).values(entry).returning();
+    return created;
+  }
+
+  async updateKnowledgeBaseQna(id: number, data: Partial<InsertKnowledgeBaseQna>): Promise<KnowledgeBaseQna | undefined> {
+    const [updated] = await db
+      .update(knowledgeBaseQna)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(knowledgeBaseQna.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteKnowledgeBaseQna(id: number): Promise<boolean> {
+    const [archived] = await db
+      .update(knowledgeBaseQna)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(knowledgeBaseQna.id, id))
+      .returning();
+    return Boolean(archived);
+  }
+
   async listSystemAnnouncements(facilityKey?: string, includeInactive = false): Promise<SystemAnnouncement[]> {
     const conditions = [];
-    if (!includeInactive) conditions.push(eq(systemAnnouncements.isActive, true));
+    if (!includeInactive) {
+      const now = new Date();
+      conditions.push(eq(systemAnnouncements.isActive, true));
+      conditions.push(lte(systemAnnouncements.publishedAt, now));
+      conditions.push(or(isNull(systemAnnouncements.expiresAt), gte(systemAnnouncements.expiresAt, now))!);
+    }
     if (facilityKey) {
       conditions.push(or(eq(systemAnnouncements.facilityKey, facilityKey), isNull(systemAnnouncements.facilityKey))!);
     }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const q = where ? db.select().from(systemAnnouncements).where(where) : db.select().from(systemAnnouncements);
-    return q.orderBy(desc(systemAnnouncements.publishedAt));
+    return q.orderBy(desc(systemAnnouncements.isPinned), desc(systemAnnouncements.publishedAt));
   }
 
   async createSystemAnnouncement(ann: InsertSystemAnnouncement): Promise<SystemAnnouncement> {

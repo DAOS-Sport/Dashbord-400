@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  Building2,
   ClipboardList,
   FileText,
   Gauge,
@@ -12,8 +13,8 @@ import {
   BarChart3,
   Menu,
   MoreHorizontal,
+  Megaphone,
   Search,
-  Settings,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -42,6 +43,9 @@ const iconByKey: Record<string, LucideIcon> = {
   "shield-check": ShieldCheck,
   search: Search,
   link: MoreHorizontal,
+  building: Building2,
+  megaphone: Megaphone,
+  users: Users,
 };
 
 type NavigationSlot = {
@@ -64,6 +68,17 @@ const systemNavigationSlots: NavigationSlot[] = [
   { ids: ["telemetry-audit"], label: "Audit / Telemetry", href: "/system/audit", iconKey: "shield-check" },
   { ids: ["raw-inspector"], label: "Raw Inspector", href: "/system/raw-inspector", iconKey: "shield-check" },
   { ids: ["employee-training"], label: "教材觀看紀錄", href: "/system/training-views", iconKey: "graduation-cap" },
+];
+
+const supervisorNavigationSlots: NavigationSlot[] = [
+  { ids: ["supervisor-dashboard", "dashboard"], label: "營運總覽", href: "/supervisor", iconKey: "home" },
+  { ids: ["facilities"], label: "場館", href: "/supervisor/facilities", iconKey: "building" },
+  { ids: ["tasks"], label: "任務管理", href: "/supervisor/tasks", iconKey: "clipboard-check" },
+  { ids: ["announcements", "announcement-review"], label: "公告管理", href: "/supervisor/announcements", iconKey: "megaphone" },
+  { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
+  { ids: ["employee-training"], label: "員工教材", href: "/supervisor/training", iconKey: "graduation-cap" },
+  { ids: ["anomalies"], label: "異常審核", href: "/supervisor/anomalies", iconKey: "shield-check" },
+  { ids: ["analytics"], label: "報表", href: "/supervisor/reports", iconKey: "gauge" },
 ];
 
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
@@ -100,9 +115,24 @@ const toRoleNavItems = (role: "supervisor" | "system", items: NavigationModuleDt
     return toSystemNavItems(items);
   }
 
-  return (items ?? [])
-    .filter((item) => item.routePath.startsWith(`/${role}`))
-    .map(fromNavigationModule);
+  const supervisorItems = (items ?? []).filter((item) => item.routePath.startsWith("/supervisor"));
+  const supervisorItemsById = new Map(supervisorItems.map((item) => [item.id, item]));
+  return supervisorNavigationSlots.map((slot) => {
+    const item = slot.ids.map((id) => supervisorItemsById.get(id)).find(Boolean);
+    return item
+      ? {
+          ...fromNavigationModule(item),
+          label: slot.label,
+          href: slot.href,
+          Icon: iconByKey[item.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+        }
+      : {
+          id: slot.ids[0],
+          label: slot.label,
+          href: slot.href,
+          Icon: iconByKey[slot.iconKey] ?? Home,
+        };
+  });
 };
 
 interface RoleShellProps {
@@ -122,16 +152,25 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   });
   const nav = toRoleNavItems(role, navigation.data?.items);
   const mobileItems = nav.slice(0, 5);
-  const userLabel = role === "system" ? "System (IT)" : "張主任";
-  const roleLabel = role === "system" ? "系統管理員" : "主管・台中館";
+  const userLabel = role === "system" ? "System (IT)" : "主管工作台";
+  const roleLabel = role === "system" ? "系統管理員" : "營運主管";
+  const supervisorShell = role === "supervisor";
 
   return (
-    <div className="workbench-shell">
-      <div className="flex min-h-dvh">
-        <aside className="workbench-sidebar hidden w-[216px] shrink-0 flex-col p-4 text-white lg:flex">
-          <BrandLockup className="mb-5" markClassName="h-8 w-8 rounded-[8px]" titleClassName="text-[14px] text-white" />
-          <div className="mb-5 flex items-center gap-3 rounded-[8px] bg-white/8 p-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-[#1f3f68]">
+    <div className={cn("workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]", supervisorShell && "supervisor-workbench")}>
+      <div className="flex h-full min-w-0">
+        <aside className="workbench-sidebar hidden h-full min-h-0 w-[220px] shrink-0 flex-col gap-4 p-[18px_14px] text-white lg:flex">
+          <BrandLockup className="px-1 pb-1" markClassName="h-[26px] w-[26px] rounded-[7px]" titleClassName="text-[16px] text-white" />
+          <div className="rounded-[10px] border border-white/10 bg-white/[0.04] p-3 text-[12px] leading-5 text-[#b8c8da]">
+            <div className="mb-2 flex items-center gap-2 font-black text-white">
+              <span className="h-[7px] w-[7px] rounded-full bg-[#2f9e5b] shadow-[0_0_0_3px_rgba(47,158,91,0.18)]" />
+              營運中
+            </div>
+            <p className="truncate font-bold text-[#d9e4ef]">授權場館工作台</p>
+            <p className="truncate text-[11px] text-[#9eacbc]">Supervisor Console</p>
+          </div>
+          <div className="flex items-center gap-3 rounded-[10px] bg-white/[0.04] p-3">
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-[#2f9e5b] text-white">
               <Users className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -139,7 +178,8 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
               <p className="truncate text-[11px] text-[#b8c8da]">{roleLabel}</p>
             </div>
           </div>
-          <nav className="flex flex-1 flex-col gap-1">
+          <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">MAIN</div>
+          <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
             {!nav.length && navigation.isLoading ? (
               <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d8e3ef]">導覽載入中...</div>
             ) : null}
@@ -153,10 +193,10 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                   href={item.href}
                   onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
                   className={cn(
-                    "workbench-focus flex min-h-10 items-center gap-3 rounded-[8px] px-3 text-[13px] font-bold transition",
+                    "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
                     active || rootActive
-                      ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white"
-                      : "text-[#d8e3ef] hover:bg-white/10",
+                      ? "bg-[#2f9e5b] text-white"
+                      : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
                   )}
                 >
                   <item.Icon className="h-4 w-4" />
@@ -168,21 +208,36 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
               );
             })}
           </nav>
+          <div className="mt-auto border-t border-white/10 pt-3">
+            <div className="flex items-center gap-3 px-2 py-2">
+              <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">駿</div>
+              <div className="min-w-0 text-[12px] leading-4">
+                <p className="truncate font-black text-white">營運主管</p>
+                <p className="truncate text-[11px] text-[#9eacbc]">Supervisor</p>
+              </div>
+            </div>
+          </div>
         </aside>
 
-        <div className="min-w-0 flex-1 pb-20 lg:pb-0">
-          <header className="sticky top-0 z-20 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white/[0.88] lg:text-[#10233f] lg:backdrop-blur-xl">
-            <div className="mx-auto flex h-14 max-w-[1240px] items-center justify-between px-4 lg:h-12 lg:px-6">
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden pb-20 lg:pb-0">
+          <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white lg:text-[#102940]">
+            <div className="flex h-14 w-full items-center justify-between gap-3 px-4 lg:h-14 lg:px-6">
               <div className="flex items-center gap-3">
                 <button aria-label="開啟選單" className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-white/10 lg:hidden">
                   <Menu className="h-5 w-5" />
                 </button>
-                <div className="hidden lg:block">
-                  <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#79d146]">{role === "system" ? "Overview" : "Dashboard"}</p>
+                <div className="hidden min-w-0 items-center gap-3 lg:flex">
+                  <div className="grid h-8 w-8 place-items-center rounded-[6px] border border-[#e5e8ec] bg-[#fafbfc] text-[#4b596a]">
+                    <Home className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-black">{role === "system" ? "系統管理" : "主管營運工作台"}</p>
+                    <p className="text-[9.5px] font-black uppercase tracking-[0.18em] text-[#7c8998]">{role === "system" ? "SYSTEM" : "SUPERVISOR"}</p>
+                  </div>
                 </div>
                 <p className="text-[15px] font-black lg:hidden">{role === "system" ? "IT 治理台" : "主管控制台"}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <div className="hidden lg:block">
                   <RoleSwitcher />
                 </div>
@@ -193,16 +248,21 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                   <Bell className="h-4 w-4" />
                   <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#ff4964]" />
                 </button>
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-[#007166] text-[12px] font-black text-white">駿</div>
+                <div className="hidden min-w-0 items-center gap-2 border-l border-[#e5e8ec] pl-2 text-[12px] font-bold text-[#4b596a] lg:flex">
+                  <span className="max-w-[160px] truncate">全端測試開發</span>
+                  <span className="rounded-[6px] bg-[#102940] px-2 py-1 text-[10px] font-black text-white">/{role === "system" ? "SYSTEM" : "SUPERVISOR"}</span>
+                </div>
+                <div className="grid h-9 w-9 place-items-center rounded-full bg-[#2f9e5b] text-[12px] font-black text-white">駿</div>
               </div>
             </div>
           </header>
 
-          <main className="mx-auto max-w-[1240px] px-4 py-5 sm:px-6 lg:px-6 lg:py-7">
+          <main className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-6 lg:py-7">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h1 className="text-[24px] font-black leading-tight text-[#10233f] lg:text-[30px]">{title}</h1>
-                <p className="mt-1 text-[13px] font-medium text-[#637185]">{subtitle}</p>
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#2f9e5b]">{role === "system" ? "SYSTEM WORKBENCH" : "SUPERVISOR WORKBENCH"}</p>
+                <h1 className="text-[24px] font-black leading-tight text-[#102940] lg:text-[30px]">{title}</h1>
+                <p className="mt-1 max-w-[820px] text-[13px] font-medium leading-5 text-[#667386]">{subtitle}</p>
               </div>
               <div className="flex flex-wrap justify-end gap-2 text-[12px]">
                 <div className="lg:hidden">

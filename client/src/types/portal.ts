@@ -152,7 +152,9 @@ export interface SystemAnnouncementDTO {
   id: number;
   title: string;
   content: string;
+  announcementType: "notice" | "required" | "sop" | "event" | "discount" | "course";
   severity: "info" | "warning" | "critical";
+  isPinned: boolean;
   facilityKey: string | null;
   publishedAt: string;
   expiresAt: string | null;

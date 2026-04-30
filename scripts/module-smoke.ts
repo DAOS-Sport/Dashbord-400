@@ -92,11 +92,20 @@ assert(externalFetchViolations.length === 0, `frontend direct external API calls
 assert(hardcodedNavigationViolations.length === 0, `hardcoded navigation module lists detected:\n${hardcodedNavigationViolations.join("\n")}`);
 
 const bffRoutes = readFileSync(join(repoRoot, "server", "modules", "bff", "routes.ts"), "utf8");
+const appRoutes = readFileSync(join(repoRoot, "client", "src", "App.tsx"), "utf8");
 const authSessionStore = readFileSync(join(repoRoot, "server", "modules", "auth", "session-store.ts"), "utf8");
 const telemetryRepository = readFileSync(join(repoRoot, "server", "modules", "telemetry", "repository.ts"), "utf8");
 const employeeTrainingPage = readFileSync(join(repoRoot, "client", "src", "modules", "employee", "training", "page.tsx"), "utf8");
+const employeeQnaPage = readFileSync(join(repoRoot, "client", "src", "modules", "employee", "qna", "page.tsx"), "utf8");
+const roleShellSource = readFileSync(join(repoRoot, "client", "src", "modules", "workbench", "role-shell.tsx"), "utf8");
+const supervisorTasksPage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "tasks", "page.tsx"), "utf8");
+const supervisorPeoplePage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "people", "page.tsx"), "utf8");
+const supervisorHandoverPage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "handover", "page.tsx"), "utf8");
+const supervisorAnnouncementsPage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "announcements", "page.tsx"), "utf8");
 const domainWriteMetadata = readFileSync(join(repoRoot, "server", "shared", "data", "write-metadata.ts"), "utf8");
 const domainMetadataMigration = readFileSync(join(repoRoot, "migrations", "0003_domain_5w1h_metadata.sql"), "utf8");
+const qnaMigration = readFileSync(join(repoRoot, "migrations", "0005_knowledge_base_qna.sql"), "utf8");
+const supervisorAnnouncementMigration = readFileSync(join(repoRoot, "migrations", "0006_supervisor_announcement_controls.sql"), "utf8");
 const legacyRoutes = readFileSync(join(repoRoot, "server", "routes.ts"), "utf8");
 const taskRoutes = readFileSync(join(repoRoot, "server", "modules", "tasks", "index.ts"), "utf8");
 const storageSource = readFileSync(join(repoRoot, "server", "storage.ts"), "utf8");
@@ -108,11 +117,45 @@ assert(/app\.get\("\/api\/bff\/employee\/home",\s*requireSession/.test(bffRoutes
 assert(/app\.get\("\/api\/bff\/employee\/search",\s*requireSession/.test(bffRoutes), "/api/bff/employee/search must require session");
 assert(/app\.get\("\/api\/search\/global",\s*requireSession/.test(bffRoutes), "/api/search/global must require session");
 assert(/app\.get\("\/api\/bff\/supervisor\/dashboard",\s*requireRole\("supervisor",\s*"system"\)/.test(bffRoutes), "/api/bff/supervisor/dashboard must require supervisor or system role");
+assert(bffRoutes.includes("const mapSystemAnnouncementSummary"), "employee BFF must expose a shared system announcement mapper");
+assert(/const enrichEmployeeHome[\s\S]*storage\.listSystemAnnouncements\(normalizedFacilityKey,\s*false\)/.test(bffRoutes), "employee BFF enrich path must merge supervisor-published system announcements");
+assert(/uniqueAnnouncements\(\[\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(bffRoutes), "employee BFF announcements must merge portal system announcements before projection announcements");
 assert(!authSessionStore.includes("user.isSupervisor ?? true"), "Ragic auth mapping must not fail open to supervisor/system");
 assert(authSessionStore.includes("user.isSupervisor === true"), "Ragic auth mapping must explicitly require isSupervisor === true");
 assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : "employee"'), "Supervisor sessions must default to supervisor, not system");
 assert(telemetryRepository.includes("createPostgresTelemetryRepository"), "createPostgresTelemetryRepository must exist");
 assert(employeeTrainingPage.includes("resourceId: String(item.resourceId ?? item.id)"), "TRAINING_VIEW must send a stable string resourceId");
+assert(employeeQnaPage.includes("fetchKnowledgeBaseQna"), "/employee/qna must read knowledge base Q&A data");
+assert(employeeQnaPage.includes("createKnowledgeBaseQna"), "/employee/qna must create Q&A entries");
+assert(roleShellSource.includes("supervisorNavigationSlots"), "supervisor shell must use curated supervisor navigation slots");
+assert(roleShellSource.includes("h-dvh overflow-hidden"), "workbench shell must stay full viewport height without body scroll gaps");
+assert(roleShellSource.includes("w-[220px]"), "desktop supervisor/system sidebar width must follow supervisor design token width");
+const supervisorDashboardPage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "dashboard-page.tsx"), "utf8");
+assert(supervisorDashboardPage.includes("現在當班人員"), "supervisor dashboard must expose now-on-duty drawer");
+assert(supervisorDashboardPage.includes("查看當班人員"), "supervisor facility module must provide a visible now-on-duty drawer trigger");
+assert(supervisorDashboardPage.includes("OnDutyDrawer"), "supervisor dashboard must keep now-on-duty drawer as an explicit component");
+assert(supervisorDashboardPage.includes("buildDutyGroups"), "supervisor now-on-duty drawer must group staff by facility and position");
+assert(supervisorDashboardPage.includes("positionLabel"), "supervisor now-on-duty drawer must derive an extensible position grouping label");
+assert(appRoutes.includes('/supervisor/facilities/:facilityKey'), "supervisor facility detail route must be registered");
+assert(supervisorDashboardPage.includes('const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`'), "supervisor dashboard must define facility detail route helper");
+assert(
+  supervisorDashboardPage.includes("onOpenFacilityDetail(facilityKey)") &&
+  supervisorDashboardPage.includes("navigate(getFacilityDetailHref(facilityKey))") &&
+  supervisorDashboardPage.includes("進入詳細面板"),
+  "supervisor dashboard facility entry button must open the facility detail panel",
+);
+assert(supervisorPeoplePage.includes("FACILITY DETAIL"), "supervisor facilities page must render a facility detail mode");
+assert(supervisorTasksPage.includes("setCreateOpen(true)") && supervisorTasksPage.includes("supervisor-drawer"), "supervisor tasks page must use a right-side create drawer");
+assert(supervisorPeoplePage.includes("selectedFacilityKey") && supervisorPeoplePage.includes("facilities.map"), "supervisor facilities page must support facility-level filtering");
+assert(!supervisorHandoverPage.includes("targetShiftLabel"), "supervisor handover page must not require fixed shift labels");
+assert(supervisorAnnouncementsPage.includes("手動發布公告"), "supervisor announcements page must support manual announcement publishing");
+assert(supervisorAnnouncementsPage.includes("公告類型") && supervisorAnnouncementsPage.includes("置頂") && supervisorAnnouncementsPage.includes("發布時間"), "supervisor announcements form must expose type, pinning, and publish time controls");
+assert(supervisorAnnouncementMigration.includes("announcement_type") && supervisorAnnouncementMigration.includes("is_pinned"), "supervisor announcement migration must add type and pinning fields");
+assert(qnaMigration.includes("CREATE TABLE IF NOT EXISTS knowledge_base_qna"), "Q&A migration must create knowledge_base_qna table");
+assert(storageSource.includes("listKnowledgeBaseQna"), "storage must expose knowledge base Q&A list query");
+assert(legacyRoutes.includes('app.get("/api/portal/knowledge-base-qna"'), "knowledge-base-qna list route must be registered");
+assert(legacyRoutes.includes('app.post("/api/portal/knowledge-base-qna"'), "knowledge-base-qna create route must be registered");
+assert(bffRoutes.includes("storage.listKnowledgeBaseQna"), "employee search BFF must include Q&A rows");
 assert(telemetryRepository.includes('typeof value === "number"') && telemetryRepository.includes("return String(value)"), "training view report must normalize numeric payload ids");
 assert(taskRoutes.includes("withTaskCreateMetadata"), "task create route must use task create metadata helper");
 assert(taskRoutes.includes("assignedByUserId: manager"), "task supervisor assignment must record assignedByUserId");
@@ -178,6 +221,9 @@ assertAuditAction(legacyRoutes, 'app.patch("/api/anomaly-reports/batch/resolutio
 assertAuditAction(legacyRoutes, 'app.post("/api/notification-recipients"', "NOTIFICATION_RECIPIENT_CREATED");
 assertAuditAction(legacyRoutes, 'app.patch("/api/notification-recipients/:id"', "NOTIFICATION_RECIPIENT_UPDATED");
 assertAuditAction(legacyRoutes, 'app.delete("/api/notification-recipients/:id"', "NOTIFICATION_RECIPIENT_DELETED");
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/knowledge-base-qna"', "KNOWLEDGE_QNA_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/knowledge-base-qna/:id"', "KNOWLEDGE_QNA_UPDATED");
+assertAuditAction(legacyRoutes, 'app.delete("/api/portal/knowledge-base-qna/:id"', "KNOWLEDGE_QNA_DELETED");
 assertAuditAction(taskRoutes, 'app.post("/api/tasks"', "TASK_CREATED");
 assertAuditAction(taskRoutes, 'app.patch("/api/tasks/:id"', "TASK_UPDATED");
 assertAuditAction(taskRoutes, 'app.patch("/api/tasks/:id/status"', "TASK_STATUS_UPDATED");

@@ -286,7 +286,7 @@ client/src/
 - 手機底部導航已改為真實 route link，主管與系統角色分別對應各自核心入口，避免 mobile 只呈現不可導航的 icon button。
 - `/supervisor/tasks` 已改為正式主管模組 `client/src/modules/supervisor/tasks`，先讀主管 BFF 任務投影，後續接任務 state machine。
 - `/supervisor/handover` 已改為正式主管模組 `client/src/modules/supervisor/handover`，交接寫入由後端 session 強制作者身份。
-- `/supervisor/settings` 已改為正式主管模組 `client/src/modules/supervisor/settings`，讀取 quick links 與 system announcements。
+- `/supervisor/settings` 已移除；主管端不再提供設定 / widget layout 編輯頁，quick links 與 announcements 改回各自正式模組治理。
 - `/supervisor/reports` 已改為正式主管模組 `client/src/modules/supervisor/reports`，彙整 BFF 與 Portal analytics。
 - `/supervisor/people` 已改為正式主管模組 `client/src/modules/supervisor/people`，前端只呼叫本平台 HR audit / interview-users API，體育署、Ragic、Smart Schedule 仍由後端代理。
 - `/supervisor/announcements` 已改為正式主管模組 `client/src/modules/supervisor/announcements`，前端只呼叫本平台公告 API，保留 LINE Bot Assistant 代理與審核 mutation。
@@ -321,7 +321,7 @@ client/src/
 - `supervisor/announcements`：公告候選池審核。
 - `supervisor/anomalies`：打卡異常審核。
 - `supervisor/people`：人員稽核與面試授權入口。
-- `supervisor/settings`：場館快速入口與系統公告設定檢視。
+- `supervisor/settings`：已移除，不列入近期施工。
 - `supervisor/reports`：主管報表分析。
 - `system/overview`：系統健康、整合狀態與快速工具。
 - `system/alerts`：系統告警中心。

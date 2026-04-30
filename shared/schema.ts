@@ -308,6 +308,10 @@ export const employeeResources = pgTable("employee_resources", {
   title: text("title").notNull(),
   content: text("content"),
   url: text("url"),
+  imageUrl: text("image_url"),
+  eventCategory: text("event_category"),
+  eventStartAt: timestamp("event_start_at"),
+  eventEndAt: timestamp("event_end_at"),
   isPinned: boolean("is_pinned").default(false).notNull(),
   sortOrder: integer("sort_order").default(100).notNull(),
   scheduledAt: timestamp("scheduled_at"),
@@ -333,6 +337,10 @@ export const insertEmployeeResourceSchema = createInsertSchema(employeeResources
   subCategory: z.string().max(60, "分類過長").optional().nullable(),
   content: z.string().max(1000, "內容過長").optional().nullable(),
   url: linkUrlSchema.optional().nullable(),
+  imageUrl: linkUrlSchema.optional().nullable(),
+  eventCategory: z.string().max(60, "活動類型過長").optional().nullable(),
+  eventStartAt: z.coerce.date().optional().nullable(),
+  eventEndAt: z.coerce.date().optional().nullable(),
   sortOrder: z.number().int().optional(),
   scheduledAt: z.coerce.date().optional().nullable(),
   createdByRole: workbenchRoleSchema.optional().nullable(),
@@ -344,11 +352,50 @@ export const insertEmployeeResourceSchema = createInsertSchema(employeeResources
 export type InsertEmployeeResource = z.infer<typeof insertEmployeeResourceSchema>;
 export type EmployeeResource = typeof employeeResources.$inferSelect;
 
+export const knowledgeBaseQna = pgTable("knowledge_base_qna", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  question: text("question").notNull(),
+  answer: text("answer"),
+  category: text("category"),
+  tags: text("tags").array().default(sql`ARRAY[]::text[]`).notNull(),
+  status: text("status").default("published").notNull(),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  createdByEmployeeNumber: text("created_by_employee_number"),
+  createdByName: text("created_by_name"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  source: text("source").default("manual").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertKnowledgeBaseQnaSchema = createInsertSchema(knowledgeBaseQna).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  question: z.string().min(1, "問題不可為空").max(240, "問題過長"),
+  answer: z.string().max(4000, "答案過長").optional().nullable(),
+  category: z.string().max(60, "分類過長").optional().nullable(),
+  tags: z.array(z.string().max(32)).max(12).optional(),
+  status: z.enum(["draft", "published", "archived"]).default("published"),
+  isPinned: z.boolean().optional(),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
+});
+
+export type InsertKnowledgeBaseQna = z.infer<typeof insertKnowledgeBaseQnaSchema>;
+export type KnowledgeBaseQna = typeof knowledgeBaseQna.$inferSelect;
+
 export const systemAnnouncements = pgTable("system_announcements", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   content: text("content").notNull(),
+  announcementType: text("announcement_type").default("notice").notNull(),
   severity: text("severity").default("info").notNull(),
+  isPinned: boolean("is_pinned").default(false).notNull(),
   facilityKey: text("facility_key"),
   facilityKeys: jsonb("facility_keys").$type<string[]>(),
   publishedAt: timestamp("published_at").defaultNow().notNull(),
@@ -370,8 +417,12 @@ export const insertSystemAnnouncementSchema = createInsertSchema(systemAnnouncem
 }).extend({
   title: z.string().min(1, "標題不可為空"),
   content: z.string().min(1, "內容不可為空"),
+  announcementType: z.enum(["notice", "required", "sop", "event", "discount", "course"]).default("notice"),
   severity: z.enum(["info", "warning", "critical"]).default("info"),
+  isPinned: z.boolean().optional(),
   facilityKeys: z.array(z.string()).optional().nullable(),
+  publishedAt: z.coerce.date().optional(),
+  expiresAt: z.coerce.date().optional().nullable(),
   createdByRole: workbenchRoleSchema.optional().nullable(),
   source: metadataSourceSchema.optional(),
 });

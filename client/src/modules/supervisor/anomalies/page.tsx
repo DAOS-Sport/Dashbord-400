@@ -7,6 +7,7 @@ import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
 import type { AnomalyReport } from "./api";
 import { deleteAnomalyReport, fetchAnomalyReports, fetchNotificationRecipients, resolveAnomalyReport } from "./api";
+import { SupervisorKpiCard } from "../supervisor-ui";
 
 const isResolved = (report: AnomalyReport) => report.resolution === "resolved";
 type AnomalyCardKey = "pending" | "resolved" | "attachments" | "recipients";
@@ -217,21 +218,17 @@ export default function SupervisorAnomaliesPage() {
   });
 
   return (
-    <RoleShell role="supervisor" title="異常審核" subtitle="集中處理打卡異常、附件、通知收件者與處理狀態。">
+    <RoleShell role="supervisor" title="異常審核" subtitle="ANOMALY REVIEW · 集中處理打卡異常、附件、通知收件者與處理狀態。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {metricCards.map(([label, key, Icon, tone]) => (
-            <WorkbenchCard key={key} className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[12px] font-bold text-[#637185]">{label}</p>
-                  <p className={cn("mt-2 text-[26px] font-black", tone)}>{metricValue[key]}</p>
-                </div>
-                <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff]">
-                  <Icon className="h-5 w-5 text-[#2f6fe8]" />
-                </div>
-              </div>
-            </WorkbenchCard>
+            <SupervisorKpiCard
+              key={key}
+              label={label}
+              value={metricValue[key]}
+              icon={Icon}
+              tone={tone.includes("ff4964") ? "red" : tone.includes("15935d") ? "green" : tone.includes("6947") ? "purple" : "blue"}
+            />
           ))}
         </div>
 

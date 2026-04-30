@@ -352,7 +352,7 @@ Sprint 1 只做架構基線，不急著做完整功能或完整視覺稿。
 - `/supervisor/anomalies` 已從 legacy wrapper 遷成正式主管 module。
 - `/supervisor/people` 已從 legacy wrapper 遷成正式主管 module。
 - `/supervisor/handover` 已從 legacy wrapper 遷成正式主管 module，使用 Portal handovers API。
-- `/supervisor/settings` 已從 legacy wrapper 遷成正式主管 module，讀取 quick-links / system announcements。
+- `/supervisor/settings` 已移除；主管端不再提供半成品設定頁，quick-links / system announcements 留在各自模組與 legacy portal 管理面。
 - `/supervisor/reports` 已新增正式主管 module，彙整 Supervisor BFF、Portal analytics、System overview。
 - `/system/alerts` 已從 legacy wrapper 遷成正式系統 module，彙整 System overview 與 anomaly reports。
 - `/system/audit` 已新增正式系統 module，讀取 UI event overview 與 Portal analytics。
@@ -368,7 +368,7 @@ Sprint 1 只做架構基線，不急著做完整功能或完整視覺稿。
 1. `portalApi` remaining fallback：將公告 / campaigns fallback 移入 BFF。
 2. `server/modules/*` extraction：把 alerts、audit、handover、reports 的 route 實作逐步移出 `server/routes.ts`。
 3. `StorageAdapter`：包住 uploads / exports，保留 Replit / VPS / object storage 替換能力。
-4. `Audit log write path`：Raw Inspector、公告審核、異常審核、主管設定變更補 server-side audit。
+4. `Audit log write path`：Raw Inspector、公告審核、異常審核與主管 domain writes 補 server-side audit；主管設定頁已移除，不再列入 audit 接線範圍。
 5. `CORS / CSRF hardening`：正式部署前改為白名單 origin 與 cookie session 防護。
 
 目前完成口徑：

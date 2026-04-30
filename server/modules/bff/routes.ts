@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import type { AppContainer } from "../../app/container";
 import type { ScheduleShift } from "../../integrations/schedule/adapter";
+import { listRagicH05FacilityCandidates } from "../../integrations/ragic/facility-adapter";
 import { facilityLabel, facilityLineGroups, findFacilityLineGroup } from "@shared/domain/facilities";
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 import type {
@@ -17,7 +18,7 @@ import type {
   TaskSummary,
   TrainingSummary,
 } from "@shared/domain/workbench";
-import type { OperationalHandover, Task } from "@shared/schema";
+import type { OperationalHandover, SystemAnnouncement, Task } from "@shared/schema";
 import type { BffSection } from "@shared/bff/envelope";
 import { getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
 import { storage } from "../../storage";
@@ -264,6 +265,22 @@ const readText = (value: unknown, fallback = "") => (typeof value === "string" &
 const isImageUrl = (value: unknown) =>
   typeof value === "string" && /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(value.trim());
 
+const toIsoStringOrNull = (value: Date | string | null | undefined) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+const formatEventRange = (item: { content?: string | null; eventStartAt?: Date | string | null; eventEndAt?: Date | string | null }) => {
+  const start = toIsoStringOrNull(item.eventStartAt);
+  const end = toIsoStringOrNull(item.eventEndAt);
+  if (start && end) {
+    return `${new Date(start).toLocaleDateString("zh-TW")} - ${new Date(end).toLocaleDateString("zh-TW")}`;
+  }
+  if (start) return new Date(start).toLocaleString("zh-TW");
+  return item.content || "未設定時間";
+};
+
 const isVideoUrl = (value: unknown) =>
   typeof value === "string" && /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(value.trim());
 
@@ -348,6 +365,34 @@ const mapEmployeeAnnouncementResource = (item: {
     publishedAt,
     scheduledAt: parsed.scheduledAt,
   };
+};
+
+const mapSystemAnnouncementSummary = (item: SystemAnnouncement, now: string): AnnouncementSummary => ({
+  id: `portal-ann-${item.id}`,
+  title: item.title,
+  summary: item.content,
+  content: item.content,
+  priority: item.severity === "critical" ? "required" : item.severity === "warning" ? "high" : "normal",
+  type: item.announcementType === "sop"
+    ? "sop"
+    : item.announcementType === "event" || item.announcementType === "discount" || item.announcementType === "course"
+      ? "event"
+      : item.announcementType === "required"
+        ? "required"
+        : "notice",
+  isPinned: Boolean(item.isPinned) || item.severity === "critical",
+  effectiveRange: item.publishedAt ? new Date(item.publishedAt).toLocaleString("zh-TW") : "即時",
+  publishedAt: item.publishedAt ? item.publishedAt.toISOString() : now,
+  deadlineLabel: item.expiresAt ? new Date(item.expiresAt).toLocaleDateString("zh-TW") : "未設定",
+});
+
+const uniqueAnnouncements = (items: AnnouncementSummary[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
 };
 
 const announcementSortTime = (item: AnnouncementSummary) => {
@@ -439,18 +484,7 @@ const buildEmployeeHomeFallback = async (
   const scheduleResult = shiftsResult.status === "fulfilled" ? shiftsResult.value : null;
   const candidateAnnouncements = candidateAnnouncementsResult.status === "fulfilled" ? candidateAnnouncementsResult.value : [];
 
-  const portalAnnouncements: AnnouncementSummary[] = systemAnnouncements.slice(0, 8).map((item) => ({
-    id: `portal-ann-${item.id}`,
-    title: item.title,
-    summary: item.content,
-    content: item.content,
-    priority: item.severity === "critical" ? "required" : item.severity === "warning" ? "high" : "normal",
-    type: item.severity === "critical" ? "required" : "notice",
-    isPinned: item.severity === "critical",
-    effectiveRange: item.publishedAt ? new Date(item.publishedAt).toLocaleString("zh-TW") : "即時",
-    publishedAt: item.publishedAt ? item.publishedAt.toISOString() : now,
-    deadlineLabel: item.expiresAt ? new Date(item.expiresAt).toLocaleDateString("zh-TW") : "未設定",
-  }));
+  const portalAnnouncements: AnnouncementSummary[] = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const resourceAnnouncements = employeeResources
     .filter((item) => item.category === "announcement")
     .map(mapEmployeeAnnouncementResource);
@@ -512,10 +546,13 @@ const buildEmployeeHomeFallback = async (
       id: `employee-event-${item.id}`,
       resourceId: item.id,
       title: item.title,
-      statusLabel: item.subCategory || "員工新增",
-      effectiveRange: item.content || "未設定時間",
+      statusLabel: item.eventCategory || item.subCategory || "員工新增",
+      effectiveRange: formatEventRange(item),
       linkUrl: item.url ?? undefined,
-      imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
+      imageUrl: item.imageUrl ?? (isImageUrl(item.url) ? item.url ?? undefined : undefined),
+      eventCategory: item.eventCategory ?? item.subCategory ?? undefined,
+      startsAt: toIsoStringOrNull(item.eventStartAt),
+      endsAt: toIsoStringOrNull(item.eventEndAt),
     })),
     ...candidateAnnouncements
       .filter((item) => /活動|課程|營隊|報名|檔期/.test(`${item.title}${item.summary}`))
@@ -547,7 +584,7 @@ const buildEmployeeHomeFallback = async (
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
 
-  const announcements = [...resourceAnnouncements, ...portalAnnouncements, ...candidateAnnouncements]
+  const announcements = uniqueAnnouncements([...resourceAnnouncements, ...portalAnnouncements, ...candidateAnnouncements])
     .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
     .slice(0, 10);
 
@@ -615,10 +652,13 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       id: `employee-event-${item.id}`,
       resourceId: item.id,
       title: item.title,
-      statusLabel: item.subCategory || "員工新增",
-      effectiveRange: item.content || "未設定時間",
+      statusLabel: item.eventCategory || item.subCategory || "員工新增",
+      effectiveRange: formatEventRange(item),
       linkUrl: item.url ?? undefined,
-      imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
+      imageUrl: item.imageUrl ?? (isImageUrl(item.url) ? item.url ?? undefined : undefined),
+      eventCategory: item.eventCategory ?? item.subCategory ?? undefined,
+      startsAt: toIsoStringOrNull(item.eventStartAt),
+      endsAt: toIsoStringOrNull(item.eventEndAt),
     }));
   const documents: DocumentSummary[] = resources
     .filter((item) => item.category === "document")
@@ -662,7 +702,7 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
 
 type SearchItem = {
   id: string;
-  type: "announcement" | "handover" | "task" | "shift" | "shortcut" | "document" | "campaign" | "training";
+  type: "announcement" | "handover" | "task" | "shift" | "shortcut" | "document" | "campaign" | "training" | "qna";
   title: string;
   summary: string;
   href: string;
@@ -866,13 +906,15 @@ const enrichEmployeeHome = async (
     training: dto.training ?? ok([], now),
   };
   const employeeResources = await getEmployeeResourceSections(normalizedFacilityKey);
+  const systemAnnouncements = await storage.listSystemAnnouncements(normalizedFacilityKey, false).catch(() => []);
+  const portalAnnouncements = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
   nextDto = {
     ...nextDto,
     tasks: ok(localTasks.map(mapTaskSummary), now),
     shortcuts: ok(defaultEmployeeShortcuts, now),
     announcements: ok(
-      [...employeeResources.announcements, ...(nextDto.announcements.data ?? [])]
+      uniqueAnnouncements([...employeeResources.announcements, ...portalAnnouncements, ...(nextDto.announcements.data ?? [])])
         .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
         .slice(0, 10),
       now,
@@ -1010,7 +1052,16 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
       ? await enrichEmployeeHome(result.data, facilityKey, container)
       : await buildEmployeeHomeFallback(facilityKey, container, result.meta.fallbackReason || "Employee home projection is unavailable");
 
-    const items = buildEmployeeSearchItems(home, query);
+    const qnaItems = await storage.listKnowledgeBaseQna({ facilityKey, query, limit: 8 })
+      .then((items) => items.map((item): SearchItem => ({
+        id: `qna-${item.id}`,
+        type: "qna",
+        title: item.question,
+        summary: [item.answer, item.category, ...(item.tags ?? [])].filter(Boolean).join(" · "),
+        href: `/employee/qna?q=${encodeURIComponent(query)}`,
+      })))
+      .catch(() => []);
+    const items = [...qnaItems, ...buildEmployeeSearchItems(home, query)].slice(0, 12);
     await storage.recordPortalEvent({
       employeeNumber: session.userId,
       employeeName: session.displayName,
@@ -1056,18 +1107,45 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/supervisor/dashboard", requireRole("supervisor", "system"), async (req, res) => {
     const session = req.workbenchSession!;
     const dashboard = env.dataSourceMode === "mock" ? getSupervisorDashboardMock() : await getSupervisorDashboardFromSources();
-    const facilityKeys = session.grantedFacilities.length
+    const grantedFacilityKeys = session.grantedFacilities.length
       ? session.grantedFacilities
       : facilityLineGroups.map((facility) => facility.facilityKey);
-    const facilityKey = session.activeFacility || dashboard.facility.key || "xinbei_pool";
+    const ragicFacilities = await listRagicH05FacilityCandidates().catch(() => undefined);
+    const ragicOtFacilityKeys = new Set((ragicFacilities?.data ?? []).map((facility) => facility.facilityKey));
+    const filteredFacilityKeys = ragicOtFacilityKeys.size
+      ? grantedFacilityKeys.filter((facilityKey) => ragicOtFacilityKeys.has(facilityKey))
+      : grantedFacilityKeys;
+    const facilityKeys = filteredFacilityKeys.length ? filteredFacilityKeys : grantedFacilityKeys;
+    const requestedActiveFacility = session.activeFacility || dashboard.facility.key || "xinbei_pool";
+    const facilityKey = facilityKeys.includes(requestedActiveFacility) ? requestedActiveFacility : facilityKeys[0] ?? "xinbei_pool";
     try {
       const [handovers, tasks, staffing] = await Promise.all([
         storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),
         storage.listTasks({ facilityKey, limit: 100 }).catch(() => []),
         buildStaffingSummary(container, facilityKeys),
       ]);
+      const facilityWork = await Promise.all(facilityKeys.map(async (key) => {
+        const [facilityHandovers, facilityTasks] = await Promise.all([
+          storage.listOperationalHandovers({ facilityKey: key, limit: 50 }).catch(() => []),
+          storage.listTasks({ facilityKey: key, limit: 50 }).catch(() => []),
+        ]);
+        const staffingRow = staffing.byFacility?.find((row) => row.facilityKey === key);
+        const currentLead = staffing.currentOnDuty?.find((member) => member.facilityKey === key);
+        return {
+          facilityKey: key,
+          facilityName: facilityLabel(key),
+          area: findFacilityLineGroup(key)?.area ?? "未分類",
+          active: staffingRow?.active ?? 0,
+          onShift: staffingRow?.onShift ?? 0,
+          next: staffingRow?.next ?? 0,
+          openHandovers: facilityHandovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").length,
+          incompleteTasks: facilityTasks.filter((task) => task.status !== "done" && task.status !== "cancelled").length,
+          currentLead,
+        };
+      }));
       return res.json({
         ...dashboard,
+        facilities: ok(facilityWork),
         staffing: ok(staffing),
         incompleteTasks: ok(tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").map(mapTaskSummary)),
         handoverOverview: ok({
