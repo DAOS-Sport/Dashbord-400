@@ -83,6 +83,7 @@ const mapExportSchedule = (facilityKey: string, row: Record<string, unknown>, in
     employeeNumber: readText(employee.employeeNumber),
     employeeName,
     venueName,
+    role: rawRole || undefined,
     kind,
     period,
     assignmentStatus: status,

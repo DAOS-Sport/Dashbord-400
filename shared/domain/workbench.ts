@@ -122,9 +122,11 @@ export interface ShiftSummary {
   status: "active" | "upcoming" | "finished";
   employeeName?: string;
   venueName?: string;
+  role?: string;
   startsAt?: string;
   endsAt?: string;
   kind?: string;
+  period?: string;
 }
 
 export interface ShiftBoardDto {

@@ -14,6 +14,7 @@ export interface ScheduleShift {
   employeeNumber?: string;
   employeeName?: string;
   venueName?: string;
+  role?: string;
   kind?: string;
   period?: "early" | "mid" | "late" | "custom";
   rawId?: string;

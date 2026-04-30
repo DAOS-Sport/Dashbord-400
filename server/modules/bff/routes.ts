@@ -633,6 +633,8 @@ const mapScheduleShifts = (items: Awaited<ReturnType<AppContainer["integrations"
         status,
         employeeName: item.employeeName,
         venueName: item.venueName,
+        role: item.role,
+        period: item.period,
         startsAt: item.startsAt,
         endsAt: item.endsAt,
         kind: item.kind,
