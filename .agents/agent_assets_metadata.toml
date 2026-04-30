@@ -30,3 +30,9 @@ id = "o_cnq_v3eB2UxF_QJ_ops"
 uri = "file://exports/employee-portal-architecture.md"
 type = "text"
 title = "員工值班入口 前端架構規劃書 v1.0"
+
+[[outputs]]
+id = "3Yp6D4uGdL13SGBv-7Yqv"
+uri = "file://docs/shift-data-architecture.md"
+type = "text"
+title = "班表資料架構書"
