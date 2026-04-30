@@ -13,11 +13,14 @@ export interface EmployeeSearchResultDTO {
 export interface EmployeeResourceDTO {
   id: number;
   facilityKey: string;
-  category: "event" | "document" | "sticky_note" | "announcement";
+  category: "event" | "document" | "sticky_note" | "announcement" | "training";
+  subCategory: string | null;
   title: string;
   content: string | null;
   url: string | null;
   isPinned: boolean;
+  sortOrder: number;
+  scheduledAt: string | null;
   createdByEmployeeNumber: string | null;
   createdByName: string | null;
   createdAt: string;
@@ -122,18 +125,30 @@ export const createEmployeeHandover = (facilityKey: string, content: string) =>
 
 export const createEmployeeResource = (input: {
   facilityKey: string;
-  category: "event" | "document" | "sticky_note" | "announcement";
+  category: "event" | "document" | "sticky_note" | "announcement" | "training";
+  subCategory?: string | null;
   title: string;
   content?: string;
   url?: string;
   isPinned?: boolean;
+  sortOrder?: number;
+  scheduledAt?: string | null;
 }) => apiPost<EmployeeResourceDTO>("/api/portal/employee-resources", input);
+
+export const fetchEmployeeResources = (facilityKey: string, category?: EmployeeResourceDTO["category"], limit = 100) => {
+  const params = new URLSearchParams({ facilityKey, limit: String(limit) });
+  if (category) params.set("category", category);
+  return apiGet<{ items: EmployeeResourceDTO[] }>(`/api/portal/employee-resources?${params.toString()}`);
+};
 
 export const updateEmployeeResource = (id: number, input: Partial<{
   title: string;
+  subCategory: string | null;
   content: string | null;
   url: string | null;
   isPinned: boolean;
+  sortOrder: number;
+  scheduledAt: string | null;
 }>) => apiPatch<EmployeeResourceDTO>(`/api/portal/employee-resources/${id}`, input);
 
 export const deleteEmployeeResource = (id: number) => apiDelete<{ ok: boolean }>(`/api/portal/employee-resources/${id}`);

@@ -75,7 +75,7 @@ export default function EmployeeShiftPage() {
             <div className="workbench-icon-tile grid h-10 w-10 place-items-center rounded-[8px] text-[#2f6fe8]">
               <Megaphone className="h-5 w-5" />
             </div>
-            <h2 className="text-[15px] font-black text-[#10233f]">活動 / 課程快訊</h2>
+            <h2 className="text-[15px] font-black text-[#10233f]">活動檔期 / 課程快訊</h2>
           </div>
           <div className="space-y-3">
             {campaigns.map((campaign) => (
@@ -88,7 +88,7 @@ export default function EmployeeShiftPage() {
                 <span className="rounded-full bg-[#eaf8ef] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
               </article>
             ))}
-            {!campaigns.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有活動快訊。</div> : null}
+            {!campaigns.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有活動檔期 / 課程快訊。</div> : null}
           </div>
         </WorkbenchCard>
       </div>

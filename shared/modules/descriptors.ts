@@ -36,7 +36,7 @@ const domainFromModule = (module: ModuleDefinition): ModuleDescriptorDomain => {
   if (module.id === "handover") return "handover";
   if (module.id.includes("shift") || module.id.includes("schedule") || module.id.includes("booking")) return "schedule";
   if (module.id.includes("auth") || module.id.includes("user") || module.id.includes("facilities") || module.id.includes("hr")) return "people";
-  if (module.id.includes("qna") || module.id.includes("knowledge")) return "knowledge";
+  if (module.id.includes("qna") || module.id.includes("knowledge") || module.id.includes("training")) return "knowledge";
   if (module.domainType === "system" || module.id.includes("telemetry") || module.id.includes("audit") || module.id.includes("health")) return "system";
   if (module.domainType === "integration" || module.id.includes("integration")) return "integration";
   if (module.id === "dashboard" || module.domainType === "derived") return "dashboard";
@@ -50,6 +50,7 @@ const iconKeyFromModule = (module: ModuleDefinition) => {
   if (module.id.includes("shift") || module.id.includes("schedule")) return "calendar-days";
   if (module.id.includes("quick")) return "link";
   if (module.id.includes("qna") || module.id.includes("knowledge")) return "book-open";
+  if (module.id.includes("training")) return "graduation-cap";
   if (module.id.includes("note") || module.id.includes("document")) return "file-text";
   if (module.id.includes("health") || module.id.includes("watchdog")) return "gauge";
   if (module.id.includes("audit") || module.id.includes("raw")) return "shield-check";
@@ -61,11 +62,12 @@ const chineseKeywords: Record<string, string[]> = {
   dashboard: ["首頁", "儀表板"],
   announcements: ["公告", "群組公告", "重要公告"],
   tasks: ["任務", "今日任務", "交班事項"],
-  handover: ["交接", "櫃台交接"],
+  handover: ["交接", "櫃台交接", "交辦事項"],
   "shift-reminder": ["班表", "今日班表", "排班"],
   "quick-links": ["快速操作", "入口", "捷徑"],
   "knowledge-base-qna": ["知識庫", "問答", "Q&A"],
-  "personal-note": ["個人記事", "便利貼"],
+  "employee-training": ["員工教材", "教學", "訓練", "影片"],
+  "personal-note": ["個人工作記事", "便利貼"],
   anomalies: ["異常", "打卡異常"],
   "system-health": ["系統健康", "健康"],
   "raw-inspector": ["原始資料", "raw"],
@@ -76,9 +78,9 @@ const employeeNavigationOrder = [
   "handover",
   "activity-periods",
   "employee-resources",
+  "employee-training",
   "personal-note",
   "knowledge-base-qna",
-  "checkins",
 ];
 
 const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
@@ -86,15 +88,21 @@ const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
   handover: { name: "櫃台交接", shortName: "櫃台交接", routePath: "/employee/handover", iconKey: "message-square-text", menuOrder: 2, navVisible: true },
   "activity-periods": { shortName: "活動檔期/課程快訊", routePath: "/employee/activity-periods", iconKey: "calendar-days", menuOrder: 3, navVisible: true },
   "employee-resources": { shortName: "常用文件", routePath: "/employee/documents", iconKey: "file-text", menuOrder: 4, navVisible: true },
-  "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 5, navVisible: true },
-  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 6, navVisible: true, requiredPermissions: ["employee:qna:read"] },
-  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 7, navVisible: true },
+  "employee-training": { name: "員工教材", shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
+  "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 6, navVisible: true },
+  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 7, navVisible: true, requiredPermissions: ["employee:qna:read"] },
+  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 70, navVisible: false, cardVisible: false },
 };
 
 const routeForRole = (module: ModuleDefinition, role: WorkbenchRole) =>
   module.routes.find((route) => route.role === role && route.kind === role)?.path
   ?? module.routes.find((route) => route.role === role)?.path
   ?? module.routes.find((route) => route.kind !== "api")?.path;
+
+const routeForDescriptorRole = (moduleId: string, role: WorkbenchRole, fallback?: string) => {
+  const module = MODULE_REGISTRY.find((item) => item.id === moduleId);
+  return module ? routeForRole(module, role) ?? fallback : fallback;
+};
 
 const permissionSatisfied = (requiredPermissions: string[], permissionsSnapshot?: string[]) => {
   if (requiredPermissions.length === 0) return false;
@@ -155,7 +163,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     name: "員工首頁",
     description: "Employee role home composition generated from BFF home cards.",
     domain: "dashboard",
-    stage: "bff-wired",
+    stage: "production-ready",
     roles: ["employee"],
     defaultEnabled: true,
     navVisible: true,
@@ -167,7 +175,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     cardOrder: 1,
     requiredPermissions: ["employee:home:read"],
     dependencies: ["dashboard", "tasks", "handover", "announcements", "shift-reminder", "quick-links"],
-    searchKeywords: ["首頁", "員工", "today tasks", "employee home"],
+    searchKeywords: ["首頁", "員工", "今日任務", "交辦事項", "employee home"],
     telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"],
     emptyStateText: "員工首頁目前沒有可顯示卡片。",
     notConnectedText: "員工首頁已註冊，但 BFF 尚未接線。",
@@ -221,7 +229,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     name: "快速搜尋",
     description: "Global module and workbench search BFF.",
     domain: "knowledge",
-    stage: "api-wired",
+    stage: "bff-wired",
     roles: ["employee", "supervisor", "system"],
     defaultEnabled: true,
     navVisible: false,
@@ -266,12 +274,12 @@ const extraDescriptors: ModuleDescriptor[] = [
     stage: "planned",
     roles: ["employee", "supervisor"],
     defaultEnabled: true,
-    navVisible: true,
-    cardVisible: true,
-    routePath: "/employee/more",
+    navVisible: false,
+    cardVisible: false,
+    routePath: "/employee/checkins",
     iconKey: "shield-check",
-    menuOrder: 24,
-    cardOrder: 24,
+    menuOrder: 70,
+    cardOrder: 70,
     requiredPermissions: ["employee:checkin:read"],
     dependencies: ["anomalies"],
     searchKeywords: ["點名", "打卡", "attendance", "checkin"],
@@ -281,7 +289,7 @@ const extraDescriptors: ModuleDescriptor[] = [
   },
   {
     id: "activity-periods",
-    name: "活動檔期",
+    name: "活動檔期 / 課程快訊",
     description: "Activity period surface backed by employee resources and announcement candidates.",
     domain: "operations",
     stage: "api-wired",
@@ -289,14 +297,14 @@ const extraDescriptors: ModuleDescriptor[] = [
     defaultEnabled: true,
     navVisible: true,
     cardVisible: true,
-    routePath: "/employee/more",
+    routePath: "/employee/activity-periods",
     apiPrefix: "/api/portal/employee-resources",
     iconKey: "calendar-days",
     menuOrder: 22,
     cardOrder: 22,
     requiredPermissions: ["employee:resources:read"],
     dependencies: ["employee-resources", "campaigns-events"],
-    searchKeywords: ["活動", "檔期", "campaign"],
+    searchKeywords: ["活動", "檔期", "課程快訊", "campaign"],
     telemetryEvents: ["CARD_CLICK"],
     emptyStateText: "目前沒有活動檔期。",
     notConnectedText: "活動檔期已註冊，但 BFF 尚未完整收斂。",
@@ -340,7 +348,11 @@ export const getModuleDescriptorsByRole = (role: WorkbenchRole): ModuleDescripto
 
 export const getNavigationModules = (role: WorkbenchRole, permissionsSnapshot?: string[]): NavigationModuleDto[] =>
   getModuleDescriptorsByRole(role)
-    .map((module) => role === "employee" ? { ...module, ...(employeeNavigationOverrides[module.id] ?? {}) } : module)
+    .map((module) => {
+      const roleRoutePath = routeForDescriptorRole(module.id, role, module.routePath);
+      const roleAdjusted = { ...module, routePath: roleRoutePath };
+      return role === "employee" ? { ...roleAdjusted, ...(employeeNavigationOverrides[module.id] ?? {}) } : roleAdjusted;
+    })
     .filter((module) => role !== "employee" || employeeNavigationOrder.includes(module.id))
     .filter((module) => module.navVisible && module.routePath)
     .filter((module) => permissionSatisfied(module.requiredPermissions, permissionsSnapshot))

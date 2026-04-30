@@ -42,6 +42,7 @@ export const env = {
   ragicHost: read("RAGIC_HOST") || "ap7.ragic.com",
   ragicAccountPath: read("RAGIC_ACCOUNT_PATH") || "xinsheng",
   ragicEmployeeSheet: read("RAGIC_EMPLOYEE_SHEET") || "/ragicforms4/13",
+  ragicFacilitySheet: read("RAGIC_FACILITY_SHEET") || "/ragicforms4/7",
   sessionCookieName: read("SESSION_COOKIE_NAME") || "workbench_sid",
   sessionTtlSeconds: Number(read("SESSION_TTL_SECONDS") || 60 * 60 * 8),
 } as const;

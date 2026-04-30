@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import type { WorkbenchRole } from "@shared/auth/me";
 import type { AppContainer } from "../../app/container";
-import { mockRagicAuthAdapter } from "../../integrations/ragic/mock-auth-adapter";
 import { clearSessionCookie, getSessionIdFromCookie, setSessionCookie } from "./cookie";
 import { attachSession, requireSession } from "./context";
 import { createSessionFromAuthUser, createMemorySessionStore, hasRole } from "./session-store";
+import { listRagicH05FacilityCandidates, localFacilityCandidates } from "../../integrations/ragic/facility-adapter";
+import { mockRagicAuthAdapter } from "../../integrations/ragic/mock-auth-adapter";
 
 const workbenchRoles: readonly WorkbenchRole[] = ["employee", "supervisor", "system"];
 
@@ -16,10 +17,7 @@ export const registerAuthRoutes = (app: Express, container: AppContainer) => {
   app.post("/api/auth/login", async (req, res) => {
     const username = String(req.body?.username || req.body?.employeeNumber || "employee");
     const password = String(req.body?.password || "mock");
-    const adapter =
-      username === "1111" && password === "1111"
-        ? mockRagicAuthAdapter
-        : container.integrations.ragicAuth;
+    const adapter = username === "1111" && password === "1111" ? mockRagicAuthAdapter : container.integrations.ragicAuth;
     const authResult = await adapter.verifyCredentials(username, password);
 
     if (!authResult.data) {
@@ -40,6 +38,28 @@ export const registerAuthRoutes = (app: Express, container: AppContainer) => {
 
   app.get("/api/auth/me", requireSession, (req, res) => {
     return res.json(req.workbenchSession);
+  });
+
+  app.get("/api/auth/facility-candidates", requireSession, async (req, res) => {
+    const session = req.workbenchSession;
+    if (!session) return res.status(401).json({ message: "Authentication required" });
+
+    const result = await listRagicH05FacilityCandidates();
+    const sourceItems = result.data ?? localFacilityCandidates(session.grantedFacilities);
+    const granted = new Set(session.grantedFacilities);
+    const items = sourceItems
+      .filter((item) => granted.has(item.facilityKey))
+      .sort((a, b) => Number(b.isRecommended) - Number(a.isRecommended) || a.regionGroup.localeCompare(b.regionGroup, "zh-TW") || a.displayName.localeCompare(b.displayName, "zh-TW"));
+
+    return res.json({
+      items,
+      sourceStatus: {
+        connected: Boolean(result.data),
+        source: result.meta.source,
+        lastSyncedAt: result.meta.lastSyncAt,
+        errorMessage: result.data ? undefined : result.meta.fallbackReason,
+      },
+    });
   });
 
   app.post("/api/auth/active-facility", requireSession, async (req, res) => {

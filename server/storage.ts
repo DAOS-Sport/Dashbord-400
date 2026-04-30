@@ -17,8 +17,12 @@ import {
   announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
+import { eq, desc, asc, inArray, and, or, isNull, gte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+
+export interface AnomalyResolutionActor {
+  userId: string;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -27,8 +31,8 @@ export interface IStorage {
   createAnomalyReport(report: InsertAnomalyReport): Promise<AnomalyReport>;
   getAllAnomalyReports(): Promise<AnomalyReport[]>;
   getAnomalyReportById(id: number): Promise<AnomalyReport | undefined>;
-  updateAnomalyReportResolution(id: number, resolution: string, resolvedNote: string | null): Promise<AnomalyReport | undefined>;
-  batchUpdateResolution(ids: number[], resolution: string, resolvedNote: string | null): Promise<number>;
+  updateAnomalyReportResolution(id: number, resolution: string, resolvedNote: string | null, actor?: AnomalyResolutionActor): Promise<AnomalyReport | undefined>;
+  batchUpdateResolution(ids: number[], resolution: string, resolvedNote: string | null, actor?: AnomalyResolutionActor): Promise<number>;
   deleteAnomalyReport(id: number): Promise<boolean>;
   getAllRecipients(): Promise<NotificationRecipient[]>;
   createRecipient(recipient: InsertNotificationRecipient): Promise<NotificationRecipient>;
@@ -129,19 +133,35 @@ export class DatabaseStorage implements IStorage {
     return report;
   }
 
-  async updateAnomalyReportResolution(id: number, resolution: string, resolvedNote: string | null): Promise<AnomalyReport | undefined> {
+  async updateAnomalyReportResolution(id: number, resolution: string, resolvedNote: string | null, actor?: AnomalyResolutionActor): Promise<AnomalyReport | undefined> {
+    const resolvedAt = resolution === "resolved" ? new Date() : null;
     const [updated] = await db
       .update(anomalyReports)
-      .set({ resolution, resolvedNote })
+      .set({
+        resolution,
+        resolvedNote,
+        resolvedBy: resolution === "resolved" ? actor?.userId ?? null : null,
+        resolvedAt,
+        updatedBy: actor?.userId ?? null,
+        updatedAt: new Date(),
+      })
       .where(eq(anomalyReports.id, id))
       .returning();
     return updated;
   }
 
-  async batchUpdateResolution(ids: number[], resolution: string, resolvedNote: string | null): Promise<number> {
+  async batchUpdateResolution(ids: number[], resolution: string, resolvedNote: string | null, actor?: AnomalyResolutionActor): Promise<number> {
+    const resolvedAt = resolution === "resolved" ? new Date() : null;
     const result = await db
       .update(anomalyReports)
-      .set({ resolution, resolvedNote })
+      .set({
+        resolution,
+        resolvedNote,
+        resolvedBy: resolution === "resolved" ? actor?.userId ?? null : null,
+        resolvedAt,
+        updatedBy: actor?.userId ?? null,
+        updatedAt: new Date(),
+      })
       .where(inArray(anomalyReports.id, ids))
       .returning();
     return result.length;
@@ -307,7 +327,9 @@ export class DatabaseStorage implements IStorage {
     if (opts.category) conditions.push(eq(employeeResources.category, opts.category));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const query = where ? db.select().from(employeeResources).where(where) : db.select().from(employeeResources);
-    return query.orderBy(desc(employeeResources.isPinned), desc(employeeResources.createdAt)).limit(Math.min(opts.limit ?? 100, 200));
+    return query
+      .orderBy(desc(employeeResources.isPinned), asc(employeeResources.sortOrder), asc(employeeResources.scheduledAt), desc(employeeResources.createdAt))
+      .limit(Math.min(opts.limit ?? 100, 200));
   }
 
   async createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource> {

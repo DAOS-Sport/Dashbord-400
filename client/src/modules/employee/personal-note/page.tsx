@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { NotebookPen, Plus, Trash2 } from "lucide-react";
+import { NotebookPen, Plus } from "lucide-react";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
-import { createEmployeeResource, deleteEmployeeResource, fetchEmployeeHome, updateEmployeeResource } from "@/modules/employee/home/api";
+import { createEmployeeResource, fetchEmployeeHome } from "@/modules/employee/home/api";
+import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
+
+const toOptionalIso = (date: string, time: string) => {
+  if (!date) return undefined;
+  const parsed = new Date(`${date}T${time || "00:00"}`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+};
 
 export default function EmployeePersonalNotePage() {
   const queryClient = useQueryClient();
@@ -15,36 +22,36 @@ export default function EmployeePersonalNotePage() {
   const notes = homeQuery.data?.stickyNotes.data ?? [];
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const scheduledAt = toOptionalIso(scheduledDate, scheduledTime);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
     queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home", "personal-note"] });
   };
 
-  const createMutation = useMutation({
-    mutationFn: () => createEmployeeResource({
-      facilityKey,
-      category: "sticky_note",
-      title: title.trim(),
-      content: content.trim() || undefined,
-      isPinned: true,
-    }),
+  const resetForm = () => {
+    setTitle("");
+    setContent("");
+    setScheduledDate("");
+    setScheduledTime("");
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      createEmployeeResource({
+        facilityKey,
+        category: "sticky_note",
+        title: title.trim(),
+        content: content.trim() || undefined,
+        isPinned: true,
+        scheduledAt,
+      }),
     onSuccess: () => {
-      setTitle("");
-      setContent("");
+      resetForm();
       invalidate();
     },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, nextTitle, nextContent }: { id: number; nextTitle: string; nextContent: string }) =>
-      updateEmployeeResource(id, { title: nextTitle, content: nextContent || null }),
-    onSuccess: invalidate,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteEmployeeResource(id),
-    onSuccess: invalidate,
   });
 
   return (
@@ -72,34 +79,21 @@ export default function EmployeePersonalNotePage() {
                     <div className="min-w-0 flex-1">
                       <h3 className="text-[14px] font-black text-[#10233f]">{note.title}</h3>
                       <p className="mt-2 whitespace-pre-wrap text-[13px] font-bold leading-6 text-[#536175]">{note.content}</p>
+                      {note.scheduledAt ? <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#9a7a1d]">{new Date(note.scheduledAt).toLocaleString("zh-TW")}</p> : null}
                       <p className="mt-3 text-[11px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
                     </div>
                   </div>
                   {note.resourceId ? (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextTitle = window.prompt("便利貼標題", note.title);
-                          if (nextTitle === null) return;
-                          const nextContent = window.prompt("提醒內容", note.content || "");
-                          if (nextContent === null) return;
-                          updateMutation.mutate({ id: note.resourceId!, nextTitle, nextContent });
-                        }}
-                        className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]"
-                      >
-                        編輯
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm("確認刪除這則便利貼？")) deleteMutation.mutate(note.resourceId!);
-                        }}
-                        className="workbench-focus inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#ffc6cf] bg-white px-3 text-[12px] font-black text-[#ff4964]"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        刪除
-                      </button>
+                      <EmployeeResourceActions
+                        resourceId={note.resourceId}
+                        title={note.title}
+                        content={note.content}
+                        scheduledAt={note.scheduledAt}
+                        showScheduledAtField
+                        onChanged={invalidate}
+                        className="mt-0"
+                      />
                     </div>
                   ) : null}
                 </article>
@@ -124,22 +118,34 @@ export default function EmployeePersonalNotePage() {
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-[12px] font-black text-[#536175]">
               便利貼標題
-              <input value={title} onChange={(event) => setTitle(event.target.value)} className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none" />
+              <input name="note-title" value={title} onChange={(event) => setTitle(event.target.value)} className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none" />
             </label>
             <label className="grid gap-1 text-[12px] font-black text-[#536175]">
-              提醒內容
-              <textarea value={content} onChange={(event) => setContent(event.target.value)} className="min-h-32 rounded-[8px] border border-[#cfd9e5] bg-white p-3 text-[13px] text-[#10233f] outline-none" />
+              內容
+              <textarea name="note-content" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-32 rounded-[8px] border border-[#cfd9e5] bg-white p-3 text-[13px] text-[#10233f] outline-none" />
             </label>
-            <button
-              type="button"
-              disabled={!title.trim() || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-              className="workbench-focus inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[13px] font-black text-white disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" />
-              {createMutation.isPending ? "新增中..." : "新增"}
-            </button>
-            {createMutation.isError ? <p className="text-[12px] font-bold text-[#ff4964]">新增失敗，請確認欄位後再試。</p> : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+                日期
+                <input name="note-date" type="date" value={scheduledDate} onChange={(event) => setScheduledDate(event.target.value)} className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none" />
+              </label>
+              <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+                時間
+                <input name="note-time" type="time" value={scheduledTime} onChange={(event) => setScheduledTime(event.target.value)} className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none" />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={!title.trim() || saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+                className="workbench-focus inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[13px] font-black text-white disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+                {saveMutation.isPending ? "儲存中…" : "新增"}
+              </button>
+            </div>
+            {saveMutation.isError ? <p className="text-[12px] font-bold text-[#ff4964]">儲存失敗，請確認欄位後再試。</p> : null}
           </div>
         </WorkbenchCard>
       </div>

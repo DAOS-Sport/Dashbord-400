@@ -35,6 +35,7 @@ import EmployeeMorePage from "@/modules/employee/more/page";
 import EmployeePersonalNotePage from "@/modules/employee/personal-note/page";
 import EmployeeShiftPage from "@/modules/employee/shift/page";
 import EmployeeTasksPage from "@/modules/employee/tasks/page";
+import EmployeeTrainingPage from "@/modules/employee/training/page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
 import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
@@ -43,11 +44,13 @@ import SupervisorHandoverPage from "@/modules/supervisor/handover/page";
 import SupervisorReportsPage from "@/modules/supervisor/reports/page";
 import SupervisorSettingsPage from "@/modules/supervisor/settings/page";
 import SupervisorTasksPage from "@/modules/supervisor/tasks/page";
+import SupervisorTrainingPage from "@/modules/supervisor/training/page";
 import SystemDashboardPage from "@/modules/system/dashboard-page";
 import SystemAlertsPage from "@/modules/system/alerts/page";
 import SystemAuditPage from "@/modules/system/audit/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemRawInspectorPage from "@/modules/system/raw-inspector/page";
+import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe } from "@/shared/auth/session";
@@ -55,6 +58,7 @@ import { roleHomePath } from "@shared/auth/me";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
 import { apiPost } from "@/shared/api/client";
+import { getCorrelationId } from "@/shared/telemetry/correlation";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "營運戰情總覽",
@@ -230,6 +234,9 @@ function WorkbenchRouter() {
       <Route path="/supervisor/settings">
         <SupervisorSettingsPage />
       </Route>
+      <Route path="/supervisor/training">
+        <SupervisorTrainingPage />
+      </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/system/health" component={SystemDashboardPage} />
       <Route path="/system/alerts">
@@ -243,6 +250,9 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/system/raw-inspector">
         <SystemRawInspectorPage />
+      </Route>
+      <Route path="/system/training-views">
+        <SystemTrainingViewsPage />
       </Route>
       <Route path="/system/overview" component={SystemDashboardPage} />
       <Route path="/system" component={SystemDashboardPage} />
@@ -269,6 +279,9 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/documents">
         <EmployeeDocumentsPage />
+      </Route>
+      <Route path="/employee/training">
+        <EmployeeTrainingPage />
       </Route>
       <Route path="/employee/personal-note">
         <EmployeePersonalNotePage />
@@ -319,6 +332,7 @@ function WidgetTelemetryCapture() {
       if (!componentId) return;
       apiPost("/api/telemetry/ui-events", {
         eventType: "CARD_CLICK",
+        correlationId: getCorrelationId(),
         page: location,
         componentId,
         actionType: "click",

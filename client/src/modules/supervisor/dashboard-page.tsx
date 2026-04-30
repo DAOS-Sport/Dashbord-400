@@ -109,8 +109,6 @@ export default function SupervisorDashboardPage() {
         <div className="rounded-[8px] bg-white p-6 text-[14px] font-bold text-[#637185]">載入主管控制台...</div>
       ) : (
         <div className="space-y-4">
-          <LayoutControls layout={layout} onToggle={toggleLayout} onReset={() => setLayout(defaultLayout)} />
-
           {layout.kpis ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Kpi title="當班人力" value={`${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`} helper={`在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`} icon={Users} tone="text-[#15935d]" />

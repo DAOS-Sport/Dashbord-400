@@ -15,12 +15,14 @@ import type {
   StaffMemberSummary,
   StickyNoteSummary,
   TaskSummary,
+  TrainingSummary,
 } from "@shared/domain/workbench";
 import type { OperationalHandover, Task } from "@shared/schema";
 import type { BffSection } from "@shared/bff/envelope";
 import { getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
+import { requireRole, requireSession } from "../auth/context";
 import { degraded, ok, unavailable } from "../../shared/bff/section";
 import { sourceUnavailable } from "../../shared/integrations/source-status";
 import {
@@ -33,13 +35,24 @@ import {
 const shortcutTones: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
 
 const defaultEmployeeShortcuts: ShortcutSummary[] = [
-  { id: "clock", label: "點名 / 打卡", href: "/employee/checkins", tone: "blue" },
   { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
-  { id: "counter-handover", label: "櫃位交接", href: "/employee/handover", tone: "amber" },
   { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
-  { id: "today-ticket", label: "今日鑰票", href: "/employee/more", tone: "rose" },
-  { id: "more", label: "更多入口", href: "/employee/more", tone: "cyan" },
-  { id: "sticky-notes", label: "我的便利貼", href: "/employee/personal-note", tone: "blue" },
+  { id: "events", label: "活動檔期", href: "/employee/activity-periods", tone: "amber" },
+  { id: "documents", label: "常用文件", href: "/employee/documents", tone: "cyan" },
+  { id: "sticky-notes", label: "個人工作記事", href: "/employee/personal-note", tone: "rose" },
+];
+
+const defaultEmployeeDocumentLinks: DocumentSummary[] = [
+  {
+    id: "system-checkins-link",
+    title: "點名 / 報到",
+    updatedAt: "系統入口",
+    url: "/employee/checkins",
+    description: "員工點名與報到入口",
+    subCategory: "點名/報到",
+    sortOrder: 0,
+    source: "system_link",
+  },
 ];
 
 const employeeModuleDescriptorMap = new Map(
@@ -154,14 +167,14 @@ const buildShiftBoardFromSummaries = (
 };
 
 const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): EmployeeHomeDto => {
-  const session = req.workbenchSession;
-  const facilityName = facilityLabel(session?.activeFacility ?? dto.facility.key);
-  const navigation = getNavigationModules("employee", session?.permissionsSnapshot);
+  const session = req.workbenchSession!;
+  const facilityName = facilityLabel(session.activeFacility ?? dto.facility.key);
+  const navigation = getNavigationModules("employee", session.permissionsSnapshot);
   const bookingSnapshotCard: HomeCardDto = {
     moduleId: "booking-snapshot",
     title: "報名 / 課程",
     status: "not_connected",
-    routePath: "/employee/more",
+    routePath: "/employee/documents",
     order: 55,
     payload: null,
     sourceStatus: {
@@ -171,7 +184,7 @@ const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): Employe
     },
   };
   const todayTasks = sectionToCard("tasks", "今日任務", 10, "/employee/tasks", dto.tasks, "今日沒有任務。", "任務模組已註冊，但資料來源尚未接線。");
-  const handover = sectionToCard("handover", "櫃台交辦", 20, "/employee/handover", dto.handover, "尚未設定櫃台交辦。", "櫃台交辦資料暫時無法取得。");
+  const handover = sectionToCard("handover", "交辦事項", 20, "/employee/handover", dto.handover, "尚未設定交辦事項。", "交辦事項資料暫時無法取得。");
   const handoverItems = (dto.handover.data ?? [])
     .filter((item) => item.status === "pending" || item.status === "unread" || item.status === "read")
     .filter((item) => !item.dueLabel || Date.parse(item.dueLabel) >= Date.now() || Number.isNaN(Date.parse(item.dueLabel)))
@@ -184,7 +197,7 @@ const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): Employe
     }))
     .slice(0, 5);
   handover.payload = {
-    title: "櫃台交辦",
+    title: "交辦事項",
     items: handoverItems,
     totalPending: handoverItems.length,
     primaryAction: {
@@ -194,10 +207,10 @@ const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): Employe
     viewAllRoute: "/employee/handover",
   };
   const announcements = sectionToCard("announcements", "群組重要公告", 30, "/employee/announcements", dto.announcements, "目前沒有公告。", "公告模組已註冊，但資料來源尚未接線。");
-  const quickActions = sectionToCard("quick-links", "快速操作", 40, "/employee/more", dto.shortcuts, "目前沒有快速操作。", "快速操作已註冊，但資料來源尚未接線。");
-  quickActions.payload = defaultEmployeeShortcuts;
+  const quickActions = sectionToCard("quick-links", "快速操作", 40, undefined, dto.shortcuts, "目前沒有快速操作。", "快速操作已註冊，但資料來源尚未接線。");
+  quickActions.payload = dto.shortcuts.data?.slice(0, 7) ?? defaultEmployeeShortcuts;
   const shiftReminder = sectionToCard("shift-reminder", "今日班表", 50, "/employee/shift", dto.shifts, "目前沒有班表資料。", "班表模組已註冊，但外部排班來源尚未接線。");
-  shiftReminder.payload = buildShiftBoardFromSummaries(dto.facility.key, session?.userId ?? "", dto.shifts.data, {
+  shiftReminder.payload = buildShiftBoardFromSummaries(dto.facility.key, session.userId, dto.shifts.data, {
     connected: dto.shifts.status !== "unavailable",
     lastSyncedAt: dto.shifts.meta.lastSyncAt,
     errorMessage: dto.shifts.status === "unavailable" ? dto.shifts.meta.fallbackReason ?? "班表資料暫時無法取得。" : undefined,
@@ -213,8 +226,8 @@ const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): Employe
       bookingSnapshot: bookingSnapshotCard,
     },
     currentUser: {
-      id: session?.userId ?? "anonymous",
-      displayName: session?.displayName ?? "未登入員工",
+      id: session.userId,
+      displayName: session.displayName,
       role: "employee",
       facilityName,
     },
@@ -250,6 +263,52 @@ const readText = (value: unknown, fallback = "") => (typeof value === "string" &
 
 const isImageUrl = (value: unknown) =>
   typeof value === "string" && /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(value.trim());
+
+const isVideoUrl = (value: unknown) =>
+  typeof value === "string" && /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(value.trim());
+
+const isVideoHostUrl = (value: unknown) =>
+  typeof value === "string" && /(youtube\.com|youtu\.be|vimeo\.com)/i.test(value.trim());
+
+const mapTrainingResource = (item: {
+  id: number;
+  title: string;
+  content: string | null;
+  url: string | null;
+  subCategory: string | null;
+  createdByName: string | null;
+  updatedAt: Date | null;
+  createdAt: Date | null;
+}): TrainingSummary => {
+  const mediaType: TrainingSummary["mediaType"] = isImageUrl(item.url)
+    ? "image"
+    : isVideoUrl(item.url) || isVideoHostUrl(item.url)
+      ? "video"
+      : item.url
+        ? "link"
+        : "note";
+  return {
+    id: `training-${item.id}`,
+    resourceId: item.id,
+    title: item.title,
+    content: item.content ?? undefined,
+    url: item.url ?? undefined,
+    mediaType,
+    subCategory: item.subCategory ?? undefined,
+    createdByName: item.createdByName,
+    updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString("zh-TW") : item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "員工教材",
+  };
+};
+
+const uniqueDocuments = (items: DocumentSummary[]) => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.url || item.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const isAnnouncementType = (value: unknown): value is NonNullable<AnnouncementSummary["type"]> =>
   value === "required" || value === "sop" || value === "notice" || value === "event" || value === "general";
@@ -395,6 +454,9 @@ const buildEmployeeHomeFallback = async (
   const resourceAnnouncements = employeeResources
     .filter((item) => item.category === "announcement")
     .map(mapEmployeeAnnouncementResource);
+  const training: TrainingSummary[] = employeeResources
+    .filter((item) => item.category === "training")
+    .map(mapTrainingResource);
 
   const mappedHandovers: HandoverSummary[] = [
     ...operationalHandovers.map(mapOperationalHandoverSummary),
@@ -419,6 +481,7 @@ const buildEmployeeHomeFallback = async (
   ];
 
   const documents: DocumentSummary[] = [
+    ...defaultEmployeeDocumentLinks,
     ...employeeResources.filter((item) => item.category === "document").map((item) => ({
       id: `employee-doc-${item.id}`,
       resourceId: item.id,
@@ -426,6 +489,9 @@ const buildEmployeeHomeFallback = async (
       updatedAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "員工新增",
       url: item.url ?? undefined,
       description: item.content ?? undefined,
+      subCategory: item.subCategory ?? undefined,
+      sortOrder: item.sortOrder,
+      source: "employee_resource" as const,
     })),
     ...quickLinks.slice(0, 8).map((item) => ({
       id: `doc-${item.id}`,
@@ -433,6 +499,9 @@ const buildEmployeeHomeFallback = async (
       updatedAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "Portal",
       url: item.url,
       description: item.description ?? undefined,
+      subCategory: "快速連結",
+      sortOrder: 100,
+      source: "quick_link" as const,
     })),
   ].slice(0, 10);
 
@@ -443,7 +512,7 @@ const buildEmployeeHomeFallback = async (
       id: `employee-event-${item.id}`,
       resourceId: item.id,
       title: item.title,
-      statusLabel: "員工新增",
+      statusLabel: item.subCategory || "員工新增",
       effectiveRange: item.content || "未設定時間",
       linkUrl: item.url ?? undefined,
       imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
@@ -469,7 +538,14 @@ const buildEmployeeHomeFallback = async (
       content: item.content || "",
       authorName: item.createdByName,
       createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "今日",
-    }));
+      scheduledAt: item.scheduledAt ? item.scheduledAt.toISOString() : null,
+    }))
+    .sort((a, b) => {
+      const aScheduled = a.scheduledAt ? Date.parse(a.scheduledAt) : Number.POSITIVE_INFINITY;
+      const bScheduled = b.scheduledAt ? Date.parse(b.scheduledAt) : Number.POSITIVE_INFINITY;
+      if (aScheduled !== bScheduled) return aScheduled - bScheduled;
+      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    });
 
   const announcements = [...resourceAnnouncements, ...portalAnnouncements, ...candidateAnnouncements]
     .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
@@ -500,6 +576,7 @@ const buildEmployeeHomeFallback = async (
       : unavailable("活動檔期來源尚未提供 server-to-server 資料", "CAMPAIGN_SOURCE_UNAVAILABLE"),
     documents: ok(documents, now),
     stickyNotes: ok(stickyNotes, now),
+    training: ok(training, now),
   };
 };
 
@@ -538,7 +615,7 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       id: `employee-event-${item.id}`,
       resourceId: item.id,
       title: item.title,
-      statusLabel: "員工新增",
+      statusLabel: item.subCategory || "員工新增",
       effectiveRange: item.content || "未設定時間",
       linkUrl: item.url ?? undefined,
       imageUrl: isImageUrl(item.url) ? item.url ?? undefined : undefined,
@@ -552,6 +629,9 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       updatedAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "員工新增",
       url: item.url ?? undefined,
       description: item.content ?? undefined,
+      subCategory: item.subCategory ?? undefined,
+      sortOrder: item.sortOrder,
+      source: "employee_resource" as const,
     }));
   const stickyNotes: StickyNoteSummary[] = resources
     .filter((item) => item.category === "sticky_note")
@@ -562,13 +642,27 @@ const getEmployeeResourceSections = async (facilityKey: string) => {
       content: item.content || "",
       authorName: item.createdByName,
       createdAt: item.createdAt ? new Date(item.createdAt).toLocaleDateString("zh-TW") : "今日",
-    }));
-  return { announcements, campaigns, documents, stickyNotes };
+      scheduledAt: item.scheduledAt ? item.scheduledAt.toISOString() : null,
+    }))
+    .sort((a, b) => {
+      const aScheduled = a.scheduledAt ? Date.parse(a.scheduledAt) : Number.POSITIVE_INFINITY;
+      const bScheduled = b.scheduledAt ? Date.parse(b.scheduledAt) : Number.POSITIVE_INFINITY;
+      if (aScheduled !== bScheduled) return aScheduled - bScheduled;
+      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+    });
+  const training: TrainingSummary[] = resources
+    .filter((item) => item.category === "training")
+    .map(mapTrainingResource);
+  const mergedDocuments = [
+    ...defaultEmployeeDocumentLinks,
+    ...documents.filter((item) => item.url !== "/employee/checkins"),
+  ].slice(0, 10);
+  return { announcements, campaigns, documents: mergedDocuments, stickyNotes, training };
 };
 
 type SearchItem = {
   id: string;
-  type: "announcement" | "handover" | "task" | "shift" | "shortcut" | "document" | "campaign";
+  type: "announcement" | "handover" | "task" | "shift" | "shortcut" | "document" | "campaign" | "training";
   title: string;
   summary: string;
   href: string;
@@ -628,7 +722,7 @@ const buildEmployeeSearchItems = (home: EmployeeHomeDto, query: string): SearchI
       type: "document" as const,
       title: item.title,
       summary: item.description || item.updatedAt,
-      href: item.url || "/employee/more",
+      href: item.url || "/employee/documents",
     })),
     ...(home.stickyNotes.data ?? []).map((item) => ({
       id: `sticky-note-${item.id}`,
@@ -636,6 +730,13 @@ const buildEmployeeSearchItems = (home: EmployeeHomeDto, query: string): SearchI
       title: item.title,
       summary: item.content,
       href: "/employee",
+    })),
+    ...(home.training.data ?? []).map((item) => ({
+      id: `training-${item.id}`,
+      type: "training" as const,
+      title: item.title,
+      summary: item.content || item.subCategory || item.mediaType,
+      href: "/employee/training",
     })),
   ];
 
@@ -762,6 +863,7 @@ const enrichEmployeeHome = async (
     ...dto,
     layout: ok(normalizeWidgetLayout(layoutSetting?.widgets, defaultEmployeeHomeWidgets), now),
     stickyNotes: dto.stickyNotes ?? ok([], now),
+    training: dto.training ?? ok([], now),
   };
   const employeeResources = await getEmployeeResourceSections(normalizedFacilityKey);
   const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
@@ -776,8 +878,9 @@ const enrichEmployeeHome = async (
       now,
     ),
     campaigns: ok([...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(0, 10), now),
-    documents: ok([...employeeResources.documents, ...(nextDto.documents.data ?? [])].slice(0, 10), now),
+    documents: ok(uniqueDocuments([...employeeResources.documents, ...(nextDto.documents.data ?? [])]).slice(0, 10), now),
     stickyNotes: ok([...employeeResources.stickyNotes, ...(nextDto.stickyNotes.data ?? [])].slice(0, 8), now),
+    training: ok([...employeeResources.training, ...(nextDto.training.data ?? [])].slice(0, 12), now),
   };
 
   const handovers = await storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
@@ -838,16 +941,16 @@ const attachAnnouncementAcknowledgements = async (
 };
 
 export const registerBffRoutes = (app: Express, container: AppContainer) => {
-  app.get("/api/bff/employee/home", async (req, res) => {
+  app.get("/api/bff/employee/home", requireSession, async (req, res) => {
     const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    const session = req.workbenchSession!;
     if (
       requestedFacilityKey &&
-      req.workbenchSession &&
-      !req.workbenchSession.grantedFacilities.includes(requestedFacilityKey)
+      !session.grantedFacilities.includes(requestedFacilityKey)
     ) {
       return res.status(403).json({ message: "Facility is not granted" });
     }
-    const facilityKey = requestedFacilityKey || req.workbenchSession?.activeFacility || "xinbei_pool";
+    const facilityKey = requestedFacilityKey || session.activeFacility;
     const result = await container.integrations.replitData.getEmployeeHomeProjection(facilityKey);
 
     if (!result.data) {
@@ -856,52 +959,52 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
         container,
         result.meta.fallbackReason || "Employee home projection is unavailable",
       );
-      const home = await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, req.workbenchSession?.userId);
+      const home = await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, session.userId);
       return res.json(attachEmployeeHomeContract(home, req));
     }
 
     const home = await enrichEmployeeHome(result.data, facilityKey, container);
-    const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, req.workbenchSession?.userId);
+    const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, session.userId);
     return res.json(attachEmployeeHomeContract(acknowledgedHome, req));
   });
 
-  app.get("/api/bff/employee/shifts/today", async (req, res) => {
+  app.get("/api/bff/employee/shifts/today", requireSession, async (req, res) => {
     const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    const session = req.workbenchSession!;
     if (
       requestedFacilityKey &&
-      req.workbenchSession &&
-      !req.workbenchSession.grantedFacilities.includes(requestedFacilityKey)
+      !session.grantedFacilities.includes(requestedFacilityKey)
     ) {
       return res.status(403).json({ message: "Facility is not granted" });
     }
-    const facilityKey = requestedFacilityKey || req.workbenchSession?.activeFacility || "xinbei_pool";
+    const facilityKey = requestedFacilityKey || session.activeFacility;
     if (env.dataSourceMode === "mock") {
-      return res.json(buildShiftBoardFromSummaries(facilityKey, req.workbenchSession?.userId ?? "", [], {
+      return res.json(buildShiftBoardFromSummaries(facilityKey, session.userId, [], {
         connected: false,
         errorMessage: "班表資料暫時無法取得。",
       }));
     }
     const result = await container.integrations.schedule.listTodayShifts(facilityKey);
     const shifts = mapScheduleShifts(result.data ?? []);
-    return res.json(buildShiftBoardFromSummaries(facilityKey, req.workbenchSession?.userId ?? "", shifts, {
+    return res.json(buildShiftBoardFromSummaries(facilityKey, session.userId, shifts, {
       connected: Boolean(result.data),
       lastSyncedAt: new Date().toISOString(),
       errorMessage: result.data ? undefined : result.meta.fallbackReason || "班表資料暫時無法取得。",
     }));
   });
 
-  app.get("/api/bff/employee/search", async (req, res) => {
+  app.get("/api/bff/employee/search", requireSession, async (req, res) => {
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
     if (query.length < 2) return res.json({ query, items: [] });
     const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    const session = req.workbenchSession!;
     if (
       requestedFacilityKey &&
-      req.workbenchSession &&
-      !req.workbenchSession.grantedFacilities.includes(requestedFacilityKey)
+      !session.grantedFacilities.includes(requestedFacilityKey)
     ) {
       return res.status(403).json({ message: "Facility is not granted" });
     }
-    const facilityKey = requestedFacilityKey || req.workbenchSession?.activeFacility || "xinbei_pool";
+    const facilityKey = requestedFacilityKey || session.activeFacility;
     const result = await container.integrations.replitData.getEmployeeHomeProjection(facilityKey);
     const home = result.data
       ? await enrichEmployeeHome(result.data, facilityKey, container)
@@ -909,8 +1012,8 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
 
     const items = buildEmployeeSearchItems(home, query);
     await storage.recordPortalEvent({
-      employeeNumber: req.workbenchSession?.userId,
-      employeeName: req.workbenchSession?.displayName,
+      employeeNumber: session.userId,
+      employeeName: session.displayName,
       facilityKey,
       eventType: "search",
       target: "employee-home",
@@ -921,9 +1024,9 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     return res.json({ query, items });
   });
 
-  app.get("/api/search/global", async (req, res) => {
+  app.get("/api/search/global", requireSession, async (req, res) => {
     const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
-    const role = req.workbenchSession?.activeRole ?? "employee";
+    const role = req.workbenchSession!.activeRole;
     const normalizedQuery = query.toLowerCase();
     const moduleMatches = getModuleDescriptorsByRole(role)
       .filter((module) => {
@@ -950,12 +1053,13 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     });
   });
 
-  app.get("/api/bff/supervisor/dashboard", async (req, res) => {
+  app.get("/api/bff/supervisor/dashboard", requireRole("supervisor", "system"), async (req, res) => {
+    const session = req.workbenchSession!;
     const dashboard = env.dataSourceMode === "mock" ? getSupervisorDashboardMock() : await getSupervisorDashboardFromSources();
-    const facilityKeys = req.workbenchSession?.grantedFacilities?.length
-      ? req.workbenchSession.grantedFacilities
+    const facilityKeys = session.grantedFacilities.length
+      ? session.grantedFacilities
       : facilityLineGroups.map((facility) => facility.facilityKey);
-    const facilityKey = req.workbenchSession?.activeFacility || dashboard.facility.key || "xinbei_pool";
+    const facilityKey = session.activeFacility || dashboard.facility.key || "xinbei_pool";
     try {
       const [handovers, tasks, staffing] = await Promise.all([
         storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),

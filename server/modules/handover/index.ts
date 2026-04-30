@@ -70,7 +70,7 @@ const buildSummary = (items: HandoverItemDto[]): HandoverSummaryDto => {
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   return {
     moduleId: "handover",
-    title: "櫃台交辦",
+    title: "交辦事項",
     items: pending.slice(0, 5).map(({ id, title, dueDate, preview, status }) => ({ id, title, dueDate, preview, status })),
     totalPending: pending.length,
     sourceStatus: {
@@ -90,12 +90,12 @@ export const registerHandoverRoutes = (app: Express) => {
     } catch (error) {
       const dto: HandoverSummaryDto = {
         moduleId: "handover",
-        title: "櫃台交辦",
+        title: "交辦事項",
         items: [],
         totalPending: 0,
         sourceStatus: {
           connected: false,
-          errorMessage: error instanceof Error ? error.message : "櫃台交辦資料暫時無法取得",
+          errorMessage: error instanceof Error ? error.message : "交辦事項資料暫時無法取得",
         },
       };
       return res.json(dto);
@@ -122,7 +122,7 @@ export const registerHandoverRoutes = (app: Express) => {
         items: [],
         sourceStatus: {
           connected: false,
-          errorMessage: error instanceof Error ? error.message : "櫃台交辦資料暫時無法取得",
+          errorMessage: error instanceof Error ? error.message : "交辦事項資料暫時無法取得",
         },
       };
       return res.json(dto);
@@ -143,7 +143,7 @@ export const registerHandoverRoutes = (app: Express) => {
         priority: input.priority ?? "normal",
         status: "pending",
         targetDate: input.dueDate.slice(0, 10),
-        targetShiftLabel: "櫃台交辦",
+        targetShiftLabel: "交辦事項",
         visibleFrom: null,
         dueAt,
         assigneeEmployeeNumber: null,

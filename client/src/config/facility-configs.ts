@@ -6,7 +6,7 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
     facilityLineGroupId: "C66a4b3bb3fbc3dcf52d42626ec512484",
     facilityName: "新北高中游泳池&運動中心",
     shortName: "新北",
-    area: "新北",
+    area: "三蘆區",
     portalPath: "/portal/xinbei_pool",
     isActive: true,
     sections: {
@@ -31,6 +31,7 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
     facilityLineGroupId: "Cc2100498c7c5627c1e86e93f7c4eb817",
     facilityName: "三重商工 / 三蘆區櫃台",
     shortName: "商工",
+    area: "三蘆區",
     portalPath: "/portal/salu_counter",
     isActive: true,
     sections: {
@@ -52,6 +53,7 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
     facilityLineGroupId: "C9b3c5dfe2e005adafd2ed914714a1930",
     facilityName: "松山國小室內溫水游泳池",
     shortName: "松山",
+    area: "台北",
     portalPath: "/portal/songshan_pool",
     isActive: true,
     sections: {
@@ -73,7 +75,30 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
     facilityLineGroupId: "C2dc6991e51074dd47d5d275d568318f7",
     facilityName: "三民高中游泳池",
     shortName: "三民",
+    area: "三蘆區",
     portalPath: "/portal/sanmin_pool",
+    isActive: true,
+    sections: {
+      mustRead: true,
+      groupAnnouncements: true,
+      campaigns: true,
+      handover: true,
+      onDutyStaff: true,
+      contacts: true,
+      rental: false,
+    },
+    contactPoints: [
+      { type: "general", label: "櫃台窗口", name: "櫃台" },
+      { type: "supervisor", label: "主管窗口", name: "館主管" },
+    ],
+  },
+  zhuke_pool: {
+    facilityKey: "zhuke_pool",
+    facilityLineGroupId: "UNKNOWN_ZHUKE_LINE_GROUP",
+    facilityName: "新竹科學園區游泳池",
+    shortName: "竹科",
+    area: "新竹",
+    portalPath: "/portal/zhuke_pool",
     isActive: true,
     sections: {
       mustRead: true,

@@ -88,7 +88,7 @@ export interface HandoverItemDto {
 
 export interface HandoverSummaryDto {
   moduleId: "handover";
-  title: "櫃台交辦";
+  title: "交辦事項";
   items: Array<Pick<HandoverItemDto, "id" | "title" | "dueDate" | "preview" | "status">>;
   totalPending: number;
   sourceStatus: {
@@ -173,6 +173,9 @@ export interface DocumentSummary {
   updatedAt: string;
   url?: string;
   description?: string;
+  subCategory?: string;
+  sortOrder?: number;
+  source?: "employee_resource" | "system_link" | "quick_link";
 }
 
 export interface StickyNoteSummary {
@@ -182,6 +185,19 @@ export interface StickyNoteSummary {
   content: string;
   authorName?: string | null;
   createdAt: string;
+  scheduledAt?: string | null;
+}
+
+export interface TrainingSummary {
+  id: string;
+  resourceId?: number;
+  title: string;
+  content?: string;
+  url?: string;
+  mediaType: "video" | "image" | "link" | "note";
+  subCategory?: string;
+  createdByName?: string | null;
+  updatedAt: string;
 }
 
 export interface EmployeeHomeDto {
@@ -220,6 +236,7 @@ export interface EmployeeHomeDto {
   campaigns: BffSection<CampaignSummary[]>;
   documents: BffSection<DocumentSummary[]>;
   stickyNotes: BffSection<StickyNoteSummary[]>;
+  training: BffSection<TrainingSummary[]>;
 }
 
 export interface SupervisorStaffingSummary {

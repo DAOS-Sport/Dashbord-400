@@ -22,4 +22,5 @@ export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express)
   registerTaskRoutes(app, container);
   registerHandoverRoutes(app);
   registerBffRoutes(app, container);
+  return container;
 };

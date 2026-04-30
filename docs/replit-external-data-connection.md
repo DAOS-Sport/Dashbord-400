@@ -46,6 +46,7 @@ RAGIC_API_KEY=<Ragic Basic Auth token, already base64 encoded>
 RAGIC_HOST=ap7.ragic.com
 RAGIC_ACCOUNT_PATH=xinsheng
 RAGIC_EMPLOYEE_SHEET=/ragicforms4/13
+RAGIC_FACILITY_SHEET=/ragicforms4/7
 
 SESSION_COOKIE_NAME=workbench_sid
 SESSION_TTL_SECONDS=28800

@@ -18,6 +18,7 @@ RAGIC_API_KEY=<Ragic Basic token>
 RAGIC_HOST=ap7.ragic.com
 RAGIC_ACCOUNT_PATH=xinsheng
 RAGIC_EMPLOYEE_SHEET=/ragicforms4/13
+RAGIC_FACILITY_SHEET=/ragicforms4/7
 
 REPLIT_DATA_ADAPTER_MODE=real
 LINE_BOT_BASE_URL=https://line-bot-assistant-ronchen2.replit.app

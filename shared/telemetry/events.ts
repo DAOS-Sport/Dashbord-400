@@ -7,6 +7,7 @@ export type UiEventType =
   | "FACILITY_SWITCH"
   | "SEARCH_SUBMIT"
   | "MODULE_HEALTH_VIEW"
+  | "TRAINING_VIEW"
   | "CHART_DRILLDOWN"
   | "FILTER_CHANGE"
   | "TOGGLE_PANEL"

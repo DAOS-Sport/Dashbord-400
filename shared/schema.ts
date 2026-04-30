@@ -17,6 +17,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+const metadataSourceSchema = z.enum(["manual", "agent", "webhook", "system", "migration", "external", "external-checkin-system"]);
+const workbenchRoleSchema = z.enum(["employee", "supervisor", "system"]);
+
 export const facilities = pgTable("facilities", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull().unique(),
@@ -88,12 +91,24 @@ export const anomalyReports = pgTable("anomaly_reports", {
   reportText: text("report_text"),
   resolution: text("resolution").default("pending"),
   resolvedNote: text("resolved_note"),
+  facilityKey: text("facility_key"),
+  source: text("source").default("external-checkin-system").notNull(),
+  receivedAt: timestamp("received_at").defaultNow().notNull(),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertAnomalyReportSchema = createInsertSchema(anomalyReports).omit({
   id: true,
   createdAt: true,
+  receivedAt: true,
+  updatedAt: true,
+  resolvedAt: true,
+}).extend({
+  source: metadataSourceSchema.optional(),
 });
 
 export type InsertAnomalyReport = z.infer<typeof insertAnomalyReportSchema>;
@@ -103,15 +118,25 @@ export const notificationRecipients = pgTable("notification_recipients", {
   id: serial("id").primaryKey(),
   email: text("email").notNull(),
   label: text("label"),
+  facilityKey: text("facility_key"),
   enabled: boolean("enabled").default(true).notNull(),
   notifyNewReport: boolean("notify_new_report").default(true).notNull(),
   notifyResolution: boolean("notify_resolution").default(true).notNull(),
+  createdBy: text("created_by"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  source: text("source").default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertNotificationRecipientSchema = createInsertSchema(notificationRecipients).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
+}).extend({
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
 });
 
 export type InsertNotificationRecipient = z.infer<typeof insertNotificationRecipientSchema>;
@@ -123,15 +148,22 @@ export const handoverEntries = pgTable("handover_entries", {
   content: text("content").notNull(),
   authorEmployeeNumber: text("author_employee_number"),
   authorName: text("author_name"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  source: text("source").default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertHandoverEntrySchema = createInsertSchema(handoverEntries).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   content: z.string().min(1, "內容不可為空").max(2000, "內容過長"),
   facilityKey: z.string().min(1),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
 });
 
 export type InsertHandoverEntry = z.infer<typeof insertHandoverEntrySchema>;
@@ -154,9 +186,14 @@ export const operationalHandovers = pgTable("operational_handovers", {
   claimedByName: text("claimed_by_name"),
   createdByEmployeeNumber: text("created_by_employee_number"),
   createdByName: text("created_by_name"),
+  createdByRole: text("created_by_role"),
   reportedByEmployeeNumber: text("reported_by_employee_number"),
   reportedByName: text("reported_by_name"),
   reportNote: text("report_note"),
+  updatedBy: text("updated_by"),
+  source: text("source").default("manual").notNull(),
+  progressStatus: text("progress_status"),
+  progressPercent: integer("progress_percent"),
   linkedActionType: text("linked_action_type"),
   linkedActionUrl: text("linked_action_url"),
   completedAt: timestamp("completed_at"),
@@ -176,6 +213,10 @@ export const insertOperationalHandoverSchema = createInsertSchema(operationalHan
   status: z.enum(["pending", "claimed", "in_progress", "reported", "done", "cancelled"]).default("pending"),
   targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式需為 YYYY-MM-DD"),
   targetShiftLabel: z.string().min(1, "請指定班別"),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
+  progressStatus: z.enum(["pending", "in_progress", "blocked", "done"]).optional().nullable(),
+  progressPercent: z.number().int().min(0).max(100).optional().nullable(),
 });
 
 export type InsertOperationalHandover = z.infer<typeof insertOperationalHandoverSchema>;
@@ -189,10 +230,15 @@ export const tasks = pgTable("tasks", {
   priority: text("priority").default("normal").notNull(),
   status: text("status").default("pending").notNull(),
   source: text("source").default("employee").notNull(),
+  inputSource: text("input_source").default("manual").notNull(),
   createdByUserId: text("created_by_user_id").notNull(),
   createdByName: text("created_by_name").notNull(),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
   assignedToUserId: text("assigned_to_user_id"),
   assignedToName: text("assigned_to_name"),
+  assignedByUserId: text("assigned_by_user_id"),
+  assignedAt: timestamp("assigned_at"),
   dueAt: timestamp("due_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -211,6 +257,8 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({
   priority: z.enum(["low", "normal", "high"]).default("normal"),
   status: z.enum(["pending", "in_progress", "done", "cancelled"]).default("pending"),
   source: z.enum(["employee", "supervisor", "system"]).default("employee"),
+  inputSource: metadataSourceSchema.optional(),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
 });
 
 export type InsertTask = z.infer<typeof insertTaskSchema>;
@@ -225,30 +273,51 @@ export const quickLinks = pgTable("quick_links", {
   description: text("description"),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  createdBy: text("created_by"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  source: text("source").default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertQuickLinkSchema = createInsertSchema(quickLinks).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   title: z.string().min(1, "標題不可為空"),
   url: z.string().url("網址格式不正確"),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
 });
 
 export type InsertQuickLink = z.infer<typeof insertQuickLinkSchema>;
 export type QuickLink = typeof quickLinks.$inferSelect;
 
+const linkUrlSchema = z.string().refine((value) => {
+  if (value.startsWith("/")) return true;
+  return z.string().url().safeParse(value).success;
+}, "網址格式不正確");
+
 export const employeeResources = pgTable("employee_resources", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
   category: text("category").notNull(),
+  subCategory: text("sub_category"),
   title: text("title").notNull(),
   content: text("content"),
   url: text("url"),
   isPinned: boolean("is_pinned").default(false).notNull(),
+  sortOrder: integer("sort_order").default(100).notNull(),
+  scheduledAt: timestamp("scheduled_at"),
   createdByEmployeeNumber: text("created_by_employee_number"),
   createdByName: text("created_by_name"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  source: text("source").default("manual").notNull(),
+  isPrivate: boolean("is_private").default(false).notNull(),
+  viewCount: integer("view_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -259,10 +328,17 @@ export const insertEmployeeResourceSchema = createInsertSchema(employeeResources
   updatedAt: true,
 }).extend({
   facilityKey: z.string().min(1),
-  category: z.enum(["event", "document", "sticky_note", "announcement"]),
+  category: z.enum(["event", "document", "sticky_note", "announcement", "training"]),
   title: z.string().min(1, "標題不可為空").max(120, "標題過長"),
+  subCategory: z.string().max(60, "分類過長").optional().nullable(),
   content: z.string().max(1000, "內容過長").optional().nullable(),
-  url: z.string().url("網址格式不正確").optional().nullable(),
+  url: linkUrlSchema.optional().nullable(),
+  sortOrder: z.number().int().optional(),
+  scheduledAt: z.coerce.date().optional().nullable(),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
+  isPrivate: z.boolean().optional(),
+  viewCount: z.number().int().min(0).optional(),
 });
 
 export type InsertEmployeeResource = z.infer<typeof insertEmployeeResourceSchema>;
@@ -274,19 +350,30 @@ export const systemAnnouncements = pgTable("system_announcements", {
   content: text("content").notNull(),
   severity: text("severity").default("info").notNull(),
   facilityKey: text("facility_key"),
+  facilityKeys: jsonb("facility_keys").$type<string[]>(),
   publishedAt: timestamp("published_at").defaultNow().notNull(),
+  publishedBy: text("published_by"),
   expiresAt: timestamp("expires_at"),
   isActive: boolean("is_active").default(true).notNull(),
+  createdBy: text("created_by"),
+  createdByRole: text("created_by_role"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  source: text("source").default("manual").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const insertSystemAnnouncementSchema = createInsertSchema(systemAnnouncements).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   title: z.string().min(1, "標題不可為空"),
   content: z.string().min(1, "內容不可為空"),
   severity: z.enum(["info", "warning", "critical"]).default("info"),
+  facilityKeys: z.array(z.string()).optional().nullable(),
+  createdByRole: workbenchRoleSchema.optional().nullable(),
+  source: metadataSourceSchema.optional(),
 });
 
 export type InsertSystemAnnouncement = z.infer<typeof insertSystemAnnouncementSchema>;

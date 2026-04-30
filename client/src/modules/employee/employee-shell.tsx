@@ -9,12 +9,12 @@ import {
   ClipboardCheck,
   ChevronDown,
   FileText,
+  GraduationCap,
   Home,
   Menu,
   MessageSquareText,
   MoreHorizontal,
   Search,
-  Settings,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -44,22 +44,44 @@ const iconByKey: Record<string, LucideIcon> = {
   link: MoreHorizontal,
   "book-open": BookOpen,
   "file-text": FileText,
+  "graduation-cap": GraduationCap,
   "shield-check": ShieldCheck,
   search: Search,
 };
 
+const employeeNavigationSlots: Array<{
+  ids: string[];
+  label: string;
+  href: string;
+  iconKey: string;
+}> = [
+  { ids: ["employee-home", "dashboard"], label: "首頁", href: "/employee", iconKey: "home" },
+  { ids: ["handover"], label: "櫃台交接", href: "/employee/handover", iconKey: "message-square-text" },
+  { ids: ["activity-periods", "campaigns-events"], label: "活動檔期/課程快訊", href: "/employee/activity-periods", iconKey: "calendar-days" },
+  { ids: ["employee-resources", "quick-links"], label: "常用文件", href: "/employee/documents", iconKey: "file-text" },
+  { ids: ["employee-training"], label: "員工教材", href: "/employee/training", iconKey: "graduation-cap" },
+  { ids: ["personal-note"], label: "個人工作記事", href: "/employee/personal-note", iconKey: "file-text" },
+  { ids: ["knowledge-base-qna"], label: "相關問題詢問", href: "/employee/qna", iconKey: "book-open" },
+];
+
 const isActivePath = (location: string, href: string) =>
   href === "/employee" ? location === href || location === "/EMPLOYEE" : location === href || location.startsWith(`${href}/`);
 
-const toEmployeeNavItems = (items: NavigationModuleDto[] | undefined): EmployeeNavItem[] =>
-  (items ?? [])
-    .filter((item) => item.routePath.startsWith("/employee"))
-    .map((item) => ({
-      id: item.id,
-      label: item.name,
-      href: item.routePath,
-      Icon: iconByKey[item.iconKey] ?? Home,
-    }));
+const toEmployeeNavItems = (items: NavigationModuleDto[] | undefined): EmployeeNavItem[] => {
+  const apiItems = (items ?? []).filter((item) => item.routePath.startsWith("/employee"));
+  const sourceById = new Map(apiItems.map((item) => [item.id, item]));
+
+  return employeeNavigationSlots.map((slot) => {
+    const source = slot.ids.map((id) => sourceById.get(id)).find(Boolean);
+    const iconKey = source?.iconKey ?? slot.iconKey;
+    return {
+      id: source?.id ?? slot.ids[0],
+      label: slot.label,
+      href: slot.href,
+      Icon: iconByKey[iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+    };
+  });
+};
 
 function EmployeeDesktopSidebar({
   items,
@@ -73,7 +95,7 @@ function EmployeeDesktopSidebar({
   onNavigate: (item: EmployeeNavItem) => void;
 }) {
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col rounded-r-[18px] bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
+    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
 
       <div className="mt-6 rounded-[8px] bg-white/8 p-3">
@@ -86,7 +108,7 @@ function EmployeeDesktopSidebar({
 
       <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
         {!items.length && loading ? (
-          <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中...</div>
+          <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
         ) : null}
         {items.map((item) => {
           const active = isActivePath(location, item.href);
@@ -116,10 +138,6 @@ function EmployeeDesktopSidebar({
             <p className="text-[11px] text-[#b6c7d9]">員工</p>
           </div>
         </div>
-        <Link href="/employee/more" className="workbench-focus flex min-h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] text-[#d6e2ef] hover:bg-white/10">
-          <Settings className="h-4 w-4" />
-          更多入口
-        </Link>
       </div>
     </aside>
   );
@@ -177,23 +195,25 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white/[0.92] lg:text-[#10233f] lg:backdrop-blur-xl">
             <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <button aria-label="開啟選單" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 lg:hidden">
                   <Menu className="h-5 w-5" />
                 </button>
                 <Link href="/employee" className="hidden h-8 w-8 place-items-center rounded-[8px] border border-[#e2e9f2] bg-white text-[#8b9aae] lg:grid" aria-label="回員工首頁">
                   <Home className="h-4 w-4" />
                 </Link>
-                <div>
-                  <p className="max-w-[300px] truncate text-[15px] font-black lg:text-[13px] lg:text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? "新北泳池館"}</p>
+                <div className="min-w-0">
+                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] lg:text-[13px] lg:text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? "新北泳池館"}</p>
                   <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] lg:block">Dashboard</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <div className="hidden lg:block">
-                  <RoleSwitcher />
+                  <RoleSwitcher visualActiveRole="employee" />
                 </div>
-                <FacilitySwitcher />
+                <div className="hidden md:block">
+                  <FacilitySwitcher />
+                </div>
                 <button className="workbench-focus hidden min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:inline-flex">
                   員工
                   <ChevronDown className="h-3.5 w-3.5 text-[#8b9aae]" />
@@ -208,7 +228,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
               </div>
             </div>
             <div className="border-t border-white/10 px-4 py-2 lg:hidden">
-              <RoleSwitcher compact />
+              <RoleSwitcher compact visualActiveRole="employee" />
             </div>
           </header>
 
@@ -216,7 +236,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <h1 className="text-[24px] font-black leading-tight text-[#10233f] lg:text-[30px]">{title}</h1>
-                <p className="mt-1 text-[13px] font-medium leading-5 text-[#637185]">{subtitle}</p>
+                {subtitle ? <p className="mt-1 text-[13px] font-medium leading-5 text-[#637185]">{subtitle}</p> : null}
               </div>
               <Link href="/employee" className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
                 回首頁
@@ -230,7 +250,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
         {!mobileItems.length && navigation.isLoading ? (
-          <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中...</div>
+          <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中…</div>
         ) : null}
         {mobileItems.map((item) => {
           const active = isActivePath(location, item.href);
@@ -246,7 +266,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
               )}
             >
               <item.Icon className="h-5 w-5" />
-              {item.label}
+              <span className="max-w-full truncate px-1">{item.label}</span>
             </Link>
           );
         })}

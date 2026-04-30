@@ -7,13 +7,14 @@ import { useAuthMe, useLogout, useSwitchRole } from "@/shared/auth/session";
 
 const roleOrder: readonly WorkbenchRole[] = ["employee", "supervisor", "system"];
 
-export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
+export function RoleSwitcher({ compact = false, visualActiveRole }: { compact?: boolean; visualActiveRole?: WorkbenchRole }) {
   const [, setLocation] = useLocation();
   const { data: session } = useAuthMe();
   const switchRole = useSwitchRole();
   const logout = useLogout();
 
   if (!session) return null;
+  const activeRole = visualActiveRole ?? session.activeRole;
 
   const goRole = (role: WorkbenchRole) => {
     if (role === session.activeRole) {
@@ -40,7 +41,7 @@ export function RoleSwitcher({ compact = false }: { compact?: boolean }) {
               className={cn(
                 "min-h-8 min-w-0 rounded-[6px] px-3 text-[12px] font-black transition",
                 compact && "flex-1 px-2 text-[11px]",
-                session.activeRole === role ? "bg-[#0d2a50] text-white" : "text-[#536175] hover:bg-[#f2f6fa]",
+                activeRole === role ? "bg-[#0d2a50] text-white" : "text-[#536175] hover:bg-[#f2f6fa]",
               )}
             >
               /{role.toUpperCase()}

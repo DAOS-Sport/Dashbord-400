@@ -255,6 +255,15 @@
     0 0 0 1px rgba(47,111,232,0.72);
 }
 
+.workbench-shell input:focus-visible,
+.workbench-shell textarea:focus-visible,
+.workbench-shell select:focus-visible {
+  border-color: #16b6b1;
+  box-shadow:
+    0 0 0 3px rgba(22, 182, 177, 0.16),
+    0 0 0 1px rgba(22, 182, 177, 0.48);
+}
+
 @container (max-width: 280px) {
   .workbench-card .workbench-card-title {
     font-size: 13px;

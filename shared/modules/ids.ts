@@ -19,6 +19,7 @@ export const MODULE_IDS = [
   "quick-links",
   "notification-center",
   "knowledge-base-qna",
+  "employee-training",
   "personal-note",
   "portal-home",
   "portal-manage",

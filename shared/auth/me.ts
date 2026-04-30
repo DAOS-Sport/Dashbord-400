@@ -10,6 +10,27 @@ export interface AuthMeDto {
   permissionsSnapshot: string[];
 }
 
+export interface FacilityCandidateDto {
+  facilityKey: string;
+  departmentName: string;
+  displayName: string;
+  regionGroup: string;
+  operationType: string;
+  statusLabel: string;
+  isRecommended: boolean;
+  source: "ragic-h05" | "local-fallback" | "mock-ragic-h05";
+}
+
+export interface FacilityCandidatesResponseDto {
+  items: FacilityCandidateDto[];
+  sourceStatus: {
+    connected: boolean;
+    source: string;
+    lastSyncedAt?: string;
+    errorMessage?: string;
+  };
+}
+
 export interface LoginRequestDto {
   username: string;
   password: string;

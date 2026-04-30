@@ -63,13 +63,13 @@ export const createMemorySessionStore = (): SessionStore => ({
 export const createMockSession = (
   userId: string,
   displayName: string,
-  isSupervisor = true,
+  isSupervisor = false,
   departments: string[] = [],
 ): Omit<SessionRecord, "issuedAt" | "lastActive"> => ({
   userId,
   displayName,
   grantedRoles: isSupervisor ? ["employee", "supervisor", "system"] : ["employee"],
-  activeRole: isSupervisor ? "system" : "employee",
+  activeRole: isSupervisor ? "supervisor" : "employee",
   grantedFacilities: resolveGrantedFacilities(isSupervisor, departments),
   activeFacility: resolveGrantedFacilities(isSupervisor, departments)[0] ?? "xinbei_pool",
   permissionsSnapshot: [
@@ -94,6 +94,6 @@ export const createSessionFromAuthUser = (user: RagicAuthUser): Omit<SessionReco
   createMockSession(
     user.userId,
     user.displayName,
-    user.isSupervisor ?? true,
+    user.isSupervisor === true,
     user.departments ?? (user.department ? [user.department] : []),
   );

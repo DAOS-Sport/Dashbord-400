@@ -7,6 +7,7 @@ import {
   ClipboardList,
   FileText,
   Gauge,
+  GraduationCap,
   Home,
   BarChart3,
   Menu,
@@ -36,21 +37,73 @@ const iconByKey: Record<string, LucideIcon> = {
   "clipboard-check": ClipboardList,
   "message-square-text": FileText,
   "file-text": FileText,
+  "graduation-cap": GraduationCap,
   gauge: Gauge,
   "shield-check": ShieldCheck,
   search: Search,
   link: MoreHorizontal,
 };
 
-const toRoleNavItems = (role: "supervisor" | "system", items: NavigationModuleDto[] | undefined): NavItem[] =>
-  (items ?? [])
+type NavigationSlot = {
+  ids: string[];
+  label: string;
+  href: string;
+  iconKey: string;
+};
+
+const systemNavigationSlots: NavigationSlot[] = [
+  { ids: ["system-dashboard", "dashboard"], label: "系統總覽", href: "/system", iconKey: "gauge" },
+  { ids: ["system-health"], label: "系統健康", href: "/system/health", iconKey: "gauge" },
+  { ids: ["system-observability", "watchdog-events"], label: "告警中心", href: "/system/alerts", iconKey: "bell" },
+  {
+    ids: ["integration-sync-jobs", "linebot-integration", "schedule-integration", "ragic-integration"],
+    label: "整合狀態",
+    href: "/system/integrations",
+    iconKey: "link",
+  },
+  { ids: ["telemetry-audit"], label: "Audit / Telemetry", href: "/system/audit", iconKey: "shield-check" },
+  { ids: ["raw-inspector"], label: "Raw Inspector", href: "/system/raw-inspector", iconKey: "shield-check" },
+  { ids: ["employee-training"], label: "教材觀看紀錄", href: "/system/training-views", iconKey: "graduation-cap" },
+];
+
+const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
+  id: item.id,
+  label: item.name,
+  href: item.routePath,
+  Icon: iconByKey[item.iconKey] ?? Home,
+});
+
+const toSystemNavItems = (items: NavigationModuleDto[] | undefined): NavItem[] => {
+  const systemItems = (items ?? []).filter((item) => item.routePath.startsWith("/system"));
+  const systemItemsById = new Map(systemItems.map((item) => [item.id, item]));
+
+  return systemNavigationSlots.map((slot) => {
+    const item = slot.ids.map((id) => systemItemsById.get(id)).find(Boolean);
+    return item
+      ? {
+          ...fromNavigationModule(item),
+          label: slot.label,
+          href: slot.href,
+          Icon: iconByKey[item.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+        }
+      : {
+          id: slot.ids[0],
+          label: slot.label,
+          href: slot.href,
+          Icon: iconByKey[slot.iconKey] ?? Home,
+        };
+  });
+};
+
+const toRoleNavItems = (role: "supervisor" | "system", items: NavigationModuleDto[] | undefined): NavItem[] => {
+  if (role === "system") {
+    return toSystemNavItems(items);
+  }
+
+  return (items ?? [])
     .filter((item) => item.routePath.startsWith(`/${role}`))
-    .map((item) => ({
-      id: item.id,
-      label: item.name,
-      href: item.routePath,
-      Icon: iconByKey[item.iconKey] ?? Home,
-    }));
+    .map(fromNavigationModule);
+};
 
 interface RoleShellProps {
   role: "supervisor" | "system";

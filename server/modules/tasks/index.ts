@@ -5,6 +5,8 @@ import type { BackendModule } from "../_shared/module";
 import { requireSession } from "../auth/context";
 import { storage } from "../../storage";
 import type { Task, InsertTask } from "@shared/schema";
+import { env } from "../../shared/config/env";
+import { withTaskCreateMetadata, withUpdateMetadata } from "../../shared/data/write-metadata";
 
 const taskStatus = z.enum(["pending", "in_progress", "done", "cancelled"]);
 const taskPriority = z.enum(["low", "normal", "high"]);
@@ -32,6 +34,11 @@ const isManagerSession = (req: Request) =>
 
 const isGrantedFacility = (req: Request, facilityKey: string) =>
   Boolean(req.workbenchSession?.grantedFacilities.includes(facilityKey));
+
+const correlationIdFromRequest = (req: Request) => {
+  const header = req.headers["x-correlation-id"];
+  return Array.isArray(header) ? header[0] : header;
+};
 
 const canMutateTask = (req: Request, task: Task) => {
   if (!isGrantedFacility(req, task.facilityKey)) return false;
@@ -63,15 +70,23 @@ const buildTaskPatch = (input: z.infer<typeof updateTaskSchema>, req: Request): 
     patch.completedAt = input.status === "done" ? new Date() : null;
   }
   if (isManagerSession(req)) {
+    const assignmentChanged = input.assignedToUserId !== undefined || input.assignedToName !== undefined;
     if (input.assignedToUserId !== undefined) patch.assignedToUserId = input.assignedToUserId ?? null;
     if (input.assignedToName !== undefined) patch.assignedToName = input.assignedToName ?? null;
+    if (assignmentChanged) {
+      patch.assignedByUserId = req.workbenchSession!.userId;
+      patch.assignedAt = new Date();
+    }
   }
   return patch;
 };
 
-export const registerTaskRoutes = (app: Express, _container: AppContainer) => {
+export const registerTaskRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/tasks", requireSession, async (req, res, next) => {
     try {
+      if (!env.databaseUrl) {
+        return res.json({ items: [] });
+      }
       const requestedFacility = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
       const facilityKey = requestedFacility || req.workbenchSession!.activeFacility;
       if (!isGrantedFacility(req, facilityKey)) return res.status(403).json({ message: "Facility is not granted" });
@@ -95,20 +110,34 @@ export const registerTaskRoutes = (app: Express, _container: AppContainer) => {
       const facilityKey = input.facilityKey || req.workbenchSession!.activeFacility;
       if (!isGrantedFacility(req, facilityKey)) return res.status(403).json({ message: "Facility is not granted" });
       const manager = isManagerSession(req);
-      const task: InsertTask = {
+      const task: InsertTask = withTaskCreateMetadata({
         facilityKey,
         title: input.title,
         content: input.content ?? null,
         priority: input.priority,
         status: "pending",
-        source: manager ? "supervisor" : "employee",
-        createdByUserId: req.workbenchSession!.userId,
-        createdByName: req.workbenchSession!.displayName,
         assignedToUserId: manager ? input.assignedToUserId ?? null : req.workbenchSession!.userId,
         assignedToName: manager ? input.assignedToName ?? null : req.workbenchSession!.displayName,
+        assignedByUserId: manager && (input.assignedToUserId || input.assignedToName) ? req.workbenchSession!.userId : null,
+        assignedAt: manager && (input.assignedToUserId || input.assignedToName) ? new Date() : null,
         dueAt: parseDueAt(input.dueAt),
-      };
+      }, {
+        userId: req.workbenchSession!.userId,
+        role: req.workbenchSession!.activeRole,
+        facilityKey,
+      }, req.workbenchSession!.displayName);
       const created = await storage.createTask(task);
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession!.userId,
+        role: req.workbenchSession!.activeRole,
+        facilityKey,
+        action: "TASK_CREATED",
+        resource: "tasks",
+        resourceId: String(created.id),
+        payload: { title: created.title, status: created.status },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       return res.status(201).json(created);
     } catch (error) {
       return next(error);
@@ -125,7 +154,24 @@ export const registerTaskRoutes = (app: Express, _container: AppContainer) => {
       if (input.status === "done" ? !canCompleteTask(req, task) : !canMutateTask(req, task)) {
         return res.status(403).json({ message: "Task is not editable" });
       }
-      const updated = await storage.updateTask(id, buildTaskPatch(input, req));
+      const updated = await storage.updateTask(id, withUpdateMetadata(buildTaskPatch(input, req), {
+        userId: req.workbenchSession!.userId,
+        role: req.workbenchSession!.activeRole,
+        facilityKey: task.facilityKey,
+      }));
+      if (updated) {
+        await container.repositories.telemetry.recordAudit({
+          actorId: req.workbenchSession!.userId,
+          role: req.workbenchSession!.activeRole,
+          facilityKey: task.facilityKey,
+          action: "TASK_UPDATED",
+          resource: "tasks",
+          resourceId: String(updated.id),
+          payload: { title: updated.title, status: updated.status },
+          correlationId: correlationIdFromRequest(req),
+          resultStatus: "success",
+        });
+      }
       return res.json(updated);
     } catch (error) {
       return next(error);
@@ -142,10 +188,27 @@ export const registerTaskRoutes = (app: Express, _container: AppContainer) => {
       if (input.status === "done" ? !canCompleteTask(req, task) : !canMutateTask(req, task)) {
         return res.status(403).json({ message: "Task status is not editable" });
       }
-      const updated = await storage.updateTask(id, {
+      const updated = await storage.updateTask(id, withUpdateMetadata({
         status: input.status,
         completedAt: input.status === "done" ? new Date() : null,
-      });
+      }, {
+        userId: req.workbenchSession!.userId,
+        role: req.workbenchSession!.activeRole,
+        facilityKey: task.facilityKey,
+      }));
+      if (updated) {
+        await container.repositories.telemetry.recordAudit({
+          actorId: req.workbenchSession!.userId,
+          role: req.workbenchSession!.activeRole,
+          facilityKey: task.facilityKey,
+          action: "TASK_STATUS_UPDATED",
+          resource: "tasks",
+          resourceId: String(updated.id),
+          payload: { title: updated.title, status: updated.status, previousStatus: task.status },
+          correlationId: correlationIdFromRequest(req),
+          resultStatus: "success",
+        });
+      }
       return res.json(updated);
     } catch (error) {
       return next(error);

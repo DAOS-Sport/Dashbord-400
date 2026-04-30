@@ -41,7 +41,6 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
   ], syncTime),
   handover: ok([], syncTime),
   shortcuts: ok([
-    { id: "clock", label: "點名 / 打卡", href: "#clock", tone: "blue" },
     { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
     { id: "cash", label: "匯款確認", href: "#cash", tone: "amber" },
     { id: "events", label: "活動 / 檔期", href: "#events", tone: "violet" },
@@ -58,11 +57,13 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
     { id: "camp-2", title: "成人游泳課開課", statusLabel: "即將開課", effectiveRange: "5/05 開課" },
   ], syncTime),
   documents: ok([
+    { id: "system-checkins-link", title: "點名 / 報到", updatedAt: "系統入口", url: "/employee/checkins", description: "員工點名與報到入口", subCategory: "點名/報到", source: "system_link" },
     { id: "doc-1", title: "場館 SOP 手冊", updatedAt: "2026/04/10" },
     { id: "doc-2", title: "緊急應變流程", updatedAt: "2026/03/15" },
     { id: "doc-3", title: "設備檢修記錄表", updatedAt: "2026/04/01" },
   ], syncTime),
   stickyNotes: ok([], syncTime),
+  training: ok([], syncTime),
 });
 
 export const getSupervisorDashboardMock = (): SupervisorDashboardDto => ({

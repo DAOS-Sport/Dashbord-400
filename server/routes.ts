@@ -12,12 +12,30 @@ import { env } from "./shared/config/env";
 import type { OperationalHandover } from "@shared/schema";
 import { findFacilityLineGroup, findScheduleRegionKey } from "@shared/domain/facilities";
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
+import { withCreateMetadata, withEmployeeCreateMetadata, withUpdateMetadata } from "./shared/data/write-metadata";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "anomaly-reports");
 
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
+
+const anomalyResolutionActor = (req: import("express").Request) => ({
+  userId: req.workbenchSession?.userId ?? "legacy-anonymous",
+  role: req.workbenchSession?.activeRole ?? "system",
+  facilityKey: req.workbenchSession?.activeFacility,
+});
+
+const legacyWriteActor = (req: import("express").Request) => ({
+  userId: req.workbenchSession?.userId ?? "legacy-anonymous",
+  role: req.workbenchSession?.activeRole ?? "system",
+  facilityKey: req.workbenchSession?.activeFacility,
+});
+
+const correlationIdFromRequest = (req: import("express").Request) => {
+  const header = req.headers["x-correlation-id"];
+  return Array.isArray(header) ? header[0] : header;
+};
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"]);
 const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"]);
@@ -314,7 +332,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   app.use(corsMiddleware);
 
-  registerNewArchitectureRoutes(httpServer, app);
+  const container = registerNewArchitectureRoutes(httpServer, app);
 
   app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
 
@@ -375,6 +393,23 @@ export async function registerRoutes(
         userNote: data.userNote ?? data.user_note ?? data.note ?? data.remark ?? data.message ?? data.description ?? null,
         imageUrls: imageUrls.length > 0 ? imageUrls : null,
         reportText,
+        facilityKey: clockResult.facilityKey ?? data.facilityKey ?? null,
+        source: "external-checkin-system",
+      });
+      await container.repositories.telemetry.recordAudit({
+        actorId: "external-checkin-system",
+        role: "system",
+        facilityKey: clockResult.facilityKey ?? data.facilityKey ?? null,
+        action: "ANOMALY_REPORTED",
+        resource: "anomaly_reports",
+        resourceId: String(report.id),
+        payload: {
+          context: data.context,
+          clockStatus: clockResult.status,
+          source: "external-checkin-system",
+        },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
       });
 
       sendAnomalyEmail(reportText, data).catch(() => {});
@@ -466,8 +501,20 @@ export async function registerRoutes(
         return res.status(400).json({ message: "resolution 必須為 'pending' 或 'resolved'" });
       }
 
-      const updated = await storage.updateAnomalyReportResolution(id, resolution, resolvedNote ?? null);
+      const actor = anomalyResolutionActor(req);
+      const updated = await storage.updateAnomalyReportResolution(id, resolution, resolvedNote ?? null, actor);
       if (!updated) return res.status(404).json({ message: "找不到此異常報告" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: actor.userId,
+        role: actor.role,
+        facilityKey: updated.facilityKey ?? actor.facilityKey,
+        action: "ANOMALY_RESOLVED",
+        resource: "anomaly_reports",
+        resourceId: String(updated.id),
+        payload: { resolution: updated.resolution, hasResolutionNote: Boolean(updated.resolvedNote) },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
 
       sendResolutionEmail(updated, resolution, resolvedNote ?? null).catch(() => {});
 
@@ -486,7 +533,19 @@ export async function registerRoutes(
       if (!resolution || !["pending", "resolved"].includes(resolution)) {
         return res.status(400).json({ message: "resolution 必須為 'pending' 或 'resolved'" });
       }
-      const count = await storage.batchUpdateResolution(ids, resolution, resolvedNote ?? null);
+      const actor = anomalyResolutionActor(req);
+      const count = await storage.batchUpdateResolution(ids, resolution, resolvedNote ?? null, actor);
+      await container.repositories.telemetry.recordAudit({
+        actorId: actor.userId,
+        role: actor.role,
+        facilityKey: actor.facilityKey,
+        action: "ANOMALY_RESOLVED",
+        resource: "anomaly_reports",
+        resourceId: ids.map(String).join(","),
+        payload: { resolution, count, hasResolutionNote: Boolean(resolvedNote) },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
 
       const reports = await Promise.all(ids.map((id: number) => storage.getAnomalyReportById(id)));
       const validReports = reports.filter(Boolean);
@@ -557,16 +616,29 @@ export async function registerRoutes(
 
   app.post("/api/notification-recipients", async (req, res) => {
     try {
-      const { email, label, enabled, notifyNewReport, notifyResolution } = req.body || {};
+      const { email, label, enabled, notifyNewReport, notifyResolution, facilityKey } = req.body || {};
       if (!email || typeof email !== "string" || !email.includes("@")) {
         return res.status(400).json({ message: "請提供有效的 email" });
       }
-      const recipient = await storage.createRecipient({
+      const recipient = await storage.createRecipient(withCreateMetadata({
         email,
         label: label || null,
+        facilityKey: typeof facilityKey === "string" && facilityKey ? facilityKey : undefined,
         enabled: enabled !== false,
         notifyNewReport: notifyNewReport !== false,
         notifyResolution: notifyResolution !== false,
+      }, legacyWriteActor(req)));
+      const actor = legacyWriteActor(req);
+      await container.repositories.telemetry.recordAudit({
+        actorId: actor.userId,
+        role: actor.role,
+        facilityKey: recipient.facilityKey ?? actor.facilityKey,
+        action: "NOTIFICATION_RECIPIENT_CREATED",
+        resource: "notification_recipients",
+        resourceId: String(recipient.id),
+        payload: { name: recipient.label ?? null, enabled: recipient.enabled },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
       });
       res.status(201).json(recipient);
     } catch (err: any) {
@@ -586,8 +658,20 @@ export async function registerRoutes(
       if (sanitized.email !== undefined && (typeof sanitized.email !== "string" || !sanitized.email.includes("@"))) {
         return res.status(400).json({ message: "請提供有效的 email" });
       }
-      const updated = await storage.updateRecipient(id, sanitized);
+      const actor = legacyWriteActor(req);
+      const updated = await storage.updateRecipient(id, withUpdateMetadata(sanitized, actor));
       if (!updated) return res.status(404).json({ message: "找不到此收件者" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: actor.userId,
+        role: actor.role,
+        facilityKey: updated.facilityKey ?? actor.facilityKey,
+        action: "NOTIFICATION_RECIPIENT_UPDATED",
+        resource: "notification_recipients",
+        resourceId: String(updated.id),
+        payload: { name: updated.label ?? null, enabled: updated.enabled },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "伺服器內部錯誤" });
@@ -596,10 +680,23 @@ export async function registerRoutes(
 
   app.delete("/api/notification-recipients/:id", async (req, res) => {
     try {
+      const actor = legacyWriteActor(req);
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ message: "無效的 ID" });
+      const existing = (await storage.getAllRecipients()).find((recipient) => recipient.id === id);
       const deleted = await storage.deleteRecipient(id);
       if (!deleted) return res.status(404).json({ message: "找不到此收件者" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: actor.userId,
+        role: actor.role,
+        facilityKey: existing?.facilityKey ?? actor.facilityKey,
+        action: "NOTIFICATION_RECIPIENT_DELETED",
+        resource: "notification_recipients",
+        resourceId: String(id),
+        payload: { email: existing?.email, name: existing?.label ?? null },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "伺服器內部錯誤" });
@@ -1035,16 +1132,30 @@ export async function registerRoutes(
     try {
       const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const { insertHandoverEntrySchema } = await import("@shared/schema");
+      const role = req.workbenchSession?.activeRole ?? (caller.isSupervisor ? "supervisor" : "employee");
       // Force author identity from authenticated caller (do not trust body)
       const parsed = insertHandoverEntrySchema.safeParse({
         ...(req.body || {}),
         authorEmployeeNumber: caller.employeeNumber,
         authorName: caller.name,
+        createdByRole: role,
+        source: "manual",
       });
       if (!parsed.success) {
         return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       }
       const created = await storage.createHandover(parsed.data);
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: parsed.data.facilityKey,
+        action: "HANDOVER_ENTRY_CREATED",
+        resource: "handover_entries",
+        resourceId: String(created.id),
+        payload: { contentPreview: parsed.data.content.slice(0, 50) },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       // 也順便記一筆 portal event
       await storage.recordPortalEvent({
         employeeNumber: parsed.data.authorEmployeeNumber || null,
@@ -1165,7 +1276,7 @@ export async function registerRoutes(
           targetDate: parsed.data.targetDate,
           targetShiftLabel: parsed.data.targetShiftLabel,
         });
-      const created = await storage.createOperationalHandover({
+      const created = await storage.createOperationalHandover(withEmployeeCreateMetadata({
         facilityKey: parsed.data.facilityKey,
         title: parsed.data.title,
         content: parsed.data.content,
@@ -1181,6 +1292,21 @@ export async function registerRoutes(
         createdByName: caller.name,
         linkedActionType: parsed.data.linkedActionType ?? null,
         linkedActionUrl: parsed.data.linkedActionUrl ?? null,
+      }, {
+        userId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: parsed.data.facilityKey,
+      }, caller.name));
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: parsed.data.facilityKey,
+        action: "OPERATIONAL_HANDOVER_CREATED",
+        resource: "operational_handovers",
+        resourceId: String(created.id),
+        payload: { title: created.title },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
       });
       await storage.recordPortalEvent({
         employeeNumber: caller.employeeNumber,
@@ -1207,6 +1333,7 @@ export async function registerRoutes(
 
   app.patch("/api/portal/operational-handovers/:id", requireSupervisor(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
       const existing = await storage.getOperationalHandoverById(id);
@@ -1214,12 +1341,29 @@ export async function registerRoutes(
       if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
       const parsed = operationalHandoverPatchBodySchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
-      const updated = await storage.updateOperationalHandover(id, {
+      const updated = await storage.updateOperationalHandover(id, withUpdateMetadata({
         ...parsed.data,
         visibleFrom: parsed.data.visibleFrom === undefined ? undefined : toDateOrNull(parsed.data.visibleFrom),
         dueAt: parsed.data.dueAt === undefined ? undefined : toDateOrNull(parsed.data.dueAt),
         completedAt: parsed.data.status === "done" ? new Date() : undefined,
-      });
+      }, {
+        userId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: existing.facilityKey,
+      }));
+      if (updated) {
+        await container.repositories.telemetry.recordAudit({
+          actorId: caller.employeeNumber,
+          role: "supervisor",
+          facilityKey: existing.facilityKey,
+          action: "OPERATIONAL_HANDOVER_UPDATED",
+          resource: "operational_handovers",
+          resourceId: String(updated.id),
+          payload: { title: updated.title, status: updated.status },
+          correlationId: correlationIdFromRequest(req),
+          resultStatus: "success",
+        });
+      }
       res.json(updated ? mapOperationalHandoverForResponse(updated) : null);
     } catch (err) {
       const m = err instanceof Error ? err.message : "交班交接更新失敗";
@@ -1237,7 +1381,7 @@ export async function registerRoutes(
       if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
       const parsed = operationalHandoverReportBodySchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
-      const updated = await storage.updateOperationalHandover(id, {
+      const updated = await storage.updateOperationalHandover(id, withUpdateMetadata({
         status: parsed.data.status,
         reportNote: parsed.data.reportNote ?? null,
         claimedByEmployeeNumber: parsed.data.status === "claimed" ? caller.employeeNumber : undefined,
@@ -1245,7 +1389,24 @@ export async function registerRoutes(
         reportedByEmployeeNumber: caller.employeeNumber,
         reportedByName: caller.name,
         completedAt: parsed.data.status === "done" ? new Date() : null,
-      });
+      }, {
+        userId: caller.employeeNumber,
+        role: caller.isSupervisor ? "supervisor" : "employee",
+        facilityKey: existing.facilityKey,
+      }));
+      if (updated) {
+        await container.repositories.telemetry.recordAudit({
+          actorId: caller.employeeNumber,
+          role: caller.isSupervisor ? "supervisor" : "employee",
+          facilityKey: existing.facilityKey,
+          action: "OPERATIONAL_HANDOVER_REPORTED",
+          resource: "operational_handovers",
+          resourceId: String(updated.id),
+          payload: { title: updated.title, status: updated.status },
+          correlationId: correlationIdFromRequest(req),
+          resultStatus: "success",
+        });
+      }
       await storage.recordPortalEvent({
         employeeNumber: caller.employeeNumber,
         employeeName: caller.name,
@@ -1343,6 +1504,9 @@ export async function registerRoutes(
   // -------- Portal: Quick Links (主管維護) --------
   app.get("/api/portal/quick-links", async (req, res) => {
     try {
+      if (!env.databaseUrl) {
+        return res.json({ items: [] });
+      }
       const facilityKey = req.query.facilityKey ? String(req.query.facilityKey) : undefined;
       const includeInactive = req.query.includeInactive === "true";
       const items = await storage.listQuickLinks(facilityKey, includeInactive);
@@ -1355,12 +1519,28 @@ export async function registerRoutes(
 
   app.post("/api/portal/quick-links", requireSupervisor(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const { insertQuickLinkSchema } = await import("@shared/schema");
       const parsed = insertQuickLinkSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       }
-      const created = await storage.createQuickLink(parsed.data);
+      const created = await storage.createQuickLink(withCreateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: parsed.data.facilityKey ?? undefined,
+      }));
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: parsed.data.facilityKey ?? undefined,
+        action: "QUICK_LINK_CREATED",
+        resource: "quick_links",
+        resourceId: String(created.id),
+        payload: { label: created.title, url: created.url },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.status(201).json(created);
     } catch (err) {
       const m = err instanceof Error ? err.message : "建立失敗";
@@ -1370,10 +1550,39 @@ export async function registerRoutes(
 
   app.patch("/api/portal/quick-links/:id", requireSupervisor(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
-      const updated = await storage.updateQuickLink(id, req.body || {});
+      const quickLinkPatchSchema = z.object({
+        facilityKey: z.string().nullable().optional(),
+        title: z.string().min(1, "標題不可為空").optional(),
+        url: z.string().url("網址格式不正確").optional(),
+        icon: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        sortOrder: z.number().int().optional(),
+        isActive: z.boolean().optional(),
+      });
+      const parsed = quickLinkPatchSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      }
+      const updated = await storage.updateQuickLink(id, withUpdateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: parsed.data.facilityKey ?? undefined,
+      }));
       if (!updated) return res.status(404).json({ message: "找不到資料" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role: "supervisor",
+        facilityKey: updated.facilityKey ?? undefined,
+        action: "QUICK_LINK_UPDATED",
+        resource: "quick_links",
+        resourceId: String(updated.id),
+        payload: { label: updated.title, url: updated.url },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.json(updated);
     } catch (err) {
       const m = err instanceof Error ? err.message : "更新失敗";
@@ -1419,14 +1628,31 @@ export async function registerRoutes(
     try {
       const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const { insertEmployeeResourceSchema } = await import("@shared/schema");
+      const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
       const parsed = insertEmployeeResourceSchema.safeParse({
-        ...req.body,
+        ...body,
         createdByEmployeeNumber: caller.employeeNumber,
         createdByName: caller.name,
+        isPrivate: body.category === "sticky_note" ? body.isPrivate ?? true : body.isPrivate,
       });
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
-      const created = await storage.createEmployeeResource(parsed.data);
+      const created = await storage.createEmployeeResource(withEmployeeCreateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role: caller.isSupervisor ? "supervisor" : "employee",
+        facilityKey: parsed.data.facilityKey,
+      }, caller.name));
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role: caller.isSupervisor ? "supervisor" : "employee",
+        facilityKey: parsed.data.facilityKey,
+        action: "EMPLOYEE_RESOURCE_CREATED",
+        resource: "employee_resources",
+        resourceId: String(created.id),
+        payload: { category: created.category, subCategory: created.subCategory, title: created.title },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       await storage.recordPortalEvent({
         employeeNumber: caller.employeeNumber,
         employeeName: caller.name,
@@ -1456,13 +1682,34 @@ export async function registerRoutes(
       if (!canEdit) return res.status(403).json({ message: "只能編輯自己建立的資料" });
       const patchSchema = z.object({
         title: z.string().min(1).max(120).optional(),
+        subCategory: z.string().max(60).nullable().optional(),
         content: z.string().max(1000).nullable().optional(),
-        url: z.string().url().nullable().optional(),
+        url: z.string().refine((value) => value.startsWith("/") || z.string().url().safeParse(value).success, "網址格式不正確").nullable().optional(),
         isPinned: z.boolean().optional(),
+        isPrivate: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+        scheduledAt: z.coerce.date().nullable().optional(),
       });
       const parsed = patchSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
-      const updated = await storage.updateEmployeeResource(id, parsed.data);
+      const updated = await storage.updateEmployeeResource(id, withUpdateMetadata(parsed.data, {
+        userId: caller.employeeNumber,
+        role: caller.isSupervisor ? "supervisor" : "employee",
+        facilityKey: existing.facilityKey,
+      }));
+      if (updated) {
+        await container.repositories.telemetry.recordAudit({
+          actorId: caller.employeeNumber,
+          role: caller.isSupervisor ? "supervisor" : "employee",
+          facilityKey: existing.facilityKey,
+          action: "EMPLOYEE_RESOURCE_UPDATED",
+          resource: "employee_resources",
+          resourceId: String(updated.id),
+          payload: { category: updated.category, subCategory: updated.subCategory, title: updated.title },
+          correlationId: correlationIdFromRequest(req),
+          resultStatus: "success",
+        });
+      }
       res.json(updated);
     } catch (err) {
       if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
@@ -1505,12 +1752,32 @@ export async function registerRoutes(
 
   app.post("/api/portal/system-announcements", requireSupervisor(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const { insertSystemAnnouncementSchema } = await import("@shared/schema");
       const parsed = insertSystemAnnouncementSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       }
-      const created = await storage.createSystemAnnouncement(parsed.data);
+      const role = req.workbenchSession?.activeRole === "system" ? "system" : "supervisor";
+      const created = await storage.createSystemAnnouncement(withCreateMetadata({
+        ...parsed.data,
+        publishedBy: parsed.data.publishedBy ?? caller.employeeNumber,
+      }, {
+        userId: caller.employeeNumber,
+        role,
+        facilityKey: parsed.data.facilityKey ?? req.workbenchSession?.activeFacility,
+      }));
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: parsed.data.facilityKey ?? req.workbenchSession?.activeFacility,
+        action: "SYSTEM_ANNOUNCEMENT_CREATED",
+        resource: "system_announcements",
+        resourceId: String(created.id),
+        payload: { title: created.title, severity: created.severity },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.status(201).json(created);
     } catch (err) {
       const m = err instanceof Error ? err.message : "建立失敗";
@@ -1520,10 +1787,27 @@ export async function registerRoutes(
 
   app.patch("/api/portal/system-announcements/:id", requireSupervisor(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
-      const updated = await storage.updateSystemAnnouncement(id, req.body || {});
+      const role = req.workbenchSession?.activeRole === "system" ? "system" : "supervisor";
+      const updated = await storage.updateSystemAnnouncement(id, withUpdateMetadata(req.body || {}, {
+        userId: caller.employeeNumber,
+        role,
+        facilityKey: req.workbenchSession?.activeFacility,
+      }));
       if (!updated) return res.status(404).json({ message: "找不到資料" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: updated.facilityKey ?? req.workbenchSession?.activeFacility,
+        action: "SYSTEM_ANNOUNCEMENT_UPDATED",
+        resource: "system_announcements",
+        resourceId: String(updated.id),
+        payload: { title: updated.title, severity: updated.severity },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
       res.json(updated);
     } catch (err) {
       const m = err instanceof Error ? err.message : "更新失敗";

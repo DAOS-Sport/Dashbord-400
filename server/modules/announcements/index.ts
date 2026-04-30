@@ -4,6 +4,7 @@ import type { AppContainer } from "../../app/container";
 import type { BackendModule } from "../_shared/module";
 import { requireSession } from "../auth/context";
 import { storage } from "../../storage";
+import { env } from "../../shared/config/env";
 
 const acknowledgementSchema = z.object({
   facilityKey: z.string().min(1).optional(),
@@ -15,6 +16,9 @@ const isGrantedFacility = (req: Request, facilityKey: string) =>
 export const registerAnnouncementRoutes = (app: Express, _container: AppContainer) => {
   app.get("/api/announcements/acknowledgements", requireSession, async (req, res, next) => {
     try {
+      if (!env.databaseUrl) {
+        return res.json({ items: [] });
+      }
       const facilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : req.workbenchSession!.activeFacility;
       if (!isGrantedFacility(req, facilityKey)) return res.status(403).json({ message: "Facility is not granted" });
       const items = await storage.listAnnouncementAcknowledgements({ facilityKey, userId: req.workbenchSession!.userId });

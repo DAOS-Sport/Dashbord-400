@@ -1,9 +1,15 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import type { UiEventDto, ClientErrorDto } from "@shared/telemetry/events";
 import type { AppContainer } from "../../app/container";
 import { allowTokenBucket } from "../../shared/security/rate-limit";
+import { requireRole, requireSession } from "../auth/context";
 
 export const registerTelemetryRoutes = (app: Express, container: AppContainer) => {
+  const getCorrelationId = (req: Request, fallback?: string) => {
+    const header = req.headers["x-correlation-id"];
+    return fallback || (Array.isArray(header) ? header[0] : header);
+  };
+
   app.post("/api/telemetry/ui-events", async (req, res) => {
     const key = req.workbenchSession?.userId || req.ip || "anonymous";
     if (!allowTokenBucket(`ui-events:${key}`, 10, 1000)) {
@@ -13,6 +19,7 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
     const event = req.body as UiEventDto;
     await container.repositories.telemetry.recordUiEvent({
       ...event,
+      correlationId: getCorrelationId(req, event.correlationId),
       userId: req.workbenchSession?.userId,
       role: req.workbenchSession?.activeRole,
       facilityKey: req.workbenchSession?.activeFacility,
@@ -24,8 +31,10 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
 
   app.post("/api/telemetry/client-error", async (req, res) => {
     const error = req.body as ClientErrorDto;
+    const correlationId = getCorrelationId(req, error.correlationId);
     await container.repositories.telemetry.recordClientError({
       ...error,
+      correlationId,
       userId: req.workbenchSession?.userId,
       role: req.workbenchSession?.activeRole,
       facilityKey: req.workbenchSession?.activeFacility,
@@ -39,7 +48,7 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
       action: "CLIENT_ERROR_REPORTED",
       resource: "telemetry.client-error",
       payload: { message: error.message, page: error.page, componentId: error.componentId },
-      correlationId: error.correlationId,
+      correlationId,
       resultStatus: "success",
     });
 
@@ -65,5 +74,9 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
       })),
       total: overview.totalEvents,
     });
+  });
+
+  app.get("/api/telemetry/training-views", requireSession, requireRole("system"), async (_req, res) => {
+    return res.json(await container.repositories.telemetry.getTrainingViewReport());
   });
 };

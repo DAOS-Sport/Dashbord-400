@@ -22,6 +22,7 @@ RAGIC_API_KEY=
 RAGIC_HOST=ap7.ragic.com
 RAGIC_ACCOUNT_PATH=xinsheng
 RAGIC_EMPLOYEE_SHEET=/ragicforms4/13
+RAGIC_FACILITY_SHEET=/ragicforms4/7
 
 LINE_BOT_BASE_URL=https://line-bot-assistant-ronchen2.replit.app
 SMART_SCHEDULE_BASE_URL=https://smart-schedule-manager.replit.app

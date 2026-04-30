@@ -54,7 +54,7 @@ for (const role of roles) {
 assert(!getNavigationModules("employee").some((item) => item.routePath.startsWith("/system")), "employee can see a system route");
 assert(!getNavigationModules("supervisor").some((item) => item.id === "raw-inspector"), "supervisor can see raw inspector");
 assert(
-  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,personal-note,knowledge-base-qna,checkins",
+  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna",
   `employee navigation order changed: ${getNavigationModules("employee").map((item) => item.id).join(",")}`,
 );
 
@@ -92,13 +92,95 @@ assert(externalFetchViolations.length === 0, `frontend direct external API calls
 assert(hardcodedNavigationViolations.length === 0, `hardcoded navigation module lists detected:\n${hardcodedNavigationViolations.join("\n")}`);
 
 const bffRoutes = readFileSync(join(repoRoot, "server", "modules", "bff", "routes.ts"), "utf8");
+const authSessionStore = readFileSync(join(repoRoot, "server", "modules", "auth", "session-store.ts"), "utf8");
+const telemetryRepository = readFileSync(join(repoRoot, "server", "modules", "telemetry", "repository.ts"), "utf8");
+const employeeTrainingPage = readFileSync(join(repoRoot, "client", "src", "modules", "employee", "training", "page.tsx"), "utf8");
+const domainWriteMetadata = readFileSync(join(repoRoot, "server", "shared", "data", "write-metadata.ts"), "utf8");
+const domainMetadataMigration = readFileSync(join(repoRoot, "migrations", "0003_domain_5w1h_metadata.sql"), "utf8");
+const legacyRoutes = readFileSync(join(repoRoot, "server", "routes.ts"), "utf8");
+const taskRoutes = readFileSync(join(repoRoot, "server", "modules", "tasks", "index.ts"), "utf8");
+const storageSource = readFileSync(join(repoRoot, "server", "storage.ts"), "utf8");
 assert(bffRoutes.includes("attachEmployeeHomeContract"), "/api/bff/employee/home does not attach stable home-card contract");
 assert(bffRoutes.includes("/api/search/global"), "/api/search/global is not registered");
 assert(bffRoutes.includes("/api/bff/system/dashboard"), "/api/bff/system/dashboard alias is not registered");
 assert(bffRoutes.includes("/api/bff/employee/shifts/today"), "/api/bff/employee/shifts/today is not registered");
+assert(/app\.get\("\/api\/bff\/employee\/home",\s*requireSession/.test(bffRoutes), "/api/bff/employee/home must require session");
+assert(/app\.get\("\/api\/bff\/employee\/search",\s*requireSession/.test(bffRoutes), "/api/bff/employee/search must require session");
+assert(/app\.get\("\/api\/search\/global",\s*requireSession/.test(bffRoutes), "/api/search/global must require session");
+assert(/app\.get\("\/api\/bff\/supervisor\/dashboard",\s*requireRole\("supervisor",\s*"system"\)/.test(bffRoutes), "/api/bff/supervisor/dashboard must require supervisor or system role");
+assert(!authSessionStore.includes("user.isSupervisor ?? true"), "Ragic auth mapping must not fail open to supervisor/system");
+assert(authSessionStore.includes("user.isSupervisor === true"), "Ragic auth mapping must explicitly require isSupervisor === true");
+assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : "employee"'), "Supervisor sessions must default to supervisor, not system");
+assert(telemetryRepository.includes("createPostgresTelemetryRepository"), "createPostgresTelemetryRepository must exist");
+assert(employeeTrainingPage.includes("resourceId: String(item.resourceId ?? item.id)"), "TRAINING_VIEW must send a stable string resourceId");
+assert(telemetryRepository.includes('typeof value === "number"') && telemetryRepository.includes("return String(value)"), "training view report must normalize numeric payload ids");
+assert(taskRoutes.includes("withTaskCreateMetadata"), "task create route must use task create metadata helper");
+assert(taskRoutes.includes("assignedByUserId: manager"), "task supervisor assignment must record assignedByUserId");
+assert(taskRoutes.includes("assignedAt: manager"), "task supervisor assignment must record assignedAt");
+assert(/storage\.updateTask\(id,\s*withUpdateMetadata/.test(taskRoutes), "task update routes must use update metadata");
+assert(domainWriteMetadata.includes("withCreateMetadata"), "domain write metadata helper must expose withCreateMetadata");
+assert(domainWriteMetadata.includes("withEmployeeCreateMetadata"), "domain write metadata helper must expose employee resource create metadata");
+assert(domainWriteMetadata.includes("withTaskCreateMetadata"), "domain write metadata helper must expose task create metadata");
+assert(domainWriteMetadata.includes("withUpdateMetadata"), "domain write metadata helper must expose withUpdateMetadata");
+assert(domainMetadataMigration.includes("ALTER TABLE quick_links"), "domain 5W1H migration must cover quick_links");
+assert(domainMetadataMigration.includes("ALTER TABLE employee_resources"), "domain 5W1H migration must cover employee_resources");
+assert(domainMetadataMigration.includes("ALTER TABLE operational_handovers"), "domain 5W1H migration must cover operational_handovers");
+assert(legacyRoutes.includes("withCreateMetadata(parsed.data"), "quick_links create route must use create metadata");
+assert(legacyRoutes.includes("withUpdateMetadata(parsed.data"), "quick_links update route must use update metadata");
+assert(legacyRoutes.includes("withEmployeeCreateMetadata(parsed.data"), "employee_resources create route must use employee create metadata");
+assert(legacyRoutes.includes("isPrivate: body.category === \"sticky_note\""), "sticky_note resources must default to private at create");
+assert(/storage\.updateEmployeeResource\(id,\s*withUpdateMetadata/.test(legacyRoutes), "employee_resources update route must use update metadata");
+assert(/storage\.createOperationalHandover\(withEmployeeCreateMetadata/.test(legacyRoutes), "operational_handovers create route must use employee create metadata");
+assert(/app\.patch\("\/api\/portal\/operational-handovers\/:id",[\s\S]*storage\.updateOperationalHandover\(id,\s*withUpdateMetadata/.test(legacyRoutes), "operational_handovers supervisor update route must use update metadata");
+assert(/app\.patch\("\/api\/portal\/operational-handovers\/:id\/report",[\s\S]*storage\.updateOperationalHandover\(id,\s*withUpdateMetadata/.test(legacyRoutes), "operational_handovers report route must use update metadata");
+assert(/app\.post\("\/api\/portal\/handovers"[\s\S]*createdByRole: role/.test(legacyRoutes), "handover_entries create route must record createdByRole");
+assert(/app\.post\("\/api\/portal\/handovers"[\s\S]*source: "manual"/.test(legacyRoutes), "handover_entries create route must record source");
+assert(/storage\.createSystemAnnouncement\(withCreateMetadata/.test(legacyRoutes), "system_announcements create route must use create metadata");
+assert(/storage\.updateSystemAnnouncement\(id,\s*withUpdateMetadata/.test(legacyRoutes), "system_announcements update route must use update metadata");
+assert(/storage\.createAnomalyReport\([\s\S]*source: "external-checkin-system"/.test(legacyRoutes), "anomaly_reports create route must record external-checkin-system source");
+assert(/const actor = anomalyResolutionActor\(req\);[\s\S]*storage\.updateAnomalyReportResolution\(id,\s*resolution,\s*resolvedNote \?\? null,\s*actor\)/.test(legacyRoutes), "anomaly_reports single resolution route must pass actor metadata");
+assert(/const actor = anomalyResolutionActor\(req\);[\s\S]*storage\.batchUpdateResolution\(ids,\s*resolution,\s*resolvedNote \?\? null,\s*actor\)/.test(legacyRoutes), "anomaly_reports batch resolution route must pass actor metadata");
+assert(storageSource.includes("resolvedBy: resolution === \"resolved\" ? actor?.userId ?? null : null"), "anomaly_reports resolution storage must record resolvedBy");
+assert(storageSource.includes("updatedBy: actor?.userId ?? null"), "anomaly_reports resolution storage must record updatedBy");
+assert(/storage\.createRecipient\(withCreateMetadata/.test(legacyRoutes), "notification_recipients create route must use create metadata");
+assert(/storage\.updateRecipient\(id,\s*withUpdateMetadata/.test(legacyRoutes), "notification_recipients update route must use update metadata");
+assert(legacyRoutes.includes("facilityKey: typeof facilityKey === \"string\""), "notification_recipients create route must accept facilityKey");
 const handoverRoutes = readFileSync(join(repoRoot, "server", "modules", "handover", "index.ts"), "utf8");
 assert(handoverRoutes.includes("/api/bff/employee/handover/summary"), "/api/bff/employee/handover/summary is not registered");
 assert(handoverRoutes.includes("/api/handover/:id/complete"), "/api/handover/:id/complete is not registered");
+
+const routeBlock = (source: string, route: string) => {
+  const start = source.indexOf(route);
+  assert(start >= 0, `${route} route block was not found`);
+  const next = source.indexOf("\n  app.", start + route.length);
+  return source.slice(start, next >= 0 ? next : source.length);
+};
+
+const assertAuditAction = (source: string, route: string, action: string) => {
+  const block = routeBlock(source, route);
+  assert(block.includes("recordAudit({"), `${route} must call recordAudit`);
+  assert(block.includes(`action: "${action}"`), `${route} must audit ${action}`);
+};
+
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/operational-handovers"', "OPERATIONAL_HANDOVER_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/operational-handovers/:id"', "OPERATIONAL_HANDOVER_UPDATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/operational-handovers/:id/report"', "OPERATIONAL_HANDOVER_REPORTED");
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/quick-links"', "QUICK_LINK_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/quick-links/:id"', "QUICK_LINK_UPDATED");
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/employee-resources"', "EMPLOYEE_RESOURCE_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/employee-resources/:id"', "EMPLOYEE_RESOURCE_UPDATED");
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/system-announcements"', "SYSTEM_ANNOUNCEMENT_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/portal/system-announcements/:id"', "SYSTEM_ANNOUNCEMENT_UPDATED");
+assertAuditAction(legacyRoutes, 'app.post("/api/portal/handovers"', "HANDOVER_ENTRY_CREATED");
+assertAuditAction(legacyRoutes, 'app.post("/api/anomaly-report"', "ANOMALY_REPORTED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/anomaly-reports/:id/resolution"', "ANOMALY_RESOLVED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/anomaly-reports/batch/resolution"', "ANOMALY_RESOLVED");
+assertAuditAction(legacyRoutes, 'app.post("/api/notification-recipients"', "NOTIFICATION_RECIPIENT_CREATED");
+assertAuditAction(legacyRoutes, 'app.patch("/api/notification-recipients/:id"', "NOTIFICATION_RECIPIENT_UPDATED");
+assertAuditAction(legacyRoutes, 'app.delete("/api/notification-recipients/:id"', "NOTIFICATION_RECIPIENT_DELETED");
+assertAuditAction(taskRoutes, 'app.post("/api/tasks"', "TASK_CREATED");
+assertAuditAction(taskRoutes, 'app.patch("/api/tasks/:id"', "TASK_UPDATED");
+assertAuditAction(taskRoutes, 'app.patch("/api/tasks/:id/status"', "TASK_STATUS_UPDATED");
 
 console.log("Module smoke checks passed");
 console.log(`descriptors: ${descriptors.length}`);

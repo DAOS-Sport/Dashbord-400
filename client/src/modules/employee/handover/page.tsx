@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Clock3, MessageSquareText, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock3, MessageSquareText, Plus, RefreshCw, Search, Send, Trash2 } from "lucide-react";
 import type { HandoverItemDto } from "@shared/domain/workbench";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import { useAuthMe } from "@/shared/auth/session";
@@ -51,22 +51,54 @@ const formatDate = (value: string) =>
 const sortPendingByDueDate = (items: HandoverItemDto[]) =>
   [...items].sort((a, b) => Date.parse(a.dueDate) - Date.parse(b.dueDate));
 
+const dueMetaFor = (item: HandoverItemDto) => {
+  if (item.status === "completed") {
+    return { label: `完成 ${formatDate(item.updatedAt)} ${formatTime(item.updatedAt)}`, className: "bg-[#eef2f6] text-[#536175]" };
+  }
+  if (item.status === "expired") {
+    return { label: `已逾期 ${formatDate(item.dueDate)} ${formatTime(item.dueDate)}`, className: "bg-[#ffe8eb] text-[#ff4964]" };
+  }
+  const dueAt = Date.parse(item.dueDate);
+  const diff = dueAt - Date.now();
+  if (diff <= 60 * 60 * 1000) {
+    return { label: `1 小時內 ${formatTime(item.dueDate)}`, className: "bg-[#fff6e7] text-[#d27a16]" };
+  }
+  if (diff <= 24 * 60 * 60 * 1000) {
+    return { label: `今日 ${formatTime(item.dueDate)}`, className: "bg-[#eaf8ef] text-[#15935d]" };
+  }
+  return { label: `${formatDate(item.dueDate)} ${formatTime(item.dueDate)}`, className: "bg-[#eef6ff] text-[#1967d2]" };
+};
+
 function HandoverRow({
   item,
   onRead,
-  onReply,
+  onStartReply,
+  onReplyTextChange,
+  onCancelReply,
+  onSubmitReply,
   onComplete,
   onDelete,
   isPending,
+  isReplying,
+  replyText,
+  isReplySubmitting,
 }: {
   item: HandoverItemDto;
   onRead: (id: string) => void;
-  onReply: (id: string) => void;
+  onStartReply: (id: string) => void;
+  onReplyTextChange: (value: string) => void;
+  onCancelReply: () => void;
+  onSubmitReply: (id: string) => void;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
   isPending: boolean;
+  isReplying: boolean;
+  replyText: string;
+  isReplySubmitting: boolean;
 }) {
   const priority = item.priority ?? "normal";
+  const dueMeta = dueMetaFor(item);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   return (
     <article className="border-b border-dashed border-[#cfd9e5] px-4 py-4 last:border-b-0">
       <div className="flex gap-3">
@@ -74,38 +106,89 @@ function HandoverRow({
           {item.createdBy.slice(0, 1)}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-[14px] font-black text-[#10233f]">
+              <h3 className="text-[15px] font-black leading-6 text-[#10233f]">{item.title}</h3>
+              <p className="mt-0.5 truncate text-[12px] font-bold text-[#8b9aae]">
                 {item.createdBy}
-                <span className="ml-2 text-[12px] font-bold text-[#8b9aae]">E{item.id.padStart(3, "0")}</span>
+                <span className="mx-2">·</span>
+                E{item.id.padStart(3, "0")}
               </p>
               <p className="mt-1 text-[13px] font-medium leading-6 text-[#536175]">{item.content}</p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-black", dueMeta.className)}>
+                {dueMeta.label}
+              </span>
               <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-black", priorityClass[priority])}>
                 {item.status === "completed" ? "已處理" : priorityLabel[priority]}
               </span>
-              <span className="text-[12px] font-bold text-[#8b9aae]">{formatTime(item.dueDate)}</span>
             </div>
           </div>
-          {item.reportNote ? <p className="mt-2 rounded-[8px] bg-[#f7f9fb] px-3 py-2 text-[12px] font-bold text-[#637185]">{item.reportNote}</p> : null}
+          {item.reportNote ? (
+            <div className="mt-3 rounded-[8px] border border-[#edf2f7] bg-[#f7f9fb] px-3 py-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#8b9aae]">補充紀錄</p>
+              <p className="mt-1 whitespace-pre-wrap text-[12px] font-bold leading-5 text-[#637185]">{item.reportNote}</p>
+            </div>
+          ) : null}
+          {isReplying && isPending ? (
+            <div className="mt-3 rounded-[10px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
+              <label className="text-[12px] font-black text-[#536175]" htmlFor={`handover-reply-${item.id}`}>
+                補充內容
+              </label>
+              <textarea
+                id={`handover-reply-${item.id}`}
+                value={replyText}
+                onChange={(event) => onReplyTextChange(event.target.value)}
+                maxLength={1200}
+                className="mt-2 min-h-[92px] w-full rounded-[8px] border border-[#cfd9e5] bg-white p-3 text-[13px] font-bold leading-6 text-[#10233f] outline-none focus:border-[#0d2a50]"
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#8b9aae]">{replyText.length} / 1200 字</span>
+                <div className="flex gap-2">
+                  <button type="button" onClick={onCancelReply} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!replyText.trim() || isReplySubmitting}
+                    onClick={() => onSubmitReply(item.id)}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white disabled:opacity-50"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {isReplySubmitting ? "送出中..." : "送出補充"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
             {isPending ? (
               <>
                 <button type="button" onClick={() => onRead(item.id)} className="min-h-8 rounded-[7px] border border-[#cfd9e5] bg-white px-3 text-[12px] font-black text-[#536175]">
                   標記已讀
                 </button>
-                <button type="button" onClick={() => onReply(item.id)} className="min-h-8 rounded-[7px] border border-[#cfd9e5] bg-white px-3 text-[12px] font-black text-[#536175]">
-                  回覆補充
+                <button type="button" onClick={() => onStartReply(item.id)} className="min-h-8 rounded-[7px] border border-[#cfd9e5] bg-white px-3 text-[12px] font-black text-[#536175]">
+                  {isReplying ? "正在補充" : "回覆補充"}
                 </button>
                 <button type="button" onClick={() => onComplete(item.id)} className="min-h-8 rounded-[7px] border border-[#bfe9cf] bg-[#eaf8ef] px-3 text-[12px] font-black text-[#15935d]">
                   完成
                 </button>
-                <button type="button" onClick={() => onDelete(item.id)} className="inline-flex min-h-8 items-center gap-1 rounded-[7px] border border-[#ffc6cf] bg-white px-3 text-[12px] font-black text-[#ff4964]">
-                  <Trash2 className="h-3.5 w-3.5" />
-                  刪除
-                </button>
+                {!confirmingDelete ? (
+                  <button type="button" onClick={() => setConfirmingDelete(true)} className="inline-flex min-h-8 items-center gap-1 rounded-[7px] border border-[#ffc6cf] bg-white px-3 text-[12px] font-black text-[#ff4964]">
+                    <Trash2 className="h-3.5 w-3.5" />
+                    刪除
+                  </button>
+                ) : (
+                  <span className="inline-flex flex-wrap gap-2 rounded-[8px] bg-[#fff0f1] p-1">
+                    <button type="button" onClick={() => onDelete(item.id)} className="min-h-8 rounded-[7px] bg-[#ff4964] px-3 text-[12px] font-black text-white">
+                      確認刪除
+                    </button>
+                    <button type="button" onClick={() => setConfirmingDelete(false)} className="min-h-8 rounded-[7px] bg-white px-3 text-[12px] font-black text-[#536175]">
+                      取消
+                    </button>
+                  </span>
+                )}
               </>
             ) : (
               <span className="rounded-[7px] bg-[#eef2f6] px-3 py-1.5 text-[12px] font-black text-[#536175]">只讀檢視</span>
@@ -124,9 +207,12 @@ export default function EmployeeHandoverPage() {
   const trackEvent = useTrackEvent();
   const [tab, setTab] = useState<HandoverTab>("pending");
   const [query, setQuery] = useState("");
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dueDate, setDueDate] = useState(defaultDueDateTime);
   const [priority, setPriority] = useState<HandoverPriority>("normal");
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
 
   const handoverQuery = useQuery({
     queryKey: ["/api/bff/employee/handover/list", facilityKey],
@@ -141,12 +227,13 @@ export default function EmployeeHandoverPage() {
   const createMutation = useMutation({
     mutationFn: () => createEmployeeFrontDeskHandover({
       facilityKey,
-      title: content.trim().slice(0, 48) || "新增交接",
+      title: title.trim() || content.trim().slice(0, 48) || "新增交接",
       content: content.trim(),
       dueDate: new Date(dueDate).toISOString(),
       priority,
     }),
     onSuccess: () => {
+      setTitle("");
       setContent("");
       setDueDate(defaultDueDateTime());
       setPriority("normal");
@@ -165,17 +252,28 @@ export default function EmployeeHandoverPage() {
 
   const readMutation = useMutation({
     mutationFn: (id: string) => readEmployeeFrontDeskHandover(id),
-    onSuccess: invalidateHandovers,
+    onSuccess: () => {
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-read" });
+      invalidateHandovers();
+    },
   });
 
   const replyMutation = useMutation({
     mutationFn: ({ id, reportNote }: { id: string; reportNote: string }) => replyEmployeeFrontDeskHandover(id, reportNote),
-    onSuccess: invalidateHandovers,
+    onSuccess: () => {
+      setReplyingId(null);
+      setReplyText("");
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-reply" });
+      invalidateHandovers();
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteEmployeeFrontDeskHandover(id),
-    onSuccess: invalidateHandovers,
+    onSuccess: () => {
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-delete" });
+      invalidateHandovers();
+    },
   });
 
   const items = handoverQuery.data?.items ?? [];
@@ -227,15 +325,24 @@ export default function EmployeeHandoverPage() {
                   key={item.id}
                   item={item}
                   isPending={tab === "pending"}
+                  isReplying={replyingId === item.id}
+                  replyText={replyingId === item.id ? replyText : ""}
+                  isReplySubmitting={replyMutation.isPending}
                   onRead={(id) => readMutation.mutate(id)}
-                  onReply={(id) => {
-                    const reportNote = window.prompt("補充內容");
-                    if (reportNote?.trim()) replyMutation.mutate({ id, reportNote: reportNote.trim() });
+                  onStartReply={(id) => {
+                    setReplyingId(id);
+                    setReplyText("");
+                  }}
+                  onReplyTextChange={setReplyText}
+                  onCancelReply={() => {
+                    setReplyingId(null);
+                    setReplyText("");
+                  }}
+                  onSubmitReply={(id) => {
+                    if (replyText.trim()) replyMutation.mutate({ id, reportNote: replyText.trim() });
                   }}
                   onComplete={(id) => completeMutation.mutate(id)}
-                  onDelete={(id) => {
-                    if (window.confirm("確認刪除這筆交接？")) deleteMutation.mutate(id);
-                  }}
+                  onDelete={(id) => deleteMutation.mutate(id)}
                 />
               ))
             ) : (
@@ -255,12 +362,25 @@ export default function EmployeeHandoverPage() {
             <h2 className="text-[18px] font-black text-[#10233f]">新增交接</h2>
             <p className="mt-1 text-[12px] font-bold text-[#637185]">作者：{session?.displayName ?? "員工"} · 場館：{facilityKey}</p>
           </div>
+          <label className="mt-4 block text-[12px] font-black text-[#536175]" htmlFor="handover-title">
+            標題
+          </label>
+          <input
+            id="handover-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={140}
+            className="mt-2 min-h-10 w-full rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[14px] font-bold text-[#10233f] outline-none focus:border-[#0d2a50]"
+          />
+          <label className="mt-4 block text-[12px] font-black text-[#536175]" htmlFor="handover-content">
+            內容
+          </label>
           <textarea
+            id="handover-content"
             value={content}
             onChange={(event) => setContent(event.target.value)}
             maxLength={2000}
-            className="mt-4 min-h-[190px] w-full rounded-[8px] border border-[#9aa8ba] bg-white p-4 text-[14px] font-bold leading-6 text-[#10233f] outline-none focus:border-[#0d2a50]"
-            placeholder="請填寫交接內容（最多 2000 字）..."
+            className="mt-2 min-h-[190px] w-full rounded-[8px] border border-[#9aa8ba] bg-white p-4 text-[14px] font-bold leading-6 text-[#10233f] outline-none focus:border-[#0d2a50]"
           />
           <div className="mt-2 flex items-center justify-between text-[12px] font-bold text-[#8b9aae]">
             <span>{content.length} / 2000 字</span>
@@ -280,7 +400,7 @@ export default function EmployeeHandoverPage() {
             </div>
           </div>
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" onClick={() => setContent("")} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-4 text-[12px] font-black text-[#536175]">
+            <button type="button" onClick={() => { setTitle(""); setContent(""); }} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-4 text-[12px] font-black text-[#536175]">
               取消
             </button>
             <button type="button" disabled={!content.trim() || !dueDate || createMutation.isPending} onClick={() => createMutation.mutate()} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50">

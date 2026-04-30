@@ -8,6 +8,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  GraduationCap,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -21,11 +22,9 @@ import {
   ListChecks,
   Menu,
   MessageSquareText,
-  MoreHorizontal,
   PlusCircle,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
   StickyNote,
   Trash2,
@@ -56,13 +55,15 @@ import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import {
   createEmployeeResource,
   createEmployeeFrontDeskHandover,
-  deleteEmployeeResource,
   completeEmployeeFrontDeskHandover,
+  deleteEmployeeFrontDeskHandover,
   fetchEmployeeHome,
+  readEmployeeFrontDeskHandover,
+  replyEmployeeFrontDeskHandover,
   searchEmployeeWorkbench,
-  updateEmployeeResource,
   type EmployeeSearchResultDTO,
 } from "./api";
+import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { cn } from "@/lib/utils";
 import { facilityConfigs } from "@/config/facility-configs";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
@@ -78,31 +79,66 @@ const shortcutIcons = {
   cyan: FileText,
 };
 
+const shortcutIconsById: Record<string, LucideIcon> = {
+  clock: ClipboardCheck,
+  handover: MessageSquareText,
+  announcements: Bell,
+  events: CalendarDays,
+  documents: FileText,
+  "sticky-notes": StickyNote,
+  qna: BookOpen,
+};
+
+const getShortcutIcon = (shortcut: ShortcutSummary) =>
+  shortcutIconsById[shortcut.id] ?? shortcutIcons[shortcut.tone];
+
 const toneClass: Record<ShortcutSummary["tone"], string> = {
-  blue: "bg-[#edf5ff] text-[#1f6fd1]",
-  green: "bg-[#edfbf4] text-[#15935d]",
-  amber: "bg-[#fff6e7] text-[#d27a16]",
-  violet: "bg-[#f2efff] text-[#6947d8]",
-  rose: "bg-[#fff0f1] text-[#db4b5a]",
-  cyan: "bg-[#ecfbff] text-[#1487a8]",
+  blue: "bg-white/55 text-[#1f6fd1]",
+  green: "bg-white/55 text-[#15935d]",
+  amber: "bg-white/55 text-[#d27a16]",
+  violet: "bg-white/55 text-[#6947d8]",
+  rose: "bg-white/55 text-[#db4b5a]",
+  cyan: "bg-white/55 text-[#1487a8]",
+};
+
+const shortcutSurfaceClass: Record<ShortcutSummary["tone"], string> = {
+  blue: "border-[#c8ddf8] bg-[#eef6ff] hover:border-[#95bee9] hover:bg-[#e4f1ff]",
+  green: "border-[#bfe7d2] bg-[#eaf8f0] hover:border-[#8ed5ae] hover:bg-[#def3e9]",
+  amber: "border-[#efd5a5] bg-[#fff2d7] hover:border-[#e0b660] hover:bg-[#ffe9c4]",
+  violet: "border-[#d1c6fb] bg-[#efeaff] hover:border-[#aa98ef] hover:bg-[#e8e0ff]",
+  rose: "border-[#efc6cc] bg-[#ffedf0] hover:border-[#e497a4] hover:bg-[#ffe1e6]",
+  cyan: "border-[#bfe5ee] bg-[#e8f9fc] hover:border-[#8ccfdd] hover:bg-[#dcf4fa]",
 };
 
 const shortcutToneOptions: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
-const shortcutPreferenceKey = "junsi.cms.employee.quick-actions.v1";
+const shortcutPreferenceKey = "junsi.cms.employee.quick-actions.v4";
 const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
 const shortcutLimit = 7;
 
+const toOptionalIso = (date: string, time: string) => {
+  if (!date) return undefined;
+  const parsed = new Date(`${date}T${time || "00:00"}`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+};
+
 const shortcutCandidates: ShortcutSummary[] = [
-  { id: "clock", label: "點名 / 打卡", href: "/employee/checkins", tone: "blue" },
   { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
-  { id: "counter-handover", label: "櫃位交接", href: "/employee/handover", tone: "amber" },
   { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
-  { id: "events", label: "活動快訊", href: "/employee/activity-periods", tone: "green" },
+  { id: "events", label: "活動檔期", href: "/employee/activity-periods", tone: "amber" },
   { id: "documents", label: "常用文件", href: "/employee/documents", tone: "cyan" },
-  { id: "sticky-notes", label: "我的便利貼", href: "/employee/personal-note", tone: "blue" },
-  { id: "qna", label: "相關問題", href: "/employee/qna", tone: "violet" },
-  { id: "more", label: "更多入口", href: "/employee/more", tone: "rose" },
+  { id: "sticky-notes", label: "個人工作記事", href: "/employee/personal-note", tone: "rose" },
+  { id: "qna", label: "相關問題詢問", href: "/employee/qna", tone: "violet" },
 ];
+
+const normalizeActionableShortcuts = (shortcuts: ShortcutSummary[]) =>
+  shortcuts
+    .filter((shortcut) => {
+      const href = shortcut.href?.trim();
+      if (!href || href.startsWith("#")) return false;
+      if (shortcut.id === "more" || shortcut.id === "checkins" || href === "/employee/more") return false;
+      return true;
+    })
+    .slice(0, shortcutLimit);
 
 const iconByKey: Record<string, LucideIcon> = {
   home: Home,
@@ -113,6 +149,7 @@ const iconByKey: Record<string, LucideIcon> = {
   "book-open": BookOpen,
   "shield-check": ShieldCheck,
   "file-text": FileText,
+  "graduation-cap": GraduationCap,
   link: LinkIcon,
   search: Search,
 };
@@ -125,15 +162,36 @@ type EmployeeNavigationItem = {
   badge?: string;
 };
 
-const toEmployeeNavigationItems = (items: NavigationModuleDto[] | undefined): EmployeeNavigationItem[] =>
-  (items ?? [])
-    .filter((item) => item.routePath.startsWith("/employee"))
-    .map((item) => ({
-      id: item.id,
-      label: item.name,
-      icon: iconByKey[item.iconKey] ?? Home,
-      href: item.routePath,
-    }));
+const employeeNavigationSlots: Array<{
+  ids: string[];
+  label: string;
+  href: string;
+  iconKey: string;
+}> = [
+  { ids: ["employee-home", "dashboard"], label: "首頁", href: "/employee", iconKey: "home" },
+  { ids: ["handover"], label: "櫃台交接", href: "/employee/handover", iconKey: "message-square-text" },
+  { ids: ["activity-periods", "campaigns-events"], label: "活動檔期/課程快訊", href: "/employee/activity-periods", iconKey: "calendar-days" },
+  { ids: ["employee-resources", "quick-links"], label: "常用文件", href: "/employee/documents", iconKey: "file-text" },
+  { ids: ["employee-training"], label: "員工教材", href: "/employee/training", iconKey: "graduation-cap" },
+  { ids: ["personal-note"], label: "個人工作記事", href: "/employee/personal-note", iconKey: "file-text" },
+  { ids: ["knowledge-base-qna"], label: "相關問題詢問", href: "/employee/qna", iconKey: "book-open" },
+];
+
+const toEmployeeNavigationItems = (items: NavigationModuleDto[] | undefined): EmployeeNavigationItem[] => {
+  const apiItems = (items ?? []).filter((item) => item.routePath.startsWith("/employee"));
+  const sourceById = new Map(apiItems.map((item) => [item.id, item]));
+  return employeeNavigationSlots
+    .map((slot) => {
+      const source = slot.ids.map((id) => sourceById.get(id)).find(Boolean);
+      return {
+        id: source?.id ?? slot.ids[0],
+        label: slot.label,
+        icon: iconByKey[source?.iconKey ?? slot.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+        href: slot.href,
+      };
+    })
+    .filter((item): item is EmployeeNavigationItem => Boolean(item));
+};
 
 const formatShiftTime = (value?: string) => {
   if (!value) return "";
@@ -149,8 +207,22 @@ const formatShiftTimeLong = (value?: string) => {
   return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: true });
 };
 
+const formatShortDateTime = (value?: string | null) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(parsed);
+};
+
+const isInternalHref = (href?: string | null) => Boolean(href?.startsWith("/"));
+
 type HandoverHomePayload = {
-  title: "櫃台交辦";
+  title: "交辦事項";
   items: Array<Pick<HandoverItemDto, "id" | "title" | "dueDate" | "preview" | "status">>;
   totalPending: number;
   primaryAction: { label: "新增交辦事項"; action: "open_drawer" };
@@ -223,7 +295,7 @@ function DesktopSidebar() {
   });
   const items = toEmployeeNavigationItems(navigation.data?.items);
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col rounded-r-[18px] bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
+    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[18px] text-white" />
 
       <div className="mt-6 rounded-[8px] bg-white/8 p-3">
@@ -236,7 +308,7 @@ function DesktopSidebar() {
 
       <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
         {!items.length && navigation.isLoading ? (
-          <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中...</div>
+          <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
         ) : null}
         {items.map((item) => {
           const Icon = item.icon;
@@ -267,10 +339,6 @@ function DesktopSidebar() {
             <p className="text-[11px] text-[#b6c7d9]">員工</p>
           </div>
         </div>
-        <Link href="/employee/more" className="workbench-focus flex min-h-9 w-full items-center gap-3 rounded-[8px] px-3 text-[13px] text-[#d6e2ef] hover:bg-white/10">
-          <Settings className="h-4 w-4" />
-          設定
-        </Link>
       </div>
     </aside>
   );
@@ -318,7 +386,7 @@ function TopBar() {
         </label>
         <div className="flex items-center gap-2">
           <div className="hidden lg:block">
-            <RoleSwitcher />
+            <RoleSwitcher visualActiveRole="employee" />
           </div>
           <button className="workbench-focus hidden min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:inline-flex">
             員工
@@ -331,7 +399,7 @@ function TopBar() {
         </div>
       </div>
       <div className="border-t border-white/10 px-4 py-2 lg:hidden">
-        <RoleSwitcher compact />
+        <RoleSwitcher compact visualActiveRole="employee" />
       </div>
     </header>
   );
@@ -367,15 +435,17 @@ function Hero({
         <label className="mt-2 flex min-h-14 items-center gap-3 rounded-[8px] border border-[#dfe7ef] bg-white px-4 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.25)]">
           <Search className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
           <input
+            aria-label="快速搜尋"
+            name="employee-workbench-search"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
             className="min-w-0 flex-1 bg-transparent text-[16px] font-bold text-[#10233f] outline-none placeholder:text-[#8b9aae]"
-            placeholder="搜尋公告、交接、班表、入口、常見問題"
+            placeholder="搜尋公告、交接、班表、入口、常見問題…"
           />
         </label>
         {searchQuery.trim().length >= 2 ? (
           <div className="mt-2 max-w-[820px] rounded-[8px] border border-[#dfe7ef] bg-white p-2 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.45)]">
-            {isSearching ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">搜尋中...</div> : null}
+            {isSearching ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">搜尋中…</div> : null}
             {!isSearching && searchResults.length === 0 ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">沒有找到符合的資訊。</div> : null}
             {searchResults.map((item) => (
               <Link key={item.id} href={item.href} className="flex min-h-11 items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-[#f7f9fb]">
@@ -411,7 +481,7 @@ function TasksCard({ tasks }: { tasks: TaskSummary[] }) {
   const activeTasks = tasks.filter((task) => task.status !== "done");
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="今日任務" eyebrow="Tasks" />
+      <SectionTitle title="今日任務" eyebrow="Tasks" actionHref="/employee/tasks" />
       {activeTasks.length > 0 ? (
         <div className="space-y-3">
           {activeTasks.slice(0, 4).map((task) => (
@@ -460,22 +530,19 @@ function HandoverCard({
   const total = payload?.totalPending ?? items.length;
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="交辦事項" eyebrow="Handover" action="櫃台交接" actionHref="/employee/handover" />
+      <SectionTitle title="交辦事項" eyebrow="Handover" action="查看全部" actionHref="/employee/handover" />
       {total > 0 ? (
         <div className="space-y-3">
           {items.slice(0, 5).map((item) => (
             <button key={`handover-${item.id}`} type="button" onClick={onOpenDrawer} className="block w-full rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3 text-left">
               <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
-              <p className="mt-1 truncate text-[11px] font-bold text-[#8b9aae]">{item.preview || "尚無內容摘要"} · {item.dueDate ? new Date(item.dueDate).toLocaleString("zh-TW") : "未設定到期"}</p>
+              <p className="mt-1 truncate text-[11px] font-bold text-[#8b9aae]">{item.preview || "尚無內容摘要"} · {item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}</p>
             </button>
           ))}
-          <div className="grid grid-cols-2 gap-2 pt-1">
+          <div className="pt-1">
             <button type="button" onClick={onOpenDrawer} className="workbench-focus min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
               新增交辦事項
             </button>
-            <Link href="/employee/handover" className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-              查看全部
-            </Link>
           </div>
         </div>
       ) : (
@@ -483,30 +550,13 @@ function HandoverCard({
           <div className="grid h-14 w-14 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
             <MessageSquareText className="h-7 w-7" />
           </div>
-          <p className="mt-4 text-[16px] font-black text-[#10233f]">尚未設定櫃台交辦</p>
+          <p className="mt-4 text-[16px] font-black text-[#10233f]">尚未設定交辦事項</p>
           <p className="mt-1 text-[12px] font-medium text-[#637185]">請新增交辦事項</p>
           <button type="button" onClick={onOpenDrawer} className="workbench-focus mt-4 min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
             新增交辦事項
           </button>
         </div>
       )}
-    </WorkbenchCard>
-  );
-}
-
-function TutorBookingCard() {
-  return (
-    <WorkbenchCard className="p-5">
-      <SectionTitle title="今日家教預約" eyebrow="Private Coaching" />
-      <div className="grid min-h-[170px] place-items-center rounded-[8px] bg-[#f7f9fb] px-4 text-center">
-        <div>
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-[#8b9aae] shadow-sm">
-            <CalendarDays className="h-7 w-7" />
-          </div>
-          <p className="mt-4 text-[16px] font-black text-[#10233f]">功能尚未開放</p>
-          <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">之後接課程 / 預約資料來源</p>
-        </div>
-      </div>
     </WorkbenchCard>
   );
 }
@@ -528,6 +578,9 @@ function HandoverDrawer({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dueDate, setDueDate] = useState(defaultDueDateTime);
+  const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const createMutation = useMutation({
     mutationFn: () => createEmployeeFrontDeskHandover({ facilityKey, title: title.trim(), content: content.trim(), dueDate: new Date(dueDate).toISOString() }),
     onSuccess: () => {
@@ -538,6 +591,22 @@ function HandoverDrawer({
       onChanged();
     },
   });
+  const readMutation = useMutation({
+    mutationFn: (id: string) => readEmployeeFrontDeskHandover(id),
+    onSuccess: () => {
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-read" });
+      onChanged();
+    },
+  });
+  const replyMutation = useMutation({
+    mutationFn: ({ id, reportNote }: { id: string; reportNote: string }) => replyEmployeeFrontDeskHandover(id, reportNote),
+    onSuccess: () => {
+      setReplyingId(null);
+      setReplyText("");
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-reply" });
+      onChanged();
+    },
+  });
   const completeMutation = useMutation({
     mutationFn: (id: string) => completeEmployeeFrontDeskHandover(id),
     onSuccess: () => {
@@ -545,14 +614,22 @@ function HandoverDrawer({
       onChanged();
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteEmployeeFrontDeskHandover(id),
+    onSuccess: () => {
+      setConfirmingDeleteId(null);
+      trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-delete" });
+      onChanged();
+    },
+  });
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="櫃台交辦">
-      <button type="button" aria-label="關閉櫃台交辦" className="absolute inset-0 cursor-default" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="交辦事項">
+      <button type="button" aria-label="關閉交辦事項" className="absolute inset-0 cursor-default" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-[420px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
         <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">櫃台交辦</h2>
+            <h2 className="text-[18px] font-black text-[#10233f]">交辦事項</h2>
             <p className="text-[12px] font-bold text-[#637185]">新增交辦事項並追蹤 pending 狀態</p>
           </div>
           <button type="button" onClick={onClose} className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[#536175]">
@@ -562,19 +639,23 @@ function HandoverDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="rounded-[8px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
             <div className="grid gap-2">
+              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-title">標題</label>
               <input
+                id="home-handover-title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none"
-                placeholder="title 標題"
               />
+              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-content">內容</label>
               <textarea
+                id="home-handover-content"
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 className="min-h-24 rounded-[8px] border border-[#dfe7ef] bg-white p-3 text-[13px] font-bold text-[#10233f] outline-none"
-                placeholder="content 內容"
               />
+              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-due-date">到期時間</label>
               <input
+                id="home-handover-due-date"
                 type="datetime-local"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
@@ -602,8 +683,53 @@ function HandoverDrawer({
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
                     <p className="mt-1 line-clamp-2 text-[12px] font-medium text-[#637185]">{item.preview || "尚無內容摘要"}</p>
-                    <p className="mt-2 text-[11px] font-bold text-[#8b9aae]">{item.dueDate ? new Date(item.dueDate).toLocaleString("zh-TW") : "未設定到期"}</p>
+                    <p className="mt-2 text-[11px] font-bold text-[#8b9aae]">{item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}</p>
                   </div>
+                </div>
+                {replyingId === item.id ? (
+                  <div className="mt-3 rounded-[8px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
+                    <label className="text-[12px] font-black text-[#536175]" htmlFor={`home-handover-reply-${item.id}`}>補充內容</label>
+                    <textarea
+                      id={`home-handover-reply-${item.id}`}
+                      value={replyText}
+                      onChange={(event) => setReplyText(event.target.value)}
+                      maxLength={1200}
+                      className="mt-2 min-h-[86px] w-full rounded-[8px] border border-[#dfe7ef] bg-white p-3 text-[13px] font-bold leading-6 text-[#10233f] outline-none focus:border-[#0d2a50]"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#8b9aae]">{replyText.length} / 1200 字</span>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => { setReplyingId(null); setReplyText(""); }} className="min-h-8 rounded-[7px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#536175]">
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!replyText.trim() || replyMutation.isPending}
+                          onClick={() => replyMutation.mutate({ id: item.id, reportNote: replyText.trim() })}
+                          className="min-h-8 rounded-[7px] bg-[#0d2a50] px-3 text-[11px] font-black text-white disabled:opacity-50"
+                        >
+                          {replyMutation.isPending ? "送出中" : "送出補充"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={readMutation.isPending}
+                    onClick={() => readMutation.mutate(item.id)}
+                    className="workbench-focus rounded-[8px] border border-[#dfe7ef] bg-white px-2 py-1 text-[11px] font-black text-[#536175] disabled:opacity-50"
+                  >
+                    標記已讀
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setReplyingId(item.id); setReplyText(""); }}
+                    className="workbench-focus rounded-[8px] border border-[#dfe7ef] bg-white px-2 py-1 text-[11px] font-black text-[#536175]"
+                  >
+                    {replyingId === item.id ? "正在補充" : "回覆補充"}
+                  </button>
                   <button
                     type="button"
                     disabled={completeMutation.isPending}
@@ -612,10 +738,34 @@ function HandoverDrawer({
                   >
                     完成
                   </button>
+                  {confirmingDeleteId !== item.id ? (
+                    <button
+                      type="button"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => setConfirmingDeleteId(item.id)}
+                      className="workbench-focus rounded-[8px] border border-[#ffc6cf] bg-white px-2 py-1 text-[11px] font-black text-[#ff4964] disabled:opacity-50"
+                    >
+                      刪除
+                    </button>
+                  ) : (
+                    <span className="flex flex-wrap gap-2 rounded-[8px] bg-[#fff0f1] p-1">
+                      <button
+                        type="button"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => deleteMutation.mutate(item.id)}
+                        className="min-h-8 rounded-[7px] bg-[#ff4964] px-2 text-[11px] font-black text-white disabled:opacity-50"
+                      >
+                        {deleteMutation.isPending ? "刪除中" : "確認刪除"}
+                      </button>
+                      <button type="button" onClick={() => setConfirmingDeleteId(null)} className="min-h-8 rounded-[7px] bg-white px-2 text-[11px] font-black text-[#536175]">
+                        取消
+                      </button>
+                    </span>
+                  )}
                 </div>
               </article>
             )) : (
-              <div className="rounded-[8px] bg-[#f7f9fb] p-5 text-center text-[13px] font-bold text-[#637185]">尚未設定櫃台交辦</div>
+              <div className="rounded-[8px] bg-[#f7f9fb] p-5 text-center text-[13px] font-bold text-[#637185]">尚未設定交辦事項</div>
             )}
           </div>
         </div>
@@ -681,6 +831,11 @@ const readShortcutPreference = (): ShortcutSummary[] | null => {
   }
 };
 
+const writeShortcutPreference = (shortcuts: ShortcutSummary[]) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(shortcutPreferenceKey, JSON.stringify(shortcuts.slice(0, shortcutLimit)));
+};
+
 const mergeShortcutPreference = (source: ShortcutSummary[], preference: ShortcutSummary[] | null): ShortcutSummary[] => {
   const sourceItems = source.slice(0, shortcutLimit);
   const sourceById = new Map(sourceItems.map((item) => [item.id, item]));
@@ -688,10 +843,9 @@ const mergeShortcutPreference = (source: ShortcutSummary[], preference: Shortcut
   for (const saved of preference ?? []) {
     const base = sourceById.get(saved.id);
     if (!base) continue;
-    const savedLabel = saved.id === "handover" && saved.label.trim() === "交接事項" ? base.label : saved.label.trim();
     merged.push({
       ...base,
-      label: savedLabel || base.label,
+      label: base.label,
       href: normalizeShortcutHref(saved.href, base.href),
       tone: isShortcutTone(saved.tone) ? saved.tone : base.tone,
     });
@@ -705,7 +859,7 @@ const mergeShortcutPreference = (source: ShortcutSummary[], preference: Shortcut
 };
 
 function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
-  const baseShortcuts = useMemo(() => shortcuts.slice(0, shortcutLimit), [shortcuts]);
+  const baseShortcuts = useMemo(() => normalizeActionableShortcuts(shortcuts), [shortcuts]);
   const [isEditing, setIsEditing] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -715,17 +869,13 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
     setCustomShortcuts(mergeShortcutPreference(baseShortcuts, readShortcutPreference()));
   }, [baseShortcuts]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(shortcutPreferenceKey, JSON.stringify(customShortcuts));
-  }, [customShortcuts]);
-
   const moveShortcut = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= customShortcuts.length) return;
     setCustomShortcuts((current) => {
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      writeShortcutPreference(next);
       return next;
     });
   };
@@ -743,19 +893,26 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
       const next = [...current];
       const [moved] = next.splice(dragIndex, 1);
       next.splice(targetIndex, 0, moved);
+      writeShortcutPreference(next);
       return next;
     });
     setDragIndex(null);
   };
 
   const removeShortcut = (id: string) => {
-    setCustomShortcuts((current) => current.filter((item) => item.id !== id));
+    setCustomShortcuts((current) => {
+      const next = current.filter((item) => item.id !== id);
+      writeShortcutPreference(next);
+      return next;
+    });
   };
 
   const addShortcut = (shortcut: ShortcutSummary) => {
     setCustomShortcuts((current) => {
       if (current.some((item) => item.id === shortcut.id) || current.length >= shortcutLimit) return current;
-      return [...current, shortcut];
+      const next = [...current, shortcut];
+      writeShortcutPreference(next);
+      return next;
     });
     setShowAddMenu(false);
   };
@@ -818,7 +975,7 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
       ) : null}
       <div className={cn("grid gap-3", isEditing ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-7" : "grid-cols-3 sm:grid-cols-4 lg:grid-cols-7")}>
         {customShortcuts.map((shortcut, index) => {
-          const Icon = shortcutIcons[shortcut.tone];
+          const Icon = getShortcutIcon(shortcut);
           return isEditing ? (
             <div
               key={shortcut.id}
@@ -828,8 +985,9 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
               onDrop={() => dropShortcut(index)}
               onDragEnd={() => setDragIndex(null)}
               className={cn(
-                "relative flex min-h-[92px] cursor-grab flex-col items-center justify-center gap-2 rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3 text-center transition",
-                dragIndex === index ? "scale-[0.98] opacity-60" : "hover:border-[#9dd84f] hover:bg-white",
+                "relative flex min-h-[92px] cursor-grab flex-col items-center justify-center gap-2 rounded-[8px] border p-3 text-center shadow-[0_12px_28px_-26px_rgba(15,34,58,0.45)] transition-[transform,box-shadow,border-color,background-color]",
+                shortcutSurfaceClass[shortcut.tone],
+                dragIndex === index ? "scale-[0.98] opacity-60" : "hover:-translate-y-0.5 hover:shadow-md",
               )}
             >
               <button
@@ -849,11 +1007,20 @@ function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
               <span className="max-w-full truncate text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
             </div>
           ) : (
-            <a key={shortcut.id} href={shortcut.href} className="group flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[8px] bg-[#fbfcfd] px-2 text-center transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md">
+            <a
+              key={shortcut.id}
+              href={shortcut.href}
+              target={isInternalHref(shortcut.href) ? undefined : "_blank"}
+              rel={isInternalHref(shortcut.href) ? undefined : "noreferrer"}
+              className={cn(
+                "group flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[8px] border px-2 text-center shadow-[0_12px_28px_-26px_rgba(15,34,58,0.45)] transition-[transform,box-shadow,border-color,background-color] hover:-translate-y-0.5 hover:shadow-md",
+                shortcutSurfaceClass[shortcut.tone],
+              )}
+            >
               <span className={cn("grid h-10 w-10 place-items-center rounded-[8px]", toneClass[shortcut.tone])}>
                 <Icon className="h-5 w-5" />
               </span>
-              <span className="text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
+              <span className="max-w-full truncate text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
             </a>
           );
         })}
@@ -902,12 +1069,16 @@ function AddResourceForm({
     <div className="rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
       <div className="grid gap-2">
         <input
+          aria-label={titlePlaceholder}
+          name={`${category}-title`}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
           placeholder={titlePlaceholder}
         />
         <input
+          aria-label={contentPlaceholder}
+          name={`${category}-content`}
           value={content}
           onChange={(event) => setContent(event.target.value)}
           className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
@@ -915,6 +1086,10 @@ function AddResourceForm({
         />
         {urlPlaceholder ? (
           <input
+            aria-label={urlPlaceholder}
+            name={`${category}-url`}
+            type="url"
+            inputMode="url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
@@ -928,7 +1103,7 @@ function AddResourceForm({
           className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
-          {mutation.isPending ? "新增中..." : "新增"}
+          {mutation.isPending ? "新增中…" : "新增"}
         </button>
         {mutation.isError ? <p className="text-[11px] font-bold text-[#ff4964]">新增失敗，請確認欄位格式。</p> : null}
       </div>
@@ -936,59 +1111,8 @@ function AddResourceForm({
   );
 }
 
-function ResourceActions({
-  resourceId,
-  title,
-  content,
-  url,
-  onChanged,
-}: {
-  resourceId?: number;
-  title: string;
-  content?: string;
-  url?: string;
-  onChanged: () => void;
-}) {
-  const updateMutation = useMutation({
-    mutationFn: (next: { title: string; content?: string | null; url?: string | null }) => updateEmployeeResource(resourceId!, next),
-    onSuccess: onChanged,
-  });
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteEmployeeResource(resourceId!),
-    onSuccess: onChanged,
-  });
-  if (!resourceId) return null;
-  return (
-    <div className="mt-2 flex gap-2">
-      <button
-        type="button"
-        onClick={() => {
-          const nextTitle = window.prompt("標題", title);
-          if (nextTitle === null) return;
-          const nextContent = window.prompt("內容 / 備註", content || "");
-          if (nextContent === null) return;
-          const nextUrl = url === undefined ? undefined : window.prompt("連結", url || "");
-          updateMutation.mutate({ title: nextTitle, content: nextContent || null, url: nextUrl === undefined ? undefined : nextUrl || null });
-        }}
-        className="rounded-[6px] bg-white px-2 py-1 text-[10px] font-black text-[#536175]"
-      >
-        編輯
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          if (window.confirm("確認刪除？")) deleteMutation.mutate();
-        }}
-        className="rounded-[6px] bg-[#fff0f1] px-2 py-1 text-[10px] font-black text-[#db4b5a]"
-      >
-        刪除
-      </button>
-    </div>
-  );
-}
-
 function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onChanged: () => void }) {
-  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動 / 課程快訊。</div>;
+  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>;
   return (
     <div className="space-y-3">
       {campaigns.map((campaign) => (
@@ -1003,7 +1127,7 @@ function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onC
             </div>
             <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
           </a>
-          <ResourceActions resourceId={campaign.resourceId} title={campaign.title} content={campaign.effectiveRange} url={campaign.linkUrl} onChanged={onChanged} />
+          <EmployeeResourceActions resourceId={campaign.resourceId} title={campaign.title} content={campaign.effectiveRange} url={campaign.linkUrl} onChanged={onChanged} />
         </div>
       ))}
     </div>
@@ -1023,7 +1147,7 @@ function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; 
               <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
             </span>
           </a>
-          <ResourceActions resourceId={doc.resourceId} title={doc.title} content={doc.description} url={doc.url} onChanged={onChanged} />
+          <EmployeeResourceActions resourceId={doc.resourceId} title={doc.title} content={doc.description} url={doc.url} onChanged={onChanged} />
         </div>
       ))}
     </div>
@@ -1046,8 +1170,9 @@ function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteS
           <div key={note.id} className="rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3">
             <p className="text-[13px] font-black text-[#10233f]">{note.title}</p>
             <p className="mt-1 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
+            {note.scheduledAt ? <p className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
             <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
-            <ResourceActions resourceId={note.resourceId} title={note.title} content={note.content} onChanged={onCreated} />
+            <EmployeeResourceActions resourceId={note.resourceId} title={note.title} content={note.content} scheduledAt={note.scheduledAt} onChanged={onCreated} showScheduledAtField />
           </div>
         ))}
       </div>
@@ -1061,12 +1186,12 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
     <WorkbenchCard className="p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-bold text-[#10233f]">活動 / 課程快訊</h2>
+          <h2 className="text-[15px] font-bold text-[#10233f]">活動檔期 / 課程快訊</h2>
           <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Events</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button type="button" onClick={() => setShowComposer((current) => !current)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
-            員工可新增
+            新增快訊
             <span aria-hidden>＋</span>
           </button>
           <Link href="/employee/activity-periods" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
@@ -1080,9 +1205,9 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
           <AddResourceForm
             category="event"
             facilityKey={facilityKey}
-            titlePlaceholder="活動 / 課程名稱"
+            titlePlaceholder="活動檔期 / 課程名稱"
             contentPlaceholder="時間或備註"
-            urlPlaceholder="報名或說明連結 https://..."
+            urlPlaceholder="報名或說明連結 https://…"
             onCreated={() => {
               setShowComposer(false);
               onChanged();
@@ -1103,7 +1228,7 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
             <span className="shrink-0 rounded-full bg-[#edf8f2] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
           </Link>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動 / 課程快訊。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1115,29 +1240,39 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
     <WorkbenchCard className="p-5">
       <SectionTitle title="常用文件" eyebrow="Documents" action="查看更多" actionHref="/employee/documents" />
       <div className="space-y-2">
-        {documents.length ? documents.slice(0, 4).map((doc) => (
-          <a
-            key={doc.id}
-            href={doc.url || undefined}
-            target={doc.url ? "_blank" : undefined}
-            rel={doc.url ? "noreferrer" : undefined}
-            aria-disabled={!doc.url}
-            className={cn(
-              "flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2",
-              doc.url ? "hover:bg-[#f7f9fb]" : "cursor-not-allowed opacity-70",
-            )}
-            onClick={(event) => {
-              if (!doc.url) event.preventDefault();
-            }}
-          >
-            <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
-              <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
-          </a>
-        )) : (
+        {documents.length ? documents.slice(0, 4).map((doc) => {
+          const className = cn(
+            "flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2",
+            doc.url ? "hover:bg-[#f7f9fb]" : "cursor-not-allowed opacity-70",
+          );
+          const content = (
+            <>
+              <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
+                <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
+              </span>
+              {doc.url ? <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8ba]" /> : <span className="shrink-0 rounded-full bg-[#eef2f6] px-2 py-1 text-[10px] font-black text-[#637185]">未綁連結</span>}
+            </>
+          );
+          return doc.url && isInternalHref(doc.url) ? (
+            <Link key={doc.id} href={doc.url} className={className}>{content}</Link>
+          ) : (
+            <a
+              key={doc.id}
+              href={doc.url || undefined}
+              target={doc.url ? "_blank" : undefined}
+              rel={doc.url ? "noreferrer" : undefined}
+              aria-disabled={!doc.url}
+              className={className}
+              onClick={(event) => {
+                if (!doc.url) event.preventDefault();
+              }}
+            >
+              {content}
+            </a>
+          );
+        }) : (
           <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>
         )}
       </div>
@@ -1162,8 +1297,11 @@ function StickyNoteComposer({
     if (typeof window === "undefined") return "";
     return window.localStorage.getItem(quickNoteDraftKey) ?? "";
   });
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
   const canSubmit = draft.trim().length > 0;
+  const scheduledAt = toOptionalIso(scheduledDate, scheduledTime);
   const mutation = useMutation({
     mutationFn: () => {
       const content = draft.trim();
@@ -1174,10 +1312,13 @@ function StickyNoteComposer({
         title: firstLine.slice(0, 60),
         content,
         isPinned: true,
+        scheduledAt,
       });
     },
     onSuccess: () => {
       setDraft("");
+      setScheduledDate("");
+      setScheduledTime("");
       setSavedMessage("已新增，可繼續記下一則。");
       if (typeof window !== "undefined") window.localStorage.removeItem(quickNoteDraftKey);
       window.setTimeout(() => setSavedMessage(""), 1800);
@@ -1237,8 +1378,10 @@ function StickyNoteComposer({
         <div data-quick-note-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
           <div className="rounded-[12px] border border-[#f0dfaa] bg-[#fffdf0] p-4 shadow-[0_20px_50px_-42px_rgba(15,34,58,0.4)]">
             <label className="sr-only" htmlFor="quick-note-draft">今天要記什麼</label>
+            <p className="mb-2 text-[12px] font-black text-[#7a6b45]">內容</p>
             <textarea
               id="quick-note-draft"
+              name="quick-note-draft"
               ref={textareaRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -1248,18 +1391,39 @@ function StickyNoteComposer({
                   mutation.mutate();
                 }
               }}
-              className="min-h-[220px] w-full resize-none rounded-[10px] border border-[#eadba8] bg-white/80 p-4 text-[15px] font-bold leading-7 text-[#10233f] outline-none placeholder:text-[#9a8b65] focus:border-[#d3b95f]"
-              placeholder={"今天要記什麼？\n例如：王小姐下次來要補發票"}
+              className="min-h-[220px] w-full resize-none rounded-[10px] border border-[#eadba8] bg-white/80 p-4 text-[15px] font-bold leading-7 text-[#10233f] outline-none focus:border-[#d3b95f]"
             />
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-[12px] font-black text-[#7a6b45]">
+                日期
+                <input
+                  name="quick-note-date"
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(event) => setScheduledDate(event.target.value)}
+                  className="min-h-10 rounded-[8px] border border-[#eadba8] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none focus:border-[#d3b95f]"
+                />
+              </label>
+              <label className="grid gap-1 text-[12px] font-black text-[#7a6b45]">
+                時間
+                <input
+                  name="quick-note-time"
+                  type="time"
+                  value={scheduledTime}
+                  onChange={(event) => setScheduledTime(event.target.value)}
+                  className="min-h-10 rounded-[8px] border border-[#eadba8] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none focus:border-[#d3b95f]"
+                />
+              </label>
+            </div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-bold text-[#9a8b65]">Ctrl / Cmd + Enter 新增，Esc 關閉。草稿會暫存。</p>
+              <span />
               <button
                 type="button"
                 disabled={!canSubmit || mutation.isPending}
                 onClick={() => mutation.mutate()}
                 className="min-h-10 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50"
               >
-                {mutation.isPending ? "新增中..." : "新增便利貼"}
+                {mutation.isPending ? "新增中…" : "新增便利貼"}
               </button>
             </div>
             {savedMessage ? <p className="mt-2 text-[12px] font-black text-[#15935d]" role="status">{savedMessage}</p> : null}
@@ -1275,6 +1439,7 @@ function StickyNoteComposer({
               <article key={note.id} className="rounded-[10px] border border-[#f0dfaa] bg-[#fff9df] p-3">
                 <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
                 <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
+                {note.scheduledAt ? <p className="mt-2 text-[11px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
               </article>
             )) : (
               <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增便利貼。</div>
@@ -1313,6 +1478,7 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
           <button key={note.id} type="button" onClick={() => setComposerOpen(true)} className="block w-full rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3 text-left hover:bg-[#fff4c8]">
             <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
             <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
+            {note.scheduledAt ? <p className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
             <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
           </button>
         )) : (
@@ -1391,7 +1557,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
 function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
   const shiftBoard = isShiftBoardPayload(home.homeCards?.shiftReminder.payload) ? home.homeCards?.shiftReminder.payload : undefined;
   return (
-    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+    <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-4">
       {visibleKeys.has("shifts") ? <ShiftBoardCard board={shiftBoard} /> : null}
       {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
       {visibleKeys.has("documents") ? <CompactDocumentsCard documents={home.documents.data ?? []} /> : null}
@@ -1412,7 +1578,7 @@ function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
       {!items.length && navigation.isLoading ? (
-        <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中...</div>
+        <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中…</div>
       ) : null}
       {items.map((item) => {
         const Icon = item.icon;
@@ -1425,7 +1591,7 @@ function BottomNav() {
             className={cn("workbench-focus flex min-h-12 flex-col items-center justify-center gap-1 rounded-[8px] text-[11px] font-black", active ? "bg-[#eef5ff] text-[#1f6fd1]" : "text-[#6c7a8e]")}
           >
             <Icon className="h-5 w-5" />
-            {item.label}
+            <span className="max-w-full truncate px-1">{item.label}</span>
           </Link>
         );
       })}
@@ -1501,10 +1667,10 @@ export default function EmployeeHomePage() {
               {primaryWidgets.length ? (
                 <>
                   <motion.div variants={riseIn} className="hidden gap-4 lg:grid lg:grid-cols-3">
-                    {["handover", "booking", "announcements"].map((key) => {
-                      if (key !== "booking" && !primaryWidgets.some((widget) => widget.key === key)) return null;
-                      if (key === "booking") return <TutorBookingCard key={key} />;
+                    {["handover", "tasks", "announcements"].map((key) => {
+                      if (!primaryWidgets.some((widget) => widget.key === key)) return null;
                       if (key === "handover") return <HandoverCard key={key} handovers={data.handover.data ?? []} payload={handoverPayload} onOpenDrawer={() => setHandoverDrawerOpen(true)} />;
+                      if (key === "tasks") return <TasksCard key={key} tasks={data.tasks.data ?? []} />;
                       if (key === "announcements") return <AnnouncementCard key={key} announcements={data.announcements.data ?? []} />;
                       return null;
                     })}
