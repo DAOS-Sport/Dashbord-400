@@ -174,7 +174,8 @@ export type WorkLogShift = "morning" | "noon" | "night";
 export type WorkLogTaskSource = "daily" | "assigned" | "recurring";
 export type WorkLogInputType =
   | "checkbox" | "text" | "textarea" | "number" | "select" | "multiselect"
-  | "time" | "date" | "rating" | "photo" | "number_photo" | "checkbox_photo";
+  | "time" | "date" | "rating" | "photo" | "number_photo" | "checkbox_photo"
+  | "yes_no" | "on_off" | "yes_no_remark" | "water_quality_form";
 
 export interface WorkLogTaskItem {
   source: WorkLogTaskSource;

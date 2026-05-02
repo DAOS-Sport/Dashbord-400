@@ -153,6 +153,15 @@ export interface IStorage {
 
   listWaterQualityRecords(opts: { facilityKey: string; workDate?: string; shiftType?: string; limit?: number }): Promise<WaterQualityRecord[]>;
   createWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord>;
+  /**
+   * Insert-or-update a water quality record.
+   * - If `input.scheduleId` is provided, the natural key is
+   *   `(facilityKey, workDate, shiftType, scheduleId)` — when an existing
+   *   row matches, it is updated in place; otherwise a new row is inserted.
+   * - If `input.scheduleId` is null/undefined, this falls back to a plain
+   *   insert (ad-hoc, off-schedule entries always create a new row).
+   */
+  upsertWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord>;
 
   listLifeguardHandoverNotes(opts: { facilityKey: string; workDate?: string; toShift?: string; fromShift?: string; limit?: number }): Promise<LifeguardHandoverNote[]>;
   getLifeguardHandoverNoteById(id: number): Promise<LifeguardHandoverNote | undefined>;
@@ -822,6 +831,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord> {
+    const [row] = await db.insert(waterQualityRecords).values(input).returning();
+    return row;
+  }
+
+  async upsertWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord> {
+    if (input.scheduleId !== undefined && input.scheduleId !== null) {
+      const [existing] = await db.select().from(waterQualityRecords).where(and(
+        eq(waterQualityRecords.facilityKey, input.facilityKey),
+        eq(waterQualityRecords.workDate, input.workDate),
+        eq(waterQualityRecords.shiftType, input.shiftType),
+        eq(waterQualityRecords.scheduleId, input.scheduleId),
+      )).limit(1);
+      if (existing) {
+        const [updated] = await db.update(waterQualityRecords)
+          .set({
+            poolName: input.poolName,
+            scheduledTime: input.scheduledTime ?? existing.scheduledTime,
+            measurements: input.measurements,
+            isAbnormal: input.isAbnormal ?? false,
+            abnormalNote: input.abnormalNote ?? null,
+            photoUrls: input.photoUrls ?? null,
+            recordedBy: input.recordedBy ?? existing.recordedBy,
+            recordedByName: input.recordedByName ?? existing.recordedByName,
+            recordedAt: new Date(),
+          })
+          .where(eq(waterQualityRecords.id, existing.id))
+          .returning();
+        return updated;
+      }
+    }
     const [row] = await db.insert(waterQualityRecords).values(input).returning();
     return row;
   }

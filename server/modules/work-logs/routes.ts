@@ -483,17 +483,66 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       }
       if (abnormals.length > 0) isAbnormal = true;
 
-      const row = await storage.createWaterQualityRecord({
+      const finalNote = parsed.data.abnormalNote ?? (abnormals.length > 0 ? abnormals.join("；") : null);
+      // Upsert by (facilityKey, workDate, shiftType, scheduleId) so editing an
+      // existing slot's record updates in place instead of creating duplicates.
+      const row = await storage.upsertWaterQualityRecord({
         ...parsed.data,
         isAbnormal,
-        abnormalNote: parsed.data.abnormalNote ?? (abnormals.length > 0 ? abnormals.join("；") : null),
+        abnormalNote: finalNote,
         recordedBy: caller.employeeNumber,
         recordedByName: caller.name,
       });
+
+      // Auto-create an anomaly_report when the saved record is abnormal so
+      // supervisors are alerted via the existing anomaly pipeline. Failure to
+      // create the anomaly report is non-fatal (we still return the saved
+      // water-quality record).
+      if (isAbnormal) {
+        try {
+          const measurementSummary = Object.entries(parsed.data.measurements ?? {})
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", ");
+          await storage.createAnomalyReport({
+            employeeName: caller.name,
+            employeeCode: caller.employeeNumber,
+            role: "lifeguard",
+            context: `water_quality:${parsed.data.facilityKey}:${parsed.data.poolName}`,
+            venueName: parsed.data.poolName,
+            failReason: abnormals.length > 0 ? abnormals.join("；") : (finalNote ?? "水質異常"),
+            userNote: finalNote,
+            imageUrls: parsed.data.photoUrls && parsed.data.photoUrls.length > 0 ? parsed.data.photoUrls : null,
+            reportText: `[救生員日誌] ${parsed.data.workDate} ${parsed.data.shiftType} ${parsed.data.poolName} 水質異常\n量測值：${measurementSummary}\n紀錄ID：${row.id}`,
+            facilityKey: parsed.data.facilityKey,
+            source: "manual",
+          });
+        } catch (anomalyErr) {
+          console.error("[work-logs] water-quality anomaly report creation failed (non-fatal)", anomalyErr);
+        }
+      }
       res.json({ item: row });
     } catch (e) {
       console.error("[work-logs] water-quality failed", e);
       res.status(500).json({ message: "儲存水質紀錄失敗" });
+    }
+  });
+
+  // Employee-accessible water quality standards lookup (used by the
+  // WaterQualityForm to display target ranges and live-validate inputs).
+  app.get("/api/work-logs/water-standards", requireEmployee(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey || "");
+      const poolName = req.query.poolName ? String(req.query.poolName) : undefined;
+      if (!facilityKey) return res.status(400).json({ message: "facilityKey 必填" });
+      const caller = getCaller(req);
+      if (!canAccessFacility(req, caller, facilityKey)) {
+        return res.status(403).json({ message: "無此館別權限" });
+      }
+      const items = await storage.listWaterQualityStandards({ facilityKey, poolName });
+      res.json({ items });
+    } catch (e) {
+      console.error("[work-logs] water-standards lookup failed", e);
+      res.status(500).json({ message: "查詢水質標準失敗" });
     }
   });
 

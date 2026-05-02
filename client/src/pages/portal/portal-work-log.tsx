@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
 import PhotoUpload from "@/components/work-log/PhotoUpload";
+import WaterQualityForm from "@/components/work-log/WaterQualityForm";
 import {
   useTodayWorkLog,
   useCompleteTask,
@@ -23,6 +24,7 @@ import type {
   WorkLogTaskItem,
   LifeguardHandoverItem,
   WaterQualitySlot,
+  WaterQualityRecordDTO,
 } from "@/types/portal";
 
 const SHIFT_LABEL: Record<WorkLogShift, string> = { morning: "早班", noon: "中班", night: "晚班" };
@@ -62,9 +64,11 @@ interface TaskInputProps {
   onChange: (value: Record<string, unknown>) => void;
   disabled: boolean;
   facilityKey: string;
+  workDate: string;
+  shiftType: WorkLogShift;
 }
 
-function TaskInputRenderer({ task, draftValue, onChange, disabled, facilityKey }: TaskInputProps) {
+function TaskInputRenderer({ task, draftValue, onChange, disabled, facilityKey, workDate, shiftType }: TaskInputProps) {
   const value = (draftValue ?? task.inputValue ?? {}) as Record<string, unknown>;
   const config = (task.inputConfig ?? {}) as Record<string, unknown>;
 
@@ -211,6 +215,100 @@ function TaskInputRenderer({ task, draftValue, onChange, disabled, facilityKey }
         </div>
       );
     }
+    case "yes_no":
+    case "on_off": {
+      const isYesNo = task.inputType === "yes_no";
+      const yesLabel = isYesNo ? "是" : "ON";
+      const noLabel = isYesNo ? "否" : "OFF";
+      const current = typeof value.choice === "string" ? value.choice : "";
+      const pick = (v: "yes" | "no") => onChange({ ...value, choice: v });
+      const yesActive = current === "yes";
+      const noActive = current === "no";
+      return (
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => pick("yes")}
+            disabled={disabled}
+            className={`flex-1 h-12 rounded-xl text-base font-bold border-2 transition ${yesActive ? "bg-emerald-500 text-white border-emerald-500 shadow" : "bg-white text-slate-600 border-slate-300 hover:border-emerald-400"}`}
+            data-testid={`input-${task.inputType}-yes-${task.source}-${task.refId}`}
+          >
+            {yesLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => pick("no")}
+            disabled={disabled}
+            className={`flex-1 h-12 rounded-xl text-base font-bold border-2 transition ${noActive ? "bg-rose-500 text-white border-rose-500 shadow" : "bg-white text-slate-600 border-slate-300 hover:border-rose-400"}`}
+            data-testid={`input-${task.inputType}-no-${task.source}-${task.refId}`}
+          >
+            {noLabel}
+          </button>
+        </div>
+      );
+    }
+    case "yes_no_remark": {
+      const current = typeof value.choice === "string" ? value.choice : "";
+      const remark = typeof value.remark === "string" ? value.remark : "";
+      const requireRemarkOnNo = config.requireRemarkOnNo !== false;
+      const showRemark = current === "no" && requireRemarkOnNo;
+      return (
+        <div className="space-y-2">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => onChange({ ...value, choice: "yes" })}
+              disabled={disabled}
+              className={`flex-1 h-12 rounded-xl text-base font-bold border-2 transition ${current === "yes" ? "bg-emerald-500 text-white border-emerald-500 shadow" : "bg-white text-slate-600 border-slate-300 hover:border-emerald-400"}`}
+              data-testid={`input-yesnoremark-yes-${task.source}-${task.refId}`}
+            >
+              是
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange({ ...value, choice: "no" })}
+              disabled={disabled}
+              className={`flex-1 h-12 rounded-xl text-base font-bold border-2 transition ${current === "no" ? "bg-rose-500 text-white border-rose-500 shadow" : "bg-white text-slate-600 border-slate-300 hover:border-rose-400"}`}
+              data-testid={`input-yesnoremark-no-${task.source}-${task.refId}`}
+            >
+              否
+            </button>
+          </div>
+          {showRemark && (
+            <Textarea
+              rows={2}
+              placeholder="請填寫原因（必填）"
+              value={remark}
+              onChange={(e) => onChange({ ...value, remark: e.target.value })}
+              disabled={disabled}
+              className="text-xs border-rose-300 bg-rose-50"
+              data-testid={`input-yesnoremark-remark-${task.source}-${task.refId}`}
+            />
+          )}
+        </div>
+      );
+    }
+    case "water_quality_form": {
+      const poolName = typeof config.poolName === "string" && config.poolName ? config.poolName : (task.taskName ?? "");
+      const scheduledTime = typeof config.scheduledTime === "string" ? config.scheduledTime : undefined;
+      const scheduleId = typeof config.scheduleId === "number" ? config.scheduleId : undefined;
+      return (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] text-slate-500 mb-2">水池：<span className="font-bold text-slate-700">{poolName}</span>{scheduledTime ? ` ・ ${scheduledTime}` : ""}</p>
+          <WaterQualityForm
+            facilityKey={facilityKey}
+            workDate={workDate}
+            shiftType={shiftType}
+            poolName={poolName}
+            scheduledTime={scheduledTime}
+            scheduleId={scheduleId}
+            disabled={disabled}
+            onSaved={() => onChange({ ...value, savedAt: new Date().toISOString() })}
+            testIdPrefix={`wq-task-${task.source}-${task.refId}`}
+          />
+        </div>
+      );
+    }
     default:
       return <span className="text-xs text-slate-400">不支援的輸入類型：{task.inputType}</span>;
   }
@@ -231,6 +329,9 @@ function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending
   const [notes, setNotes] = useState<string>(task.notes ?? "");
   const { toast } = useToast();
   const isCheckboxOnly = task.inputType === "checkbox";
+  // water_quality_form is self-contained (it owns its own save action via
+  // WaterQualityForm), so we hide the generic "save & mark complete" button.
+  const isSelfManaged = task.inputType === "water_quality_form";
 
   // Photo-required tasks must have at least one photo before being marked
   // complete. Triggered for input types ending in "_photo" / "photo" OR
@@ -255,9 +356,28 @@ function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending
     return true;
   };
 
+  // yes_no_remark with choice=no requires a non-empty remark.
+  const validateYesNoRemarkOrToast = (val: Record<string, unknown> | null | undefined): boolean => {
+    if (task.inputType !== "yes_no_remark") return true;
+    const v = (val ?? {}) as Record<string, unknown>;
+    if (v.choice !== "no") return true;
+    if (cfg.requireRemarkOnNo === false) return true;
+    const remark = typeof v.remark === "string" ? v.remark.trim() : "";
+    if (!remark) {
+      toast({
+        title: "請填寫「否」的原因",
+        description: `「${task.taskName}」勾選「否」時需填寫備註`,
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleToggle = async (next: boolean) => {
     const effectiveValue = draft ?? task.inputValue ?? undefined;
     if (next && !validatePhotoOrToast(effectiveValue)) return;
+    if (next && !validateYesNoRemarkOrToast(effectiveValue)) return;
     await onComplete({
       facilityKey, workDate, shiftType,
       taskSource: task.source,
@@ -272,6 +392,7 @@ function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending
   const handleSave = async () => {
     const effectiveValue = draft ?? task.inputValue ?? undefined;
     if (!validatePhotoOrToast(effectiveValue)) return;
+    if (!validateYesNoRemarkOrToast(effectiveValue)) return;
     await onComplete({
       facilityKey, workDate, shiftType,
       taskSource: task.source,
@@ -309,25 +430,37 @@ function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending
           {task.description && <p className="text-xs text-slate-500 mt-1">{task.description}</p>}
           {!isCheckboxOnly && (
             <div className="mt-2 space-y-2">
-              <TaskInputRenderer task={task} draftValue={draft} onChange={setDraft} disabled={disabled || isPending} facilityKey={facilityKey} />
-              <Textarea
-                rows={1}
-                placeholder="備註（選填）"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+              <TaskInputRenderer
+                task={task}
+                draftValue={draft}
+                onChange={setDraft}
                 disabled={disabled || isPending}
-                className="text-xs"
-                data-testid={`input-notes-${task.source}-${task.refId}`}
+                facilityKey={facilityKey}
+                workDate={workDate}
+                shiftType={shiftType}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSave}
-                disabled={disabled || isPending}
-                data-testid={`button-save-${task.source}-${task.refId}`}
-              >
-                {task.isCompleted ? "更新" : "儲存並標記完成"}
-              </Button>
+              {!isSelfManaged && (
+                <>
+                  <Textarea
+                    rows={1}
+                    placeholder="備註（選填）"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    disabled={disabled || isPending}
+                    className="text-xs"
+                    data-testid={`input-notes-${task.source}-${task.refId}`}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSave}
+                    disabled={disabled || isPending}
+                    data-testid={`button-save-${task.source}-${task.refId}`}
+                  >
+                    {task.isCompleted ? "更新" : "儲存並標記完成"}
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -410,33 +543,96 @@ function HandoverPanel({ items, onConfirm, isPending, disabled }: HandoverPanelP
 
 interface WaterPanelProps {
   slots: WaterQualitySlot[];
+  records: WaterQualityRecordDTO[];
+  facilityKey: string;
+  workDate: string;
+  shiftType: WorkLogShift;
+  disabled: boolean;
+  pendingReview?: boolean;
 }
 
-function WaterPanel({ slots }: WaterPanelProps) {
+/**
+ * Returns a "late" flag if current time is past slot's scheduledTime + grace
+ * minutes and the slot is not yet completed. scheduledTime is "HH:MM" in
+ * Asia/Taipei. We compare against the same workDate.
+ */
+function isSlotLate(slot: WaterQualitySlot, workDate: string, graceMinutes = 30): boolean {
+  if (slot.isCompleted) return false;
+  if (!slot.scheduledTime || !/^\d{2}:\d{2}$/.test(slot.scheduledTime)) return false;
+  const [h, m] = slot.scheduledTime.split(":").map(Number);
+  const slotEnd = new Date(`${workDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00+08:00`);
+  slotEnd.setMinutes(slotEnd.getMinutes() + graceMinutes);
+  const nowTaipei = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  return nowTaipei > slotEnd;
+}
+
+function WaterPanel({ slots, records, facilityKey, workDate, shiftType, disabled, pendingReview = false }: WaterPanelProps) {
+  const [openId, setOpenId] = useState<number | null>(null);
   if (slots.length === 0) {
-    return <p className="text-sm text-slate-500 px-3 py-6 text-center">本班次無水質量測排程</p>;
+    return <p className="text-sm text-slate-500 px-3 py-6 text-center" data-testid="text-no-water-schedules">本班次無水質量測排程</p>;
   }
+  type SlotStatus = "completed" | "pending" | "late" | "abnormal" | "pending_review";
+  const styles: Record<SlotStatus, { bg: string; icon: string; iconColor: string; badgeBg: string; badgeText: string; badgeLabel: string }> = {
+    completed:      { bg: "bg-emerald-50 border-emerald-200", icon: "check_circle", iconColor: "text-emerald-500", badgeBg: "bg-emerald-100", badgeText: "text-emerald-700", badgeLabel: "已完成" },
+    pending:        { bg: "bg-white border-slate-200",         icon: "schedule",     iconColor: "text-slate-400",   badgeBg: "bg-slate-100",   badgeText: "text-slate-600",   badgeLabel: "待量測" },
+    late:           { bg: "bg-amber-50 border-amber-300",      icon: "schedule",     iconColor: "text-amber-600",   badgeBg: "bg-amber-100",   badgeText: "text-amber-700",   badgeLabel: "已逾時" },
+    abnormal:       { bg: "bg-rose-50 border-rose-300",        icon: "warning",      iconColor: "text-rose-500",    badgeBg: "bg-rose-100",    badgeText: "text-rose-700",    badgeLabel: "異常" },
+    pending_review: { bg: "bg-sky-50 border-sky-300",          icon: "hourglass_top", iconColor: "text-sky-600",    badgeBg: "bg-sky-100",     badgeText: "text-sky-700",     badgeLabel: "待主管核可" },
+  };
   return (
     <div className="space-y-2">
-      {slots.map((s) => (
-        <div
-          key={s.scheduleId}
-          className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${s.isCompleted ? (s.isAbnormal ? "bg-rose-50 border-rose-200" : "bg-emerald-50 border-emerald-200") : "bg-white border-slate-200"}`}
-          data-testid={`water-slot-${s.scheduleId}`}
-        >
-          <MaterialIcon name={s.isCompleted ? (s.isAbnormal ? "warning" : "check_circle") : "schedule"} className={s.isAbnormal ? "text-rose-500" : s.isCompleted ? "text-emerald-500" : "text-slate-400"} />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-stitch-primary">{s.poolName}</p>
-            <p className="text-xs text-slate-500">{s.scheduledTime}</p>
+      {slots.map((s) => {
+        const late = isSlotLate(s, workDate);
+        const isOpen = openId === s.scheduleId;
+        const existing = records.find((r) => r.scheduleId === s.scheduleId) ?? null;
+        const status: SlotStatus = s.isCompleted
+          ? (s.isAbnormal ? "abnormal" : pendingReview ? "pending_review" : "completed")
+          : late ? "late" : "pending";
+        const st = styles[status];
+        return (
+          <div
+            key={s.scheduleId}
+            className={`rounded-xl border transition ${st.bg}`}
+            data-testid={`water-slot-${s.scheduleId}`}
+          >
+            <button
+              type="button"
+              onClick={() => setOpenId(isOpen ? null : s.scheduleId)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left"
+              data-testid={`button-water-slot-toggle-${s.scheduleId}`}
+            >
+              <MaterialIcon name={st.icon} className={st.iconColor} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-stitch-primary">{s.poolName}</p>
+                <p className="text-xs text-slate-500">{s.scheduledTime}</p>
+              </div>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${st.badgeBg} ${st.badgeText}`} data-testid={`status-water-slot-${s.scheduleId}`}>
+                {st.badgeLabel}
+              </span>
+              {s.isCompleted && (
+                <span className="text-[11px] text-slate-500 hidden sm:inline">{s.recordedBy} · {formatTime(s.recordedAt)}</span>
+              )}
+              <MaterialIcon name={isOpen ? "expand_less" : "expand_more"} className="text-slate-400" />
+            </button>
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 border-t border-slate-200/70">
+                <WaterQualityForm
+                  facilityKey={facilityKey}
+                  workDate={workDate}
+                  shiftType={shiftType}
+                  poolName={s.poolName}
+                  scheduledTime={s.scheduledTime}
+                  scheduleId={s.scheduleId}
+                  existingRecord={existing}
+                  disabled={disabled}
+                  onSaved={() => setOpenId(null)}
+                  testIdPrefix={`wq-slot-${s.scheduleId}`}
+                />
+              </div>
+            )}
           </div>
-          {s.isCompleted ? (
-            <span className="text-[11px] text-slate-500">{s.recordedBy} · {formatTime(s.recordedAt)}</span>
-          ) : (
-            <span className="text-[11px] text-amber-600">待量測</span>
-          )}
-        </div>
-      ))}
-      <p className="text-[11px] text-slate-400 px-2">水質量測表單將於下一階段開放（v2）。目前可在後台直接寫入水質紀錄。</p>
+        );
+      })}
     </div>
   );
 }
@@ -618,7 +814,15 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
               {/* 水質量測 */}
               <BentoCard testId="section-water" variant="white">
                 <SectionHeader icon="water_drop" title="水質量測" badge="WATER QUALITY" count={{ done: waterDoneCount, total: waterSlots.length }} />
-                <WaterPanel slots={waterSlots} />
+                <WaterPanel
+                  slots={waterSlots}
+                  records={data?.sections.waterQuality.records ?? []}
+                  facilityKey={facilityKey}
+                  workDate={data?.workDate ?? ""}
+                  shiftType={shiftType}
+                  disabled={submittedLocked}
+                  pendingReview={submission?.status === "submitted"}
+                />
               </BentoCard>
 
               {/* 每日固定任務 */}

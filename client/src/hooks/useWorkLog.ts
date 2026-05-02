@@ -87,6 +87,7 @@ export interface SaveWaterQualityPayload {
   measurements: Record<string, string | number>;
   abnormalNote?: string;
   isAbnormal?: boolean;
+  photoUrls?: string[];
 }
 
 export function useSaveWaterQuality(facilityKey: string, shiftType: WorkLogShift, workDate?: string) {
