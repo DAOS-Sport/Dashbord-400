@@ -12,6 +12,12 @@ import {
   FileText,
   BarChart3,
   ExternalLink,
+  ClipboardList,
+  ListChecks,
+  CalendarRange,
+  Droplets,
+  FlaskConical,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +40,12 @@ const navItems = [
   { title: "跨館資源監控", url: "/operations", icon: Building2, group: "營運管理" },
   { title: "公告審核中心", url: "/announcements", icon: FileText, group: "公告歸納" },
   { title: "公告分析總覽", url: "/announcements/summary", icon: BarChart3, group: "公告歸納" },
+  { title: "每日固定事項", url: "/admin/work-logs/daily-templates", icon: ClipboardList, group: "救生員日誌" },
+  { title: "主管交辦任務", url: "/admin/work-logs/assigned-tasks", icon: ListChecks, group: "救生員日誌" },
+  { title: "每週循環任務", url: "/admin/work-logs/recurring-templates", icon: CalendarRange, group: "救生員日誌" },
+  { title: "水質測量時段", url: "/admin/work-logs/water-schedules", icon: Droplets, group: "救生員日誌" },
+  { title: "水質標準值", url: "/admin/work-logs/water-standards", icon: FlaskConical, group: "救生員日誌" },
+  { title: "主管審核", url: "/admin/work-logs/submissions", icon: ClipboardCheck, group: "救生員日誌" },
   { title: "HR 與權限稽核", url: "/hr-audit", icon: ShieldCheck, group: "系統管理" },
   { title: "微服務健康監控", url: "/system-health", icon: Activity, group: "系統管理" },
 ];
@@ -92,7 +104,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {["營運管理", "公告歸納", "系統管理"].map((group) => (
+        {["營運管理", "公告歸納", "救生員日誌", "系統管理"].map((group) => (
           <SidebarGroup key={group}>
             <SidebarGroupLabel className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground px-3">
               {group}

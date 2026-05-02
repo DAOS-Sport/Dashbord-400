@@ -711,7 +711,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.patch("/api/work-logs/admin/daily-templates/:id", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
-    const row = await storage.updateDailyTaskTemplate(id, req.body);
+    const parsed = insertDailyTaskTemplateSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
+    const row = await storage.updateDailyTaskTemplate(id, parsed.data);
     if (!row) return res.status(404).json({ message: "找不到項目" });
     res.json({ item: row });
   });
@@ -745,7 +747,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.patch("/api/work-logs/admin/assigned-tasks/:id", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
-    const row = await storage.updateLifeguardAssignedTask(id, req.body);
+    const parsed = insertLifeguardAssignedTaskSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
+    const row = await storage.updateLifeguardAssignedTask(id, parsed.data);
     if (!row) return res.status(404).json({ message: "找不到項目" });
     res.json({ item: row });
   });
@@ -773,7 +777,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.patch("/api/work-logs/admin/recurring-templates/:id", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
-    const row = await storage.updateRecurringTaskTemplate(id, req.body);
+    const parsed = insertRecurringTaskTemplateSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
+    const row = await storage.updateRecurringTaskTemplate(id, parsed.data);
     if (!row) return res.status(404).json({ message: "找不到項目" });
     res.json({ item: row });
   });
@@ -801,7 +807,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.patch("/api/work-logs/admin/water-schedules/:id", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
-    const row = await storage.updateWaterQualitySchedule(id, req.body);
+    const parsed = insertWaterQualityScheduleSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
+    const row = await storage.updateWaterQualitySchedule(id, parsed.data);
     if (!row) return res.status(404).json({ message: "找不到項目" });
     res.json({ item: row });
   });
@@ -829,7 +837,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.patch("/api/work-logs/admin/water-standards/:id", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
-    const row = await storage.updateWaterQualityStandard(id, req.body);
+    const parsed = insertWaterQualityStandardSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
+    const row = await storage.updateWaterQualityStandard(id, parsed.data);
     if (!row) return res.status(404).json({ message: "找不到項目" });
     res.json({ item: row });
   });
@@ -848,6 +858,24 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     const workDate = req.query.workDate ? String(req.query.workDate) : undefined;
     const status = req.query.status ? String(req.query.status) : undefined;
     res.json({ items: await storage.listDailyReportSubmissions({ facilityKey, workDate, status, limit: 200 }) });
+  });
+
+  app.get("/api/work-logs/admin/submissions/:id", requireSupervisor(), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
+      const submission = await storage.getDailyReportSubmissionById(id);
+      if (!submission) return res.status(404).json({ message: "找不到日報" });
+      const [completions, waterRecords, handovers] = await Promise.all([
+        storage.listTaskCompletions({ facilityKey: submission.facilityKey, workDate: submission.workDate, shiftType: submission.shiftType }),
+        storage.listWaterQualityRecords({ facilityKey: submission.facilityKey, workDate: submission.workDate, shiftType: submission.shiftType }),
+        storage.listLifeguardHandoverNotes({ facilityKey: submission.facilityKey, workDate: submission.workDate, fromShift: submission.shiftType }),
+      ]);
+      res.json({ submission, completions, waterRecords, handovers });
+    } catch (e) {
+      console.error("[work-logs] admin submission detail failed", e);
+      res.status(500).json({ message: "載入失敗" });
+    }
   });
 
   app.post("/api/work-logs/admin/submissions/:id/approve", requireSupervisor(), async (req, res) => {

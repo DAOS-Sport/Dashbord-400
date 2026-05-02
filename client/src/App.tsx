@@ -14,6 +14,12 @@ import SystemHealth from "@/pages/system-health";
 import AnomalyReports from "@/pages/anomaly-reports";
 import Announcements from "@/pages/announcements";
 import AnnouncementSummary from "@/pages/announcement-summary";
+import AdminWorkLogDailyTemplates from "@/pages/admin/work-logs/daily-templates";
+import AdminWorkLogAssignedTasks from "@/pages/admin/work-logs/assigned-tasks";
+import AdminWorkLogRecurringTemplates from "@/pages/admin/work-logs/recurring-templates";
+import AdminWorkLogWaterSchedules from "@/pages/admin/work-logs/water-schedules";
+import AdminWorkLogWaterStandards from "@/pages/admin/work-logs/water-standards";
+import AdminWorkLogSubmissions from "@/pages/admin/work-logs/submissions";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
@@ -70,6 +76,12 @@ const PAGE_TITLES: Record<string, string> = {
   "/anomaly-reports": "打卡異常管理",
   "/announcements": "公告審核中心",
   "/announcements/summary": "公告分析總覽",
+  "/admin/work-logs/daily-templates": "救生員日誌 · 每日固定事項",
+  "/admin/work-logs/assigned-tasks": "救生員日誌 · 主管交辦",
+  "/admin/work-logs/recurring-templates": "救生員日誌 · 每週循環",
+  "/admin/work-logs/water-schedules": "救生員日誌 · 水質時段",
+  "/admin/work-logs/water-standards": "救生員日誌 · 水質標準",
+  "/admin/work-logs/submissions": "救生員日誌 · 主管審核",
 };
 
 function AppRouter() {
@@ -83,6 +95,12 @@ function AppRouter() {
       <Route path="/anomaly-reports" component={AnomalyReports} />
       <Route path="/announcements/summary" component={AnnouncementSummary} />
       <Route path="/announcements" component={Announcements} />
+      <Route path="/admin/work-logs/daily-templates" component={AdminWorkLogDailyTemplates} />
+      <Route path="/admin/work-logs/assigned-tasks" component={AdminWorkLogAssignedTasks} />
+      <Route path="/admin/work-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
+      <Route path="/admin/work-logs/water-schedules" component={AdminWorkLogWaterSchedules} />
+      <Route path="/admin/work-logs/water-standards" component={AdminWorkLogWaterStandards} />
+      <Route path="/admin/work-logs/submissions" component={AdminWorkLogSubmissions} />
       <Route component={NotFound} />
     </Switch>
   );

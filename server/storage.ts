@@ -170,6 +170,7 @@ export interface IStorage {
 
   listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
   getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined>;
+  getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined>;
   createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
   updateDailyReportSubmissionReview(id: number, data: { status: string; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<DailyReportSubmission | undefined>;
 }
@@ -914,6 +915,11 @@ export class DatabaseStorage implements IStorage {
       eq(dailyReportSubmissions.shiftType, opts.shiftType),
       eq(dailyReportSubmissions.submittedBy, opts.submittedBy),
     )).orderBy(desc(dailyReportSubmissions.submittedAt)).limit(1);
+    return row;
+  }
+
+  async getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined> {
+    const [row] = await db.select().from(dailyReportSubmissions).where(eq(dailyReportSubmissions.id, id)).limit(1);
     return row;
   }
 
