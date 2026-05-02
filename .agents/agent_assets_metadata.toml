@@ -36,3 +36,15 @@ id = "3Yp6D4uGdL13SGBv-7Yqv"
 uri = "file://docs/shift-data-architecture.md"
 type = "text"
 title = "班表資料架構書"
+
+[[outputs]]
+id = "m5to7AOgTz7jjVQCCLj7O"
+uri = "file://.local/worklog-nav-home.jpg"
+type = "image"
+title = "場館首頁 — 左側選單可看到「工作日誌」"
+
+[[outputs]]
+id = "awB2soo1GWm9OHRaIJE8W"
+uri = "file://.local/worklog-nav-proof.jpg"
+type = "image"
+title = "工作日誌頁面 — 選單項目反白為當前頁"
