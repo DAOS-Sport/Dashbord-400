@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
+import PhotoUpload from "@/components/work-log/PhotoUpload";
 import {
   useTodayWorkLog,
   useCompleteTask,
@@ -60,9 +61,10 @@ interface TaskInputProps {
   draftValue: Record<string, unknown> | null;
   onChange: (value: Record<string, unknown>) => void;
   disabled: boolean;
+  facilityKey: string;
 }
 
-function TaskInputRenderer({ task, draftValue, onChange, disabled }: TaskInputProps) {
+function TaskInputRenderer({ task, draftValue, onChange, disabled, facilityKey }: TaskInputProps) {
   const value = (draftValue ?? task.inputValue ?? {}) as Record<string, unknown>;
   const config = (task.inputConfig ?? {}) as Record<string, unknown>;
 
@@ -181,25 +183,34 @@ function TaskInputRenderer({ task, draftValue, onChange, disabled }: TaskInputPr
     }
     case "photo":
     case "number_photo":
-    case "checkbox_photo":
+    case "checkbox_photo": {
+      const photoUrls = Array.isArray(value.photoUrls) ? (value.photoUrls as string[]) : [];
+      const maxPhotos = typeof config.maxPhotos === "number" ? config.maxPhotos : 5;
       return (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          <MaterialIcon name="photo_camera" className="text-sm align-middle mr-1" />
-          照片上傳將於下一階段開放（v2）
+        <div className="space-y-2">
           {task.inputType === "number_photo" && (
             <Input
               type="number"
               step="any"
               placeholder="請輸入數字"
-              className="mt-2"
               value={typeof value.number === "number" || typeof value.number === "string" ? String(value.number) : ""}
               onChange={(e) => onChange({ ...value, number: e.target.value === "" ? "" : Number(e.target.value) })}
               disabled={disabled}
               data-testid={`input-numphoto-${task.source}-${task.refId}`}
             />
           )}
+          <PhotoUpload
+            value={photoUrls}
+            onChange={(urls) => onChange({ ...value, photoUrls: urls })}
+            facilityKey={facilityKey}
+            folder="work-logs/tasks"
+            max={maxPhotos}
+            disabled={disabled}
+            testIdPrefix={`photo-${task.source}-${task.refId}`}
+          />
         </div>
       );
+    }
     default:
       return <span className="text-xs text-slate-400">不支援的輸入類型：{task.inputType}</span>;
   }
@@ -270,7 +281,7 @@ function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending
           {task.description && <p className="text-xs text-slate-500 mt-1">{task.description}</p>}
           {!isCheckboxOnly && (
             <div className="mt-2 space-y-2">
-              <TaskInputRenderer task={task} draftValue={draft} onChange={setDraft} disabled={disabled || isPending} />
+              <TaskInputRenderer task={task} draftValue={draft} onChange={setDraft} disabled={disabled || isPending} facilityKey={facilityKey} />
               <Textarea
                 rows={1}
                 placeholder="備註（選填）"

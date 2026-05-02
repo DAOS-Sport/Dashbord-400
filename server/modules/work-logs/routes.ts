@@ -1,6 +1,15 @@
 import type { Express, RequestHandler } from "express";
 import { z } from "zod";
+import multer from "multer";
+import path from "node:path";
 import { storage } from "../../storage";
+import {
+  uploadFile,
+  ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_IMAGE_EXTENSIONS,
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_FILES_PER_REQUEST,
+} from "../../storage/object-storage";
 import {
   insertDailyTaskTemplateSchema,
   insertLifeguardAssignedTaskSchema,
@@ -157,8 +166,85 @@ const submitSchema = z.object({
 
 const handoverConfirmIdSchema = z.object({ id: z.coerce.number().int().positive() });
 
+const uploadMeta = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: MAX_UPLOAD_FILES_PER_REQUEST },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    // Reject when MIME is invalid OR extension is invalid — both must look like images.
+    // This is stricter than the legacy anomaly-reports filter (which used &&) and prevents
+    // malformed uploads (e.g. .txt with image/png header) from reaching uploadFile().
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype) || !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+      return cb(new Error("僅允許上傳圖片檔案 (jpg, png, gif, webp, heic)"));
+    }
+    cb(null, true);
+  },
+});
+
+const uploadFolderSchema = z
+  .string()
+  .max(64)
+  .regex(/^[a-zA-Z0-9_\-/]+$/, "folder 含非法字元")
+  .optional();
+
 export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   const { requireEmployee, requireSupervisor } = deps;
+
+  // ============ Photo upload ============
+  app.post(
+    "/api/work-logs/upload",
+    requireEmployee(),
+    (req, res, next) => {
+      uploadMeta.single("file")(req, res, (err) => {
+        if (err) {
+          const msg = err instanceof Error ? err.message : "上傳失敗";
+          return res.status(400).json({ message: msg });
+        }
+        next();
+      });
+    },
+    async (req, res) => {
+      try {
+        const facilityKey = typeof req.body?.facilityKey === "string" ? req.body.facilityKey : "";
+        const folderInput = typeof req.body?.folder === "string" ? req.body.folder : undefined;
+        if (!facilityKey) {
+          return res.status(400).json({ message: "缺少 facilityKey" });
+        }
+        const folderParsed = uploadFolderSchema.safeParse(folderInput);
+        if (!folderParsed.success) {
+          return res.status(400).json({ message: "folder 格式錯誤" });
+        }
+        const file = (req as unknown as { file?: Express.Multer.File }).file;
+        if (!file) {
+          return res.status(400).json({ message: "缺少檔案" });
+        }
+        const caller = getCaller(req);
+        if (!canAccessFacility(req, caller, facilityKey)) {
+          return res.status(403).json({ message: "無此館別權限" });
+        }
+        const folder = folderParsed.data ?? "work-logs";
+        // Namespace by facility so files are scoped & easy to audit.
+        const fullFolder = `${folder}/${facilityKey.replace(/[^a-z0-9_\-]/gi, "")}`;
+        const result = await uploadFile({
+          buffer: file.buffer,
+          mime: file.mimetype,
+          originalName: file.originalname,
+          folder: fullFolder,
+        });
+        res.json({ item: result });
+      } catch (e) {
+        console.error("[work-logs] upload failed", e);
+        const msg = e instanceof Error ? e.message : "上傳失敗";
+        // Known validation messages from uploadFile() should be 400, not 500.
+        const isValidationError =
+          msg.startsWith("不支援的檔案類型") ||
+          msg.startsWith("檔案過大") ||
+          msg.includes("Object Storage adapter is not configured");
+        const status = isValidationError ? 400 : 500;
+        res.status(status).json({ message: msg });
+      }
+    },
+  );
 
   // ============ Today aggregator ============
   app.get("/api/work-logs/today", requireEmployee(), async (req, res) => {
