@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -704,6 +704,309 @@ export const systemOverviewProjection = pgTable("system_overview_projection", {
   lastSyncAt: timestamp("last_sync_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// =====================================================================
+// Work Logs (工作日誌) — 救生員紙本日誌數位化
+// =====================================================================
+
+const shiftTypeSchema = z.enum(["morning", "noon", "night", "all"]);
+const workLogInputTypeSchema = z.enum([
+  "checkbox",
+  "text",
+  "textarea",
+  "number",
+  "select",
+  "multiselect",
+  "time",
+  "date",
+  "rating",
+  "photo",
+  "number_photo",
+  "checkbox_photo",
+]);
+
+export const dailyTaskTemplates = pgTable("daily_task_templates", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  shiftType: text("shift_type").notNull(),
+  taskName: text("task_name").notNull(),
+  description: text("description"),
+  inputType: text("input_type").notNull(),
+  inputConfig: jsonb("input_config").$type<Record<string, unknown>>(),
+  isRequired: boolean("is_required").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertDailyTaskTemplateSchema = createInsertSchema(dailyTaskTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  shiftType: shiftTypeSchema,
+  taskName: z.string().min(1),
+  inputType: workLogInputTypeSchema,
+});
+
+export type InsertDailyTaskTemplate = z.infer<typeof insertDailyTaskTemplateSchema>;
+export type DailyTaskTemplate = typeof dailyTaskTemplates.$inferSelect;
+
+export const lifeguardAssignedTasks = pgTable("lifeguard_assigned_tasks", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  taskName: text("task_name").notNull(),
+  description: text("description"),
+  inputType: text("input_type").notNull(),
+  inputConfig: jsonb("input_config").$type<Record<string, unknown>>(),
+  assignedToEmployeeNumber: text("assigned_to_employee_number"),
+  assignedToShift: text("assigned_to_shift"),
+  taskDate: text("task_date"),
+  dueDate: text("due_date"),
+  isRequired: boolean("is_required").default(true).notNull(),
+  status: text("status").default("active").notNull(),
+  assignedBy: text("assigned_by"),
+  assignedByName: text("assigned_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertLifeguardAssignedTaskSchema = createInsertSchema(lifeguardAssignedTasks).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  taskName: z.string().min(1),
+  inputType: workLogInputTypeSchema,
+  assignedToShift: shiftTypeSchema.optional().nullable(),
+  status: z.enum(["active", "completed", "cancelled"]).optional(),
+});
+
+export type InsertLifeguardAssignedTask = z.infer<typeof insertLifeguardAssignedTaskSchema>;
+export type LifeguardAssignedTask = typeof lifeguardAssignedTasks.$inferSelect;
+
+export const recurringTaskTemplates = pgTable("recurring_task_templates", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  taskName: text("task_name").notNull(),
+  description: text("description"),
+  inputType: text("input_type").notNull(),
+  inputConfig: jsonb("input_config").$type<Record<string, unknown>>(),
+  recurrenceType: text("recurrence_type").notNull(),
+  recurrenceDays: integer("recurrence_days").array(),
+  shiftType: text("shift_type").default("all").notNull(),
+  isRequired: boolean("is_required").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRecurringTaskTemplateSchema = createInsertSchema(recurringTaskTemplates).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  taskName: z.string().min(1),
+  inputType: workLogInputTypeSchema,
+  recurrenceType: z.enum(["daily", "weekly", "monthly"]),
+  shiftType: shiftTypeSchema.optional(),
+});
+
+export type InsertRecurringTaskTemplate = z.infer<typeof insertRecurringTaskTemplateSchema>;
+export type RecurringTaskTemplate = typeof recurringTaskTemplates.$inferSelect;
+
+export const waterQualitySchedules = pgTable("water_quality_schedules", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  poolName: text("pool_name").notNull(),
+  shiftType: text("shift_type").notNull(),
+  scheduledTime: text("scheduled_time").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWaterQualityScheduleSchema = createInsertSchema(waterQualitySchedules).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  poolName: z.string().min(1),
+  shiftType: shiftTypeSchema,
+  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/, "格式為 HH:MM"),
+});
+
+export type InsertWaterQualitySchedule = z.infer<typeof insertWaterQualityScheduleSchema>;
+export type WaterQualitySchedule = typeof waterQualitySchedules.$inferSelect;
+
+export const waterQualityStandards = pgTable("water_quality_standards", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  poolName: text("pool_name").notNull(),
+  parameterName: text("parameter_name").notNull(),
+  unit: text("unit"),
+  minValue: text("min_value"),
+  maxValue: text("max_value"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWaterQualityStandardSchema = createInsertSchema(waterQualityStandards).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  poolName: z.string().min(1),
+  parameterName: z.string().min(1),
+});
+
+export type InsertWaterQualityStandard = z.infer<typeof insertWaterQualityStandardSchema>;
+export type WaterQualityStandard = typeof waterQualityStandards.$inferSelect;
+
+export const workLogTaskCompletions = pgTable("work_log_task_completions", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  workDate: text("work_date").notNull(),
+  shiftType: text("shift_type").notNull(),
+  taskSource: text("task_source").notNull(),
+  taskRefId: integer("task_ref_id").notNull(),
+  taskName: text("task_name").notNull(),
+  inputValue: jsonb("input_value").$type<Record<string, unknown>>(),
+  isCompleted: boolean("is_completed").default(false).notNull(),
+  completedBy: text("completed_by"),
+  completedByName: text("completed_by_name"),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  uxNaturalKey: uniqueIndex("ux_work_log_task_completion_natural").on(
+    table.facilityKey, table.workDate, table.shiftType, table.taskSource, table.taskRefId,
+  ),
+  idxFacilityDate: index("idx_work_log_task_completions_lookup").on(
+    table.facilityKey, table.workDate, table.shiftType,
+  ),
+}));
+
+export const insertWorkLogTaskCompletionSchema = createInsertSchema(workLogTaskCompletions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  shiftType: shiftTypeSchema,
+  taskSource: z.enum(["daily", "assigned", "recurring"]),
+});
+
+export type InsertWorkLogTaskCompletion = z.infer<typeof insertWorkLogTaskCompletionSchema>;
+export type WorkLogTaskCompletion = typeof workLogTaskCompletions.$inferSelect;
+
+export const waterQualityRecords = pgTable("water_quality_records", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  workDate: text("work_date").notNull(),
+  shiftType: text("shift_type").notNull(),
+  scheduleId: integer("schedule_id"),
+  poolName: text("pool_name").notNull(),
+  scheduledTime: text("scheduled_time"),
+  measurements: jsonb("measurements").$type<Record<string, string | number>>().notNull(),
+  isAbnormal: boolean("is_abnormal").default(false).notNull(),
+  abnormalNote: text("abnormal_note"),
+  photoUrls: text("photo_urls").array(),
+  recordedBy: text("recorded_by"),
+  recordedByName: text("recorded_by_name"),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+});
+
+export const insertWaterQualityRecordSchema = createInsertSchema(waterQualityRecords).omit({
+  id: true,
+  recordedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  shiftType: shiftTypeSchema,
+  poolName: z.string().min(1),
+  measurements: z.record(z.union([z.string(), z.number()])),
+});
+
+export type InsertWaterQualityRecord = z.infer<typeof insertWaterQualityRecordSchema>;
+export type WaterQualityRecord = typeof waterQualityRecords.$inferSelect;
+
+export const lifeguardHandoverNotes = pgTable("lifeguard_handover_notes", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  workDate: text("work_date").notNull(),
+  fromShift: text("from_shift").notNull(),
+  toShift: text("to_shift").notNull(),
+  category: text("category").default("general").notNull(),
+  content: text("content").notNull(),
+  authorEmployeeNumber: text("author_employee_number"),
+  authorName: text("author_name"),
+  isConfirmed: boolean("is_confirmed").default(false).notNull(),
+  confirmedBy: text("confirmed_by"),
+  confirmedByName: text("confirmed_by_name"),
+  confirmedAt: timestamp("confirmed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  idxLookup: index("idx_lifeguard_handover_lookup").on(
+    table.facilityKey, table.workDate, table.toShift, table.fromShift,
+  ),
+}));
+
+export const insertLifeguardHandoverNoteSchema = createInsertSchema(lifeguardHandoverNotes).omit({
+  id: true,
+  createdAt: true,
+  isConfirmed: true,
+  confirmedBy: true,
+  confirmedByName: true,
+  confirmedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  fromShift: shiftTypeSchema,
+  toShift: shiftTypeSchema,
+  content: z.string().min(1),
+  category: z.enum(["facility", "customer", "safety", "general"]).optional(),
+});
+
+export type InsertLifeguardHandoverNote = z.infer<typeof insertLifeguardHandoverNoteSchema>;
+export type LifeguardHandoverNote = typeof lifeguardHandoverNotes.$inferSelect;
+
+export const dailyReportSubmissions = pgTable("daily_report_submissions", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  workDate: text("work_date").notNull(),
+  shiftType: text("shift_type").notNull(),
+  submittedBy: text("submitted_by").notNull(),
+  submittedByName: text("submitted_by_name"),
+  status: text("status").default("submitted").notNull(),
+  reviewedBy: text("reviewed_by"),
+  reviewedByName: text("reviewed_by_name"),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at"),
+  totalRequired: integer("total_required").default(0).notNull(),
+  totalCompleted: integer("total_completed").default(0).notNull(),
+  summary: jsonb("summary").$type<Record<string, unknown>>(),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+});
+
+export const insertDailyReportSubmissionSchema = createInsertSchema(dailyReportSubmissions).omit({
+  id: true,
+  submittedAt: true,
+  reviewedAt: true,
+  reviewedBy: true,
+  reviewedByName: true,
+  reviewNote: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  shiftType: shiftTypeSchema,
+  status: z.enum(["submitted", "approved", "returned"]).optional(),
+});
+
+export type InsertDailyReportSubmission = z.infer<typeof insertDailyReportSubmissionSchema>;
+export type DailyReportSubmission = typeof dailyReportSubmissions.$inferSelect;
 
 // External source payloads, such as Ragic, schedule, booking, LINE, Gmail, or
 // Replit-hosted migration feeds, are stored here before projection. These rows

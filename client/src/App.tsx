@@ -26,6 +26,7 @@ import PortalAnnouncementDetail from "@/pages/portal/portal-announcement-detail"
 import PortalManage from "@/pages/portal/portal-manage";
 import PortalAnalytics from "@/pages/portal/portal-analytics";
 import PortalReview from "@/pages/portal/portal-review";
+import PortalWorkLog from "@/pages/portal/portal-work-log";
 import EmployeeHomePage from "@/modules/employee/home/employee-home-page";
 import EmployeeActivityPeriodsPage from "@/modules/employee/activity-periods/page";
 import EmployeeAnnouncementsPage from "@/modules/employee/announcements/page";
@@ -153,6 +154,13 @@ function PortalRouter() {
         {(params) => (
           <GuardedPortalPage>
             <PortalHandover facilityKey={params.facilityKey} />
+          </GuardedPortalPage>
+        )}
+      </Route>
+      <Route path="/portal/:facilityKey/work-log">
+        {(params) => (
+          <GuardedPortalPage>
+            <PortalWorkLog facilityKey={params.facilityKey} />
           </GuardedPortalPage>
         )}
       </Route>

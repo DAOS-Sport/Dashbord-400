@@ -816,6 +816,10 @@ export async function registerRoutes(
     };
   }
 
+  // Mount Work Logs (工作日誌) module
+  const { registerWorkLogRoutes } = await import("./modules/work-logs/routes");
+  registerWorkLogRoutes(app, { requireEmployee, requireSupervisor });
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

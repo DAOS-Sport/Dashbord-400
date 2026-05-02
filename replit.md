@@ -33,7 +33,10 @@ Enterprise-grade dashboard for the 駿斯 LINE Bot system. Multi-page SaaS appli
 - `server/routes.ts` - API routes for anomaly reports, proxy endpoints for admin, and 6 announcement proxy endpoints
 - `server/storage.ts` - DatabaseStorage using Drizzle ORM with PostgreSQL
 - `server/db.ts` - Drizzle database connection (Neon serverless)
-- `shared/schema.ts` - Drizzle schema (users, anomalyReports tables)
+- `shared/schema.ts` - Drizzle schema (users, anomalyReports tables, + work-logs module: dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates, waterQualitySchedules, waterQualityStandards, workLogTaskCompletions, waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions)
+- `server/modules/work-logs/routes.ts` - Work-logs (工作日誌) module: GET /today aggregator (daily+assigned+recurring+water+prev-shift handover), POST /tasks/complete, /water-quality, /handover, /handover/:id/confirm, /submit (with missing-items validation); admin/supervisor CRUD for templates and submission review. All employee endpoints enforce facility access via canAccessFacility().
+- `client/src/pages/portal/portal-work-log.tsx` - Today's work log page at /portal/:facilityKey/work-log: top info card, progress bar, 6 sections (water/daily/assigned/recurring/handover/submit), 12 input-type renderer (photo deferred to v2 with disabled placeholder), submit shows missing-items toast.
+- `client/src/hooks/useWorkLog.ts` - React Query hooks: useTodayWorkLog, useCompleteTask, useCreateLifeguardHandover, useConfirmHandover, useSaveWaterQuality, useSubmitDailyReport.
 
 ## External APIs
 ### Primary (Base: `https://line-bot-assistant-ronchen2.replit.app`)

@@ -169,6 +169,108 @@ export interface PortalEventInsert {
   metadata?: string;
 }
 
+// ===== Work Logs (工作日誌) =====
+export type WorkLogShift = "morning" | "noon" | "night";
+export type WorkLogTaskSource = "daily" | "assigned" | "recurring";
+export type WorkLogInputType =
+  | "checkbox" | "text" | "textarea" | "number" | "select" | "multiselect"
+  | "time" | "date" | "rating" | "photo" | "number_photo" | "checkbox_photo";
+
+export interface WorkLogTaskItem {
+  source: WorkLogTaskSource;
+  refId: number;
+  taskName: string;
+  description: string | null;
+  inputType: WorkLogInputType;
+  inputConfig: Record<string, unknown> | null;
+  isRequired: boolean;
+  isCompleted: boolean;
+  inputValue: Record<string, unknown> | null;
+  notes: string | null;
+  completedBy: string | null;
+  completedAt: string | null;
+}
+
+export interface WaterQualitySlot {
+  scheduleId: number;
+  poolName: string;
+  scheduledTime: string;
+  isCompleted: boolean;
+  recordId: number | null;
+  isAbnormal: boolean;
+  recordedBy: string | null;
+  recordedAt: string | null;
+}
+
+export interface WaterQualityRecordDTO {
+  id: number;
+  facilityKey: string;
+  workDate: string;
+  shiftType: string;
+  scheduleId: number | null;
+  poolName: string;
+  scheduledTime: string | null;
+  measurements: Record<string, string | number>;
+  isAbnormal: boolean;
+  abnormalNote: string | null;
+  recordedByName: string | null;
+  recordedAt: string;
+}
+
+export interface LifeguardHandoverItem {
+  id: number;
+  category: string;
+  content: string;
+  fromShift: string;
+  authorName: string | null;
+  createdAt: string;
+  isConfirmed: boolean;
+  confirmedByName: string | null;
+  confirmedAt: string | null;
+  canConfirm: boolean;
+}
+
+export interface DailyReportSubmissionDTO {
+  id: number;
+  facilityKey: string;
+  workDate: string;
+  shiftType: string;
+  submittedBy: string;
+  submittedByName: string | null;
+  status: "submitted" | "approved" | "returned";
+  reviewedByName: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  totalRequired: number;
+  totalCompleted: number;
+  submittedAt: string;
+}
+
+export interface WorkLogTodayResponse {
+  facility: { facilityKey: string };
+  workDate: string;
+  shiftType: WorkLogShift;
+  weekday: number;
+  user: { employeeNumber: string; name: string };
+  progress: {
+    totalRequired: number;
+    totalCompleted: number;
+    tasksRequired: number;
+    tasksCompleted: number;
+    waterRequired: number;
+    waterCompleted: number;
+    handoverPending: number;
+  };
+  sections: {
+    waterQuality: { schedules: WaterQualitySlot[]; records: WaterQualityRecordDTO[] };
+    dailyTasks: WorkLogTaskItem[];
+    assignedTasks: WorkLogTaskItem[];
+    recurringTasks: WorkLogTaskItem[];
+    handover: LifeguardHandoverItem[];
+  };
+  submission: DailyReportSubmissionDTO | null;
+}
+
 export interface PortalEventStats {
   totalEvents: number;
   byType: Array<{ eventType: string; count: number }>;

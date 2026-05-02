@@ -13,9 +13,21 @@ import {
   type PortalEvent, type InsertPortalEvent,
   type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
   type WatchdogEvent, type InsertWatchdogEvent,
+  type DailyTaskTemplate, type InsertDailyTaskTemplate,
+  type LifeguardAssignedTask, type InsertLifeguardAssignedTask,
+  type RecurringTaskTemplate, type InsertRecurringTaskTemplate,
+  type WaterQualitySchedule, type InsertWaterQualitySchedule,
+  type WaterQualityStandard, type InsertWaterQualityStandard,
+  type WorkLogTaskCompletion, type InsertWorkLogTaskCompletion,
+  type WaterQualityRecord, type InsertWaterQualityRecord,
+  type LifeguardHandoverNote, type InsertLifeguardHandoverNote,
+  type DailyReportSubmission, type InsertDailyReportSubmission,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
+  dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
+  waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
+  waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, and, or, isNull, gte, lte, sql, ilike } from "drizzle-orm";
@@ -109,6 +121,48 @@ export interface IStorage {
     topTargets: Array<{ eventType: string; target: string | null; targetLabel: string | null; count: number }>;
     dailyCounts: Array<{ day: string; count: number }>;
   }>;
+
+  // Work Logs (工作日誌)
+  listDailyTaskTemplates(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]>;
+  createDailyTaskTemplate(input: InsertDailyTaskTemplate): Promise<DailyTaskTemplate>;
+  updateDailyTaskTemplate(id: number, data: Partial<InsertDailyTaskTemplate>): Promise<DailyTaskTemplate | undefined>;
+  deleteDailyTaskTemplate(id: number): Promise<boolean>;
+
+  listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]>;
+  createLifeguardAssignedTask(input: InsertLifeguardAssignedTask): Promise<LifeguardAssignedTask>;
+  updateLifeguardAssignedTask(id: number, data: Partial<InsertLifeguardAssignedTask>): Promise<LifeguardAssignedTask | undefined>;
+  deleteLifeguardAssignedTask(id: number): Promise<boolean>;
+
+  listRecurringTaskTemplates(opts: { facilityKey: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]>;
+  createRecurringTaskTemplate(input: InsertRecurringTaskTemplate): Promise<RecurringTaskTemplate>;
+  updateRecurringTaskTemplate(id: number, data: Partial<InsertRecurringTaskTemplate>): Promise<RecurringTaskTemplate | undefined>;
+  deleteRecurringTaskTemplate(id: number): Promise<boolean>;
+
+  listWaterQualitySchedules(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<WaterQualitySchedule[]>;
+  createWaterQualitySchedule(input: InsertWaterQualitySchedule): Promise<WaterQualitySchedule>;
+  updateWaterQualitySchedule(id: number, data: Partial<InsertWaterQualitySchedule>): Promise<WaterQualitySchedule | undefined>;
+  deleteWaterQualitySchedule(id: number): Promise<boolean>;
+
+  listWaterQualityStandards(opts: { facilityKey: string; poolName?: string; includeInactive?: boolean }): Promise<WaterQualityStandard[]>;
+  createWaterQualityStandard(input: InsertWaterQualityStandard): Promise<WaterQualityStandard>;
+  updateWaterQualityStandard(id: number, data: Partial<InsertWaterQualityStandard>): Promise<WaterQualityStandard | undefined>;
+  deleteWaterQualityStandard(id: number): Promise<boolean>;
+
+  listTaskCompletions(opts: { facilityKey: string; workDate: string; shiftType?: string }): Promise<WorkLogTaskCompletion[]>;
+  upsertTaskCompletion(input: InsertWorkLogTaskCompletion): Promise<WorkLogTaskCompletion>;
+
+  listWaterQualityRecords(opts: { facilityKey: string; workDate?: string; shiftType?: string; limit?: number }): Promise<WaterQualityRecord[]>;
+  createWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord>;
+
+  listLifeguardHandoverNotes(opts: { facilityKey: string; workDate?: string; toShift?: string; fromShift?: string; limit?: number }): Promise<LifeguardHandoverNote[]>;
+  getLifeguardHandoverNoteById(id: number): Promise<LifeguardHandoverNote | undefined>;
+  createLifeguardHandoverNote(input: InsertLifeguardHandoverNote): Promise<LifeguardHandoverNote>;
+  confirmLifeguardHandoverNote(id: number, by: { employeeNumber: string; name: string }): Promise<LifeguardHandoverNote | undefined>;
+
+  listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
+  getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined>;
+  createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
+  updateDailyReportSubmissionReview(id: number, data: { status: string; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<DailyReportSubmission | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -570,6 +624,274 @@ export class DatabaseStorage implements IStorage {
       topTargets,
       dailyCounts,
     };
+  }
+
+  // ===================================================================
+  // Work Logs (工作日誌)
+  // ===================================================================
+
+  async listDailyTaskTemplates(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]> {
+    const conditions = [eq(dailyTaskTemplates.facilityKey, opts.facilityKey)];
+    if (!opts.includeInactive) conditions.push(eq(dailyTaskTemplates.isActive, true));
+    if (opts.shiftType && opts.shiftType !== "all") {
+      conditions.push(inArray(dailyTaskTemplates.shiftType, [opts.shiftType, "all"]));
+    }
+    return db.select().from(dailyTaskTemplates).where(and(...conditions))
+      .orderBy(asc(dailyTaskTemplates.sortOrder), asc(dailyTaskTemplates.id));
+  }
+
+  async createDailyTaskTemplate(input: InsertDailyTaskTemplate): Promise<DailyTaskTemplate> {
+    const [row] = await db.insert(dailyTaskTemplates).values(input).returning();
+    return row;
+  }
+
+  async updateDailyTaskTemplate(id: number, data: Partial<InsertDailyTaskTemplate>): Promise<DailyTaskTemplate | undefined> {
+    const [row] = await db.update(dailyTaskTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dailyTaskTemplates.id, id)).returning();
+    return row;
+  }
+
+  async deleteDailyTaskTemplate(id: number): Promise<boolean> {
+    const result = await db.delete(dailyTaskTemplates).where(eq(dailyTaskTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]> {
+    const conditions = [eq(lifeguardAssignedTasks.facilityKey, opts.facilityKey)];
+    if (opts.status) conditions.push(eq(lifeguardAssignedTasks.status, opts.status));
+    if (opts.workDate) {
+      conditions.push(or(
+        isNull(lifeguardAssignedTasks.taskDate),
+        eq(lifeguardAssignedTasks.taskDate, opts.workDate),
+      )!);
+    }
+    if (opts.shiftType && opts.shiftType !== "all") {
+      conditions.push(or(
+        isNull(lifeguardAssignedTasks.assignedToShift),
+        eq(lifeguardAssignedTasks.assignedToShift, "all"),
+        eq(lifeguardAssignedTasks.assignedToShift, opts.shiftType),
+      )!);
+    }
+    if (opts.employeeNumber) {
+      conditions.push(or(
+        isNull(lifeguardAssignedTasks.assignedToEmployeeNumber),
+        eq(lifeguardAssignedTasks.assignedToEmployeeNumber, opts.employeeNumber),
+      )!);
+    }
+    return db.select().from(lifeguardAssignedTasks).where(and(...conditions))
+      .orderBy(asc(lifeguardAssignedTasks.id));
+  }
+
+  async createLifeguardAssignedTask(input: InsertLifeguardAssignedTask): Promise<LifeguardAssignedTask> {
+    const [row] = await db.insert(lifeguardAssignedTasks).values(input).returning();
+    return row;
+  }
+
+  async updateLifeguardAssignedTask(id: number, data: Partial<InsertLifeguardAssignedTask>): Promise<LifeguardAssignedTask | undefined> {
+    const [row] = await db.update(lifeguardAssignedTasks).set(data)
+      .where(eq(lifeguardAssignedTasks.id, id)).returning();
+    return row;
+  }
+
+  async deleteLifeguardAssignedTask(id: number): Promise<boolean> {
+    const result = await db.delete(lifeguardAssignedTasks).where(eq(lifeguardAssignedTasks.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listRecurringTaskTemplates(opts: { facilityKey: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]> {
+    const conditions = [eq(recurringTaskTemplates.facilityKey, opts.facilityKey)];
+    if (!opts.includeInactive) conditions.push(eq(recurringTaskTemplates.isActive, true));
+    return db.select().from(recurringTaskTemplates).where(and(...conditions))
+      .orderBy(asc(recurringTaskTemplates.id));
+  }
+
+  async createRecurringTaskTemplate(input: InsertRecurringTaskTemplate): Promise<RecurringTaskTemplate> {
+    const [row] = await db.insert(recurringTaskTemplates).values(input).returning();
+    return row;
+  }
+
+  async updateRecurringTaskTemplate(id: number, data: Partial<InsertRecurringTaskTemplate>): Promise<RecurringTaskTemplate | undefined> {
+    const [row] = await db.update(recurringTaskTemplates).set(data)
+      .where(eq(recurringTaskTemplates.id, id)).returning();
+    return row;
+  }
+
+  async deleteRecurringTaskTemplate(id: number): Promise<boolean> {
+    const result = await db.delete(recurringTaskTemplates).where(eq(recurringTaskTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listWaterQualitySchedules(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<WaterQualitySchedule[]> {
+    const conditions = [eq(waterQualitySchedules.facilityKey, opts.facilityKey)];
+    if (!opts.includeInactive) conditions.push(eq(waterQualitySchedules.isActive, true));
+    if (opts.shiftType && opts.shiftType !== "all") {
+      conditions.push(inArray(waterQualitySchedules.shiftType, [opts.shiftType, "all"]));
+    }
+    return db.select().from(waterQualitySchedules).where(and(...conditions))
+      .orderBy(asc(waterQualitySchedules.scheduledTime));
+  }
+
+  async createWaterQualitySchedule(input: InsertWaterQualitySchedule): Promise<WaterQualitySchedule> {
+    const [row] = await db.insert(waterQualitySchedules).values(input).returning();
+    return row;
+  }
+
+  async updateWaterQualitySchedule(id: number, data: Partial<InsertWaterQualitySchedule>): Promise<WaterQualitySchedule | undefined> {
+    const [row] = await db.update(waterQualitySchedules).set(data)
+      .where(eq(waterQualitySchedules.id, id)).returning();
+    return row;
+  }
+
+  async deleteWaterQualitySchedule(id: number): Promise<boolean> {
+    const result = await db.delete(waterQualitySchedules).where(eq(waterQualitySchedules.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listWaterQualityStandards(opts: { facilityKey: string; poolName?: string; includeInactive?: boolean }): Promise<WaterQualityStandard[]> {
+    const conditions = [eq(waterQualityStandards.facilityKey, opts.facilityKey)];
+    if (!opts.includeInactive) conditions.push(eq(waterQualityStandards.isActive, true));
+    if (opts.poolName) conditions.push(eq(waterQualityStandards.poolName, opts.poolName));
+    return db.select().from(waterQualityStandards).where(and(...conditions))
+      .orderBy(asc(waterQualityStandards.poolName), asc(waterQualityStandards.parameterName));
+  }
+
+  async createWaterQualityStandard(input: InsertWaterQualityStandard): Promise<WaterQualityStandard> {
+    const [row] = await db.insert(waterQualityStandards).values(input).returning();
+    return row;
+  }
+
+  async updateWaterQualityStandard(id: number, data: Partial<InsertWaterQualityStandard>): Promise<WaterQualityStandard | undefined> {
+    const [row] = await db.update(waterQualityStandards).set(data)
+      .where(eq(waterQualityStandards.id, id)).returning();
+    return row;
+  }
+
+  async deleteWaterQualityStandard(id: number): Promise<boolean> {
+    const result = await db.delete(waterQualityStandards).where(eq(waterQualityStandards.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async listTaskCompletions(opts: { facilityKey: string; workDate: string; shiftType?: string }): Promise<WorkLogTaskCompletion[]> {
+    const conditions = [
+      eq(workLogTaskCompletions.facilityKey, opts.facilityKey),
+      eq(workLogTaskCompletions.workDate, opts.workDate),
+    ];
+    if (opts.shiftType) conditions.push(eq(workLogTaskCompletions.shiftType, opts.shiftType));
+    return db.select().from(workLogTaskCompletions).where(and(...conditions));
+  }
+
+  async upsertTaskCompletion(input: InsertWorkLogTaskCompletion): Promise<WorkLogTaskCompletion> {
+    const existing = await db.select().from(workLogTaskCompletions).where(and(
+      eq(workLogTaskCompletions.facilityKey, input.facilityKey),
+      eq(workLogTaskCompletions.workDate, input.workDate),
+      eq(workLogTaskCompletions.shiftType, input.shiftType),
+      eq(workLogTaskCompletions.taskSource, input.taskSource),
+      eq(workLogTaskCompletions.taskRefId, input.taskRefId),
+    )).limit(1);
+
+    const completedAt = input.isCompleted ? new Date() : null;
+
+    if (existing.length > 0) {
+      const [row] = await db.update(workLogTaskCompletions)
+        .set({
+          inputValue: input.inputValue ?? null,
+          isCompleted: input.isCompleted ?? false,
+          completedBy: input.completedBy ?? null,
+          completedByName: input.completedByName ?? null,
+          completedAt,
+          notes: input.notes ?? null,
+          taskName: input.taskName,
+          updatedAt: new Date(),
+        })
+        .where(eq(workLogTaskCompletions.id, existing[0].id))
+        .returning();
+      return row;
+    }
+    const [row] = await db.insert(workLogTaskCompletions).values({ ...input, completedAt }).returning();
+    return row;
+  }
+
+  async listWaterQualityRecords(opts: { facilityKey: string; workDate?: string; shiftType?: string; limit?: number }): Promise<WaterQualityRecord[]> {
+    const conditions = [eq(waterQualityRecords.facilityKey, opts.facilityKey)];
+    if (opts.workDate) conditions.push(eq(waterQualityRecords.workDate, opts.workDate));
+    if (opts.shiftType) conditions.push(eq(waterQualityRecords.shiftType, opts.shiftType));
+    return db.select().from(waterQualityRecords).where(and(...conditions))
+      .orderBy(desc(waterQualityRecords.recordedAt))
+      .limit(Math.min(opts.limit ?? 200, 500));
+  }
+
+  async createWaterQualityRecord(input: InsertWaterQualityRecord): Promise<WaterQualityRecord> {
+    const [row] = await db.insert(waterQualityRecords).values(input).returning();
+    return row;
+  }
+
+  async listLifeguardHandoverNotes(opts: { facilityKey: string; workDate?: string; toShift?: string; fromShift?: string; limit?: number }): Promise<LifeguardHandoverNote[]> {
+    const conditions = [eq(lifeguardHandoverNotes.facilityKey, opts.facilityKey)];
+    if (opts.workDate) conditions.push(eq(lifeguardHandoverNotes.workDate, opts.workDate));
+    if (opts.toShift) conditions.push(eq(lifeguardHandoverNotes.toShift, opts.toShift));
+    if (opts.fromShift) conditions.push(eq(lifeguardHandoverNotes.fromShift, opts.fromShift));
+    return db.select().from(lifeguardHandoverNotes).where(and(...conditions))
+      .orderBy(desc(lifeguardHandoverNotes.createdAt))
+      .limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async getLifeguardHandoverNoteById(id: number): Promise<LifeguardHandoverNote | undefined> {
+    const [row] = await db.select().from(lifeguardHandoverNotes).where(eq(lifeguardHandoverNotes.id, id)).limit(1);
+    return row;
+  }
+
+  async createLifeguardHandoverNote(input: InsertLifeguardHandoverNote): Promise<LifeguardHandoverNote> {
+    const [row] = await db.insert(lifeguardHandoverNotes).values(input).returning();
+    return row;
+  }
+
+  async confirmLifeguardHandoverNote(id: number, by: { employeeNumber: string; name: string }): Promise<LifeguardHandoverNote | undefined> {
+    const [row] = await db.update(lifeguardHandoverNotes).set({
+      isConfirmed: true,
+      confirmedBy: by.employeeNumber,
+      confirmedByName: by.name,
+      confirmedAt: new Date(),
+    }).where(eq(lifeguardHandoverNotes.id, id)).returning();
+    return row;
+  }
+
+  async listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(dailyReportSubmissions.facilityKey, opts.facilityKey));
+    if (opts.workDate) conditions.push(eq(dailyReportSubmissions.workDate, opts.workDate));
+    if (opts.status) conditions.push(eq(dailyReportSubmissions.status, opts.status));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const q = db.select().from(dailyReportSubmissions);
+    return (where ? q.where(where) : q)
+      .orderBy(desc(dailyReportSubmissions.submittedAt))
+      .limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined> {
+    const [row] = await db.select().from(dailyReportSubmissions).where(and(
+      eq(dailyReportSubmissions.facilityKey, opts.facilityKey),
+      eq(dailyReportSubmissions.workDate, opts.workDate),
+      eq(dailyReportSubmissions.shiftType, opts.shiftType),
+      eq(dailyReportSubmissions.submittedBy, opts.submittedBy),
+    )).orderBy(desc(dailyReportSubmissions.submittedAt)).limit(1);
+    return row;
+  }
+
+  async createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission> {
+    const [row] = await db.insert(dailyReportSubmissions).values(input).returning();
+    return row;
+  }
+
+  async updateDailyReportSubmissionReview(id: number, data: { status: string; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<DailyReportSubmission | undefined> {
+    const [row] = await db.update(dailyReportSubmissions).set({
+      status: data.status,
+      reviewedBy: data.reviewedBy,
+      reviewedByName: data.reviewedByName,
+      reviewNote: data.reviewNote ?? null,
+      reviewedAt: new Date(),
+    }).where(eq(dailyReportSubmissions.id, id)).returning();
+    return row;
   }
 }
 

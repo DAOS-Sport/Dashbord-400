@@ -20,6 +20,7 @@ interface NavItem {
 
 const SIDE_NAV: NavItem[] = [
   { label: "首頁", icon: "dashboard", path: "" },
+  { label: "工作日誌", icon: "assignment", path: "/work-log" },
   { label: "櫃台交接", icon: "swap_horiz", path: "/handover" },
   { label: "群組公告", icon: "campaign", path: "/announcements" },
   { label: "活動檔期", icon: "event", path: "/campaigns" },
