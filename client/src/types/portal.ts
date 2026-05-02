@@ -214,6 +214,7 @@ export interface WaterQualityRecordDTO {
   measurements: Record<string, string | number>;
   isAbnormal: boolean;
   abnormalNote: string | null;
+  photoUrls: string[] | null;
   recordedByName: string | null;
   recordedAt: string;
 }

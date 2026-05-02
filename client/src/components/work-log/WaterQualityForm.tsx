@@ -133,7 +133,9 @@ export default function WaterQualityForm({
       footbathStatus: (get("footbath_status") as "ok" | "abnormal" | "") || "",
       lockerRoomStatus: (get("locker_room_check") as "ok" | "abnormal" | "") || "",
       abnormalNote: existingRecord?.abnormalNote ?? "",
-      photoUrls: [],
+      // Preload existing photos so editing a record does not silently wipe
+      // previously-uploaded images when the user submits without re-uploading.
+      photoUrls: existingRecord?.photoUrls ?? [],
     };
   }, [existingRecord]);
 

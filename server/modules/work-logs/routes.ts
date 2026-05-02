@@ -484,6 +484,21 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       if (abnormals.length > 0) isAbnormal = true;
 
       const finalNote = parsed.data.abnormalNote ?? (abnormals.length > 0 ? abnormals.join("；") : null);
+      // Look up the prior record (if any) for this slot so we can decide
+      // whether to (re)open an anomaly case. We only want to create a new
+      // anomaly report on the normal→abnormal transition; repeated edits that
+      // remain abnormal should not spam supervisors.
+      let priorAbnormal = false;
+      if (parsed.data.scheduleId !== undefined && parsed.data.scheduleId !== null) {
+        const prior = await storage.listWaterQualityRecords({
+          facilityKey: parsed.data.facilityKey,
+          workDate: parsed.data.workDate,
+          shiftType: parsed.data.shiftType,
+        });
+        const match = prior.find((r) => r.scheduleId === parsed.data.scheduleId);
+        priorAbnormal = !!match?.isAbnormal;
+      }
+
       // Upsert by (facilityKey, workDate, shiftType, scheduleId) so editing an
       // existing slot's record updates in place instead of creating duplicates.
       const row = await storage.upsertWaterQualityRecord({
@@ -494,11 +509,11 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         recordedByName: caller.name,
       });
 
-      // Auto-create an anomaly_report when the saved record is abnormal so
-      // supervisors are alerted via the existing anomaly pipeline. Failure to
-      // create the anomaly report is non-fatal (we still return the saved
-      // water-quality record).
-      if (isAbnormal) {
+      // Auto-create an anomaly_report ONLY on a normal→abnormal transition
+      // (or first-ever save that is abnormal) so supervisors are alerted via
+      // the existing anomaly pipeline without duplicate noise on edits.
+      // Failure to create the anomaly report is non-fatal.
+      if (isAbnormal && !priorAbnormal) {
         try {
           const measurementSummary = Object.entries(parsed.data.measurements ?? {})
             .map(([k, v]) => `${k}=${v}`)

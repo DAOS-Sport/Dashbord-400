@@ -723,6 +723,10 @@ const workLogInputTypeSchema = z.enum([
   "photo",
   "number_photo",
   "checkbox_photo",
+  "yes_no",
+  "on_off",
+  "yes_no_remark",
+  "water_quality_form",
 ]);
 
 export const dailyTaskTemplates = pgTable("daily_task_templates", {
