@@ -40,18 +40,17 @@ function getCaller(req: import("express").Request): CallerProfile {
 
 /**
  * Authorize the caller to access the given facilityKey.
- * - Supervisors bypass the check.
- * - For workbench-scoped sessions, the facility must be in grantedFacilities.
- * - For direct employee logins (no workbenchSession, e.g. ragic-login), allow
- *   the request — facility scoping for non-supervisor direct logins is enforced
- *   upstream by the portal facility binding.
+ * - Supervisors and system role bypass the check.
+ * - For all other callers, the workbench session must exist AND the facility
+ *   must be in grantedFacilities. Every work-log route is wrapped in
+ *   requireEmployee()/requireSupervisor() (see server/modules/auth/context.ts
+ *   requireSession) which already guarantees a session — we deny by default
+ *   here as defense-in-depth.
  */
 function canAccessFacility(req: import("express").Request, caller: CallerProfile, facilityKey: string): boolean {
   if (caller.isSupervisor) return true;
-  if (req.workbenchSession) {
-    return req.workbenchSession.grantedFacilities?.includes(facilityKey) ?? false;
-  }
-  return true;
+  if (!req.workbenchSession) return false;
+  return req.workbenchSession.grantedFacilities?.includes(facilityKey) ?? false;
 }
 
 function todayInTaipei(): string {
