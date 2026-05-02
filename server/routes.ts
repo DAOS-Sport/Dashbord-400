@@ -334,6 +334,12 @@ export async function registerRoutes(
 
   const container = registerNewArchitectureRoutes(httpServer, app);
 
+  // Block direct static access to work-log photos. They MUST be fetched via
+  // the auth-gated proxy at /api/storage/objects/* which enforces facility
+  // scoping. This protects mock-mode uploads where bytes also live on disk.
+  app.use("/uploads/work-logs", (_req, res) => {
+    res.status(403).json({ message: "請改用 /api/storage/objects/ 取得工作日誌照片" });
+  });
   app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
 
   app.post("/api/anomaly-report", upload.fields([

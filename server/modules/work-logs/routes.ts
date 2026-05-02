@@ -5,6 +5,8 @@ import path from "node:path";
 import { storage } from "../../storage";
 import {
   uploadFile,
+  downloadFile,
+  inferMimeFromKey,
   ALLOWED_IMAGE_MIME_TYPES,
   ALLOWED_IMAGE_EXTENSIONS,
   MAX_UPLOAD_BYTES,
@@ -181,10 +183,16 @@ const uploadMeta = multer({
   },
 });
 
+// folder is appended under the canonical "work-logs/" namespace. We allow
+// only an optional sub-folder (e.g. "tasks", "water-quality") under work-logs,
+// so every key uploaded by this endpoint is guaranteed to start with
+// "work-logs/<facilityKey>/..." or "work-logs/<sub>/<facilityKey>/...". The
+// download proxy relies on this contract to enforce facility-scoped access.
 const uploadFolderSchema = z
   .string()
   .max(64)
   .regex(/^[a-zA-Z0-9_\-/]+$/, "folder 含非法字元")
+  .refine((s) => !s.includes(".."), "folder 不可包含 ..")
   .optional();
 
 export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
@@ -222,16 +230,25 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         if (!canAccessFacility(req, caller, facilityKey)) {
           return res.status(403).json({ message: "無此館別權限" });
         }
-        const folder = folderParsed.data ?? "work-logs";
-        // Namespace by facility so files are scoped & easy to audit.
-        const fullFolder = `${folder}/${facilityKey.replace(/[^a-z0-9_\-]/gi, "")}`;
+        const sub = folderParsed.data;
+        const safeFacility = facilityKey.replace(/[^a-z0-9_\-]/gi, "");
+        if (!safeFacility) return res.status(400).json({ message: "facilityKey 無效" });
+        // Force every uploaded key to live under work-logs/<sub>/<facilityKey>/
+        // so the download proxy can enforce facility-scoped authz reliably.
+        const subClean = sub
+          ? sub.replace(/^work-logs\/?/, "").replace(/^\/+|\/+$/g, "")
+          : "general";
+        const fullFolder = subClean
+          ? `work-logs/${subClean}/${safeFacility}`
+          : `work-logs/${safeFacility}`;
         const result = await uploadFile({
           buffer: file.buffer,
           mime: file.mimetype,
           originalName: file.originalname,
           folder: fullFolder,
         });
-        res.json({ item: result });
+        // Flat response shape per spec: { url, key, size, mime, originalName }
+        res.json(result);
       } catch (e) {
         console.error("[work-logs] upload failed", e);
         const msg = e instanceof Error ? e.message : "上傳失敗";
@@ -239,12 +256,59 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         const isValidationError =
           msg.startsWith("不支援的檔案類型") ||
           msg.startsWith("檔案過大") ||
-          msg.includes("Object Storage adapter is not configured");
+          msg.includes("無效的物件鍵");
         const status = isValidationError ? 400 : 500;
         res.status(status).json({ message: msg });
       }
     },
   );
+
+  // ============ Object Storage download proxy ============
+  //
+  // When STORAGE_ADAPTER_MODE !== "mock", uploaded photos live in Replit Object
+  // Storage and are not directly fetchable. This proxy streams them back to the
+  // browser, with auth + facility scoping derived from the key path.
+  app.get("/api/storage/objects/*splat", requireEmployee(), async (req, res) => {
+    try {
+      const splat = (req.params as { splat?: string | string[] }).splat;
+      const rawKey = Array.isArray(splat) ? splat.join("/") : (splat || "");
+      const key = decodeURIComponent(rawKey);
+      if (key.includes("..") || key.startsWith("/")) {
+        return res.status(400).json({ message: "無效的物件鍵" });
+      }
+      // Strict facility-scoped naming. The upload endpoint guarantees every
+      // key it produces matches one of:
+      //   work-logs/<facilityKey>/<file>
+      //   work-logs/<sub>/<facilityKey>/<file>
+      // Anything outside that contract is denied by default (deny-list-by-
+      // default policy) so future buckets containing unrelated objects can't
+      // leak through this proxy.
+      const parts = key.split("/").filter(Boolean);
+      if (parts.length < 3 || parts[0] !== "work-logs") {
+        return res.status(403).json({ message: "鍵不符合 work-logs 命名規則" });
+      }
+      // Detect 2-segment vs 3-segment layout. Facility key is the segment
+      // immediately before the filename.
+      const facilityKey = parts[parts.length - 2];
+      if (!/^[a-z0-9_\-]+$/i.test(facilityKey)) {
+        return res.status(403).json({ message: "鍵不符合 work-logs 命名規則" });
+      }
+      const caller = getCaller(req);
+      if (!canAccessFacility(req, caller, facilityKey)) {
+        return res.status(403).json({ message: "無此館別權限" });
+      }
+      const obj = await downloadFile(key);
+      if (!obj) return res.status(404).json({ message: "找不到檔案" });
+      res.setHeader("Content-Type", obj.mime ?? inferMimeFromKey(key));
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.send(obj.buffer);
+    } catch (e) {
+      console.error("[work-logs] object download failed", e);
+      const msg = e instanceof Error ? e.message : "下載失敗";
+      const status = msg.includes("無效的物件鍵") ? 400 : 500;
+      res.status(status).json({ message: msg });
+    }
+  });
 
   // ============ Today aggregator ============
   app.get("/api/work-logs/today", requireEmployee(), async (req, res) => {

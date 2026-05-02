@@ -12,6 +12,11 @@ export function serveStatic(app: Express) {
 
   const uploadsPath = path.resolve(process.cwd(), "uploads");
   if (fs.existsSync(uploadsPath)) {
+    // Block direct static access to work-log photos in production too —
+    // they must go through /api/storage/objects/* for facility-scoped authz.
+    app.use("/uploads/work-logs", (_req, res) => {
+      res.status(403).json({ message: "請改用 /api/storage/objects/ 取得工作日誌照片" });
+    });
     app.use("/uploads", express.static(uploadsPath));
   }
 

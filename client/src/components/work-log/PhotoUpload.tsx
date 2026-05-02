@@ -49,9 +49,9 @@ export function PhotoUpload({
       const text = (await res.text()) || res.statusText;
       throw new Error(`${res.status}: ${text}`);
     }
-    const data = (await res.json()) as { item?: { url?: string } };
-    if (!data?.item?.url) throw new Error("回應缺少 url");
-    return data.item.url;
+    const data = (await res.json()) as { url?: string };
+    if (!data?.url) throw new Error("回應缺少 url");
+    return data.url;
   }
 
   const handleFiles = async (files: FileList | null) => {

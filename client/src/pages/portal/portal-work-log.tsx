@@ -229,28 +229,56 @@ interface TaskRowProps {
 function TaskRow({ task, facilityKey, workDate, shiftType, onComplete, isPending, disabled }: TaskRowProps) {
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
   const [notes, setNotes] = useState<string>(task.notes ?? "");
+  const { toast } = useToast();
   const isCheckboxOnly = task.inputType === "checkbox";
 
+  // Photo-required tasks must have at least one photo before being marked
+  // complete. Triggered for input types ending in "_photo" / "photo" OR
+  // when inputConfig.needPhoto === true.
+  const photoTypes = new Set(["photo", "number_photo", "checkbox_photo"]);
+  const cfg = (task.inputConfig ?? {}) as Record<string, unknown>;
+  const requiresPhoto = photoTypes.has(task.inputType) || cfg.needPhoto === true;
+
+  const validatePhotoOrToast = (val: Record<string, unknown> | null | undefined): boolean => {
+    if (!requiresPhoto) return true;
+    const photos = (val && Array.isArray((val as Record<string, unknown>).photoUrls))
+      ? ((val as Record<string, unknown>).photoUrls as unknown[])
+      : [];
+    if (photos.length === 0) {
+      toast({
+        title: "需要照片才能完成",
+        description: `「${task.taskName}」要求上傳至少一張照片`,
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleToggle = async (next: boolean) => {
+    const effectiveValue = draft ?? task.inputValue ?? undefined;
+    if (next && !validatePhotoOrToast(effectiveValue)) return;
     await onComplete({
       facilityKey, workDate, shiftType,
       taskSource: task.source,
       taskRefId: task.refId,
       taskName: task.taskName,
       isCompleted: next,
-      inputValue: draft ?? task.inputValue ?? undefined,
+      inputValue: effectiveValue,
       notes: notes || undefined,
     });
   };
 
   const handleSave = async () => {
+    const effectiveValue = draft ?? task.inputValue ?? undefined;
+    if (!validatePhotoOrToast(effectiveValue)) return;
     await onComplete({
       facilityKey, workDate, shiftType,
       taskSource: task.source,
       taskRefId: task.refId,
       taskName: task.taskName,
       isCompleted: true,
-      inputValue: draft ?? task.inputValue ?? undefined,
+      inputValue: effectiveValue,
       notes: notes || undefined,
     });
   };

@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import type { Client as ObjectStorageClient } from "@replit/object-storage";
 
-const MODE = (process.env.STORAGE_ADAPTER_MODE ?? "mock").toLowerCase();
+const RAW_MODE = (process.env.STORAGE_ADAPTER_MODE ?? "mock").toLowerCase();
+const MODE: "mock" | "object" = RAW_MODE === "mock" || RAW_MODE === "local" ? "mock" : "object";
+
 const UPLOADS_ROOT = path.join(process.cwd(), "uploads");
 
 export const ALLOWED_IMAGE_MIME_TYPES = new Set([
@@ -58,13 +61,18 @@ function generateKey(folder: string, originalName: string, mime: string): string
   return `${safeFolder}/${ts}-${rand}${ext}`;
 }
 
-async function uploadMock(input: UploadInput): Promise<UploadResult> {
-  const key = generateKey(input.folder, input.originalName, input.mime);
+// ============ Mock (local disk) adapter ============
+
+async function uploadMock(input: UploadInput, key: string): Promise<UploadResult> {
   const fullPath = path.join(UPLOADS_ROOT, key);
   await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.promises.writeFile(fullPath, input.buffer);
+  // Always return the auth-gated proxy URL — even in mock mode — so that
+  // facility scoping is enforced regardless of where the bytes actually live.
+  // The /uploads static mount is independently blocked for the work-logs/*
+  // subtree (see server/routes.ts).
   return {
-    url: `/uploads/${key}`,
+    url: `/api/storage/objects/${key.split("/").map(encodeURIComponent).join("/")}`,
     key,
     size: input.buffer.byteLength,
     mime: input.mime,
@@ -72,15 +80,80 @@ async function uploadMock(input: UploadInput): Promise<UploadResult> {
   };
 }
 
-async function uploadObjectStorage(_input: UploadInput): Promise<UploadResult> {
-  // Stub for production Replit Object Storage. Until @replit/object-storage
-  // is installed and a bucket is configured, fail loudly so callers do not
-  // silently lose data.
-  throw new Error(
-    "Replit Object Storage adapter is not configured. " +
-    "Set STORAGE_ADAPTER_MODE=mock for local/dev, or install @replit/object-storage and configure a bucket.",
-  );
+async function downloadMock(key: string): Promise<{ buffer: Buffer; mime?: string } | null> {
+  const fullPath = path.join(UPLOADS_ROOT, key);
+  try {
+    const buffer = await fs.promises.readFile(fullPath);
+    return { buffer };
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
 }
+
+// ============ Replit Object Storage adapter ============
+//
+// Uses the bundled default bucket when no STORAGE_BUCKET_ID is set. Object
+// Storage does not expose direct anonymous URLs, so uploads return a proxy URL
+// (`/api/storage/objects/<key>`) that an authenticated download route streams
+// from. This keeps photos private and facility-scoped while still being
+// renderable in <img src=...>.
+
+let _objectClient: ObjectStorageClient | null = null;
+let _objectClientFailedAt: number | null = null;
+
+async function getObjectClient(): Promise<ObjectStorageClient> {
+  if (_objectClient) return _objectClient;
+  // Avoid hammering retries every request — 30s back-off after a failure.
+  if (_objectClientFailedAt && Date.now() - _objectClientFailedAt < 30_000) {
+    throw new Error("Object Storage client unavailable (recent init failure).");
+  }
+  try {
+    const mod = await import("@replit/object-storage");
+    const bucketId = process.env.STORAGE_BUCKET_ID || undefined;
+    _objectClient = new mod.Client(bucketId ? { bucketId } : undefined);
+    _objectClientFailedAt = null;
+    return _objectClient;
+  } catch (e) {
+    _objectClientFailedAt = Date.now();
+    throw new Error(
+      `Failed to initialise Replit Object Storage client: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+}
+
+async function uploadObjectStorage(input: UploadInput, key: string): Promise<UploadResult> {
+  const client = await getObjectClient();
+  const result = await client.uploadFromBytes(key, input.buffer);
+  if (!result.ok) {
+    const msg = result.error instanceof Error ? result.error.message : String(result.error);
+    throw new Error(`Object Storage upload failed: ${msg}`);
+  }
+  return {
+    url: `/api/storage/objects/${key.split("/").map(encodeURIComponent).join("/")}`,
+    key,
+    size: input.buffer.byteLength,
+    mime: input.mime,
+    originalName: input.originalName,
+  };
+}
+
+async function downloadObjectStorage(key: string): Promise<{ buffer: Buffer; mime?: string } | null> {
+  const client = await getObjectClient();
+  const exists = await client.exists(key);
+  if (exists.ok && exists.value === false) return null;
+  const result = await client.downloadAsBytes(key);
+  if (!result.ok) {
+    const msg = result.error instanceof Error ? result.error.message : String(result.error);
+    if (/not found|no such object/i.test(msg)) return null;
+    throw new Error(`Object Storage download failed: ${msg}`);
+  }
+  // The SDK returns the bytes as `value[0]` (first element of an array).
+  const bytes = Array.isArray(result.value) ? (result.value[0] as Buffer | Uint8Array) : (result.value as unknown as Buffer);
+  return { buffer: Buffer.from(bytes) };
+}
+
+// ============ Public API ============
 
 export async function uploadFile(input: UploadInput): Promise<UploadResult> {
   if (!ALLOWED_IMAGE_MIME_TYPES.has(input.mime)) {
@@ -89,20 +162,40 @@ export async function uploadFile(input: UploadInput): Promise<UploadResult> {
   if (input.buffer.byteLength > MAX_UPLOAD_BYTES) {
     throw new Error(`檔案過大，上限 ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)} MB`);
   }
-  if (MODE === "mock" || MODE === "local") {
-    return uploadMock(input);
-  }
-  return uploadObjectStorage(input);
+  const key = generateKey(input.folder, input.originalName, input.mime);
+  if (MODE === "mock") return uploadMock(input, key);
+  return uploadObjectStorage(input, key);
 }
 
-export function getStorageMode(): string {
+/**
+ * Resolve a stored object's bytes for streaming back to the browser. Returns
+ * null when the object does not exist; throws on infrastructure failures.
+ */
+export async function downloadFile(key: string): Promise<{ buffer: Buffer; mime?: string } | null> {
+  if (!key || key.includes("..") || key.startsWith("/")) {
+    throw new Error("無效的物件鍵");
+  }
+  if (MODE === "mock") return downloadMock(key);
+  return downloadObjectStorage(key);
+}
+
+export function getStorageMode(): "mock" | "object" {
   return MODE;
 }
 
 export function getPublicUrl(key: string): string {
-  if (MODE === "mock" || MODE === "local") {
-    return `/uploads/${key}`;
+  return `/api/storage/objects/${key.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+export function inferMimeFromKey(key: string): string {
+  const ext = path.extname(key).toLowerCase();
+  switch (ext) {
+    case ".jpg": case ".jpeg": return "image/jpeg";
+    case ".png": return "image/png";
+    case ".gif": return "image/gif";
+    case ".webp": return "image/webp";
+    case ".heic": return "image/heic";
+    case ".heif": return "image/heif";
+    default: return "application/octet-stream";
   }
-  // Real Object Storage would return a CDN URL or signed URL here.
-  return `/uploads/${key}`;
 }
