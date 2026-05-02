@@ -1,0 +1,1286 @@
+救生員新增交辦
+這套功能是在你原本網站新增一個「工作日誌」分頁，內容會取代目前紙本救生員工作日誌與水質管理日誌，例如早晚班工作事項、水質每時段紀錄、PH、餘氯、加藥、反洗、正洗、補水、事故與交接事項等。
+
+Replit 開發補充：工作日誌系統簡化邏輯與程式碼規格
+一、核心邏輯總覽
+
+請 Replit 依照這個資料流程製作：
+
+使用者登入
+↓
+取得使用者可進入的館別
+↓
+進入「工作日誌」分頁
+↓
+選擇館別 / 班別
+↓
+系統產生今日任務
+↓
+人員逐項完成
+↓
+系統檢查必填項目
+↓
+全部完成後才可送出今日回報
+↓
+主管審核
+
+今日任務由 5 種資料組成：
+
+今日任務 =
+每日固定事項
++ 今日主管交辦事項
++ 今日符合星期的週期任務
++ 今日應填水質時段
++ 上一班交接事項
+二、建議資料結構
+
+以下用接近 JavaScript / JSON 的方式寫，Replit 比較容易理解。
+
+1. 使用者 users
+const users = {
+  id: 1,
+  name: "王小明",
+  account: "lifeguard01",
+  role: "lifeguard", // admin, manager, lifeguard
+  allowedVenueIds: [1, 2],
+  isActive: true
+};
+2. 館別 venues
+const venues = {
+  id: 1,
+  name: "新生公園館",
+  code: "xinsheng",
+  openTime: "06:00",
+  closeTime: "22:00",
+  isActive: true
+};
+3. 每日固定事項 daily_task_templates
+
+這些是每天都會出現的工作項目。
+
+const dailyTaskTemplates = [
+  {
+    id: 1,
+    venueId: 1,
+    shiftType: "morning", // morning, noon, night, all
+    title: "清掃泳池及樓梯垃圾頭髮",
+    description: "請確認泳池周圍與樓梯無垃圾、頭髮。",
+    inputType: "checkbox",
+    required: true,
+    needPhoto: false,
+    sortOrder: 1,
+    isActive: true
+  },
+  {
+    id: 2,
+    venueId: 1,
+    shiftType: "morning",
+    title: "水溫",
+    description: "請填寫目前泳池水溫。",
+    inputType: "number",
+    unit: "°C",
+    required: true,
+    needPhoto: false,
+    sortOrder: 2,
+    isActive: true
+  },
+  {
+    id: 3,
+    venueId: 1,
+    shiftType: "night",
+    title: "投射燈及各電燈全關",
+    description: "確認閉館後所有燈光已關閉。",
+    inputType: "on_off",
+    required: true,
+    needPhoto: false,
+    sortOrder: 3,
+    isActive: true
+  }
+];
+4. 今日交辦事項 assigned_tasks
+
+主管臨時交辦，指定某一天出現。
+
+const assignedTasks = [
+  {
+    id: 1,
+    venueId: 1,
+    assignedDate: "2026-05-02",
+    shiftType: "morning",
+    assignedToUserId: null, // null = 該班所有人都可看到
+    title: "確認藥桶剩餘量",
+    description: "請拍照並填寫剩餘百分比。",
+    inputType: "number_photo",
+    required: true,
+    dueTime: "14:00",
+    createdBy: 99,
+    status: "pending"
+  }
+];
+5. 每週固定事項 recurring_task_templates
+
+例如每週三、每週五才出現。
+
+const recurringTaskTemplates = [
+  {
+    id: 1,
+    venueId: 1,
+    title: "清洗水龜濾網",
+    description: "每週三早班清洗水龜濾網，需拍照。",
+    shiftType: "morning",
+    frequencyType: "weekly",
+    weekdays: ["wed"],
+    inputType: "checkbox_photo",
+    required: true,
+    isActive: true,
+    sortOrder: 1
+  },
+  {
+    id: 2,
+    venueId: 1,
+    title: "檢查救生器材",
+    description: "每週五確認救生器材完整。",
+    shiftType: "morning",
+    frequencyType: "weekly",
+    weekdays: ["fri"],
+    inputType: "yes_no_remark",
+    required: true,
+    isActive: true,
+    sortOrder: 2
+  }
+];
+6. 水質測量時段設定 water_quality_schedules
+
+平常每 2 小時，暑假每 1 小時，都由後台設定。
+
+const waterQualitySchedules = [
+  {
+    id: 1,
+    venueId: 1,
+    name: "平常日每兩小時",
+    startDate: "2026-01-01",
+    endDate: "2026-06-30",
+    startTime: "06:00",
+    endTime: "22:00",
+    intervalMinutes: 120,
+    customTimes: null,
+    requirePhoto: true,
+    lateMinutes: 15,
+    priority: 10,
+    isActive: true
+  },
+  {
+    id: 2,
+    venueId: 1,
+    name: "暑假每小時",
+    startDate: "2026-07-01",
+    endDate: "2026-08-31",
+    startTime: "06:00",
+    endTime: "22:00",
+    intervalMinutes: 60,
+    customTimes: null,
+    requirePhoto: true,
+    lateMinutes: 15,
+    priority: 1,
+    isActive: true
+  }
+];
+7. 水質標準 water_quality_standards
+const waterQualityStandards = {
+  venueId: 1,
+  ph: {
+    min: 7.2,
+    max: 7.8
+  },
+  chlorine: {
+    min: 0.3,
+    max: 1.0
+  },
+  waterTemperature: {
+    min: 24,
+    max: 32
+  }
+};
+8. 任務完成紀錄 task_completions
+
+所有任務都統一記錄到這張表。
+
+const taskCompletion = {
+  id: 1,
+  taskType: "daily", // daily, assigned, recurring, water, handover
+  taskId: 1,
+  venueId: 1,
+  workDate: "2026-05-02",
+  shiftType: "morning",
+  completedBy: 1,
+  completedAt: "2026-05-02 09:10:00",
+  value: true,
+  remark: "",
+  photoUrls: [],
+  status: "completed" // pending, completed, late, abnormal
+};
+三、今日任務產生邏輯
+
+請做一個核心 function：
+
+function getTodayTasks({ userId, venueId, shiftType, date }) {
+  const user = getUserById(userId);
+
+  // 1. 權限檢查
+  if (!user.allowedVenueIds.includes(venueId)) {
+    throw new Error("此帳號沒有該館別權限");
+  }
+
+  // 2. 取得今天星期
+  const weekday = getWeekday(date); 
+  // 回傳 mon, tue, wed, thu, fri, sat, sun
+
+  // 3. 每日固定任務
+  const dailyTasks = getDailyTasks(venueId, shiftType);
+
+  // 4. 今日主管交辦任務
+  const assignedTasks = getAssignedTasks({
+    venueId,
+    shiftType,
+    userId,
+    date
+  });
+
+  // 5. 今日週期任務
+  const recurringTasks = getRecurringTasks({
+    venueId,
+    shiftType,
+    weekday
+  });
+
+  // 6. 今日水質測量時段
+  const waterTasks = generateWaterTasks({
+    venueId,
+    date
+  });
+
+  // 7. 上一班交接事項
+  const handoverTasks = getPreviousShiftHandover({
+    venueId,
+    shiftType,
+    date
+  });
+
+  return {
+    dailyTasks,
+    assignedTasks,
+    recurringTasks,
+    waterTasks,
+    handoverTasks
+  };
+}
+四、每日固定任務邏輯
+function getDailyTasks(venueId, shiftType) {
+  return dailyTaskTemplates.filter(task => {
+    return (
+      task.venueId === venueId &&
+      task.isActive === true &&
+      (task.shiftType === shiftType || task.shiftType === "all")
+    );
+  });
+}
+五、今日交辦任務邏輯
+function getAssignedTasks({ venueId, shiftType, userId, date }) {
+  return assignedTasks.filter(task => {
+    const matchVenue = task.venueId === venueId;
+    const matchDate = task.assignedDate === date;
+    const matchShift = task.shiftType === shiftType || task.shiftType === "all";
+    const matchUser = task.assignedToUserId === null || task.assignedToUserId === userId;
+
+    return matchVenue && matchDate && matchShift && matchUser;
+  });
+}
+六、每週固定任務邏輯
+function getRecurringTasks({ venueId, shiftType, weekday }) {
+  return recurringTaskTemplates.filter(task => {
+    const matchVenue = task.venueId === venueId;
+    const matchShift = task.shiftType === shiftType || task.shiftType === "all";
+    const matchWeekday = task.weekdays.includes(weekday);
+
+    return (
+      task.isActive === true &&
+      matchVenue &&
+      matchShift &&
+      matchWeekday
+    );
+  });
+}
+
+範例：
+
+// 今天是星期三
+const weekday = "wed";
+
+// 只顯示 weekdays 裡面有 wed 的任務
+七、水質時段產生邏輯
+1. 取得今天適用的水質規則
+
+如果同一天有多個規則，使用 priority 最小的。
+
+例如：
+
+priority 1 = 暑假
+priority 10 = 平常日
+function getActiveWaterSchedule(venueId, date) {
+  const matched = waterQualitySchedules.filter(schedule => {
+    return (
+      schedule.venueId === venueId &&
+      schedule.isActive === true &&
+      date >= schedule.startDate &&
+      date <= schedule.endDate
+    );
+  });
+
+  if (matched.length === 0) {
+    return null;
+  }
+
+  matched.sort((a, b) => a.priority - b.priority);
+
+  return matched[0];
+}
+2. 產生水質測量時段
+function generateWaterTasks({ venueId, date }) {
+  const schedule = getActiveWaterSchedule(venueId, date);
+
+  if (!schedule) {
+    return [];
+  }
+
+  let times = [];
+
+  // 如果後台有自訂時間點，優先用自訂時間點
+  if (schedule.customTimes && schedule.customTimes.length > 0) {
+    times = schedule.customTimes;
+  } else {
+    times = generateTimeSlots(
+      schedule.startTime,
+      schedule.endTime,
+      schedule.intervalMinutes
+    );
+  }
+
+  return times.map(time => {
+    return {
+      taskType: "water",
+      venueId,
+      date,
+      scheduledTime: time,
+      title: `${time} 水質測量`,
+      inputType: "water_quality_form",
+      required: true,
+      requirePhoto: schedule.requirePhoto,
+      lateMinutes: schedule.lateMinutes,
+      status: getWaterTaskStatus({ venueId, date, scheduledTime: time })
+    };
+  });
+}
+3. 時間產生工具
+function generateTimeSlots(startTime, endTime, intervalMinutes) {
+  const result = [];
+
+  let current = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+
+  while (current <= end) {
+    result.push(minutesToTime(current));
+    current += intervalMinutes;
+  }
+
+  return result;
+}
+
+function timeToMinutes(time) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function minutesToTime(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+4. 範例輸出
+
+平常日：
+
+generateTimeSlots("06:00", "22:00", 120);
+
+輸出：
+
+[
+  "06:00",
+  "08:00",
+  "10:00",
+  "12:00",
+  "14:00",
+  "16:00",
+  "18:00",
+  "20:00",
+  "22:00"
+]
+
+暑假：
+
+generateTimeSlots("06:00", "22:00", 60);
+
+輸出：
+
+[
+  "06:00",
+  "07:00",
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
+  "21:00",
+  "22:00"
+]
+八、水質填寫資料格式
+const waterQualityRecord = {
+  id: 1,
+  venueId: 1,
+  recordDate: "2026-05-02",
+  scheduledTime: "10:00",
+  measuredAt: "2026-05-02 10:05:00",
+  chlorine: 0.6,
+  ph: 7.4,
+  waterTemperature: 28.5,
+  roomTemperature: 30.0,
+  dosingTime: "10:10",
+  dosingAmount: 100,
+  footbathChanged: true,
+  lockerRoomChecked: true,
+  photoUrls: [
+    "/uploads/water/20260502_1000_1.jpg"
+  ],
+  remark: "",
+  status: "completed",
+  abnormalReason: null,
+  createdBy: 1
+};
+九、水質異常判斷邏輯
+function checkWaterAbnormal(record, standards) {
+  const abnormalMessages = [];
+
+  if (record.ph < standards.ph.min || record.ph > standards.ph.max) {
+    abnormalMessages.push(`PH 異常：${record.ph}`);
+  }
+
+  if (
+    record.chlorine < standards.chlorine.min ||
+    record.chlorine > standards.chlorine.max
+  ) {
+    abnormalMessages.push(`餘氯異常：${record.chlorine}`);
+  }
+
+  if (
+    record.waterTemperature < standards.waterTemperature.min ||
+    record.waterTemperature > standards.waterTemperature.max
+  ) {
+    abnormalMessages.push(`水溫異常：${record.waterTemperature}`);
+  }
+
+  return {
+    isAbnormal: abnormalMessages.length > 0,
+    abnormalMessages
+  };
+}
+儲存水質時的邏輯
+function saveWaterQualityRecord(input, currentUser) {
+  const standards = getWaterStandards(input.venueId);
+
+  const checkResult = checkWaterAbnormal(input, standards);
+
+  const status = checkResult.isAbnormal ? "abnormal" : "completed";
+
+  const record = {
+    ...input,
+    measuredAt: getCurrentDateTime(),
+    createdBy: currentUser.id,
+    status,
+    abnormalReason: checkResult.abnormalMessages.join("；")
+  };
+
+  saveToDatabase("water_quality_records", record);
+
+  // 如果異常，自動建立異常案件
+  if (checkResult.isAbnormal) {
+    createAbnormalCase({
+      venueId: input.venueId,
+      sourceType: "water_quality",
+      sourceId: record.id,
+      category: "水質異常",
+      level: "medium",
+      description: checkResult.abnormalMessages.join("；"),
+      reportedBy: currentUser.id
+    });
+  }
+
+  return record;
+}
+十、任務填寫元件渲染邏輯
+
+Replit 可以依照 inputType 自動決定畫面要出現什麼欄位。
+
+function renderInputByType(task) {
+  switch (task.inputType) {
+    case "checkbox":
+      return "顯示勾選框";
+
+    case "yes_no":
+      return "顯示 YES / NO 大按鈕";
+
+    case "on_off":
+      return "顯示 ON / OFF 大按鈕";
+
+    case "number":
+      return "顯示數字輸入框";
+
+    case "text":
+      return "顯示單行文字輸入";
+
+    case "textarea":
+      return "顯示多行文字輸入";
+
+    case "time":
+      return "顯示時間選擇器 + 帶入現在時間";
+
+    case "photo":
+      return "顯示拍照 / 上傳照片";
+
+    case "number_photo":
+      return "顯示數字輸入 + 拍照上傳";
+
+    case "checkbox_photo":
+      return "顯示勾選 + 拍照上傳";
+
+    case "yes_no_remark":
+      return "顯示 YES / NO + 備註";
+
+    case "water_quality_form":
+      return "顯示水質完整表單";
+
+    default:
+      return "顯示文字輸入";
+  }
+}
+十一、任務完成驗證邏輯
+
+每一個任務儲存前，都要檢查是否符合要求。
+
+function validateTaskCompletion(task, input) {
+  const errors = [];
+
+  if (task.required) {
+    if (task.inputType === "checkbox" && input.value !== true) {
+      errors.push("此項目必須勾選完成");
+    }
+
+    if (task.inputType === "yes_no" && !["yes", "no"].includes(input.value)) {
+      errors.push("請選擇 YES 或 NO");
+    }
+
+    if (task.inputType === "on_off" && !["on", "off"].includes(input.value)) {
+      errors.push("請選擇 ON 或 OFF");
+    }
+
+    if (task.inputType === "number" && input.value === "") {
+      errors.push("請輸入數字");
+    }
+
+    if (task.inputType === "textarea" && !input.value) {
+      errors.push("請填寫內容");
+    }
+
+    if (task.needPhoto && (!input.photoUrls || input.photoUrls.length === 0)) {
+      errors.push("此項目必須上傳照片");
+    }
+
+    if (task.inputType === "number_photo") {
+      if (input.value === "") errors.push("請輸入數字");
+      if (!input.photoUrls || input.photoUrls.length === 0) errors.push("請上傳照片");
+    }
+
+    if (task.inputType === "checkbox_photo") {
+      if (input.value !== true) errors.push("請勾選完成");
+      if (!input.photoUrls || input.photoUrls.length === 0) errors.push("請上傳照片");
+    }
+  }
+
+  return errors;
+}
+十二、儲存任務完成紀錄
+function completeTask({ taskType, task, input, currentUser, venueId, workDate, shiftType }) {
+  const errors = validateTaskCompletion(task, input);
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      errors
+    };
+  }
+
+  const completion = {
+    taskType,
+    taskId: task.id,
+    venueId,
+    workDate,
+    shiftType,
+    completedBy: currentUser.id,
+    completedAt: getCurrentDateTime(),
+    value: input.value,
+    remark: input.remark || "",
+    photoUrls: input.photoUrls || [],
+    status: "completed"
+  };
+
+  saveToDatabase("task_completions", completion);
+
+  return {
+    success: true,
+    data: completion
+  };
+}
+十三、送出今日回報驗證邏輯
+
+這是最重要的地方。
+所有必填完成，才能送出。
+
+function validateBeforeSubmit({ userId, venueId, shiftType, date }) {
+  const todayTasks = getTodayTasks({
+    userId,
+    venueId,
+    shiftType,
+    date
+  });
+
+  const missingItems = [];
+
+  // 檢查每日固定事項
+  todayTasks.dailyTasks.forEach(task => {
+    if (task.required && !isTaskCompleted("daily", task.id, venueId, date, shiftType)) {
+      missingItems.push(`每日固定事項：${task.title}`);
+    }
+  });
+
+  // 檢查主管交辦事項
+  todayTasks.assignedTasks.forEach(task => {
+    if (task.required && !isTaskCompleted("assigned", task.id, venueId, date, shiftType)) {
+      missingItems.push(`今日交辦事項：${task.title}`);
+    }
+  });
+
+  // 檢查每週固定事項
+  todayTasks.recurringTasks.forEach(task => {
+    if (task.required && !isTaskCompleted("recurring", task.id, venueId, date, shiftType)) {
+      missingItems.push(`每週固定事項：${task.title}`);
+    }
+  });
+
+  // 檢查水質紀錄
+  todayTasks.waterTasks.forEach(task => {
+    if (task.required && isWaterTaskDue(task.scheduledTime) && !isWaterRecordCompleted(venueId, date, task.scheduledTime)) {
+      missingItems.push(`水質紀錄：${task.scheduledTime} 尚未填寫`);
+    }
+  });
+
+  // 檢查上一班交接是否確認
+  todayTasks.handoverTasks.forEach(task => {
+    if (!task.confirmedAt) {
+      missingItems.push(`救生交接：上一班交接尚未確認`);
+    }
+  });
+
+  return {
+    canSubmit: missingItems.length === 0,
+    missingItems
+  };
+}
+送出今日回報
+function submitDailyReport({ userId, venueId, shiftType, date }) {
+  const result = validateBeforeSubmit({
+    userId,
+    venueId,
+    shiftType,
+    date
+  });
+
+  if (!result.canSubmit) {
+    return {
+      success: false,
+      message: "尚有必填項目未完成，無法送出",
+      missingItems: result.missingItems
+    };
+  }
+
+  const submission = {
+    venueId,
+    workDate: date,
+    shiftType,
+    submittedBy: userId,
+    submittedAt: getCurrentDateTime(),
+    status: "submitted",
+    reviewedBy: null,
+    reviewedAt: null,
+    reviewNote: null
+  };
+
+  saveToDatabase("daily_report_submissions", submission);
+
+  return {
+    success: true,
+    message: "今日回報已送出",
+    data: submission
+  };
+}
+十四、前端送出畫面邏輯
+const submitResult = validateBeforeSubmit({
+  userId,
+  venueId,
+  shiftType,
+  date
+});
+
+if (!submitResult.canSubmit) {
+  showDisabledSubmitButton();
+  showMissingList(submitResult.missingItems);
+} else {
+  showEnabledSubmitButton();
+}
+
+畫面範例：
+
+尚有 3 項必填未完成：
+
+1. 水質紀錄：10:00 尚未填寫
+2. 每週固定事項：清洗水龜濾網
+3. 救生交接：上一班交接尚未確認
+
+[返回補填]
+十五、救生交接邏輯
+1. 建立交接
+function createHandoverNote({
+  venueId,
+  date,
+  fromShift,
+  toShift,
+  content,
+  isImportant,
+  requiresManagerAttention,
+  photoUrls,
+  currentUser
+}) {
+  const note = {
+    venueId,
+    handoverDate: date,
+    fromShift,
+    toShift,
+    content,
+    isImportant,
+    requiresManagerAttention,
+    photoUrls,
+    createdBy: currentUser.id,
+    createdAt: getCurrentDateTime(),
+    confirmedBy: null,
+    confirmedAt: null,
+    status: "pending"
+  };
+
+  saveToDatabase("lifeguard_handover_notes", note);
+
+  return note;
+}
+2. 取得上一班交接
+function getPreviousShiftHandover({ venueId, shiftType, date }) {
+  const previousShift = getPreviousShift(shiftType);
+
+  return lifeguardHandoverNotes.filter(note => {
+    return (
+      note.venueId === venueId &&
+      note.toShift === shiftType &&
+      note.status === "pending"
+    );
+  });
+}
+
+function getPreviousShift(shiftType) {
+  if (shiftType === "morning") return "night";
+  if (shiftType === "noon") return "morning";
+  if (shiftType === "night") return "noon";
+}
+3. 確認交接
+function confirmHandover(noteId, currentUser) {
+  const note = getHandoverById(noteId);
+
+  note.confirmedBy = currentUser.id;
+  note.confirmedAt = getCurrentDateTime();
+  note.status = "confirmed";
+
+  updateDatabase("lifeguard_handover_notes", noteId, note);
+
+  return note;
+}
+十六、異常案件建立邏輯
+function createAbnormalCase({
+  venueId,
+  sourceType,
+  sourceId,
+  category,
+  level,
+  description,
+  reportedBy,
+  photoUrls = []
+}) {
+  const caseNo = generateCaseNo();
+
+  const abnormalCase = {
+    caseNo,
+    venueId,
+    sourceType, // water_quality, daily_task, assigned_task, manual
+    sourceId,
+    category,
+    level, // low, medium, high, urgent
+    description,
+    photoUrls,
+    status: "open",
+    reportedBy,
+    createdAt: getCurrentDateTime()
+  };
+
+  saveToDatabase("abnormal_cases", abnormalCase);
+
+  return abnormalCase;
+}
+十七、逾時判斷邏輯
+
+水質或交辦事項可以判斷逾時。
+
+function isLate({ date, scheduledTime, lateMinutes }) {
+  const now = new Date();
+  const dueTime = new Date(`${date} ${scheduledTime}`);
+  dueTime.setMinutes(dueTime.getMinutes() + lateMinutes);
+
+  return now > dueTime;
+}
+
+水質狀態：
+
+function getWaterTaskStatus({ venueId, date, scheduledTime }) {
+  const record = findWaterRecord(venueId, date, scheduledTime);
+
+  if (record) {
+    return record.status; // completed or abnormal
+  }
+
+  const schedule = getActiveWaterSchedule(venueId, date);
+
+  if (isLate({
+    date,
+    scheduledTime,
+    lateMinutes: schedule.lateMinutes
+  })) {
+    return "late";
+  }
+
+  if (!isTimeReached(scheduledTime)) {
+    return "not_started";
+  }
+
+  return "pending";
+}
+十八、UI 元件對照規則
+
+這段請 Replit 直接照做，避免畫面跟企劃落差。
+
+const inputTypeMap = {
+  checkbox: {
+    label: "勾選",
+    component: "CheckboxInput"
+  },
+  yes_no: {
+    label: "YES / NO",
+    component: "YesNoButtons"
+  },
+  on_off: {
+    label: "ON / OFF",
+    component: "OnOffButtons"
+  },
+  number: {
+    label: "數字",
+    component: "NumberInput"
+  },
+  text: {
+    label: "文字",
+    component: "TextInput"
+  },
+  textarea: {
+    label: "多行文字",
+    component: "TextareaInput"
+  },
+  time: {
+    label: "時間",
+    component: "TimeInput"
+  },
+  photo: {
+    label: "照片",
+    component: "PhotoUpload"
+  },
+  number_photo: {
+    label: "數字 + 照片",
+    component: "NumberPhotoInput"
+  },
+  checkbox_photo: {
+    label: "勾選 + 照片",
+    component: "CheckboxPhotoInput"
+  },
+  yes_no_remark: {
+    label: "YES / NO + 備註",
+    component: "YesNoRemarkInput"
+  },
+  water_quality_form: {
+    label: "水質表單",
+    component: "WaterQualityForm"
+  }
+};
+十九、今日工作頁前端資料格式
+
+API 回傳給前端建議長這樣：
+
+const todayPageData = {
+  venue: {
+    id: 1,
+    name: "新生公園館"
+  },
+  user: {
+    id: 1,
+    name: "王小明"
+  },
+  date: "2026-05-02",
+  weekday: "wed",
+  shiftType: "morning",
+  progress: {
+    totalRequired: 12,
+    completedRequired: 8,
+    percent: 67
+  },
+  sections: [
+    {
+      key: "water",
+      title: "水質測量時段",
+      completed: 2,
+      total: 5,
+      items: []
+    },
+    {
+      key: "daily",
+      title: "每日固定事項",
+      completed: 6,
+      total: 8,
+      items: []
+    },
+    {
+      key: "assigned",
+      title: "今日交辦事項",
+      completed: 1,
+      total: 2,
+      items: []
+    },
+    {
+      key: "recurring",
+      title: "每週固定事項",
+      completed: 0,
+      total: 1,
+      items: []
+    },
+    {
+      key: "handover",
+      title: "救生交接",
+      completed: 1,
+      total: 1,
+      items: []
+    }
+  ],
+  canSubmit: false,
+  missingItems: [
+    "水質紀錄：10:00 尚未填寫",
+    "每週固定事項：清洗水龜濾網"
+  ]
+};
+二十、API 路由建議
+
+請 Replit 做這些 API 或後端路由。
+
+GET    /work-logs/today
+取得今日工作頁資料
+
+POST   /work-logs/tasks/complete
+完成一般任務
+
+POST   /work-logs/water-quality
+儲存水質紀錄
+
+POST   /work-logs/handover
+建立交接事項
+
+POST   /work-logs/handover/:id/confirm
+確認上一班交接
+
+POST   /work-logs/submit
+送出今日回報
+
+GET    /admin/work-logs/submissions
+主管查看送出紀錄
+
+POST   /admin/work-logs/submissions/:id/approve
+主管審核通過
+
+POST   /admin/work-logs/submissions/:id/return
+主管退回修改
+
+後台設定 API：
+
+GET/POST/PUT/DELETE /admin/work-logs/daily-task-templates
+每日固定事項設定
+
+GET/POST/PUT/DELETE /admin/work-logs/assigned-tasks
+今日交辦事項
+
+GET/POST/PUT/DELETE /admin/work-logs/recurring-task-templates
+每週固定事項
+
+GET/POST/PUT/DELETE /admin/work-logs/water-schedules
+水質時段設定
+
+GET/POST/PUT/DELETE /admin/work-logs/water-standards
+水質標準設定
+二十一、主管審核邏輯
+function approveDailyReport(submissionId, currentUser) {
+  const submission = getSubmissionById(submissionId);
+
+  submission.status = "approved";
+  submission.reviewedBy = currentUser.id;
+  submission.reviewedAt = getCurrentDateTime();
+  submission.reviewNote = "";
+
+  updateDatabase("daily_report_submissions", submissionId, submission);
+
+  return submission;
+}
+function returnDailyReport(submissionId, currentUser, reason) {
+  if (!reason) {
+    throw new Error("退回時必須填寫原因");
+  }
+
+  const submission = getSubmissionById(submissionId);
+
+  submission.status = "returned";
+  submission.reviewedBy = currentUser.id;
+  submission.reviewedAt = getCurrentDateTime();
+  submission.reviewNote = reason;
+
+  updateDatabase("daily_report_submissions", submissionId, submission);
+
+  return submission;
+}
+二十二、前端畫面製作簡化指令
+
+請 Replit 依照這個畫面結構做：
+
+今日工作頁
+├── 頂部資訊卡
+│   ├── 館別
+│   ├── 日期 / 星期
+│   ├── 班別
+│   └── 登入人員
+│
+├── 今日完成進度
+│   ├── 進度條
+│   └── 已完成 / 必填總數
+│
+├── 水質測量時段
+│   ├── 06:00 卡片
+│   ├── 08:00 卡片
+│   └── 10:00 卡片
+│
+├── 每日固定事項
+│   └── 任務卡片列表
+│
+├── 今日交辦事項
+│   └── 任務卡片列表
+│
+├── 每週固定事項
+│   └── 任務卡片列表
+│
+├── 救生交接
+│   ├── 上一班交接確認
+│   └── 本班交接給下一班
+│
+└── 送出今日回報
+    ├── 未完成清單
+    └── 送出按鈕
+二十三、任務卡片 UI 規格
+
+每張任務卡片都要用同一種結構：
+
+<div class="task-card">
+  <div class="task-header">
+    <span class="status-badge">未完成</span>
+    <h3>清掃泳池及樓梯垃圾頭髮</h3>
+  </div>
+
+  <p class="task-description">
+    請確認泳池周圍與樓梯無垃圾、頭髮。
+  </p>
+
+  <div class="task-input">
+    <!-- 依 inputType 自動產生 -->
+  </div>
+
+  <button>儲存此項目</button>
+</div>
+二十四、CSS 美編方向
+.task-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-badge {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-pending {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.status-late {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.status-abnormal {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+二十五、最重要的製作順序
+
+請 Replit 不要一次做全部，照這個順序做最快：
+
+第一步：
+建立資料表與基本 Model
+
+第二步：
+做今日工作頁 API
+先能產生每日固定事項、週期事項、水質時段
+
+第三步：
+做前台今日工作頁畫面
+先讓任務卡片顯示出來
+
+第四步：
+做任務完成儲存
+完成後更新進度
+
+第五步：
+做水質填寫
+包含數字輸入、照片上傳、異常判斷
+
+第六步：
+做送出前檢查
+未完成不可送出
+
+第七步：
+做主管審核
+
+第八步：
+做後台設定頁
+每日任務、週期任務、水質時段、水質標準
+二十六、可以直接貼給 Replit 的總指令
+請依照以下邏輯快速製作「工作日誌管理」模組，並整合在我現有網站架構下，不要重做整個網站。
+
+核心邏輯：
+
+1. 使用現有登入帳號。
+2. 使用者只能進入自己有權限的館別。
+3. 工作日誌首頁是「今日工作頁」。
+4. 今日工作頁資料來源包含：
+   - 每日固定事項
+   - 今日主管交辦事項
+   - 今日符合星期的每週固定事項
+   - 今日水質測量時段
+   - 上一班救生交接事項
+5. 每個任務都有 inputType，前端依 inputType 自動產生填寫元件。
+6. inputType 包含：
+   checkbox、yes_no、on_off、number、text、textarea、time、photo、number_photo、checkbox_photo、yes_no_remark、water_quality_form。
+7. 水質時段由後台設定，不可寫死。
+8. 平常日可設定每 120 分鐘測量一次，暑假可設定每 60 分鐘測量一次。
+9. 系統依 startTime、endTime、intervalMinutes 自動產生水質時段。
+10. 每個水質時段都要獨立填寫。
+11. 水質填寫包含：餘氯、PH、水溫、室溫、加藥時間、加藥量、洗腳池換水、巡視更衣室、照片、備註。
+12. 水質照片預設必填，但後台可設定是否必填。
+13. PH、餘氯、水溫需依後台標準值判斷是否異常。
+14. 如果異常，自動建立異常案件。
+15. 每週固定事項依 weekdays 判斷今天是否顯示，例如 ["wed"] 只在星期三顯示。
+16. 今日交辦事項依 assignedDate、venueId、shiftType、assignedToUserId 判斷是否顯示。
+17. 所有必填任務完成前，不可送出今日回報。
+18. 送出前執行 validateBeforeSubmit。
+19. validateBeforeSubmit 需列出缺少項目，例如「水質紀錄：10:00 尚未填寫」。
+20. 救生交接需支援：
+   - 上一班交接給本班，本班需確認
+   - 本班交接給下一班，可填文字、重要性、是否需主管注意、照片
+21. 所有填寫都要記錄 createdBy、createdAt、updatedBy、updatedAt。
+22. 主管可審核通過或退回，退回必須填原因。
+23. 畫面採用手機優先、卡片式設計、大按鈕、狀態顏色。
+24. 狀態顏色：
+   已完成綠色、未完成灰色、逾時橘色、異常紅色、待審核藍色。
+25. 今日工作頁上方要有完成進度，例如 8 / 12。
+
+請先完成：
+1. 資料表
+2. 今日工作頁 API
+3. 今日工作頁手機版 UI
+4. 任務完成儲存
+5. 水質填寫與異常判斷
+6. 送出今日回報驗證
+7. 主管審核
+8. 後台任務與水質規則設定
+
