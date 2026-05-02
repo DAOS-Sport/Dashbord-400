@@ -15,6 +15,30 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { insertWaterQualityStandardSchema, type WaterQualityStandard } from "@shared/schema";
 import { AdminRoleGuard, EmptyState, ErrorState, LoadingState, WorkLogAdminShell, useAdminFacility } from "./_shared";
 
+const PARAMETER_LABELS: Record<string, string> = {
+  ph: "PH 值",
+  residual_chlorine: "餘氯",
+  free_chlorine: "自由餘氯",
+  total_chlorine: "總餘氯",
+  combined_chlorine: "結合餘氯",
+  water_temp: "水溫",
+  air_temp: "氣溫",
+  humidity: "濕度",
+  orp: "氧化還原電位 (ORP)",
+  turbidity: "濁度",
+  alkalinity: "鹼度",
+  hardness: "硬度",
+  tds: "總溶解固體 (TDS)",
+  cyanuric_acid: "氰尿酸",
+  bather_count: "入池人數",
+  flow_rate: "循環流量",
+  pressure: "過濾壓力",
+};
+
+function paramLabel(name: string): string {
+  return PARAMETER_LABELS[name.toLowerCase()] ?? name;
+}
+
 export default function WaterStandardsPage() {
   return <AdminRoleGuard><Inner /></AdminRoleGuard>;
 }
@@ -88,7 +112,12 @@ function Inner() {
                 <TableBody>
                   {rows.map((row) => (
                     <TableRow key={row.id} data-testid={`row-water-standard-${row.id}`}>
-                      <TableCell className="font-medium">{row.parameterName}</TableCell>
+                      <TableCell className="font-medium">
+                        <div>{paramLabel(row.parameterName)}</div>
+                        {PARAMETER_LABELS[row.parameterName.toLowerCase()] && (
+                          <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{row.parameterName}</div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{row.unit ?? ""}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{row.minValue ?? "—"}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{row.maxValue ?? "—"}</TableCell>
@@ -197,7 +226,22 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
               <FormField name="parameterName" control={form.control} render={({ field }) => (
                 <FormItem>
                   <FormLabel>參數 *</FormLabel>
-                  <FormControl><Input {...field} placeholder="例如 PH" data-testid="input-water-standard-param" /></FormControl>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      list="water-param-suggestions"
+                      placeholder="例如 ph、residual_chlorine、water_temp"
+                      data-testid="input-water-standard-param"
+                    />
+                  </FormControl>
+                  <datalist id="water-param-suggestions">
+                    {Object.entries(PARAMETER_LABELS).map(([k, label]) => (
+                      <option key={k} value={k}>{label}</option>
+                    ))}
+                  </datalist>
+                  <p className="text-[11px] text-muted-foreground">
+                    請輸入英文代號（例如 <span className="font-mono">ph</span>），系統會自動顯示中文名稱
+                  </p>
                   <FormMessage />
                 </FormItem>
               )} />
