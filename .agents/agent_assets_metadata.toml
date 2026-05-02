@@ -54,3 +54,9 @@ id = "DcHjJL1vdn2BR33FFZK8U"
 uri = "file://.local/employee-with-worklog.jpg"
 type = "image"
 title = "/employee 頁面 — 左側選單已加入「工作日誌」"
+
+[[outputs]]
+id = "RXgJUTXXRxM4SA2zJsxuY"
+uri = "file://.local/lifeguard-log-rename.jpg"
+type = "image"
+title = "/employee 頁面 — 已重命名為「救生員日誌」"

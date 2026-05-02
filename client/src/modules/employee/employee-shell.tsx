@@ -185,7 +185,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
   const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
   const workLogItem: EmployeeNavItem = {
     id: "work-log",
-    label: "工作日誌",
+    label: "救生員日誌",
     href: `/portal/${workLogFacility}/work-log`,
     Icon: ClipboardList,
   };

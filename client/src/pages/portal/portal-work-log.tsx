@@ -497,7 +497,7 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
   };
 
   return (
-    <PortalShell facilityKey={facilityKey} pageTitle="工作日誌">
+    <PortalShell facilityKey={facilityKey} pageTitle="救生員日誌">
       {() => (
         <div className="space-y-5">
           {/* 頂部資訊卡 */}
@@ -510,7 +510,7 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
                 <div>
                   <p className="portal-label text-stitch-secondary">TODAY · WORK LOG</p>
                   <h1 className="font-headline text-xl font-bold text-stitch-primary mt-1" data-testid="text-worklog-title">
-                    {config?.facilityName ?? facilityKey} · 工作日誌
+                    {config?.facilityName ?? facilityKey} · 救生員日誌
                   </h1>
                   <p className="text-xs text-slate-500 mt-1">
                     {data?.workDate ?? "..."} ・ {WEEKDAY_LABEL[data?.weekday ?? 0]} ・ <span className="text-stitch-primary font-semibold">{auth?.name ?? "未登入"}</span>

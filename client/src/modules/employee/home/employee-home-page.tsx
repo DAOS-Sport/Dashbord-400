@@ -298,7 +298,7 @@ function DesktopSidebar() {
   const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
   const workLogItem: EmployeeNavigationItem = {
     id: "work-log",
-    label: "工作日誌",
+    label: "救生員日誌",
     icon: ClipboardCheck,
     href: `/portal/${workLogFacility}/work-log`,
   };
@@ -1592,7 +1592,7 @@ function BottomNav() {
   const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
   const workLogItem: EmployeeNavigationItem = {
     id: "work-log",
-    label: "工作日誌",
+    label: "救生員日誌",
     icon: ClipboardCheck,
     href: `/portal/${workLogFacility}/work-log`,
   };
