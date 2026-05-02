@@ -146,6 +146,7 @@ const todayQuerySchema = z.object({
   facilityKey: z.string().min(1),
   shiftType: z.enum(["morning", "noon", "night"]),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  moduleType: z.enum(["lifeguard", "counter"]).optional(),
 });
 
 const completeTaskSchema = z.object({
@@ -164,6 +165,7 @@ const submitSchema = z.object({
   facilityKey: z.string().min(1),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   shiftType: z.enum(["morning", "noon", "night"]),
+  moduleType: z.enum(["lifeguard", "counter"]).optional(),
 });
 
 const handoverConfirmIdSchema = z.object({ id: z.coerce.number().int().positive() });
@@ -317,6 +319,7 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         facilityKey: req.query.facilityKey,
         shiftType: req.query.shiftType,
         workDate: req.query.workDate,
+        moduleType: req.query.moduleType,
       });
       if (!parsed.success) {
         return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
@@ -328,12 +331,13 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       }
       const workDate = parsed.data.workDate ?? todayInTaipei();
       const shiftType = parsed.data.shiftType;
+      const moduleType = parsed.data.moduleType ?? "lifeguard";
       const prevRef = previousShiftRef(workDate, shiftType);
 
       const [dailyTemplates, assignedTasks, recurringTemplates, waterSchedules, completions, prevHandover, outgoingHandover, existingSubmission] = await Promise.all([
-        storage.listDailyTaskTemplates({ facilityKey, shiftType }),
-        storage.listLifeguardAssignedTasks({ facilityKey, workDate, shiftType, employeeNumber: caller.employeeNumber, status: "active" }),
-        storage.listRecurringTaskTemplates({ facilityKey }),
+        storage.listDailyTaskTemplates({ facilityKey, moduleType, shiftType }),
+        storage.listLifeguardAssignedTasks({ facilityKey, moduleType, workDate, shiftType, employeeNumber: caller.employeeNumber, status: "active" }),
+        storage.listRecurringTaskTemplates({ facilityKey, moduleType }),
         storage.listWaterQualitySchedules({ facilityKey, shiftType }),
         storage.listTaskCompletions({ facilityKey, workDate, shiftType }),
         storage.listLifeguardHandoverNotes({ facilityKey, workDate: prevRef.date, fromShift: prevRef.shift, toShift: shiftType, limit: 20 }),
@@ -625,15 +629,16 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       if (!parsed.success) return res.status(400).json({ message: "參數錯誤", details: parsed.error.flatten() });
       const caller = getCaller(req);
       const { facilityKey, workDate, shiftType } = parsed.data;
+      const moduleType = parsed.data.moduleType ?? "lifeguard";
       if (!canAccessFacility(req, caller, facilityKey)) {
         return res.status(403).json({ message: "無此館別權限" });
       }
       const prevRef = previousShiftRef(workDate, shiftType);
 
       const [dailyTemplates, assignedTasks, recurringTemplates, waterSchedules, completions, waterRecords, prevHandover] = await Promise.all([
-        storage.listDailyTaskTemplates({ facilityKey, shiftType }),
-        storage.listLifeguardAssignedTasks({ facilityKey, workDate, shiftType, employeeNumber: caller.employeeNumber, status: "active" }),
-        storage.listRecurringTaskTemplates({ facilityKey }),
+        storage.listDailyTaskTemplates({ facilityKey, moduleType, shiftType }),
+        storage.listLifeguardAssignedTasks({ facilityKey, moduleType, workDate, shiftType, employeeNumber: caller.employeeNumber, status: "active" }),
+        storage.listRecurringTaskTemplates({ facilityKey, moduleType }),
         storage.listWaterQualitySchedules({ facilityKey, shiftType }),
         storage.listTaskCompletions({ facilityKey, workDate, shiftType }),
         storage.listWaterQualityRecords({ facilityKey, workDate, shiftType }),
@@ -674,7 +679,7 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       const totalCompleted = completions.filter((c) => c.isCompleted).length + waterRecords.length;
 
       const row = await storage.createDailyReportSubmission({
-        facilityKey, workDate, shiftType,
+        facilityKey, moduleType, workDate, shiftType,
         submittedBy: caller.employeeNumber,
         submittedByName: caller.name,
         status: "submitted",
