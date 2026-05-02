@@ -199,6 +199,7 @@ export interface WaterQualitySlot {
   isCompleted: boolean;
   recordId: number | null;
   isAbnormal: boolean;
+  abnormalNote: string | null;
   recordedBy: string | null;
   recordedAt: string | null;
 }

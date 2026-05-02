@@ -614,6 +614,15 @@ function WaterPanel({ slots, records, facilityKey, workDate, shiftType, disabled
               )}
               <MaterialIcon name={isOpen ? "expand_less" : "expand_more"} className="text-slate-400" />
             </button>
+            {status === "abnormal" && s.abnormalNote && !isOpen && (
+              <p
+                className="px-4 pb-3 -mt-1 text-[11px] text-rose-700 leading-relaxed"
+                data-testid={`text-water-slot-abnormal-note-${s.scheduleId}`}
+              >
+                <MaterialIcon name="error_outline" className="text-rose-500 align-text-bottom mr-1 text-[14px]" />
+                {s.abnormalNote}
+              </p>
+            )}
             {isOpen && (
               <div className="px-4 pb-4 pt-1 border-t border-slate-200/70">
                 <WaterQualityForm

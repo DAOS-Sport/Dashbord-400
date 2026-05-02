@@ -371,6 +371,7 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
             isCompleted: !!matching,
             recordId: matching?.id ?? null,
             isAbnormal: matching?.isAbnormal ?? false,
+            abnormalNote: matching?.abnormalNote ?? null,
             recordedBy: matching?.recordedByName ?? null,
             recordedAt: matching?.recordedAt ?? null,
           };
