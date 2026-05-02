@@ -42,7 +42,7 @@ const composerSchema = z.object({
   content: z.string().trim().min(1, "請輸入交接內容"),
   isImportant: z.boolean(),
   needsAttention: z.boolean(),
-  photoUrls: z.array(z.string().url()),
+  photoUrls: z.array(z.string().min(1)),
 });
 
 type ComposerValues = z.infer<typeof composerSchema>;

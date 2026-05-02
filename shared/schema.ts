@@ -977,7 +977,7 @@ export const insertLifeguardHandoverNoteSchema = createInsertSchema(lifeguardHan
   category: z.enum(["facility", "customer", "safety", "general"]).optional(),
   isImportant: z.boolean().optional(),
   needsAttention: z.boolean().optional(),
-  photoUrls: z.array(z.string().url()).max(8).optional(),
+  photoUrls: z.array(z.string().min(1)).max(8).optional(),
 });
 
 export type InsertLifeguardHandoverNote = z.infer<typeof insertLifeguardHandoverNoteSchema>;
