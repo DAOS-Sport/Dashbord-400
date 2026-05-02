@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { z } from "zod";
 import { insertWaterQualityScheduleSchema, type WaterQualitySchedule } from "@shared/schema";
 import { AdminRoleGuard, EmptyState, ErrorState, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility } from "./_shared";
 
@@ -192,9 +193,20 @@ interface FormValues {
   isActive: boolean;
 }
 
+const formValuesSchema = insertWaterQualityScheduleSchema
+  .omit({ customTimes: true })
+  .extend({
+    customTimesText: z.string().optional().default(""),
+    startDate: z.string().optional().nullable(),
+    endDate: z.string().optional().nullable(),
+    intervalMinutes: z.union([z.number().int().min(5).max(720), z.null()]).optional(),
+    priority: z.number().int().min(0).max(100).default(0),
+  });
+
 function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; existing: WaterQualitySchedule | null; onClose: () => void }) {
   const { toast } = useToast();
   const form = useForm<FormValues>({
+    resolver: zodResolver(formValuesSchema),
     defaultValues: existing ? {
       facilityKey: existing.facilityKey,
       poolName: existing.poolName,

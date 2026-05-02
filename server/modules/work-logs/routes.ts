@@ -896,12 +896,14 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   app.post("/api/work-logs/admin/submissions/:id/return", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
+    const reviewNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : "";
+    if (!reviewNote) return res.status(400).json({ message: "退回時必須填寫原因" });
     const caller = getCaller(req);
     const row = await storage.updateDailyReportSubmissionReview(id, {
       status: "returned",
       reviewedBy: caller.employeeNumber,
       reviewedByName: caller.name,
-      reviewNote: typeof req.body?.reviewNote === "string" ? req.body.reviewNote : "請補正",
+      reviewNote,
     });
     if (!row) return res.status(404).json({ message: "找不到日報" });
     res.json({ item: row });
