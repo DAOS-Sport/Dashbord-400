@@ -330,13 +330,17 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       const shiftType = parsed.data.shiftType;
       const prevRef = previousShiftRef(workDate, shiftType);
 
-      const [dailyTemplates, assignedTasks, recurringTemplates, waterSchedules, completions, prevHandover, existingSubmission] = await Promise.all([
+      const [dailyTemplates, assignedTasks, recurringTemplates, waterSchedules, completions, prevHandover, outgoingHandover, existingSubmission] = await Promise.all([
         storage.listDailyTaskTemplates({ facilityKey, shiftType }),
         storage.listLifeguardAssignedTasks({ facilityKey, workDate, shiftType, employeeNumber: caller.employeeNumber, status: "active" }),
         storage.listRecurringTaskTemplates({ facilityKey }),
         storage.listWaterQualitySchedules({ facilityKey, shiftType }),
         storage.listTaskCompletions({ facilityKey, workDate, shiftType }),
         storage.listLifeguardHandoverNotes({ facilityKey, workDate: prevRef.date, fromShift: prevRef.shift, toShift: shiftType, limit: 20 }),
+        // Outgoing handover = items the current shift created (fromShift = me),
+        // for the current workDate. We surface these so the team can see what
+        // they have already left for the next shift and avoid duplicates.
+        storage.listLifeguardHandoverNotes({ facilityKey, workDate, fromShift: shiftType, limit: 20 }),
         storage.getDailyReportSubmission({ facilityKey, workDate, shiftType, submittedBy: caller.employeeNumber }),
       ]);
 
@@ -377,18 +381,24 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
           };
         });
 
-      const handoverItems = prevHandover.map((h) => ({
+      const mapHandover = (h: LifeguardHandoverNote) => ({
         id: h.id,
         category: h.category,
         content: h.content,
         fromShift: h.fromShift,
+        toShift: h.toShift,
         authorName: h.authorName,
         createdAt: h.createdAt,
+        isImportant: h.isImportant,
+        needsAttention: h.needsAttention,
+        photoUrls: h.photoUrls ?? null,
         isConfirmed: h.isConfirmed,
         confirmedByName: h.confirmedByName,
         confirmedAt: h.confirmedAt,
         canConfirm: !h.isConfirmed,
-      }));
+      });
+      const handoverItems = prevHandover.map(mapHandover);
+      const outgoingHandoverItems = outgoingHandover.map(mapHandover);
 
       const allTasks = [...dailyItems, ...assignedItems, ...recurringItems];
       const requiredTasks = allTasks.filter((t) => t.isRequired);
@@ -417,6 +427,7 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
           dailyTasks: dailyItems,
           assignedTasks: assignedItems,
           recurringTasks: recurringItems,
+          outgoingHandover: outgoingHandoverItems,
           handover: handoverItems,
         },
         submission: existingSubmission ?? null,

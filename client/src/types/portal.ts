@@ -225,8 +225,12 @@ export interface LifeguardHandoverItem {
   category: string;
   content: string;
   fromShift: string;
+  toShift?: string;
   authorName: string | null;
   createdAt: string;
+  isImportant: boolean;
+  needsAttention: boolean;
+  photoUrls: string[] | null;
   isConfirmed: boolean;
   confirmedByName: string | null;
   confirmedAt: string | null;
@@ -270,6 +274,7 @@ export interface WorkLogTodayResponse {
     assignedTasks: WorkLogTaskItem[];
     recurringTasks: WorkLogTaskItem[];
     handover: LifeguardHandoverItem[];
+    outgoingHandover: LifeguardHandoverItem[];
   };
   submission: DailyReportSubmissionDTO | null;
 }

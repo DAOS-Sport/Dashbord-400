@@ -945,6 +945,9 @@ export const lifeguardHandoverNotes = pgTable("lifeguard_handover_notes", {
   toShift: text("to_shift").notNull(),
   category: text("category").default("general").notNull(),
   content: text("content").notNull(),
+  isImportant: boolean("is_important").default(false).notNull(),
+  needsAttention: boolean("needs_attention").default(false).notNull(),
+  photoUrls: text("photo_urls").array(),
   authorEmployeeNumber: text("author_employee_number"),
   authorName: text("author_name"),
   isConfirmed: boolean("is_confirmed").default(false).notNull(),
@@ -972,6 +975,9 @@ export const insertLifeguardHandoverNoteSchema = createInsertSchema(lifeguardHan
   toShift: shiftTypeSchema,
   content: z.string().min(1),
   category: z.enum(["facility", "customer", "safety", "general"]).optional(),
+  isImportant: z.boolean().optional(),
+  needsAttention: z.boolean().optional(),
+  photoUrls: z.array(z.string().url()).max(8).optional(),
 });
 
 export type InsertLifeguardHandoverNote = z.infer<typeof insertLifeguardHandoverNoteSchema>;

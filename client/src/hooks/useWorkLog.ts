@@ -51,6 +51,9 @@ export interface CreateHandoverPayload {
   toShift: WorkLogShift;
   category?: "facility" | "customer" | "safety" | "general";
   content: string;
+  isImportant?: boolean;
+  needsAttention?: boolean;
+  photoUrls?: string[];
 }
 
 export function useCreateLifeguardHandover(facilityKey: string, shiftType: WorkLogShift, workDate?: string) {

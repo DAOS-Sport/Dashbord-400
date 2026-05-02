@@ -11,6 +11,7 @@ import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
 import PhotoUpload from "@/components/work-log/PhotoUpload";
 import WaterQualityForm from "@/components/work-log/WaterQualityForm";
+import HandoverComposer from "@/components/work-log/HandoverComposer";
 import {
   useTodayWorkLog,
   useCompleteTask,
@@ -509,34 +510,104 @@ function HandoverPanel({ items, onConfirm, isPending, disabled }: HandoverPanelP
   return (
     <div className="space-y-2">
       {items.map((h) => (
-        <div
+        <HandoverCard
           key={h.id}
-          className={`rounded-xl border px-4 py-3 ${h.isConfirmed ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"}`}
-          data-testid={`handover-item-${h.id}`}
-        >
-          <div className="flex items-start gap-2 flex-wrap">
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">{HANDOVER_CATEGORY_LABEL[h.category] ?? h.category}</span>
-            <span className="text-[10px] text-slate-500">{h.authorName ?? "-"} · {SHIFT_LABEL[h.fromShift as WorkLogShift] ?? h.fromShift}</span>
-            <span className="text-[10px] text-slate-400 ml-auto">{formatTime(h.createdAt)}</span>
-          </div>
-          <p className="text-sm text-stitch-primary mt-2 whitespace-pre-wrap">{h.content}</p>
-          <div className="flex items-center justify-between mt-2">
-            {h.isConfirmed ? (
-              <span className="text-xs text-emerald-700">已確認 · {h.confirmedByName} · {formatTime(h.confirmedAt)}</span>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onConfirm(h.id)}
-                disabled={disabled || isPending}
-                data-testid={`button-confirm-handover-${h.id}`}
-              >
-                <MaterialIcon name="check_circle" className="text-sm mr-1" /> 我已知悉
-              </Button>
-            )}
-          </div>
-        </div>
+          item={h}
+          variant="inbound"
+          onConfirm={onConfirm}
+          isPending={isPending}
+          disabled={disabled}
+        />
       ))}
+    </div>
+  );
+}
+
+interface HandoverCardProps {
+  item: LifeguardHandoverItem;
+  variant: "inbound" | "outbound";
+  onConfirm?: (id: number) => Promise<unknown>;
+  isPending: boolean;
+  disabled: boolean;
+}
+
+function HandoverCard({ item: h, variant, onConfirm, isPending, disabled }: HandoverCardProps) {
+  const inbound = variant === "inbound";
+  const baseBg = inbound
+    ? (h.isConfirmed ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200")
+    : "bg-slate-50 border-slate-200";
+  const borderEmphasis = h.isImportant ? " ring-2 ring-rose-300/60" : "";
+  return (
+    <div
+      className={`rounded-xl border px-4 py-3 ${baseBg}${borderEmphasis}`}
+      data-testid={`handover-item-${h.id}`}
+    >
+      <div className="flex items-start gap-2 flex-wrap">
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">{HANDOVER_CATEGORY_LABEL[h.category] ?? h.category}</span>
+        {h.isImportant && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-bold inline-flex items-center gap-0.5"
+            data-testid={`badge-handover-important-${h.id}`}
+          >
+            <MaterialIcon name="priority_high" className="text-[12px]" />重要
+          </span>
+        )}
+        {h.needsAttention && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold inline-flex items-center gap-0.5"
+            data-testid={`badge-handover-attention-${h.id}`}
+          >
+            <MaterialIcon name="supervisor_account" className="text-[12px]" />需主管注意
+          </span>
+        )}
+        <span className="text-[10px] text-slate-500">
+          {h.authorName ?? "-"} · {inbound
+            ? (SHIFT_LABEL[h.fromShift as WorkLogShift] ?? h.fromShift)
+            : `→ ${SHIFT_LABEL[(h.toShift ?? "") as WorkLogShift] ?? h.toShift ?? ""}`}
+        </span>
+        <span className="text-[10px] text-slate-400 ml-auto">{formatTime(h.createdAt)}</span>
+      </div>
+      <p className="text-sm text-stitch-primary mt-2 whitespace-pre-wrap">{h.content}</p>
+      {h.photoUrls && h.photoUrls.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2" data-testid={`handover-photos-${h.id}`}>
+          {h.photoUrls.map((url, i) => (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-white"
+              data-testid={`handover-photo-${h.id}-${i}`}
+            >
+              <img src={url} alt={`交接照片 ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
+            </a>
+          ))}
+        </div>
+      )}
+      {inbound && (
+        <div className="flex items-center justify-between mt-2">
+          {h.isConfirmed ? (
+            <span className="text-xs text-emerald-700">已確認 · {h.confirmedByName} · {formatTime(h.confirmedAt)}</span>
+          ) : onConfirm ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onConfirm(h.id)}
+              disabled={disabled || isPending}
+              data-testid={`button-confirm-handover-${h.id}`}
+            >
+              <MaterialIcon name="check_circle" className="text-sm mr-1" /> 我已知悉
+            </Button>
+          ) : null}
+        </div>
+      )}
+      {!inbound && (
+        <p className="mt-2 text-[11px] text-slate-500">
+          {h.isConfirmed
+            ? `下一班已確認 · ${h.confirmedByName ?? "-"} · ${formatTime(h.confirmedAt)}`
+            : "等待下一班確認"}
+        </p>
+      )}
     </div>
   );
 }
@@ -658,9 +729,6 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
   const handoverMut = useCreateLifeguardHandover(facilityKey, shiftType);
   const submitMut = useSubmitDailyReport(facilityKey, shiftType);
 
-  const [handoverContent, setHandoverContent] = useState("");
-  const [handoverCategory, setHandoverCategory] = useState<"facility" | "customer" | "safety" | "general">("general");
-
   const data = todayQuery.data;
   const isLoading = todayQuery.isLoading;
 
@@ -671,6 +739,7 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
   const assignedTasks = data?.sections.assignedTasks ?? [];
   const recurringTasks = data?.sections.recurringTasks ?? [];
   const handoverItems = data?.sections.handover ?? [];
+  const outgoingHandoverItems = data?.sections.outgoingHandover ?? [];
   const waterSlots = data?.sections.waterQuality.schedules ?? [];
 
   const dailyDoneCount = dailyTasks.filter((t) => t.isCompleted).length;
@@ -700,27 +769,6 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
       toast({ title: "已確認交接" });
     } catch (err) {
       toast({ title: "確認失敗", description: err instanceof Error ? err.message : "請稍後再試", variant: "destructive" });
-    }
-  };
-
-  const handleCreateHandover = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = handoverContent.trim();
-    if (!trimmed || !data) return;
-    const next = shiftType === "morning" ? "noon" : shiftType === "noon" ? "night" : "morning";
-    try {
-      await handoverMut.mutateAsync({
-        facilityKey,
-        workDate: data.workDate,
-        fromShift: shiftType,
-        toShift: next,
-        category: handoverCategory,
-        content: trimmed,
-      });
-      setHandoverContent("");
-      toast({ title: "交接事項已留給下一班" });
-    } catch (err) {
-      toast({ title: "建立失敗", description: err instanceof Error ? err.message : "請稍後再試", variant: "destructive" });
     }
   };
 
@@ -911,46 +959,53 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
                   badge="HANDOVER"
                   count={{ done: handoverConfirmedCount, total: handoverItems.length }}
                 />
-                <HandoverPanel
-                  items={handoverItems}
-                  onConfirm={handleConfirmHandover}
-                  isPending={confirmMut.isPending}
-                  disabled={submittedLocked}
-                />
-                {!submittedLocked && (
-                  <form onSubmit={handleCreateHandover} className="mt-4 space-y-2 border-t border-slate-200 pt-3">
-                    <p className="text-xs text-slate-500">留交接給下一班次</p>
-                    <div className="flex gap-2">
-                      <Select value={handoverCategory} onValueChange={(v) => setHandoverCategory(v as typeof handoverCategory)}>
-                        <SelectTrigger className="w-32" data-testid="select-handover-category">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">一般</SelectItem>
-                          <SelectItem value="facility">設施</SelectItem>
-                          <SelectItem value="customer">客務</SelectItem>
-                          <SelectItem value="safety">安全</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Textarea
-                        rows={2}
-                        placeholder="輸入交接內容..."
-                        value={handoverContent}
-                        onChange={(e) => setHandoverContent(e.target.value)}
-                        className="flex-1"
-                        data-testid="input-handover-content"
-                      />
+
+                {/* 上一班交接（須確認） */}
+                <div className="mb-4">
+                  <p className="text-[11px] font-bold text-stitch-secondary mb-2 tracking-wide">
+                    INBOUND · 上一班交接
+                  </p>
+                  <HandoverPanel
+                    items={handoverItems}
+                    onConfirm={handleConfirmHandover}
+                    isPending={confirmMut.isPending}
+                    disabled={submittedLocked}
+                  />
+                </div>
+
+                {/* 本班交接給下一班 */}
+                <div>
+                  <p className="text-[11px] font-bold text-stitch-secondary mb-2 tracking-wide">
+                    OUTBOUND · 本班交接給下一班
+                  </p>
+                  {outgoingHandoverItems.length === 0 ? (
+                    <p className="text-sm text-slate-500 px-3 py-4 text-center" data-testid="text-no-outgoing-handover">
+                      尚未建立交接事項
+                    </p>
+                  ) : (
+                    <div className="space-y-2" data-testid="list-outgoing-handover">
+                      {outgoingHandoverItems.map((h) => (
+                        <HandoverCard
+                          key={h.id}
+                          item={h}
+                          variant="outbound"
+                          isPending={false}
+                          disabled={submittedLocked}
+                        />
+                      ))}
                     </div>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      disabled={handoverMut.isPending || !handoverContent.trim()}
-                      data-testid="button-create-handover"
-                    >
-                      <MaterialIcon name="send" className="text-sm mr-1" /> 留下交接
-                    </Button>
-                  </form>
-                )}
+                  )}
+                  {!submittedLocked && data && (
+                    <HandoverComposer
+                      facilityKey={facilityKey}
+                      workDate={data.workDate}
+                      shiftType={shiftType}
+                      disabled={submittedLocked}
+                      isPending={handoverMut.isPending}
+                      onSubmit={async (payload) => { await handoverMut.mutateAsync(payload); }}
+                    />
+                  )}
+                </div>
               </BentoCard>
 
               {/* 送出日報 */}
