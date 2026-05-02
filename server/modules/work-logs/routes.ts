@@ -730,7 +730,8 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     const facilityKey = String(req.query.facilityKey || "");
     if (!facilityKey) return res.status(400).json({ message: "facilityKey 必填" });
     const status = req.query.status ? String(req.query.status) : undefined;
-    res.json({ items: await storage.listLifeguardAssignedTasks({ facilityKey, status }) });
+    const taskDate = req.query.taskDate ? String(req.query.taskDate) : undefined;
+    res.json({ items: await storage.listLifeguardAssignedTasks({ facilityKey, status, taskDate }) });
   });
 
   app.post("/api/work-logs/admin/assigned-tasks", requireSupervisor(), async (req, res) => {

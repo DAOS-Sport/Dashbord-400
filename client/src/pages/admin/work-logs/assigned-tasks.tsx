@@ -28,14 +28,16 @@ function Inner() {
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [taskDateFilter, setTaskDateFilter] = useState<string>("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: LifeguardAssignedTask[] }>({
-    queryKey: ["/api/work-logs/admin/assigned-tasks", facilityKey, statusFilter],
+    queryKey: ["/api/work-logs/admin/assigned-tasks", facilityKey, statusFilter, taskDateFilter],
     queryFn: async () => {
       const params = new URLSearchParams({ facilityKey });
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (taskDateFilter) params.set("taskDate", taskDateFilter);
       const r = await fetch(`/api/work-logs/admin/assigned-tasks?${params}`, { credentials: "include" });
       if (!r.ok) throw new Error("載入失敗");
       return r.json();
@@ -64,6 +66,19 @@ function Inner() {
       onFacilityChange={setFacilityKey}
       actions={
         <>
+          <Input
+            type="date"
+            value={taskDateFilter}
+            onChange={(e) => setTaskDateFilter(e.target.value)}
+            className="w-[150px]"
+            placeholder="任務日期"
+            data-testid="input-assigned-date-filter"
+          />
+          {taskDateFilter && (
+            <Button size="sm" variant="ghost" onClick={() => setTaskDateFilter("")} data-testid="button-clear-date-filter">
+              清除日期
+            </Button>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[120px]" data-testid="select-status-filter">
               <SelectValue />

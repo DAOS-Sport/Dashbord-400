@@ -83,6 +83,7 @@ function Inner() {
                 <TableHead className="w-20">班別</TableHead>
                 <TableHead className="w-32">輸入類型</TableHead>
                 <TableHead className="w-16 text-center">必填</TableHead>
+                <TableHead className="w-16 text-center">需照片</TableHead>
                 <TableHead className="w-16 text-center">啟用</TableHead>
                 <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
@@ -100,6 +101,11 @@ function Inner() {
                   <TableCell className="text-center">
                     <span className={`text-xs font-bold ${row.isRequired ? "text-rose-600" : "text-muted-foreground"}`}>
                       {row.isRequired ? "必填" : "選填"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center" data-testid={`cell-require-photo-${row.id}`}>
+                    <span className={`text-xs ${row.requirePhoto ? "text-amber-600 font-bold" : "text-muted-foreground"}`}>
+                      {row.requirePhoto ? "需要" : "—"}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
@@ -167,6 +173,7 @@ interface FormValues {
   description?: string;
   inputType: string;
   isRequired: boolean;
+  requirePhoto: boolean;
   sortOrder: number;
   isActive: boolean;
 }
@@ -182,6 +189,7 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
       description: existing.description ?? "",
       inputType: existing.inputType,
       isRequired: existing.isRequired,
+      requirePhoto: existing.requirePhoto ?? false,
       sortOrder: existing.sortOrder,
       isActive: existing.isActive,
     } : {
@@ -191,6 +199,7 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
       description: "",
       inputType: "checkbox",
       isRequired: true,
+      requirePhoto: false,
       sortOrder: 0,
       isActive: true,
     },
@@ -276,6 +285,15 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
               </div>
               <FormField name="isRequired" control={form.control} render={({ field }) => (
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-daily-required" /></FormControl>
+              )} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <p className="text-sm font-medium">需要照片</p>
+                <p className="text-xs text-muted-foreground">完成此項時必須上傳一張照片</p>
+              </div>
+              <FormField name="requirePhoto" control={form.control} render={({ field }) => (
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} data-testid="switch-daily-require-photo" /></FormControl>
               )} />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">

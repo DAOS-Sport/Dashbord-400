@@ -128,7 +128,7 @@ export interface IStorage {
   updateDailyTaskTemplate(id: number, data: Partial<InsertDailyTaskTemplate>): Promise<DailyTaskTemplate | undefined>;
   deleteDailyTaskTemplate(id: number): Promise<boolean>;
 
-  listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]>;
+  listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]>;
   createLifeguardAssignedTask(input: InsertLifeguardAssignedTask): Promise<LifeguardAssignedTask>;
   updateLifeguardAssignedTask(id: number, data: Partial<InsertLifeguardAssignedTask>): Promise<LifeguardAssignedTask | undefined>;
   deleteLifeguardAssignedTask(id: number): Promise<boolean>;
@@ -667,10 +667,12 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]> {
+  async listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]> {
     const conditions = [eq(lifeguardAssignedTasks.facilityKey, opts.facilityKey)];
     if (opts.status) conditions.push(eq(lifeguardAssignedTasks.status, opts.status));
-    if (opts.workDate) {
+    if (opts.taskDate) {
+      conditions.push(eq(lifeguardAssignedTasks.taskDate, opts.taskDate));
+    } else if (opts.workDate) {
       conditions.push(or(
         isNull(lifeguardAssignedTasks.taskDate),
         eq(lifeguardAssignedTasks.taskDate, opts.workDate),

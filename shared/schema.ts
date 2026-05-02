@@ -738,6 +738,7 @@ export const dailyTaskTemplates = pgTable("daily_task_templates", {
   inputType: text("input_type").notNull(),
   inputConfig: jsonb("input_config").$type<Record<string, unknown>>(),
   isRequired: boolean("is_required").default(true).notNull(),
+  requirePhoto: boolean("require_photo").default(false).notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -753,6 +754,7 @@ export const insertDailyTaskTemplateSchema = createInsertSchema(dailyTaskTemplat
   shiftType: shiftTypeSchema,
   taskName: z.string().min(1),
   inputType: workLogInputTypeSchema,
+  requirePhoto: z.boolean().optional(),
 });
 
 export type InsertDailyTaskTemplate = z.infer<typeof insertDailyTaskTemplateSchema>;
@@ -825,6 +827,11 @@ export const waterQualitySchedules = pgTable("water_quality_schedules", {
   poolName: text("pool_name").notNull(),
   shiftType: text("shift_type").notNull(),
   scheduledTime: text("scheduled_time").notNull(),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  intervalMinutes: integer("interval_minutes"),
+  customTimes: text("custom_times").array(),
+  priority: integer("priority").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -837,6 +844,11 @@ export const insertWaterQualityScheduleSchema = createInsertSchema(waterQualityS
   poolName: z.string().min(1),
   shiftType: shiftTypeSchema,
   scheduledTime: z.string().regex(/^\d{2}:\d{2}$/, "格式為 HH:MM"),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "格式為 YYYY-MM-DD").optional().nullable(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "格式為 YYYY-MM-DD").optional().nullable(),
+  intervalMinutes: z.number().int().min(5).max(720).optional().nullable(),
+  customTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).optional().nullable(),
+  priority: z.number().int().min(0).max(100).optional(),
 });
 
 export type InsertWaterQualitySchedule = z.infer<typeof insertWaterQualityScheduleSchema>;
