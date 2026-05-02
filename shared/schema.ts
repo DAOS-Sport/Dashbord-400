@@ -729,9 +729,13 @@ const workLogInputTypeSchema = z.enum([
   "water_quality_form",
 ]);
 
+export const dailyTaskCategorySchema = z.enum(["routine", "opening", "closing", "locker_inspection"]);
+export type DailyTaskCategory = z.infer<typeof dailyTaskCategorySchema>;
+
 export const dailyTaskTemplates = pgTable("daily_task_templates", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
+  category: text("category").default("routine").notNull(),
   shiftType: text("shift_type").notNull(),
   taskName: text("task_name").notNull(),
   description: text("description"),
@@ -739,6 +743,7 @@ export const dailyTaskTemplates = pgTable("daily_task_templates", {
   inputConfig: jsonb("input_config").$type<Record<string, unknown>>(),
   isRequired: boolean("is_required").default(true).notNull(),
   requirePhoto: boolean("require_photo").default(false).notNull(),
+  intervalMinutes: integer("interval_minutes"),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -751,10 +756,12 @@ export const insertDailyTaskTemplateSchema = createInsertSchema(dailyTaskTemplat
   updatedAt: true,
 }).extend({
   facilityKey: z.string().min(1),
+  category: dailyTaskCategorySchema.optional(),
   shiftType: shiftTypeSchema,
   taskName: z.string().min(1),
   inputType: workLogInputTypeSchema,
   requirePhoto: z.boolean().optional(),
+  intervalMinutes: z.number().int().min(5).max(720).optional().nullable(),
 });
 
 export type InsertDailyTaskTemplate = z.infer<typeof insertDailyTaskTemplateSchema>;
