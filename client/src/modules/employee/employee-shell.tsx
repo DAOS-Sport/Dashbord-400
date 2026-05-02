@@ -7,6 +7,7 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
+  ClipboardList,
   ChevronDown,
   FileText,
   GraduationCap,
@@ -180,7 +181,15 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
     queryFn: fetchModuleNavigation,
     staleTime: 60_000,
   });
-  const nav = toEmployeeNavItems(navigation.data?.items);
+  const baseNav = toEmployeeNavItems(navigation.data?.items);
+  const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
+  const workLogItem: EmployeeNavItem = {
+    id: "work-log",
+    label: "工作日誌",
+    href: `/portal/${workLogFacility}/work-log`,
+    Icon: ClipboardList,
+  };
+  const nav: EmployeeNavItem[] = [baseNav[0], workLogItem, ...baseNav.slice(1)].filter(Boolean) as EmployeeNavItem[];
   const mobileItems = nav.slice(0, 5);
 
   return (

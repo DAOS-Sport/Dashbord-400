@@ -48,3 +48,9 @@ id = "awB2soo1GWm9OHRaIJE8W"
 uri = "file://.local/worklog-nav-proof.jpg"
 type = "image"
 title = "工作日誌頁面 — 選單項目反白為當前頁"
+
+[[outputs]]
+id = "DcHjJL1vdn2BR33FFZK8U"
+uri = "file://.local/employee-with-worklog.jpg"
+type = "image"
+title = "/employee 頁面 — 左側選單已加入「工作日誌」"
