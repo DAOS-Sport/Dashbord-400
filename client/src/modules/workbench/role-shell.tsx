@@ -81,6 +81,7 @@ const supervisorNavigationSlots: NavigationSlot[] = [
   { ids: ["announcements", "announcement-review"], label: "公告管理", href: "/supervisor/announcements", iconKey: "megaphone" },
   { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
   { ids: ["work-logs"], label: "救生員日誌", href: "/admin/work-logs/submissions", iconKey: "lifebuoy" },
+  { ids: ["counter-logs"], label: "櫃台日誌", href: "/admin/counter-logs/submissions", iconKey: "clipboard-check" },
   { ids: ["employee-training"], label: "員工教材", href: "/supervisor/training", iconKey: "graduation-cap" },
   { ids: ["anomalies"], label: "異常審核", href: "/supervisor/anomalies", iconKey: "shield-check" },
   { ids: ["analytics"], label: "報表", href: "/supervisor/reports", iconKey: "gauge" },

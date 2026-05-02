@@ -82,6 +82,10 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/work-logs/water-schedules": "救生員日誌 · 水質時段",
   "/admin/work-logs/water-standards": "救生員日誌 · 水質標準",
   "/admin/work-logs/submissions": "救生員日誌 · 主管審核",
+  "/admin/counter-logs/daily-templates": "櫃台日誌 · 每日固定事項",
+  "/admin/counter-logs/assigned-tasks": "櫃台日誌 · 主管交辦",
+  "/admin/counter-logs/recurring-templates": "櫃台日誌 · 每週循環",
+  "/admin/counter-logs/submissions": "櫃台日誌 · 主管審核",
 };
 
 function AppRouter() {
@@ -101,6 +105,10 @@ function AppRouter() {
       <Route path="/admin/work-logs/water-schedules" component={AdminWorkLogWaterSchedules} />
       <Route path="/admin/work-logs/water-standards" component={AdminWorkLogWaterStandards} />
       <Route path="/admin/work-logs/submissions" component={AdminWorkLogSubmissions} />
+      <Route path="/admin/counter-logs/daily-templates" component={AdminWorkLogDailyTemplates} />
+      <Route path="/admin/counter-logs/assigned-tasks" component={AdminWorkLogAssignedTasks} />
+      <Route path="/admin/counter-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
+      <Route path="/admin/counter-logs/submissions" component={AdminWorkLogSubmissions} />
       <Route component={NotFound} />
     </Switch>
   );

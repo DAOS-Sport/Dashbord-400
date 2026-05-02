@@ -5,7 +5,31 @@ import { facilityConfigs } from "@/config/facility-configs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 
-const STORAGE_KEY = "work-logs-admin-facility";
+export type WorkLogModule = "lifeguard" | "counter";
+
+const STORAGE_KEY: Record<WorkLogModule, string> = {
+  lifeguard: "work-logs-admin-facility",
+  counter: "counter-logs-admin-facility",
+};
+
+const MODULE_LABEL: Record<WorkLogModule, string> = {
+  lifeguard: "救生員日誌",
+  counter: "櫃台日誌",
+};
+
+const URL_PREFIX: Record<WorkLogModule, string> = {
+  lifeguard: "/admin/work-logs",
+  counter: "/admin/counter-logs",
+};
+
+export function detectModuleFromPath(path: string): WorkLogModule {
+  return path.startsWith("/admin/counter-logs") ? "counter" : "lifeguard";
+}
+
+export function useModuleType(): WorkLogModule {
+  const [location] = useLocation();
+  return detectModuleFromPath(location);
+}
 
 export const FACILITY_OPTIONS = Object.values(facilityConfigs).map((f) => ({
   value: f.facilityKey,
@@ -13,26 +37,42 @@ export const FACILITY_OPTIONS = Object.values(facilityConfigs).map((f) => ({
 }));
 
 export function useAdminFacility(): [string, (k: string) => void] {
+  const moduleType = useModuleType();
+  const storageKey = STORAGE_KEY[moduleType];
   const [facilityKey, setFacilityKey] = useState<string>(() => {
     if (typeof window === "undefined") return FACILITY_OPTIONS[0]?.value ?? "";
-    return window.localStorage.getItem(STORAGE_KEY) || FACILITY_OPTIONS[0]?.value || "";
+    return window.localStorage.getItem(storageKey) || FACILITY_OPTIONS[0]?.value || "";
   });
   useEffect(() => {
     if (typeof window !== "undefined" && facilityKey) {
-      window.localStorage.setItem(STORAGE_KEY, facilityKey);
+      window.localStorage.setItem(storageKey, facilityKey);
     }
-  }, [facilityKey]);
+  }, [facilityKey, storageKey]);
   return [facilityKey, setFacilityKey];
 }
 
-const TABS: Array<{ url: string; label: string }> = [
-  { url: "/admin/work-logs/daily-templates", label: "每日固定" },
-  { url: "/admin/work-logs/assigned-tasks", label: "主管交辦" },
-  { url: "/admin/work-logs/recurring-templates", label: "每週循環" },
-  { url: "/admin/work-logs/water-schedules", label: "水質時段" },
-  { url: "/admin/work-logs/water-standards", label: "水質標準" },
-  { url: "/admin/work-logs/submissions", label: "主管審核" },
+interface TabSpec { slug: string; label: string }
+
+const COMMON_TABS: TabSpec[] = [
+  { slug: "daily-templates", label: "每日固定" },
+  { slug: "assigned-tasks", label: "主管交辦" },
+  { slug: "recurring-templates", label: "每週循環" },
 ];
+
+const LIFEGUARD_ONLY_TABS: TabSpec[] = [
+  { slug: "water-schedules", label: "水質時段" },
+  { slug: "water-standards", label: "水質標準" },
+];
+
+const TAIL_TAB: TabSpec = { slug: "submissions", label: "主管審核" };
+
+function tabsForModule(moduleType: WorkLogModule): Array<TabSpec & { url: string }> {
+  const base = moduleType === "lifeguard"
+    ? [...COMMON_TABS, ...LIFEGUARD_ONLY_TABS, TAIL_TAB]
+    : [...COMMON_TABS, TAIL_TAB];
+  const prefix = URL_PREFIX[moduleType];
+  return base.map((t) => ({ ...t, url: `${prefix}/${t.slug}` }));
+}
 
 interface ShellProps {
   title: string;
@@ -54,6 +94,9 @@ export function WorkLogAdminShell({
   children,
 }: ShellProps) {
   const [location] = useLocation();
+  const moduleType = detectModuleFromPath(location);
+  const tabs = tabsForModule(moduleType);
+  const moduleLabel = MODULE_LABEL[moduleType];
 
   return (
     <div className="h-full overflow-auto bg-background">
@@ -62,7 +105,7 @@ export function WorkLogAdminShell({
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                救生員日誌 · 後台管理
+                {moduleLabel} · 後台管理
               </p>
               <h1 className="text-xl font-bold mt-0.5" data-testid="text-page-title">{title}</h1>
               {description && (
@@ -88,7 +131,7 @@ export function WorkLogAdminShell({
             </div>
           </div>
           <nav className="flex gap-1 mt-4 -mb-px overflow-x-auto" role="tablist">
-            {TABS.map((t) => {
+            {tabs.map((t) => {
               const active = location === t.url;
               return (
                 <Link
@@ -99,7 +142,7 @@ export function WorkLogAdminShell({
                       ? "border-primary text-primary bg-background"
                       : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   }`}
-                  data-testid={`tab-${t.url.split("/").pop()}`}
+                  data-testid={`tab-${t.slug}`}
                 >
                   {t.label}
                 </Link>

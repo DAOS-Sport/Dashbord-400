@@ -732,9 +732,13 @@ const workLogInputTypeSchema = z.enum([
 export const dailyTaskCategorySchema = z.enum(["routine", "opening", "closing", "locker_inspection"]);
 export type DailyTaskCategory = z.infer<typeof dailyTaskCategorySchema>;
 
+export const workLogModuleTypeSchema = z.enum(["lifeguard", "counter"]);
+export type WorkLogModuleType = z.infer<typeof workLogModuleTypeSchema>;
+
 export const dailyTaskTemplates = pgTable("daily_task_templates", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
+  moduleType: text("module_type").default("lifeguard").notNull(),
   category: text("category").default("routine").notNull(),
   shiftType: text("shift_type").notNull(),
   taskName: text("task_name").notNull(),
@@ -756,6 +760,7 @@ export const insertDailyTaskTemplateSchema = createInsertSchema(dailyTaskTemplat
   updatedAt: true,
 }).extend({
   facilityKey: z.string().min(1),
+  moduleType: workLogModuleTypeSchema.optional(),
   category: dailyTaskCategorySchema.optional(),
   shiftType: shiftTypeSchema,
   taskName: z.string().min(1),
@@ -770,6 +775,7 @@ export type DailyTaskTemplate = typeof dailyTaskTemplates.$inferSelect;
 export const lifeguardAssignedTasks = pgTable("lifeguard_assigned_tasks", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
+  moduleType: text("module_type").default("lifeguard").notNull(),
   taskName: text("task_name").notNull(),
   description: text("description"),
   inputType: text("input_type").notNull(),
@@ -790,6 +796,7 @@ export const insertLifeguardAssignedTaskSchema = createInsertSchema(lifeguardAss
   createdAt: true,
 }).extend({
   facilityKey: z.string().min(1),
+  moduleType: workLogModuleTypeSchema.optional(),
   taskName: z.string().min(1),
   inputType: workLogInputTypeSchema,
   assignedToShift: shiftTypeSchema.optional().nullable(),
@@ -802,6 +809,7 @@ export type LifeguardAssignedTask = typeof lifeguardAssignedTasks.$inferSelect;
 export const recurringTaskTemplates = pgTable("recurring_task_templates", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
+  moduleType: text("module_type").default("lifeguard").notNull(),
   taskName: text("task_name").notNull(),
   description: text("description"),
   inputType: text("input_type").notNull(),
@@ -819,6 +827,7 @@ export const insertRecurringTaskTemplateSchema = createInsertSchema(recurringTas
   createdAt: true,
 }).extend({
   facilityKey: z.string().min(1),
+  moduleType: workLogModuleTypeSchema.optional(),
   taskName: z.string().min(1),
   inputType: workLogInputTypeSchema,
   recurrenceType: z.enum(["daily", "weekly", "monthly"]),
@@ -1005,6 +1014,7 @@ export type LifeguardHandoverNote = typeof lifeguardHandoverNotes.$inferSelect;
 export const dailyReportSubmissions = pgTable("daily_report_submissions", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull(),
+  moduleType: text("module_type").default("lifeguard").notNull(),
   workDate: text("work_date").notNull(),
   shiftType: text("shift_type").notNull(),
   submittedBy: text("submitted_by").notNull(),
@@ -1029,6 +1039,7 @@ export const insertDailyReportSubmissionSchema = createInsertSchema(dailyReportS
   reviewNote: true,
 }).extend({
   facilityKey: z.string().min(1),
+  moduleType: workLogModuleTypeSchema.optional(),
   workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   shiftType: shiftTypeSchema,
   status: z.enum(["submitted", "approved", "returned"]).optional(),

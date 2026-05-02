@@ -698,8 +698,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   // ============ Admin / Supervisor: templates CRUD ============
   app.get("/api/work-logs/admin/daily-templates", requireSupervisor(), async (req, res) => {
     const facilityKey = String(req.query.facilityKey || "");
+    const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
     if (!facilityKey) return res.status(400).json({ message: "facilityKey 必填" });
-    res.json({ items: await storage.listDailyTaskTemplates({ facilityKey, includeInactive: true }) });
+    res.json({ items: await storage.listDailyTaskTemplates({ facilityKey, moduleType, includeInactive: true }) });
   });
 
   app.post("/api/work-logs/admin/daily-templates", requireSupervisor(), async (req, res) => {
@@ -728,10 +729,11 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
 
   app.get("/api/work-logs/admin/assigned-tasks", requireSupervisor(), async (req, res) => {
     const facilityKey = String(req.query.facilityKey || "");
+    const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
     if (!facilityKey) return res.status(400).json({ message: "facilityKey 必填" });
     const status = req.query.status ? String(req.query.status) : undefined;
     const taskDate = req.query.taskDate ? String(req.query.taskDate) : undefined;
-    res.json({ items: await storage.listLifeguardAssignedTasks({ facilityKey, status, taskDate }) });
+    res.json({ items: await storage.listLifeguardAssignedTasks({ facilityKey, moduleType, status, taskDate }) });
   });
 
   app.post("/api/work-logs/admin/assigned-tasks", requireSupervisor(), async (req, res) => {
@@ -765,8 +767,9 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
 
   app.get("/api/work-logs/admin/recurring-templates", requireSupervisor(), async (req, res) => {
     const facilityKey = String(req.query.facilityKey || "");
+    const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
     if (!facilityKey) return res.status(400).json({ message: "facilityKey 必填" });
-    res.json({ items: await storage.listRecurringTaskTemplates({ facilityKey, includeInactive: true }) });
+    res.json({ items: await storage.listRecurringTaskTemplates({ facilityKey, moduleType, includeInactive: true }) });
   });
 
   app.post("/api/work-logs/admin/recurring-templates", requireSupervisor(), async (req, res) => {
@@ -856,15 +859,17 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   // Supervisor review queue
   app.get("/api/work-logs/admin/submissions", requireSupervisor(), async (req, res) => {
     const facilityKey = req.query.facilityKey ? String(req.query.facilityKey) : undefined;
+    const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
     const workDate = req.query.workDate ? String(req.query.workDate) : undefined;
     const status = req.query.status ? String(req.query.status) : undefined;
-    res.json({ items: await storage.listDailyReportSubmissions({ facilityKey, workDate, status, limit: 200 }) });
+    res.json({ items: await storage.listDailyReportSubmissions({ facilityKey, moduleType, workDate, status, limit: 200 }) });
   });
 
   // CSV export — daily report (summary or detail)
   app.get("/api/work-logs/admin/submissions/export", requireSupervisor(), async (req, res) => {
     try {
       const facilityKey = req.query.facilityKey ? String(req.query.facilityKey) : undefined;
+      const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
       const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
       const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
       const workDate = req.query.workDate ? String(req.query.workDate) : undefined;
@@ -875,6 +880,7 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
 
       const submissions = await storage.listDailyReportSubmissions({
         facilityKey,
+        moduleType,
         workDate,
         fromDate,
         toDate,
@@ -987,7 +993,8 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       }
 
       const datePart = fromDate && toDate ? `${fromDate}_${toDate}` : (workDate ?? "all");
-      const filename = `lifeguard-daily-report_${facilityKey}_${datePart}_${filenameSuffix}.csv`;
+      const modulePart = moduleType === "counter" ? "counter" : "lifeguard";
+      const filename = `${modulePart}-daily-report_${facilityKey}_${datePart}_${filenameSuffix}.csv`;
 
       // Prepend UTF-8 BOM so Excel opens Chinese correctly
       const csv = "\uFEFF" + body;

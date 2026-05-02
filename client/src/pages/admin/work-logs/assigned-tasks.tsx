@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertLifeguardAssignedTaskSchema, type LifeguardAssignedTask } from "@shared/schema";
-import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility } from "./_shared";
+import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
 
 export default function AssignedTasksPage() {
   return (
@@ -25,6 +25,7 @@ export default function AssignedTasksPage() {
 }
 
 function Inner() {
+  const moduleType = useModuleType();
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [creating, setCreating] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -33,9 +34,9 @@ function Inner() {
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: LifeguardAssignedTask[] }>({
-    queryKey: ["/api/work-logs/admin/assigned-tasks", facilityKey, statusFilter, taskDateFilter],
+    queryKey: ["/api/work-logs/admin/assigned-tasks", moduleType, facilityKey, statusFilter, taskDateFilter],
     queryFn: async () => {
-      const params = new URLSearchParams({ facilityKey });
+      const params = new URLSearchParams({ facilityKey, moduleType });
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (taskDateFilter) params.set("taskDate", taskDateFilter);
       const r = await fetch(`/api/work-logs/admin/assigned-tasks?${params}`, { credentials: "include" });
@@ -51,7 +52,7 @@ function Inner() {
     },
     onSuccess: () => {
       toast({ title: "已刪除" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/assigned-tasks", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/assigned-tasks", moduleType, facilityKey] });
     },
     onError: (e: Error) => toast({ title: "刪除失敗", description: e.message, variant: "destructive" }),
   });
@@ -144,7 +145,7 @@ function Inner() {
         </div>
       )}
 
-      {creating && <CreateDialog facilityKey={facilityKey} onClose={() => setCreating(false)} />}
+      {creating && <CreateDialog facilityKey={facilityKey} moduleType={moduleType} onClose={() => setCreating(false)} />}
 
       <AlertDialog open={deletingId !== null} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
@@ -186,6 +187,7 @@ function StatusBadge({ status }: { status: string }) {
 
 interface FormValues {
   facilityKey: string;
+  moduleType: "lifeguard" | "counter";
   taskName: string;
   description?: string;
   inputType: string;
@@ -196,12 +198,13 @@ interface FormValues {
   isRequired: boolean;
 }
 
-function CreateDialog({ facilityKey, onClose }: { facilityKey: string; onClose: () => void }) {
+function CreateDialog({ facilityKey, moduleType, onClose }: { facilityKey: string; moduleType: "lifeguard" | "counter"; onClose: () => void }) {
   const { toast } = useToast();
   const form = useForm<FormValues>({
     resolver: zodResolver(insertLifeguardAssignedTaskSchema),
     defaultValues: {
       facilityKey,
+      moduleType,
       taskName: "",
       description: "",
       inputType: "checkbox",
@@ -227,7 +230,7 @@ function CreateDialog({ facilityKey, onClose }: { facilityKey: string; onClose: 
     },
     onSuccess: () => {
       toast({ title: "已指派任務" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/assigned-tasks", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/assigned-tasks", moduleType, facilityKey] });
       onClose();
     },
     onError: (e: Error) => toast({ title: "指派失敗", description: e.message, variant: "destructive" }),

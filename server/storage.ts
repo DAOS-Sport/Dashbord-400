@@ -123,17 +123,17 @@ export interface IStorage {
   }>;
 
   // Work Logs (工作日誌)
-  listDailyTaskTemplates(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]>;
+  listDailyTaskTemplates(opts: { facilityKey: string; moduleType?: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]>;
   createDailyTaskTemplate(input: InsertDailyTaskTemplate): Promise<DailyTaskTemplate>;
   updateDailyTaskTemplate(id: number, data: Partial<InsertDailyTaskTemplate>): Promise<DailyTaskTemplate | undefined>;
   deleteDailyTaskTemplate(id: number): Promise<boolean>;
 
-  listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]>;
+  listLifeguardAssignedTasks(opts: { facilityKey: string; moduleType?: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]>;
   createLifeguardAssignedTask(input: InsertLifeguardAssignedTask): Promise<LifeguardAssignedTask>;
   updateLifeguardAssignedTask(id: number, data: Partial<InsertLifeguardAssignedTask>): Promise<LifeguardAssignedTask | undefined>;
   deleteLifeguardAssignedTask(id: number): Promise<boolean>;
 
-  listRecurringTaskTemplates(opts: { facilityKey: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]>;
+  listRecurringTaskTemplates(opts: { facilityKey: string; moduleType?: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]>;
   createRecurringTaskTemplate(input: InsertRecurringTaskTemplate): Promise<RecurringTaskTemplate>;
   updateRecurringTaskTemplate(id: number, data: Partial<InsertRecurringTaskTemplate>): Promise<RecurringTaskTemplate | undefined>;
   deleteRecurringTaskTemplate(id: number): Promise<boolean>;
@@ -168,7 +168,7 @@ export interface IStorage {
   createLifeguardHandoverNote(input: InsertLifeguardHandoverNote): Promise<LifeguardHandoverNote>;
   confirmLifeguardHandoverNote(id: number, by: { employeeNumber: string; name: string }): Promise<LifeguardHandoverNote | undefined>;
 
-  listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
+  listDailyReportSubmissions(opts: { facilityKey?: string; moduleType?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
   getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined>;
   getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined>;
   createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
@@ -640,8 +640,9 @@ export class DatabaseStorage implements IStorage {
   // Work Logs (工作日誌)
   // ===================================================================
 
-  async listDailyTaskTemplates(opts: { facilityKey: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]> {
+  async listDailyTaskTemplates(opts: { facilityKey: string; moduleType?: string; shiftType?: string; includeInactive?: boolean }): Promise<DailyTaskTemplate[]> {
     const conditions = [eq(dailyTaskTemplates.facilityKey, opts.facilityKey)];
+    if (opts.moduleType) conditions.push(eq(dailyTaskTemplates.moduleType, opts.moduleType));
     if (!opts.includeInactive) conditions.push(eq(dailyTaskTemplates.isActive, true));
     if (opts.shiftType && opts.shiftType !== "all") {
       conditions.push(inArray(dailyTaskTemplates.shiftType, [opts.shiftType, "all"]));
@@ -667,8 +668,9 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listLifeguardAssignedTasks(opts: { facilityKey: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]> {
+  async listLifeguardAssignedTasks(opts: { facilityKey: string; moduleType?: string; workDate?: string; taskDate?: string; shiftType?: string; employeeNumber?: string; status?: string }): Promise<LifeguardAssignedTask[]> {
     const conditions = [eq(lifeguardAssignedTasks.facilityKey, opts.facilityKey)];
+    if (opts.moduleType) conditions.push(eq(lifeguardAssignedTasks.moduleType, opts.moduleType));
     if (opts.status) conditions.push(eq(lifeguardAssignedTasks.status, opts.status));
     if (opts.taskDate) {
       conditions.push(eq(lifeguardAssignedTasks.taskDate, opts.taskDate));
@@ -711,8 +713,9 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listRecurringTaskTemplates(opts: { facilityKey: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]> {
+  async listRecurringTaskTemplates(opts: { facilityKey: string; moduleType?: string; includeInactive?: boolean }): Promise<RecurringTaskTemplate[]> {
     const conditions = [eq(recurringTaskTemplates.facilityKey, opts.facilityKey)];
+    if (opts.moduleType) conditions.push(eq(recurringTaskTemplates.moduleType, opts.moduleType));
     if (!opts.includeInactive) conditions.push(eq(recurringTaskTemplates.isActive, true));
     return db.select().from(recurringTaskTemplates).where(and(...conditions))
       .orderBy(asc(recurringTaskTemplates.id));
@@ -898,9 +901,10 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]> {
+  async listDailyReportSubmissions(opts: { facilityKey?: string; moduleType?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]> {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(dailyReportSubmissions.facilityKey, opts.facilityKey));
+    if (opts.moduleType) conditions.push(eq(dailyReportSubmissions.moduleType, opts.moduleType));
     if (opts.workDate) conditions.push(eq(dailyReportSubmissions.workDate, opts.workDate));
     if (opts.fromDate) conditions.push(gte(dailyReportSubmissions.workDate, opts.fromDate));
     if (opts.toDate) conditions.push(lte(dailyReportSubmissions.workDate, opts.toDate));

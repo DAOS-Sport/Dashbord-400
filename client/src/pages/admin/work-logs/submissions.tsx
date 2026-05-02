@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { DailyReportSubmission, WorkLogTaskCompletion, WaterQualityRecord, LifeguardHandoverNote } from "@shared/schema";
-import { AdminRoleGuard, EmptyState, ErrorState, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility } from "./_shared";
+import { AdminRoleGuard, EmptyState, ErrorState, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
 
 interface DetailResponse {
   submission: DailyReportSubmission;
@@ -30,6 +30,7 @@ function todayInTaipei(): string {
 }
 
 function Inner() {
+  const moduleType = useModuleType();
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [statusFilter, setStatusFilter] = useState<string>("submitted");
   const [workDate, setWorkDate] = useState<string>(todayInTaipei());
@@ -38,10 +39,11 @@ function Inner() {
   const { toast: exportToast } = useToast();
 
   const { data, isLoading, isError, refetch } = useQuery<{ items: DailyReportSubmission[] }>({
-    queryKey: ["/api/work-logs/admin/submissions", facilityKey, workDate, statusFilter],
+    queryKey: ["/api/work-logs/admin/submissions", moduleType, facilityKey, workDate, statusFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (facilityKey) params.set("facilityKey", facilityKey);
+      params.set("moduleType", moduleType);
       if (workDate) params.set("workDate", workDate);
       if (statusFilter !== "all") params.set("status", statusFilter);
       const r = await fetch(`/api/work-logs/admin/submissions?${params}`, { credentials: "include" });
@@ -151,6 +153,7 @@ function Inner() {
       {exportOpen && (
         <ExportDialog
           facilityKey={facilityKey}
+          moduleType={moduleType}
           defaultDate={workDate}
           statusFilter={statusFilter}
           onClose={() => setExportOpen(false)}
@@ -163,12 +166,14 @@ function Inner() {
 
 function ExportDialog({
   facilityKey,
+  moduleType,
   defaultDate,
   statusFilter,
   onClose,
   onError,
 }: {
   facilityKey: string;
+  moduleType: "lifeguard" | "counter";
   defaultDate: string;
   statusFilter: string;
   onClose: () => void;
@@ -196,6 +201,7 @@ function ExportDialog({
     try {
       const params = new URLSearchParams();
       params.set("facilityKey", facilityKey);
+      params.set("moduleType", moduleType);
       params.set("format", format);
       if (includeStatus !== "all") params.set("status", includeStatus);
       if (mode === "single") {
@@ -217,7 +223,8 @@ function ExportDialog({
         const m = cd.match(/filename="?([^";]+)"?/);
         if (m) return m[1];
         const datePart = mode === "range" ? `${fromDate}_${toDate}` : singleDate;
-        return `lifeguard-daily-report_${facilityKey}_${datePart}_${format}.csv`;
+        const modulePrefix = moduleType === "counter" ? "counter" : "lifeguard";
+        return `${modulePrefix}-daily-report_${facilityKey}_${datePart}_${format}.csv`;
       })();
 
       const url = URL.createObjectURL(blob);

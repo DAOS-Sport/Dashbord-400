@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertRecurringTaskTemplateSchema, type RecurringTaskTemplate } from "@shared/schema";
-import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility } from "./_shared";
+import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
 
 const WEEKDAYS = [
   { value: 0, label: "日" },
@@ -32,6 +32,7 @@ export default function RecurringTemplatesPage() {
 }
 
 function Inner() {
+  const moduleType = useModuleType();
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [editing, setEditing] = useState<RecurringTaskTemplate | null>(null);
   const [creating, setCreating] = useState(false);
@@ -39,9 +40,9 @@ function Inner() {
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: RecurringTaskTemplate[] }>({
-    queryKey: ["/api/work-logs/admin/recurring-templates", facilityKey],
+    queryKey: ["/api/work-logs/admin/recurring-templates", moduleType, facilityKey],
     queryFn: async () => {
-      const r = await fetch(`/api/work-logs/admin/recurring-templates?facilityKey=${encodeURIComponent(facilityKey)}`, { credentials: "include" });
+      const r = await fetch(`/api/work-logs/admin/recurring-templates?facilityKey=${encodeURIComponent(facilityKey)}&moduleType=${moduleType}`, { credentials: "include" });
       if (!r.ok) throw new Error("載入失敗");
       return r.json();
     },
@@ -52,7 +53,7 @@ function Inner() {
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/work-logs/admin/recurring-templates/${id}`); },
     onSuccess: () => {
       toast({ title: "已刪除" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/recurring-templates", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/recurring-templates", moduleType, facilityKey] });
     },
     onError: (e: Error) => toast({ title: "刪除失敗", description: e.message, variant: "destructive" }),
   });
@@ -131,7 +132,7 @@ function Inner() {
       )}
 
       {(creating || editing) && (
-        <EditDialog facilityKey={facilityKey} existing={editing} onClose={() => { setCreating(false); setEditing(null); }} />
+        <EditDialog facilityKey={facilityKey} moduleType={moduleType} existing={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       )}
 
       <AlertDialog open={deletingId !== null} onOpenChange={(o) => !o && setDeletingId(null)}>
@@ -149,6 +150,7 @@ function Inner() {
 
 interface FormValues {
   facilityKey: string;
+  moduleType: "lifeguard" | "counter";
   taskName: string;
   description?: string;
   inputType: string;
@@ -159,12 +161,13 @@ interface FormValues {
   isActive: boolean;
 }
 
-function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; existing: RecurringTaskTemplate | null; onClose: () => void }) {
+function EditDialog({ facilityKey, moduleType, existing, onClose }: { facilityKey: string; moduleType: "lifeguard" | "counter"; existing: RecurringTaskTemplate | null; onClose: () => void }) {
   const { toast } = useToast();
   const form = useForm<FormValues>({
     resolver: zodResolver(insertRecurringTaskTemplateSchema),
     defaultValues: existing ? {
       facilityKey: existing.facilityKey,
+      moduleType: ((existing.moduleType ?? "lifeguard") as "lifeguard" | "counter"),
       taskName: existing.taskName,
       description: existing.description ?? "",
       inputType: existing.inputType,
@@ -175,6 +178,7 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
       isActive: existing.isActive,
     } : {
       facilityKey,
+      moduleType,
       taskName: "",
       description: "",
       inputType: "checkbox",
@@ -197,7 +201,7 @@ function EditDialog({ facilityKey, existing, onClose }: { facilityKey: string; e
     },
     onSuccess: () => {
       toast({ title: existing ? "已更新" : "已新增" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/recurring-templates", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/recurring-templates", moduleType, facilityKey] });
       onClose();
     },
     onError: (e: Error) => toast({ title: "儲存失敗", description: e.message, variant: "destructive" }),

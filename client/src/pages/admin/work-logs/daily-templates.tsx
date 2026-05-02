@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertDailyTaskTemplateSchema, type DailyTaskTemplate, type DailyTaskCategory } from "@shared/schema";
-import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility } from "./_shared";
+import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
 
 const CATEGORY_TABS: Array<{ value: "all" | DailyTaskCategory; label: string; hint?: string }> = [
   { value: "all", label: "全部" },
@@ -48,6 +48,7 @@ export default function DailyTemplatesPage() {
 }
 
 function Inner() {
+  const moduleType = useModuleType();
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [editing, setEditing] = useState<DailyTaskTemplate | null>(null);
   const [creating, setCreating] = useState(false);
@@ -56,9 +57,9 @@ function Inner() {
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: DailyTaskTemplate[] }>({
-    queryKey: ["/api/work-logs/admin/daily-templates", facilityKey],
+    queryKey: ["/api/work-logs/admin/daily-templates", moduleType, facilityKey],
     queryFn: async () => {
-      const r = await fetch(`/api/work-logs/admin/daily-templates?facilityKey=${encodeURIComponent(facilityKey)}`, { credentials: "include" });
+      const r = await fetch(`/api/work-logs/admin/daily-templates?facilityKey=${encodeURIComponent(facilityKey)}&moduleType=${moduleType}`, { credentials: "include" });
       if (!r.ok) throw new Error("載入失敗");
       return r.json();
     },
@@ -71,7 +72,7 @@ function Inner() {
     },
     onSuccess: () => {
       toast({ title: "已刪除" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/daily-templates", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/daily-templates", moduleType, facilityKey] });
     },
     onError: (e: Error) => toast({ title: "刪除失敗", description: e.message, variant: "destructive" }),
   });
@@ -210,6 +211,7 @@ function Inner() {
       {(creating || editing) && (
         <EditDialog
           facilityKey={facilityKey}
+          moduleType={moduleType}
           existing={editing}
           defaultCategory={activeCategory === "all" ? "routine" : activeCategory}
           onClose={() => { setCreating(false); setEditing(null); }}
@@ -246,6 +248,7 @@ function Inner() {
 
 interface FormValues {
   facilityKey: string;
+  moduleType: "lifeguard" | "counter";
   category: DailyTaskCategory;
   shiftType: "morning" | "noon" | "night" | "all";
   taskName: string;
@@ -258,12 +261,13 @@ interface FormValues {
   isActive: boolean;
 }
 
-function EditDialog({ facilityKey, existing, defaultCategory, onClose }: { facilityKey: string; existing: DailyTaskTemplate | null; defaultCategory: DailyTaskCategory; onClose: () => void }) {
+function EditDialog({ facilityKey, moduleType, existing, defaultCategory, onClose }: { facilityKey: string; moduleType: "lifeguard" | "counter"; existing: DailyTaskTemplate | null; defaultCategory: DailyTaskCategory; onClose: () => void }) {
   const { toast } = useToast();
   const form = useForm<FormValues>({
     resolver: zodResolver(insertDailyTaskTemplateSchema),
     defaultValues: existing ? {
       facilityKey: existing.facilityKey,
+      moduleType: ((existing.moduleType ?? "lifeguard") as "lifeguard" | "counter"),
       category: ((existing.category ?? "routine") as DailyTaskCategory),
       shiftType: existing.shiftType as FormValues["shiftType"],
       taskName: existing.taskName,
@@ -276,6 +280,7 @@ function EditDialog({ facilityKey, existing, defaultCategory, onClose }: { facil
       isActive: existing.isActive,
     } : {
       facilityKey,
+      moduleType,
       category: defaultCategory,
       shiftType: defaultCategory === "opening" ? "morning" : defaultCategory === "closing" ? "night" : "all",
       taskName: "",
@@ -305,7 +310,7 @@ function EditDialog({ facilityKey, existing, defaultCategory, onClose }: { facil
     },
     onSuccess: () => {
       toast({ title: existing ? "已更新" : "已新增" });
-      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/daily-templates", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/daily-templates", moduleType, facilityKey] });
       onClose();
     },
     onError: (e: Error) => toast({ title: "儲存失敗", description: e.message, variant: "destructive" }),
