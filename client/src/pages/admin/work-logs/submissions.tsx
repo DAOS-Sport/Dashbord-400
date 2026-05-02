@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle2, XCircle, Eye, Clock, ImageIcon } from "lucide-react";
+import { CheckCircle2, XCircle, Eye, Clock, ImageIcon, Download } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ function Inner() {
   const [statusFilter, setStatusFilter] = useState<string>("submitted");
   const [workDate, setWorkDate] = useState<string>(todayInTaipei());
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const { toast: exportToast } = useToast();
 
   const { data, isLoading, isError, refetch } = useQuery<{ items: DailyReportSubmission[] }>({
     queryKey: ["/api/work-logs/admin/submissions", facilityKey, workDate, statusFilter],
@@ -54,7 +56,7 @@ function Inner() {
   return (
     <WorkLogAdminShell
       title="主管審核 / 日報歷史"
-      description="檢視員工送出的日報，可批准或退回要求補正"
+      description="檢視員工送出的日報，可批准或退回要求補正，亦可下載每日日報表 CSV"
       facilityKey={facilityKey}
       onFacilityChange={setFacilityKey}
       actions={
@@ -77,6 +79,9 @@ function Inner() {
               <SelectItem value="all">全部</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={() => setExportOpen(true)} data-testid="button-open-export">
+            <Download className="h-4 w-4 mr-1" /> 下載報表
+          </Button>
         </>
       }
     >
@@ -142,7 +147,193 @@ function Inner() {
       {detailId !== null && (
         <DetailDialog id={detailId} onClose={() => { setDetailId(null); refetch(); }} />
       )}
+
+      {exportOpen && (
+        <ExportDialog
+          facilityKey={facilityKey}
+          defaultDate={workDate}
+          statusFilter={statusFilter}
+          onClose={() => setExportOpen(false)}
+          onError={(msg) => exportToast({ title: "下載失敗", description: msg, variant: "destructive" })}
+        />
+      )}
     </WorkLogAdminShell>
+  );
+}
+
+function ExportDialog({
+  facilityKey,
+  defaultDate,
+  statusFilter,
+  onClose,
+  onError,
+}: {
+  facilityKey: string;
+  defaultDate: string;
+  statusFilter: string;
+  onClose: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [mode, setMode] = useState<"single" | "range">("single");
+  const [singleDate, setSingleDate] = useState(defaultDate);
+  const [fromDate, setFromDate] = useState(defaultDate);
+  const [toDate, setToDate] = useState(defaultDate);
+  const [format, setFormat] = useState<"summary" | "detail">("summary");
+  const [includeStatus, setIncludeStatus] = useState<string>(statusFilter);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!facilityKey) {
+      onError("請先選擇場館");
+      return;
+    }
+    if (mode === "range" && fromDate > toDate) {
+      onError("開始日期不可晚於結束日期");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("facilityKey", facilityKey);
+      params.set("format", format);
+      if (includeStatus !== "all") params.set("status", includeStatus);
+      if (mode === "single") {
+        params.set("workDate", singleDate);
+      } else {
+        params.set("fromDate", fromDate);
+        params.set("toDate", toDate);
+      }
+
+      const r = await fetch(`/api/work-logs/admin/submissions/export?${params}`, { credentials: "include" });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.message ?? `下載失敗 (HTTP ${r.status})`);
+      }
+
+      const blob = await r.blob();
+      const filename = (() => {
+        const cd = r.headers.get("Content-Disposition") ?? "";
+        const m = cd.match(/filename="?([^";]+)"?/);
+        if (m) return m[1];
+        const datePart = mode === "range" ? `${fromDate}_${toDate}` : singleDate;
+        return `lifeguard-daily-report_${facilityKey}_${datePart}_${format}.csv`;
+      })();
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      onClose();
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && !downloading && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>下載每日日報表</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 text-sm">
+          <div>
+            <p className="font-medium mb-1.5">日期範圍</p>
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setMode("single")}
+                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition ${mode === "single" ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted"}`}
+                data-testid="tab-export-single"
+              >
+                單日
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("range")}
+                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition ${mode === "range" ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted"}`}
+                data-testid="tab-export-range"
+              >
+                日期區間
+              </button>
+            </div>
+            {mode === "single" ? (
+              <Input
+                type="date"
+                value={singleDate}
+                onChange={(e) => setSingleDate(e.target.value)}
+                data-testid="input-export-single-date"
+              />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">起始日</p>
+                  <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} data-testid="input-export-from-date" />
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground mb-1">結束日</p>
+                  <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} data-testid="input-export-to-date" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="font-medium mb-1.5">格式</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setFormat("summary")}
+                className={`flex-1 px-3 py-2 rounded-md text-xs text-left border transition ${format === "summary" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+                data-testid="button-format-summary"
+              >
+                <p className="font-bold">摘要</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">一筆日報一列，含完成度、水質筆數、審核狀態</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat("detail")}
+                className={`flex-1 px-3 py-2 rounded-md text-xs text-left border transition ${format === "detail" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"}`}
+                data-testid="button-format-detail"
+              >
+                <p className="font-bold">明細</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">逐筆任務／水質／交接事項展開（資料較多）</p>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="font-medium mb-1.5">狀態</p>
+            <Select value={includeStatus} onValueChange={setIncludeStatus}>
+              <SelectTrigger data-testid="select-export-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="submitted">待審核</SelectItem>
+                <SelectItem value="approved">已批准</SelectItem>
+                <SelectItem value="returned">已退回</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground border-l-2 border-amber-400 pl-2">
+            CSV 檔已自動加上 UTF-8 BOM，使用 Excel 開啟時中文會正常顯示。
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={downloading}>取消</Button>
+          <Button onClick={handleDownload} disabled={downloading} data-testid="button-confirm-export">
+            <Download className="h-4 w-4 mr-1" />
+            {downloading ? "下載中…" : "下載 CSV"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

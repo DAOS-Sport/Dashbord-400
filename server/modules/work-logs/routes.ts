@@ -861,6 +861,145 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     res.json({ items: await storage.listDailyReportSubmissions({ facilityKey, workDate, status, limit: 200 }) });
   });
 
+  // CSV export — daily report (summary or detail)
+  app.get("/api/work-logs/admin/submissions/export", requireSupervisor(), async (req, res) => {
+    try {
+      const facilityKey = req.query.facilityKey ? String(req.query.facilityKey) : undefined;
+      const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
+      const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
+      const workDate = req.query.workDate ? String(req.query.workDate) : undefined;
+      const status = req.query.status && req.query.status !== "all" ? String(req.query.status) : undefined;
+      const format = (req.query.format === "detail" ? "detail" : "summary") as "summary" | "detail";
+
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+
+      const submissions = await storage.listDailyReportSubmissions({
+        facilityKey,
+        workDate,
+        fromDate,
+        toDate,
+        status,
+        limit: 2000,
+      });
+
+      const shiftMap: Record<string, string> = { morning: "早班", noon: "中班", night: "晚班", all: "全班" };
+      const statusMap: Record<string, string> = { submitted: "待審核", approved: "已批准", returned: "已退回" };
+      const fmtTs = (d: Date | string | null | undefined) =>
+        d ? new Date(d).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }) : "";
+
+      const csvEscape = (v: unknown): string => {
+        if (v === null || v === undefined) return "";
+        const s = String(v).replace(/\r?\n/g, " ");
+        if (s.includes(",") || s.includes("\"") || s.includes("\n")) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+      const row = (cells: unknown[]) => cells.map(csvEscape).join(",") + "\r\n";
+
+      let body = "";
+      let filenameSuffix = "";
+
+      if (format === "summary") {
+        body += row([
+          "場館", "日期", "班別", "送出人(姓名)", "送出人(編號)", "送出時間",
+          "完成項目", "總項目", "完成度(%)", "水質筆數", "水質異常數", "狀態",
+          "審核人", "審核時間", "審核留言",
+        ]);
+        for (const s of submissions) {
+          const summary = (s.summary ?? {}) as Record<string, number>;
+          const pct = s.totalRequired > 0 ? Math.round((s.totalCompleted / s.totalRequired) * 100) : 0;
+          body += row([
+            s.facilityKey,
+            s.workDate,
+            shiftMap[s.shiftType] ?? s.shiftType,
+            s.submittedByName ?? "",
+            s.submittedBy,
+            fmtTs(s.submittedAt),
+            s.totalCompleted,
+            s.totalRequired,
+            pct,
+            summary.waterQualityCount ?? 0,
+            summary.abnormalCount ?? 0,
+            statusMap[s.status] ?? s.status,
+            s.reviewedByName ?? s.reviewedBy ?? "",
+            fmtTs(s.reviewedAt),
+            s.reviewNote ?? "",
+          ]);
+        }
+        filenameSuffix = "summary";
+      } else {
+        body += row([
+          "場館", "日期", "班別", "送出人", "狀態",
+          "資料類型", "項目", "完成", "輸入內容", "備註", "異常",
+        ]);
+        for (const s of submissions) {
+          const [completions, waterRecords, handovers] = await Promise.all([
+            storage.listTaskCompletions({ facilityKey: s.facilityKey, workDate: s.workDate, shiftType: s.shiftType }),
+            storage.listWaterQualityRecords({ facilityKey: s.facilityKey, workDate: s.workDate, shiftType: s.shiftType }),
+            storage.listLifeguardHandoverNotes({ facilityKey: s.facilityKey, workDate: s.workDate, fromShift: s.shiftType }),
+          ]);
+          const base = [
+            s.facilityKey,
+            s.workDate,
+            shiftMap[s.shiftType] ?? s.shiftType,
+            s.submittedByName ?? s.submittedBy,
+            statusMap[s.status] ?? s.status,
+          ];
+          for (const c of completions) {
+            body += row([
+              ...base,
+              "任務",
+              c.taskName,
+              c.isCompleted ? "✓" : "—",
+              c.inputValue ? JSON.stringify(c.inputValue) : "",
+              c.notes ?? "",
+              "",
+            ]);
+          }
+          for (const w of waterRecords) {
+            body += row([
+              ...base,
+              "水質",
+              `${w.poolName} · ${w.scheduledTime ?? ""}`,
+              "✓",
+              w.measurements ? JSON.stringify(w.measurements) : "",
+              w.abnormalNote ?? "",
+              w.isAbnormal ? "異常" : "",
+            ]);
+          }
+          for (const h of handovers) {
+            body += row([
+              ...base,
+              "交接事項",
+              `${shiftMap[h.fromShift] ?? h.fromShift} → ${shiftMap[h.toShift] ?? h.toShift}`,
+              h.isConfirmed ? "已確認" : "未確認",
+              h.content,
+              h.authorName ?? h.authorEmployeeNumber,
+              h.isImportant ? "重要" : "",
+            ]);
+          }
+          if (completions.length === 0 && waterRecords.length === 0 && handovers.length === 0) {
+            body += row([...base, "(無資料)", "", "", "", "", ""]);
+          }
+        }
+        filenameSuffix = "detail";
+      }
+
+      const datePart = fromDate && toDate ? `${fromDate}_${toDate}` : (workDate ?? "all");
+      const filename = `lifeguard-daily-report_${facilityKey}_${datePart}_${filenameSuffix}.csv`;
+
+      // Prepend UTF-8 BOM so Excel opens Chinese correctly
+      const csv = "\uFEFF" + body;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(csv);
+    } catch (e) {
+      console.error("[work-logs] export submissions failed", e);
+      res.status(500).json({ message: "匯出失敗" });
+    }
+  });
+
   app.get("/api/work-logs/admin/submissions/:id", requireSupervisor(), async (req, res) => {
     try {
       const id = Number(req.params.id);

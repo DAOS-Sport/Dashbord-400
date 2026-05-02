@@ -168,7 +168,7 @@ export interface IStorage {
   createLifeguardHandoverNote(input: InsertLifeguardHandoverNote): Promise<LifeguardHandoverNote>;
   confirmLifeguardHandoverNote(id: number, by: { employeeNumber: string; name: string }): Promise<LifeguardHandoverNote | undefined>;
 
-  listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
+  listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]>;
   getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined>;
   getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined>;
   createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
@@ -898,16 +898,18 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]> {
+  async listDailyReportSubmissions(opts: { facilityKey?: string; workDate?: string; fromDate?: string; toDate?: string; status?: string; limit?: number }): Promise<DailyReportSubmission[]> {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(dailyReportSubmissions.facilityKey, opts.facilityKey));
     if (opts.workDate) conditions.push(eq(dailyReportSubmissions.workDate, opts.workDate));
+    if (opts.fromDate) conditions.push(gte(dailyReportSubmissions.workDate, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(dailyReportSubmissions.workDate, opts.toDate));
     if (opts.status) conditions.push(eq(dailyReportSubmissions.status, opts.status));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const q = db.select().from(dailyReportSubmissions);
     return (where ? q.where(where) : q)
-      .orderBy(desc(dailyReportSubmissions.submittedAt))
-      .limit(Math.min(opts.limit ?? 100, 500));
+      .orderBy(desc(dailyReportSubmissions.workDate), desc(dailyReportSubmissions.submittedAt))
+      .limit(Math.min(opts.limit ?? 100, 2000));
   }
 
   async getDailyReportSubmission(opts: { facilityKey: string; workDate: string; shiftType: string; submittedBy: string }): Promise<DailyReportSubmission | undefined> {
