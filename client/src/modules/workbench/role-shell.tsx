@@ -5,10 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Building2,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   Gauge,
   GraduationCap,
+  LifeBuoy,
   Home,
   BarChart3,
   Menu,
@@ -36,6 +38,7 @@ const iconByKey: Record<string, LucideIcon> = {
   home: Home,
   bell: Bell,
   "clipboard-check": ClipboardList,
+  "clipboard-list": ClipboardCheck,
   "message-square-text": FileText,
   "file-text": FileText,
   "graduation-cap": GraduationCap,
@@ -46,6 +49,7 @@ const iconByKey: Record<string, LucideIcon> = {
   building: Building2,
   megaphone: Megaphone,
   users: Users,
+  lifebuoy: LifeBuoy,
 };
 
 type NavigationSlot = {
@@ -76,6 +80,7 @@ const supervisorNavigationSlots: NavigationSlot[] = [
   { ids: ["tasks"], label: "任務管理", href: "/supervisor/tasks", iconKey: "clipboard-check" },
   { ids: ["announcements", "announcement-review"], label: "公告管理", href: "/supervisor/announcements", iconKey: "megaphone" },
   { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
+  { ids: ["work-logs"], label: "救生員日誌", href: "/admin/work-logs/submissions", iconKey: "lifebuoy" },
   { ids: ["employee-training"], label: "員工教材", href: "/supervisor/training", iconKey: "graduation-cap" },
   { ids: ["anomalies"], label: "異常審核", href: "/supervisor/anomalies", iconKey: "shield-check" },
   { ids: ["analytics"], label: "報表", href: "/supervisor/reports", iconKey: "gauge" },
