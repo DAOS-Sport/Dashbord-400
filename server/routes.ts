@@ -832,6 +832,10 @@ export async function registerRoutes(
   const { registerParkingRoutes } = await import("./modules/parking/routes");
   registerParkingRoutes(app, { requireEmployee, requireSupervisor });
 
+  // Object Storage routes (presigned upload + /objects/:path proxy).
+  const { registerObjectStorageRoutes } = await import("./replit_integrations/object_storage");
+  registerObjectStorageRoutes(app);
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

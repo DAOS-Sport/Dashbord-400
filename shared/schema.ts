@@ -1187,6 +1187,18 @@ export const parkingContracts = pgTable("parking_contracts", {
   refundedAt: timestamp("refunded_at"),
   refundAmount: integer("refund_amount"),
   note: text("note"),
+  // ----- Phase 2: customer-facing e-sign flow -----
+  termsVersion: text("terms_version"),                 // e.g. "2026-NBHS-v1"
+  signTokenHash: text("sign_token_hash"),              // sha256 of one-time link token
+  signTokenExpiresAt: timestamp("sign_token_expires_at"),
+  signedFromIp: text("signed_from_ip"),
+  signedUserAgent: text("signed_user_agent"),
+  signerName: text("signer_name"),                     // name typed at signing
+  signerIdLast4: text("signer_id_last4"),              // last 4 of national ID, optional
+  vehicleRegPhotoUrl: text("vehicle_reg_photo_url"),   // 行照
+  driverLicensePhotoUrl: text("driver_license_photo_url"), // 駕照
+  idCardPhotoUrl: text("id_card_photo_url"),           // 身分證 (optional)
+  // ----- end Phase 2 -----
   createdBy: text("created_by"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1194,11 +1206,18 @@ export const parkingContracts = pgTable("parking_contracts", {
 }, (table) => ({
   idxVehicle: index("idx_parking_contracts_vehicle").on(table.vehicleId),
   idxStatus: index("idx_parking_contracts_status").on(table.status, table.endDate),
+  idxSignToken: index("idx_parking_contracts_sign_token").on(table.signTokenHash),
 }));
 
 export const insertParkingContractSchema = createInsertSchema(parkingContracts).omit({
   id: true, contractNumber: true, createdAt: true, updatedAt: true,
   signedAt: true, terminatedAt: true, refundedAt: true,
+  // Phase 2 e-sign fields are managed exclusively by the sign endpoints,
+  // never by client-supplied insert payloads.
+  signTokenHash: true, signTokenExpiresAt: true, signedFromIp: true,
+  signedUserAgent: true, signerName: true, signerIdLast4: true,
+  vehicleRegPhotoUrl: true, driverLicensePhotoUrl: true, idCardPhotoUrl: true,
+  signatureImageUrl: true,
 }).extend({
   vehicleId: z.number().int().positive(),
   planId: z.number().int().positive(),
@@ -1207,10 +1226,10 @@ export const insertParkingContractSchema = createInsertSchema(parkingContracts).
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   totalAmount: z.number().int().min(0).max(100_000_000),
   depositAmount: z.number().int().min(0).max(100_000_000),
-  signatureImageUrl: z.string().max(2000).optional().nullable(),
   pdfUrl: z.string().max(2000).optional().nullable(),
   refundAmount: z.number().int().min(0).max(100_000_000).optional().nullable(),
   note: z.string().max(2000).optional().nullable(),
+  termsVersion: z.string().max(50).optional().nullable(),
 });
 export type InsertParkingContract = z.infer<typeof insertParkingContractSchema>;
 export type ParkingContract = typeof parkingContracts.$inferSelect;

@@ -208,9 +208,24 @@ export interface IStorage {
   // Parking — contracts
   listParkingContracts(opts: { status?: string; vehicleId?: number; limit?: number }): Promise<ParkingContract[]>;
   getParkingContractById(id: number): Promise<ParkingContract | undefined>;
+  getParkingContractByTokenHash(hash: string): Promise<ParkingContract | undefined>;
   generateContractNumber(): Promise<string>;
   createParkingContract(input: InsertParkingContract & { contractNumber: string }): Promise<ParkingContract>;
-  updateParkingContract(id: number, data: Partial<InsertParkingContract> & { signedAt?: Date | null; terminatedAt?: Date | null; refundedAt?: Date | null }): Promise<ParkingContract | undefined>;
+  updateParkingContract(id: number, data: Partial<InsertParkingContract> & {
+    signedAt?: Date | null;
+    terminatedAt?: Date | null;
+    refundedAt?: Date | null;
+    signTokenHash?: string | null;
+    signTokenExpiresAt?: Date | null;
+    signedFromIp?: string | null;
+    signedUserAgent?: string | null;
+    signerName?: string | null;
+    signerIdLast4?: string | null;
+    signatureImageUrl?: string | null;
+    vehicleRegPhotoUrl?: string | null;
+    driverLicensePhotoUrl?: string | null;
+    idCardPhotoUrl?: string | null;
+  }): Promise<ParkingContract | undefined>;
   deleteParkingContract(id: number): Promise<boolean>;
 
   // Parking — payments
@@ -1110,6 +1125,10 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(parkingContracts).where(eq(parkingContracts.id, id)).limit(1);
     return row;
   }
+  async getParkingContractByTokenHash(hash: string): Promise<ParkingContract | undefined> {
+    const [row] = await db.select().from(parkingContracts).where(eq(parkingContracts.signTokenHash, hash)).limit(1);
+    return row;
+  }
   async generateContractNumber(): Promise<string> {
     const now = new Date();
     const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1124,7 +1143,21 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.insert(parkingContracts).values(input).returning();
     return row;
   }
-  async updateParkingContract(id: number, data: Partial<InsertParkingContract> & { signedAt?: Date | null; terminatedAt?: Date | null; refundedAt?: Date | null }): Promise<ParkingContract | undefined> {
+  async updateParkingContract(id: number, data: Partial<InsertParkingContract> & {
+    signedAt?: Date | null;
+    terminatedAt?: Date | null;
+    refundedAt?: Date | null;
+    signTokenHash?: string | null;
+    signTokenExpiresAt?: Date | null;
+    signedFromIp?: string | null;
+    signedUserAgent?: string | null;
+    signerName?: string | null;
+    signerIdLast4?: string | null;
+    signatureImageUrl?: string | null;
+    vehicleRegPhotoUrl?: string | null;
+    driverLicensePhotoUrl?: string | null;
+    idCardPhotoUrl?: string | null;
+  }): Promise<ParkingContract | undefined> {
     const [row] = await db.update(parkingContracts)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(parkingContracts.id, id)).returning();

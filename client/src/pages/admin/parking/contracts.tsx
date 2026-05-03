@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, Link as LinkIcon, PenLine, Copy } from "lucide-react";
 import { useAuthMe } from "@/shared/auth/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ParkingContract, ParkingPlan, ParkingVehicle } from "@shared/schema";
+import { ContractSigningView, type SigningContractData, type SigningSubmitPayload } from "@/pages/parking/contract-signing-view";
+import { PARKING_TERMS_VERSION, PARKING_TERMS_TITLE, PARKING_TERMS_PARTIES, PARKING_TERMS_SECTIONS } from "@shared/parking-terms";
 import {
   ParkingShell, ParkingGuard, PlateDisplay, StatusBadge,
   CONTRACT_STATUS_LABELS, CONTRACT_STATUS_VARIANT,
@@ -48,6 +50,8 @@ export default function ParkingContractsPage() {
   const [openDetail, setOpenDetail] = useState<ParkingContract | null>(null);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundAmount, setRefundAmount] = useState("0");
+  const [inPersonSign, setInPersonSign] = useState<ParkingContract | null>(null);
+  const [issuedLink, setIssuedLink] = useState<{ url: string; expiresAt: string } | null>(null);
 
   const qs = statusFilter !== "__all" ? `?status=${encodeURIComponent(statusFilter)}` : "";
   const listQ = useQuery<{ items: ParkingContract[] }>({
@@ -109,15 +113,15 @@ export default function ParkingContractsPage() {
     onError: (e: Error) => toast({ title: "建立失敗", description: e.message, variant: "destructive" }),
   });
 
-  const signMut = useMutation({
-    mutationFn: async (id: number) => (await apiRequest("POST", `/api/parking/contracts/${id}/sign`, { signatureImageUrl: null })).json(),
-    onSuccess: (data) => {
+  const issueLinkMut = useMutation({
+    mutationFn: async (id: number) =>
+      (await apiRequest("POST", `/api/parking/contracts/${id}/issue-sign-link`, {})).json(),
+    onSuccess: (data: { token: string; url: string; expiresAt: string }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/parking/contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/parking/dashboard"] });
-      setOpenDetail(data);
-      toast({ title: "已標記簽約" });
+      const fullUrl = `${window.location.origin}${data.url}`;
+      setIssuedLink({ url: fullUrl, expiresAt: data.expiresAt });
     },
-    onError: (e: Error) => toast({ title: "簽約失敗", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "產生簽約連結失敗", description: e.message, variant: "destructive" }),
   });
 
   const terminateMut = useMutation({
@@ -308,13 +312,46 @@ export default function ParkingContractsPage() {
                 {openDetail.refundedAt ? <DetailRow label="退款時間" value={`${new Date(openDetail.refundedAt as any).toLocaleString("zh-TW")} (NT$ ${(openDetail.refundAmount ?? 0).toLocaleString()})`} /> : null}
                 {openDetail.note ? <DetailRow label="備註" value={openDetail.note} /> : null}
 
+                {/* Phase 2: signed evidence — show photos + signature once captured */}
+                {(openDetail.signatureImageUrl || openDetail.vehicleRegPhotoUrl) && (
+                  <div className="pt-3 border-t border-border space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">簽約證明</p>
+                    {openDetail.signerName && (
+                      <DetailRow label="簽署人" value={`${openDetail.signerName}${openDetail.signerIdLast4 ? ` · 身分證末 4 碼 ${openDetail.signerIdLast4}` : ""}`} />
+                    )}
+                    {openDetail.termsVersion && <DetailRow label="條款版本" value={openDetail.termsVersion} />}
+                    {openDetail.signatureImageUrl && (
+                      <div>
+                        <p className="text-[11px] text-muted-foreground mb-1">簽名</p>
+                        <img src={openDetail.signatureImageUrl} alt="signature" className="rounded border border-border bg-white max-h-24" data-testid="img-signature" />
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {openDetail.vehicleRegPhotoUrl && <PhotoThumb label="行照" url={openDetail.vehicleRegPhotoUrl} testid="img-vehicle-reg" />}
+                      {openDetail.driverLicensePhotoUrl && <PhotoThumb label="駕照" url={openDetail.driverLicensePhotoUrl} testid="img-driver-license" />}
+                      {openDetail.idCardPhotoUrl && <PhotoThumb label="身分證" url={openDetail.idCardPhotoUrl} testid="img-id-card" />}
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-3 border-t border-border space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">狀態操作</p>
                   <div className="flex flex-wrap gap-2">
                     {(openDetail.status === "draft" || openDetail.status === "awaiting_sign") && (
-                      <Button size="sm" data-testid="button-sign-contract" disabled={signMut.isPending} onClick={() => signMut.mutate(openDetail.id)}>
-                        標記簽約
-                      </Button>
+                      <>
+                        <Button size="sm" data-testid="button-open-in-person-sign" onClick={() => setInPersonSign(openDetail)}>
+                          <PenLine className="h-3.5 w-3.5 mr-1" /> 開啟簽約（現場）
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="button-issue-sign-link"
+                          disabled={issueLinkMut.isPending}
+                          onClick={() => issueLinkMut.mutate(openDetail.id)}
+                        >
+                          <LinkIcon className="h-3.5 w-3.5 mr-1" /> 產生簽約連結
+                        </Button>
+                      </>
                     )}
                     {!["terminated", "refunded"].includes(openDetail.status) && (
                       <Button size="sm" variant="destructive" data-testid="button-terminate-contract" disabled={terminateMut.isPending} onClick={() => terminateMut.mutate(openDetail.id)}>
@@ -352,6 +389,61 @@ export default function ParkingContractsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* In-person signing dialog (full-screen) */}
+        <Dialog open={!!inPersonSign} onOpenChange={(o) => !o && setInPersonSign(null)}>
+          <DialogContent className="max-w-4xl h-[90vh] overflow-y-auto p-0">
+            <DialogHeader className="sticky top-0 z-10 bg-background border-b border-border px-4 py-2">
+              <DialogTitle>現場簽約 · {inPersonSign?.contractNumber}</DialogTitle>
+            </DialogHeader>
+            {inPersonSign && (
+              <InPersonSigningPanel
+                contract={inPersonSign}
+                vehicle={vehicleMap.get(inPersonSign.vehicleId) ?? null}
+                plan={planMap.get(inPersonSign.planId) ?? null}
+                onDone={(updated) => {
+                  setInPersonSign(null);
+                  setOpenDetail(updated);
+                  queryClient.invalidateQueries({ queryKey: ["/api/parking/contracts"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/parking/dashboard"] });
+                  toast({ title: "現場簽約完成" });
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Issued link share dialog */}
+        <Dialog open={!!issuedLink} onOpenChange={(o) => !o && setIssuedLink(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>簽約連結已產生</DialogTitle></DialogHeader>
+            {issuedLink && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  將下列連結傳送給客戶（SMS / LINE / Email 皆可），客戶於行動裝置完成簽約即可。
+                  此連結可使用至 {new Date(issuedLink.expiresAt).toLocaleString("zh-TW")}。
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input value={issuedLink.url} readOnly className="font-mono text-xs" data-testid="input-issued-link" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    data-testid="button-copy-link"
+                    onClick={async () => {
+                      try { await navigator.clipboard.writeText(issuedLink.url); toast({ title: "連結已複製" }); }
+                      catch { toast({ title: "複製失敗，請手動選取", variant: "destructive" }); }
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-1" /> 複製
+                  </Button>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIssuedLink(null)}>關閉</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </ParkingShell>
     </ParkingGuard>
   );
@@ -363,5 +455,84 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
       <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
       <span className="text-sm text-right">{value}</span>
     </div>
+  );
+}
+
+function PhotoThumb({ label, url, testid }: { label: string; url: string; testid: string }) {
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="block">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
+      <img src={url} alt={label} className="h-20 w-full object-cover rounded border border-border" data-testid={testid} />
+    </a>
+  );
+}
+
+// In-person signing panel — admin opens on tablet, hands to customer.
+// Reuses the same ContractSigningView as the public route but talks to the
+// supervisor-only endpoints with cookie auth. Vehicle/plan are passed in from
+// the parent (already loaded), so no extra fetches are needed.
+function InPersonSigningPanel({ contract, vehicle, plan, onDone }: {
+  contract: ParkingContract;
+  vehicle: ParkingVehicle | null;
+  plan: ParkingPlan | null;
+  onDone: (updated: ParkingContract) => void;
+}) {
+  const data: SigningContractData = {
+    contract: {
+      id: contract.id,
+      contractNumber: contract.contractNumber,
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+      totalAmount: contract.totalAmount,
+      depositAmount: contract.depositAmount,
+    },
+    vehicle: vehicle ? { licensePlate: vehicle.licensePlate, ownerName: vehicle.ownerName, ownerPhone: vehicle.ownerPhone } : null,
+    plan: plan ? { name: plan.name, planType: plan.planType, durationMonths: plan.durationMonths, price: plan.price, deposit: plan.deposit } : null,
+    terms: {
+      version: PARKING_TERMS_VERSION,
+      title: PARKING_TERMS_TITLE,
+      parties: PARKING_TERMS_PARTIES,
+      sections: PARKING_TERMS_SECTIONS,
+    },
+  };
+
+  const uploadFile = async (file: File): Promise<string> => {
+    const r = await fetch("/api/uploads/request-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
+    });
+    if (!r.ok) throw new Error("無法取得上傳連結");
+    const { uploadURL, objectPath } = await r.json();
+    const put = await fetch(uploadURL, {
+      method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
+    if (!put.ok) throw new Error("檔案上傳失敗");
+    return objectPath;
+  };
+
+  const submit = async (payload: SigningSubmitPayload) => {
+    const r = await fetch(`/api/parking/contracts/${contract.id}/sign`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.message || "送出失敗");
+    }
+    const result = await r.json();
+    onDone(result.contract ?? result);
+  };
+
+  return (
+    <ContractSigningView
+      data={data}
+      uploadFile={uploadFile}
+      submit={submit}
+      headline="現場簽約 — 請承租人於本平板簽署"
+    />
   );
 }

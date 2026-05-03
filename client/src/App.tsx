@@ -26,6 +26,7 @@ import AdminParkingVehicles from "@/pages/admin/parking/vehicles";
 import AdminParkingPlans from "@/pages/admin/parking/plans";
 import AdminParkingContracts from "@/pages/admin/parking/contracts";
 import AdminParkingPayments from "@/pages/admin/parking/payments";
+import ParkingSignPage from "@/pages/parking/sign";
 import SystemTopology from "@/pages/system-topology";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
@@ -517,6 +518,7 @@ function App() {
   const normalizedLocation = location.toLowerCase();
   const isPortal = location.startsWith("/portal");
   const isLogin = normalizedLocation === "/login";
+  const isParkingSign = normalizedLocation.startsWith("/parking/sign/");
   const isWorkbench =
     normalizedLocation === "/" ||
     normalizedLocation === "/employee" ||
@@ -525,6 +527,20 @@ function App() {
     normalizedLocation.startsWith("/supervisor/") ||
     normalizedLocation === "/system" ||
     normalizedLocation.startsWith("/system/");
+
+  // Public customer-facing parking-sign page: no admin shell, no auth, mobile-first.
+  if (isParkingSign) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Switch>
+            <Route path="/parking/sign/:token" component={ParkingSignPage} />
+          </Switch>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
 
   if (isPortal || isWorkbench || isLogin) {
     return (

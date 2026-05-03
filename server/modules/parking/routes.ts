@@ -1,5 +1,6 @@
 import type { Express, RequestHandler } from "express";
 import { z } from "zod";
+import crypto from "crypto";
 import { storage } from "../../storage";
 import {
   insertParkingPlanSchema,
@@ -9,6 +10,34 @@ import {
   insertParkingEventDaySchema,
   type ParkingContract,
 } from "@shared/schema";
+import {
+  PARKING_TERMS_VERSION,
+  PARKING_TERMS_TITLE,
+  PARKING_TERMS_PARTIES,
+  PARKING_TERMS_SECTIONS,
+} from "@shared/parking-terms";
+import { ObjectStorageService } from "../../replit_integrations/object_storage";
+
+function sha256(s: string): string {
+  return crypto.createHash("sha256").update(s).digest("hex");
+}
+
+function readClientIp(req: import("express").Request): string {
+  const fwd = (req.headers["x-forwarded-for"] as string | undefined) || "";
+  return fwd.split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+}
+
+const finalizeSignSchema = z.object({
+  // Signature is a small PNG data URL (canvas ~600×190, monochrome strokes).
+  // Cap at 500KB to keep DB rows compact and prevent storage-bloat DoS.
+  signatureImageUrl: z.string().min(10).max(500_000),
+  signerName: z.string().min(1).max(100),
+  signerIdLast4: z.string().regex(/^\d{4}$/).optional().nullable(),
+  vehicleRegPhotoUrl: z.string().min(1).max(2000),
+  driverLicensePhotoUrl: z.string().min(1).max(2000),
+  idCardPhotoUrl: z.string().max(2000).optional().nullable(),
+  agreedTermsVersion: z.string().min(1).max(50),
+});
 
 interface RegisterDeps {
   requireEmployee: () => RequestHandler;
@@ -228,23 +257,160 @@ export function registerParkingRoutes(app: Express, deps: RegisterDeps) {
     res.json(updated);
   });
 
-  // Sign — captures signatureImageUrl, sets signedAt, advances state.
-  // Phase 1: in-person signing by supervisor only (front-facing portal deferred).
+  // Sign (in-person mode) — staff hands tablet to customer in front of them.
+  // Accepts the same payload as the remote sign endpoint, but is gated by
+  // supervisor auth instead of token verification.
   app.post("/api/parking/contracts/:id/sign", requireSupervisor(), async (req, res) => {
     const id = Number(req.params.id);
-    const sigUrl = typeof req.body?.signatureImageUrl === "string" ? req.body.signatureImageUrl : null;
     const c = await storage.getParkingContractById(id);
     if (!c) return res.status(404).json({ message: "合約不存在" });
-    if (!["draft", "awaiting_sign"].includes(c.status)) return res.status(409).json({ message: `合約狀態 ${c.status} 不允許簽約` });
-    const plan = await storage.getParkingPlanById(c.planId);
+    if (!["draft", "awaiting_sign"].includes(c.status)) {
+      return res.status(409).json({ message: `合約狀態 ${c.status} 不允許簽約` });
+    }
+    await finalizeContractSigning({ contract: c, body: req.body, req, res });
+  });
+
+  // ===== Phase 2: customer-facing e-sign flow =====
+
+  // Issue a one-time signing link. Token is returned in plaintext to the
+  // supervisor (who then copies it / sends it via SMS or LINE) but only the
+  // sha256 hash is stored. Default expiry: 7 days. Re-issuing rotates it.
+  app.post("/api/parking/contracts/:id/issue-sign-link", requireSupervisor(), async (req, res) => {
+    const id = Number(req.params.id);
+    const c = await storage.getParkingContractById(id);
+    if (!c) return res.status(404).json({ message: "合約不存在" });
+    if (!["draft", "awaiting_sign"].includes(c.status)) {
+      return res.status(409).json({ message: `合約狀態 ${c.status} 不允許產生簽約連結` });
+    }
+    const token = crypto.randomBytes(24).toString("base64url");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await storage.updateParkingContract(id, {
+      status: "awaiting_sign",
+      signTokenHash: sha256(token),
+      signTokenExpiresAt: expiresAt,
+      termsVersion: PARKING_TERMS_VERSION,
+    });
+    res.json({
+      token,
+      expiresAt: expiresAt.toISOString(),
+      url: `/parking/sign/${token}`,
+    });
+  });
+
+  // Public — resolve a signing token. Returns just enough for the customer
+  // view: contract summary, vehicle, plan, and the latest terms blob.
+  app.get("/api/parking/sign-tokens/:token", async (req, res) => {
+    const token = String(req.params.token || "");
+    if (!token || token.length < 8) return res.status(400).json({ message: "無效的簽約連結" });
+    const contract = await storage.getParkingContractByTokenHash(sha256(token));
+    if (!contract) return res.status(404).json({ message: "找不到簽約資料，連結可能已失效" });
+    if (contract.signTokenExpiresAt && new Date(contract.signTokenExpiresAt) < new Date()) {
+      return res.status(410).json({ message: "簽約連結已過期，請洽櫃台重新發送" });
+    }
+    if (!["draft", "awaiting_sign"].includes(contract.status)) {
+      return res.status(409).json({ message: `合約狀態 ${contract.status} 不允許再簽約` });
+    }
+    const vehicle = await storage.getParkingVehicleById(contract.vehicleId);
+    const plan = await storage.getParkingPlanById(contract.planId);
+    res.json({
+      contract: {
+        id: contract.id,
+        contractNumber: contract.contractNumber,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        totalAmount: contract.totalAmount,
+        depositAmount: contract.depositAmount,
+        signTokenExpiresAt: contract.signTokenExpiresAt,
+      },
+      vehicle: vehicle && {
+        licensePlate: vehicle.licensePlate,
+        ownerName: vehicle.ownerName,
+        ownerPhone: vehicle.ownerPhone,
+      },
+      plan: plan && {
+        name: plan.name,
+        planType: plan.planType,
+        durationMonths: plan.durationMonths,
+        price: plan.price,
+        deposit: plan.deposit,
+      },
+      terms: {
+        version: PARKING_TERMS_VERSION,
+        title: PARKING_TERMS_TITLE,
+        parties: PARKING_TERMS_PARTIES,
+        sections: PARKING_TERMS_SECTIONS,
+      },
+    });
+  });
+
+  // Public — request a presigned upload URL while signing. Token-gated so
+  // only people with a valid signing link can hit the bucket.
+  app.post("/api/parking/sign-tokens/:token/upload-url", async (req, res) => {
+    const token = String(req.params.token || "");
+    const contract = await storage.getParkingContractByTokenHash(sha256(token));
+    if (!contract) return res.status(404).json({ message: "找不到簽約資料" });
+    if (contract.signTokenExpiresAt && new Date(contract.signTokenExpiresAt) < new Date()) {
+      return res.status(410).json({ message: "簽約連結已過期" });
+    }
+    if (!["draft", "awaiting_sign"].includes(contract.status)) {
+      return res.status(409).json({ message: "合約狀態不允許上傳" });
+    }
+    const svc = new ObjectStorageService();
+    const uploadURL = await svc.getObjectEntityUploadURL();
+    const objectPath = svc.normalizeObjectEntityPath(uploadURL);
+    res.json({ uploadURL, objectPath });
+  });
+
+  // Public — finalize signing using the one-time token.
+  app.post("/api/parking/sign-tokens/:token/finalize", async (req, res) => {
+    const token = String(req.params.token || "");
+    const contract = await storage.getParkingContractByTokenHash(sha256(token));
+    if (!contract) return res.status(404).json({ message: "找不到簽約資料" });
+    if (contract.signTokenExpiresAt && new Date(contract.signTokenExpiresAt) < new Date()) {
+      return res.status(410).json({ message: "簽約連結已過期" });
+    }
+    if (!["draft", "awaiting_sign"].includes(contract.status)) {
+      return res.status(409).json({ message: `合約狀態 ${contract.status} 不允許再簽約` });
+    }
+    await finalizeContractSigning({ contract, body: req.body, req, res, viaToken: true });
+  });
+
+  async function finalizeContractSigning(args: {
+    contract: ParkingContract;
+    body: unknown;
+    req: import("express").Request;
+    res: import("express").Response;
+    viaToken?: boolean;
+  }) {
+    const { contract, body, req, res, viaToken } = args;
+    const parsed = finalizeSignSchema.safeParse(body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "簽約資料格式錯誤", errors: parsed.error.flatten() });
+    }
+    if (parsed.data.agreedTermsVersion !== PARKING_TERMS_VERSION) {
+      return res.status(409).json({
+        message: `合約版本已更新為 ${PARKING_TERMS_VERSION}，請重新整理頁面再簽一次`,
+      });
+    }
+    const plan = await storage.getParkingPlanById(contract.planId);
     const nextStatus: "awaiting_payment" | "active" = plan?.requiresPayment ? "awaiting_payment" : "active";
-    const updated = await storage.updateParkingContract(id, {
-      signatureImageUrl: sigUrl,
+    const updated = await storage.updateParkingContract(contract.id, {
+      signatureImageUrl: parsed.data.signatureImageUrl,
+      signerName: parsed.data.signerName,
+      signerIdLast4: parsed.data.signerIdLast4 ?? null,
+      vehicleRegPhotoUrl: parsed.data.vehicleRegPhotoUrl,
+      driverLicensePhotoUrl: parsed.data.driverLicensePhotoUrl,
+      idCardPhotoUrl: parsed.data.idCardPhotoUrl ?? null,
+      termsVersion: parsed.data.agreedTermsVersion,
+      signedFromIp: readClientIp(req),
+      signedUserAgent: String(req.headers["user-agent"] || "").slice(0, 500),
       signedAt: new Date(),
       status: nextStatus,
+      // Burn the token so it can only be used once.
+      ...(viaToken ? { signTokenHash: null, signTokenExpiresAt: null } : {}),
     });
-    res.json(updated);
-  });
+    res.json({ ok: true, contract: updated });
+  }
 
   // Terminate — admin-initiated cancellation; vehicle marked expired.
   app.post("/api/parking/contracts/:id/terminate", requireSupervisor(), async (req, res) => {

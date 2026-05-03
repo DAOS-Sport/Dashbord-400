@@ -37,3 +37,18 @@ The system is designed with a modular project structure, separating client-side 
 - **松山國小水道租借管理** (`/admin/lane-rentals`): supervisor-only grid (5:30–22:00 × 5 lanes A–E), click-to-book with overlap prevention. Backend uses postgres advisory locks (hashtextextended) inside a transaction to atomically re-check and insert/update, eliminating TOCTOU on concurrent bookings. PATCH endpoint uses a strict zod whitelist that forbids editing facilityKey/bookingDate/laneCode/createdBy/createdByName, preventing cross-facility privilege escalation and audit-field tampering.
 - **模組拓撲圖** (`/system/topology`): React Flow diagram driven by data-only `client/src/config/topology-config.ts`. Add nodes/edges in the config to surface them on the diagram — no UI code change required. Route is registered inside `WorkbenchRouter` (must be placed BEFORE the catch-all `/system` route).
 - New table `lane_rentals` (drizzle); IStorage methods `listLaneRentals/getLaneRentalById/findLaneRentalConflicts/createLaneRental/updateLaneRental/deleteLaneRental`.
+
+## Phase-2 停車場電子簽約 (2026-05)
+- New table cols on `parking_contracts`: `terms_version`, `sign_token_hash`, `sign_token_expires_at`, `signed_from_ip`, `signed_user_agent`, `signer_name`, `signer_id_last4`, `vehicle_reg_photo_url`, `driver_license_photo_url`, `id_card_photo_url`. All Phase-2 fields are omitted from `insertParkingContractSchema` so they can only be written via the dedicated sign endpoints.
+- Backend (server/modules/parking/routes.ts):
+  - `POST /api/parking/contracts/:id/issue-sign-link` (supervisor) → returns one-time `/parking/sign/:token` URL (token sha256-hashed in DB; 7-day expiry).
+  - `GET /api/parking/sign-tokens/:token` (public) → resolves contract + vehicle + plan + terms snapshot.
+  - `POST /api/parking/sign-tokens/:token/upload-url` (public, token-gated) → presigned PUT for Replit Object Storage.
+  - `POST /api/parking/sign-tokens/:token/finalize` (public) → records signature + photos + IP/UA, advances contract status, burns the token (single-use).
+  - `POST /api/parking/contracts/:id/sign` (supervisor, in-person mode) — extended to the same payload shape; gated by cookie auth instead of token.
+- Terms text lives in `shared/parking-terms.ts` (`PARKING_TERMS_VERSION = "2026-NBHS-v1"`); the finalize endpoint rejects mismatched versions with HTTP 409.
+- Frontend:
+  - Shared `<ContractSigningView>` (`client/src/pages/parking/contract-signing-view.tsx`) — full T&C with scroll-to-bottom gate, "我已閱讀並同意" checkbox, three photo slots (行照/駕照 required, 身分證 optional), hand-rolled pointer-events canvas signature pad (no signature_pad package).
+  - Public mobile route `/parking/sign/:token` mounted in `App.tsx` BEFORE the workbench shell branch (no sidebar, no auth).
+  - Admin contracts page: 詳情 drawer now shows signed photos + signature, plus "開啟簽約（現場）" (in-person tablet flow inside a Dialog) and "產生簽約連結" (copy-to-clipboard sharing dialog).
+- Object Storage: Replit blueprint installed (bucket `repl-default-bucket-…`). `registerObjectStorageRoutes` mounted in `server/routes.ts`; `/objects/(.+)` route uses a regex (path-to-regexp v8 no longer accepts `:objectPath(*)`).
