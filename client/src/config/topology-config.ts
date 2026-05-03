@@ -38,6 +38,11 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "work-logs",         label: "救生員日誌",        englishKey: "work-logs",          group: "admin",  description: "每日固定/交辦/水質日誌", path: "/admin/work-logs/submissions" },
   { id: "counter-logs",      label: "櫃台日誌",          englishKey: "counter-logs",       group: "admin",  description: "櫃台日常作業記錄與審核", path: "/admin/counter-logs/submissions" },
   { id: "lane-rentals",      label: "水道租借 (松山)",   englishKey: "lane-rentals",       group: "admin",  description: "松山館水道時段預訂管理（僅松山開放）", path: "/admin/lane-rentals" },
+  { id: "parking",           label: "停車場戰情總覽",    englishKey: "parking",            group: "admin",  description: "停車場會員與租約全局指標", path: "/admin/parking/dashboard" },
+  { id: "parking-vehicles",  label: "停車場車輛管理",    englishKey: "parking-vehicles",   group: "admin",  description: "車牌、車主、分類與狀態維護", path: "/admin/parking/vehicles" },
+  { id: "parking-plans",     label: "停車場方案",        englishKey: "parking-plans",      group: "admin",  description: "月租/季租/年租/會員/特約方案", path: "/admin/parking/plans" },
+  { id: "parking-contracts", label: "停車場租約",        englishKey: "parking-contracts",  group: "admin",  description: "合約建立、簽約、終止、退款", path: "/admin/parking/contracts" },
+  { id: "parking-payments",  label: "停車場付款審核",    englishKey: "parking-payments",   group: "admin",  description: "客戶回報付款的後台核准/拒絕", path: "/admin/parking/payments" },
   { id: "topology",          label: "模組拓撲圖",        englishKey: "topology",           group: "admin",  description: "系統全景模組關係圖", path: "/system/topology" },
 
   // 員工入口 portal
@@ -72,6 +77,14 @@ export const topologyEdges: TopologyEdgeDef[] = [
   { source: "work-logs",       target: "postgres",     label: "讀寫" },
   { source: "counter-logs",    target: "postgres",     label: "讀寫" },
   { source: "lane-rentals",    target: "postgres",     label: "讀寫" },
+  { source: "parking",           target: "postgres",   label: "彙整" },
+  { source: "parking-vehicles",  target: "postgres",   label: "讀寫" },
+  { source: "parking-plans",     target: "postgres",   label: "讀寫" },
+  { source: "parking-contracts", target: "postgres",   label: "讀寫" },
+  { source: "parking-payments",  target: "postgres",   label: "讀寫" },
+  { source: "parking-payments",  target: "parking-contracts", label: "核准延約" },
+  { source: "parking-contracts", target: "parking-vehicles",  label: "綁定車輛" },
+  { source: "parking-contracts", target: "parking-plans",     label: "套用方案" },
 
   // external -> admin / infra
   { source: "linebot",         target: "linebot-api",  label: "Webhook" },

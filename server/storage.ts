@@ -23,6 +23,11 @@ import {
   type LifeguardHandoverNote, type InsertLifeguardHandoverNote,
   type DailyReportSubmission, type InsertDailyReportSubmission,
   type LaneRental, type InsertLaneRental,
+  type ParkingPlan, type InsertParkingPlan,
+  type ParkingVehicle, type InsertParkingVehicle,
+  type ParkingContract, type InsertParkingContract,
+  type ParkingPayment, type InsertParkingPayment,
+  type ParkingEventDay, type InsertParkingEventDay,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
@@ -30,6 +35,7 @@ import {
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
   waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions,
   laneRentals,
+  parkingPlans, parkingVehicles, parkingContracts, parkingPayments, parkingEventDays,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, and, or, isNull, gte, lte, sql, ilike } from "drizzle-orm";
@@ -183,6 +189,53 @@ export interface IStorage {
   createLaneRental(input: InsertLaneRental): Promise<LaneRental>;
   updateLaneRental(id: number, data: Partial<InsertLaneRental>): Promise<LaneRental | undefined>;
   deleteLaneRental(id: number): Promise<boolean>;
+
+  // Parking — plans
+  listParkingPlans(opts?: { includeInactive?: boolean }): Promise<ParkingPlan[]>;
+  getParkingPlanById(id: number): Promise<ParkingPlan | undefined>;
+  createParkingPlan(input: InsertParkingPlan): Promise<ParkingPlan>;
+  updateParkingPlan(id: number, data: Partial<InsertParkingPlan>): Promise<ParkingPlan | undefined>;
+  deleteParkingPlan(id: number): Promise<boolean>;
+
+  // Parking — vehicles
+  listParkingVehicles(opts: { search?: string; vehicleType?: string; status?: string; expiringWithinDays?: number; limit?: number; offset?: number }): Promise<{ items: ParkingVehicle[]; total: number }>;
+  getParkingVehicleById(id: number): Promise<ParkingVehicle | undefined>;
+  getParkingVehicleByPlate(plate: string): Promise<ParkingVehicle | undefined>;
+  createParkingVehicle(input: InsertParkingVehicle): Promise<ParkingVehicle>;
+  updateParkingVehicle(id: number, data: Partial<InsertParkingVehicle>): Promise<ParkingVehicle | undefined>;
+  deleteParkingVehicle(id: number): Promise<boolean>;
+
+  // Parking — contracts
+  listParkingContracts(opts: { status?: string; vehicleId?: number; limit?: number }): Promise<ParkingContract[]>;
+  getParkingContractById(id: number): Promise<ParkingContract | undefined>;
+  generateContractNumber(): Promise<string>;
+  createParkingContract(input: InsertParkingContract & { contractNumber: string }): Promise<ParkingContract>;
+  updateParkingContract(id: number, data: Partial<InsertParkingContract> & { signedAt?: Date | null; terminatedAt?: Date | null; refundedAt?: Date | null }): Promise<ParkingContract | undefined>;
+  deleteParkingContract(id: number): Promise<boolean>;
+
+  // Parking — payments
+  listParkingPayments(opts: { status?: string; contractId?: number; limit?: number }): Promise<ParkingPayment[]>;
+  getParkingPaymentById(id: number): Promise<ParkingPayment | undefined>;
+  createParkingPayment(input: InsertParkingPayment): Promise<ParkingPayment>;
+  reviewParkingPayment(id: number, data: { status: "approved" | "rejected"; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<ParkingPayment | undefined>;
+
+  // Parking — event days
+  listParkingEventDays(opts: { fromDate?: string; toDate?: string }): Promise<ParkingEventDay[]>;
+  getParkingEventDayById(id: number): Promise<ParkingEventDay | undefined>;
+  createParkingEventDay(input: InsertParkingEventDay): Promise<ParkingEventDay>;
+  updateParkingEventDay(id: number, data: Partial<InsertParkingEventDay>): Promise<ParkingEventDay | undefined>;
+  deleteParkingEventDay(id: number): Promise<boolean>;
+
+  // Parking — dashboard summary aggregator
+  parkingDashboardSummary(): Promise<{
+    activeVehicleCount: number;
+    expiringSoonCount: number;
+    pendingPaymentReviewCount: number;
+    notSignedCount: number;
+    overdueCount: number;
+    todayEventDayCount: number;
+    monthRevenue: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -955,6 +1008,221 @@ export class DatabaseStorage implements IStorage {
       reviewedAt: new Date(),
     }).where(eq(dailyReportSubmissions.id, id)).returning();
     return row;
+  }
+
+  // ==================== Parking (停車場會員與租約) ====================
+  // --- Plans ---
+  async listParkingPlans(opts: { includeInactive?: boolean } = {}): Promise<ParkingPlan[]> {
+    const conditions = [];
+    if (!opts.includeInactive) conditions.push(eq(parkingPlans.isActive, true));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(parkingPlans);
+    return (where ? q.where(where) : q).orderBy(asc(parkingPlans.displayOrder), asc(parkingPlans.id));
+  }
+  async getParkingPlanById(id: number): Promise<ParkingPlan | undefined> {
+    const [row] = await db.select().from(parkingPlans).where(eq(parkingPlans.id, id)).limit(1);
+    return row;
+  }
+  async createParkingPlan(input: InsertParkingPlan): Promise<ParkingPlan> {
+    const [row] = await db.insert(parkingPlans).values(input).returning();
+    return row;
+  }
+  async updateParkingPlan(id: number, data: Partial<InsertParkingPlan>): Promise<ParkingPlan | undefined> {
+    const [row] = await db.update(parkingPlans)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(parkingPlans.id, id)).returning();
+    return row;
+  }
+  async deleteParkingPlan(id: number): Promise<boolean> {
+    const result = await db.delete(parkingPlans).where(eq(parkingPlans.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // --- Vehicles ---
+  async listParkingVehicles(opts: { search?: string; vehicleType?: string; status?: string; expiringWithinDays?: number; limit?: number; offset?: number }): Promise<{ items: ParkingVehicle[]; total: number }> {
+    const conditions = [];
+    if (opts.vehicleType) conditions.push(eq(parkingVehicles.vehicleType, opts.vehicleType));
+    if (opts.status) conditions.push(eq(parkingVehicles.status, opts.status));
+    if (opts.search) {
+      const s = `%${opts.search.trim()}%`;
+      const orParts = [
+        ilike(parkingVehicles.licensePlate, s),
+        ilike(parkingVehicles.ownerName, s),
+        ilike(parkingVehicles.ownerPhone, s),
+      ];
+      const orClause = or(...orParts);
+      if (orClause) conditions.push(orClause);
+    }
+    if (typeof opts.expiringWithinDays === "number") {
+      const today = new Date();
+      const limit = new Date();
+      limit.setDate(today.getDate() + opts.expiringWithinDays);
+      const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      conditions.push(gte(parkingVehicles.expiresAt, fmt(today)));
+      conditions.push(lte(parkingVehicles.expiresAt, fmt(limit)));
+    }
+    const where = conditions.length ? and(...conditions) : undefined;
+    const limit = Math.min(opts.limit ?? 100, 500);
+    const offset = opts.offset ?? 0;
+    const baseList = db.select().from(parkingVehicles);
+    const items = await (where ? baseList.where(where) : baseList)
+      .orderBy(desc(parkingVehicles.updatedAt))
+      .limit(limit).offset(offset);
+    const baseCount = db.select({ c: sql<number>`count(*)::int` }).from(parkingVehicles);
+    const [{ c }] = await (where ? baseCount.where(where) : baseCount);
+    return { items, total: c };
+  }
+  async getParkingVehicleById(id: number): Promise<ParkingVehicle | undefined> {
+    const [row] = await db.select().from(parkingVehicles).where(eq(parkingVehicles.id, id)).limit(1);
+    return row;
+  }
+  async getParkingVehicleByPlate(plate: string): Promise<ParkingVehicle | undefined> {
+    const [row] = await db.select().from(parkingVehicles).where(eq(parkingVehicles.licensePlate, plate)).limit(1);
+    return row;
+  }
+  async createParkingVehicle(input: InsertParkingVehicle): Promise<ParkingVehicle> {
+    const [row] = await db.insert(parkingVehicles).values(input).returning();
+    return row;
+  }
+  async updateParkingVehicle(id: number, data: Partial<InsertParkingVehicle>): Promise<ParkingVehicle | undefined> {
+    const [row] = await db.update(parkingVehicles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(parkingVehicles.id, id)).returning();
+    return row;
+  }
+  async deleteParkingVehicle(id: number): Promise<boolean> {
+    const result = await db.delete(parkingVehicles).where(eq(parkingVehicles.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // --- Contracts ---
+  async listParkingContracts(opts: { status?: string; vehicleId?: number; limit?: number }): Promise<ParkingContract[]> {
+    const conditions = [];
+    if (opts.status) conditions.push(eq(parkingContracts.status, opts.status));
+    if (opts.vehicleId) conditions.push(eq(parkingContracts.vehicleId, opts.vehicleId));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(parkingContracts);
+    return (where ? q.where(where) : q)
+      .orderBy(desc(parkingContracts.createdAt))
+      .limit(Math.min(opts.limit ?? 200, 1000));
+  }
+  async getParkingContractById(id: number): Promise<ParkingContract | undefined> {
+    const [row] = await db.select().from(parkingContracts).where(eq(parkingContracts.id, id)).limit(1);
+    return row;
+  }
+  async generateContractNumber(): Promise<string> {
+    const now = new Date();
+    const ym = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const prefix = `PK-${ym}-`;
+    const [{ c }] = await db.select({ c: sql<number>`count(*)::int` })
+      .from(parkingContracts)
+      .where(ilike(parkingContracts.contractNumber, `${prefix}%`));
+    const seq = String((c ?? 0) + 1).padStart(4, "0");
+    return `${prefix}${seq}`;
+  }
+  async createParkingContract(input: InsertParkingContract & { contractNumber: string }): Promise<ParkingContract> {
+    const [row] = await db.insert(parkingContracts).values(input).returning();
+    return row;
+  }
+  async updateParkingContract(id: number, data: Partial<InsertParkingContract> & { signedAt?: Date | null; terminatedAt?: Date | null; refundedAt?: Date | null }): Promise<ParkingContract | undefined> {
+    const [row] = await db.update(parkingContracts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(parkingContracts.id, id)).returning();
+    return row;
+  }
+  async deleteParkingContract(id: number): Promise<boolean> {
+    const result = await db.delete(parkingContracts).where(eq(parkingContracts.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // --- Payments ---
+  async listParkingPayments(opts: { status?: string; contractId?: number; limit?: number }): Promise<ParkingPayment[]> {
+    const conditions = [];
+    if (opts.status) conditions.push(eq(parkingPayments.status, opts.status));
+    if (opts.contractId) conditions.push(eq(parkingPayments.contractId, opts.contractId));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(parkingPayments);
+    return (where ? q.where(where) : q)
+      .orderBy(desc(parkingPayments.reportedAt))
+      .limit(Math.min(opts.limit ?? 200, 1000));
+  }
+  async getParkingPaymentById(id: number): Promise<ParkingPayment | undefined> {
+    const [row] = await db.select().from(parkingPayments).where(eq(parkingPayments.id, id)).limit(1);
+    return row;
+  }
+  async createParkingPayment(input: InsertParkingPayment): Promise<ParkingPayment> {
+    const [row] = await db.insert(parkingPayments).values(input).returning();
+    return row;
+  }
+  async reviewParkingPayment(id: number, data: { status: "approved" | "rejected"; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<ParkingPayment | undefined> {
+    const [row] = await db.update(parkingPayments).set({
+      status: data.status,
+      reviewedBy: data.reviewedBy,
+      reviewedByName: data.reviewedByName,
+      reviewNote: data.reviewNote ?? null,
+      reviewedAt: new Date(),
+    }).where(eq(parkingPayments.id, id)).returning();
+    return row;
+  }
+
+  // --- Event days ---
+  async listParkingEventDays(opts: { fromDate?: string; toDate?: string }): Promise<ParkingEventDay[]> {
+    const conditions = [];
+    if (opts.fromDate) conditions.push(gte(parkingEventDays.eventDate, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(parkingEventDays.eventDate, opts.toDate));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(parkingEventDays);
+    return (where ? q.where(where) : q).orderBy(asc(parkingEventDays.eventDate));
+  }
+  async getParkingEventDayById(id: number): Promise<ParkingEventDay | undefined> {
+    const [row] = await db.select().from(parkingEventDays).where(eq(parkingEventDays.id, id)).limit(1);
+    return row;
+  }
+  async createParkingEventDay(input: InsertParkingEventDay): Promise<ParkingEventDay> {
+    const [row] = await db.insert(parkingEventDays).values(input).returning();
+    return row;
+  }
+  async updateParkingEventDay(id: number, data: Partial<InsertParkingEventDay>): Promise<ParkingEventDay | undefined> {
+    const [row] = await db.update(parkingEventDays).set(data).where(eq(parkingEventDays.id, id)).returning();
+    return row;
+  }
+  async deleteParkingEventDay(id: number): Promise<boolean> {
+    const result = await db.delete(parkingEventDays).where(eq(parkingEventDays.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // --- Dashboard ---
+  async parkingDashboardSummary() {
+    const today = new Date();
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const todayStr = fmt(today);
+    const in30 = new Date(); in30.setDate(today.getDate() + 30);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const [activeVehicles] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingVehicles).where(eq(parkingVehicles.status, "active"));
+    const [expiring] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingVehicles).where(and(
+      eq(parkingVehicles.status, "active"),
+      gte(parkingVehicles.expiresAt, todayStr),
+      lte(parkingVehicles.expiresAt, fmt(in30)),
+    ));
+    const [pendingReview] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingPayments).where(eq(parkingPayments.status, "pending"));
+    const [notSigned] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingContracts).where(inArray(parkingContracts.status, ["awaiting_sign", "draft"]));
+    const [overdue] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingVehicles).where(eq(parkingVehicles.status, "expired"));
+    const [todayEvents] = await db.select({ c: sql<number>`count(*)::int` }).from(parkingEventDays).where(eq(parkingEventDays.eventDate, todayStr));
+    const [revenue] = await db.select({ s: sql<number>`coalesce(sum(amount), 0)::int` }).from(parkingPayments).where(and(
+      eq(parkingPayments.status, "approved"),
+      gte(parkingPayments.reviewedAt, monthStart),
+    ));
+
+    return {
+      activeVehicleCount: activeVehicles.c,
+      expiringSoonCount: expiring.c,
+      pendingPaymentReviewCount: pendingReview.c,
+      notSignedCount: notSigned.c,
+      overdueCount: overdue.c,
+      todayEventDayCount: todayEvents.c,
+      monthRevenue: revenue.s,
+    };
   }
 
   // ==================== Lane rentals (水道租借) ====================

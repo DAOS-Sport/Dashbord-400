@@ -829,6 +829,9 @@ export async function registerRoutes(
   const { registerLaneRentalRoutes } = await import("./modules/lane-rentals/routes");
   registerLaneRentalRoutes(app, { requireEmployee, requireSupervisor });
 
+  const { registerParkingRoutes } = await import("./modules/parking/routes");
+  registerParkingRoutes(app, { requireEmployee, requireSupervisor });
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

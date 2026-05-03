@@ -1087,6 +1087,198 @@ export const insertLaneRentalSchema = createInsertSchema(laneRentals).omit({
 export type InsertLaneRental = z.infer<typeof insertLaneRentalSchema>;
 export type LaneRental = typeof laneRentals.$inferSelect;
 
+// ======================================================================
+// 停車場會員與租約管理 (Parking Member & Lease Management)
+// ----------------------------------------------------------------------
+// 5 tables: plans (方案), vehicles (車輛), contracts (租約),
+//           payments (付款回報), event_days (活動日)
+// ======================================================================
+
+// 方案 — admin-defined parking plans (monthly/quarterly/yearly/member/etc.)
+export const parkingPlans = pgTable("parking_plans", {
+  id: serial("id").primaryKey(),
+  planKey: text("plan_key").notNull().unique(),  // slug, e.g. "monthly_basic"
+  name: text("name").notNull(),
+  planType: text("plan_type").notNull(),         // monthly|quarterly|yearly|member|swim_team|employee|special|blacklist
+  durationMonths: integer("duration_months"),    // null for member/blacklist
+  price: integer("price").notNull().default(0),  // NTD
+  deposit: integer("deposit").notNull().default(0),
+  guarantee: integer("guarantee").notNull().default(0),
+  requiresContract: boolean("requires_contract").notNull().default(true),
+  requiresPayment: boolean("requires_payment").notNull().default(true),
+  requiresReview: boolean("requires_review").notNull().default(true),
+  allowsOnlineRenewal: boolean("allows_online_renewal").notNull().default(true),
+  notifyDaysBefore: integer("notify_days_before").notNull().default(30),
+  isActive: boolean("is_active").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertParkingPlanSchema = createInsertSchema(parkingPlans).omit({
+  id: true, createdAt: true, updatedAt: true,
+}).extend({
+  planKey: z.string().regex(/^[a-z0-9_]+$/, "planKey 僅允許小寫英數與底線").min(1).max(64),
+  name: z.string().min(1).max(100),
+  planType: z.enum(["monthly", "quarterly", "yearly", "member", "swim_team", "employee", "special", "blacklist"]),
+  durationMonths: z.number().int().positive().max(120).optional().nullable(),
+  price: z.number().int().min(0).max(10_000_000),
+  deposit: z.number().int().min(0).max(10_000_000),
+  guarantee: z.number().int().min(0).max(10_000_000),
+  notifyDaysBefore: z.number().int().min(0).max(365),
+  description: z.string().max(2000).optional().nullable(),
+});
+export type InsertParkingPlan = z.infer<typeof insertParkingPlanSchema>;
+export type ParkingPlan = typeof parkingPlans.$inferSelect;
+
+// 車輛 — license-plate as natural key (uppercased, dash-stripped)
+export const parkingVehicles = pgTable("parking_vehicles", {
+  id: serial("id").primaryKey(),
+  licensePlate: text("license_plate").notNull().unique(),  // normalized e.g. "ABC1234"
+  ownerName: text("owner_name").notNull(),
+  ownerPhone: text("owner_phone"),
+  ownerEmail: text("owner_email"),
+  lineUserId: text("line_user_id"),  // reserved for future LINE Messaging API
+  vehicleType: text("vehicle_type").notNull(),  // monthly|quarterly|yearly|member|swim_team|employee|special|blacklist
+  status: text("status").notNull().default("active"),  // active|expired|suspended|blacklisted
+  expiresAt: text("expires_at"),  // YYYY-MM-DD; null = no expiry (member/employee may have one anyway)
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  idxPhone: index("idx_parking_vehicles_phone").on(table.ownerPhone),
+  idxStatus: index("idx_parking_vehicles_status").on(table.status, table.expiresAt),
+  idxType: index("idx_parking_vehicles_type").on(table.vehicleType),
+}));
+
+export const insertParkingVehicleSchema = createInsertSchema(parkingVehicles).omit({
+  id: true, createdAt: true, updatedAt: true,
+}).extend({
+  licensePlate: z.string().regex(/^[A-Z0-9]{2,10}$/, "車牌格式錯誤（請使用大寫英數，2–10 碼，去除連字號）"),
+  ownerName: z.string().min(1).max(100),
+  ownerPhone: z.string().max(30).optional().nullable(),
+  ownerEmail: z.string().email().max(200).optional().nullable().or(z.literal("")),
+  lineUserId: z.string().max(100).optional().nullable(),
+  vehicleType: z.enum(["monthly", "quarterly", "yearly", "member", "swim_team", "employee", "special", "blacklist"]),
+  status: z.enum(["active", "expired", "suspended", "blacklisted"]).optional(),
+  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  note: z.string().max(1000).optional().nullable(),
+});
+export type InsertParkingVehicle = z.infer<typeof insertParkingVehicleSchema>;
+export type ParkingVehicle = typeof parkingVehicles.$inferSelect;
+
+// 租約 — links a vehicle to a plan; lifecycle: draft → awaiting_sign → awaiting_payment
+//         → payment_review → active → expiring_soon → expired (or terminated/refunded)
+export const parkingContracts = pgTable("parking_contracts", {
+  id: serial("id").primaryKey(),
+  contractNumber: text("contract_number").notNull().unique(),  // PK-YYYYMM-####
+  vehicleId: integer("vehicle_id").notNull(),
+  planId: integer("plan_id").notNull(),
+  status: text("status").notNull().default("draft"),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  totalAmount: integer("total_amount").notNull().default(0),
+  depositAmount: integer("deposit_amount").notNull().default(0),
+  signatureImageUrl: text("signature_image_url"),
+  pdfUrl: text("pdf_url"),
+  signedAt: timestamp("signed_at"),
+  terminatedAt: timestamp("terminated_at"),
+  refundedAt: timestamp("refunded_at"),
+  refundAmount: integer("refund_amount"),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  idxVehicle: index("idx_parking_contracts_vehicle").on(table.vehicleId),
+  idxStatus: index("idx_parking_contracts_status").on(table.status, table.endDate),
+}));
+
+export const insertParkingContractSchema = createInsertSchema(parkingContracts).omit({
+  id: true, contractNumber: true, createdAt: true, updatedAt: true,
+  signedAt: true, terminatedAt: true, refundedAt: true,
+}).extend({
+  vehicleId: z.number().int().positive(),
+  planId: z.number().int().positive(),
+  status: z.enum(["draft", "awaiting_sign", "awaiting_payment", "payment_review", "active", "expiring_soon", "expired", "terminated", "refunded"]).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  totalAmount: z.number().int().min(0).max(100_000_000),
+  depositAmount: z.number().int().min(0).max(100_000_000),
+  signatureImageUrl: z.string().max(2000).optional().nullable(),
+  pdfUrl: z.string().max(2000).optional().nullable(),
+  refundAmount: z.number().int().min(0).max(100_000_000).optional().nullable(),
+  note: z.string().max(2000).optional().nullable(),
+});
+export type InsertParkingContract = z.infer<typeof insertParkingContractSchema>;
+export type ParkingContract = typeof parkingContracts.$inferSelect;
+
+// 付款回報 — user-reported transfers awaiting back-office approval
+export const parkingPayments = pgTable("parking_payments", {
+  id: serial("id").primaryKey(),
+  contractId: integer("contract_id").notNull(),
+  amount: integer("amount").notNull(),
+  transferLast5: text("transfer_last5").notNull(),  // last 5 digits of transferring account
+  receiptImageUrl: text("receipt_image_url"),
+  reportedNote: text("reported_note"),
+  status: text("status").notNull().default("pending"),  // pending|approved|rejected
+  reviewedBy: text("reviewed_by"),
+  reviewedByName: text("reviewed_by_name"),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at"),
+  reportedAt: timestamp("reported_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  idxContract: index("idx_parking_payments_contract").on(table.contractId),
+  idxStatus: index("idx_parking_payments_status").on(table.status, table.reportedAt),
+}));
+
+export const insertParkingPaymentSchema = createInsertSchema(parkingPayments).omit({
+  id: true, createdAt: true, reportedAt: true, reviewedAt: true,
+  reviewedBy: true, reviewedByName: true, reviewNote: true, status: true,
+}).extend({
+  contractId: z.number().int().positive(),
+  amount: z.number().int().min(1).max(100_000_000),
+  transferLast5: z.string().regex(/^\d{5}$/, "需 5 碼數字"),
+  receiptImageUrl: z.string().max(2000).optional().nullable(),
+  reportedNote: z.string().max(2000).optional().nullable(),
+});
+export type InsertParkingPayment = z.infer<typeof insertParkingPaymentSchema>;
+export type ParkingPayment = typeof parkingPayments.$inferSelect;
+
+// 活動日 — operations days that may restrict certain vehicle types from parking
+export const parkingEventDays = pgTable("parking_event_days", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  eventDate: text("event_date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  restrictMonthly: boolean("restrict_monthly").notNull().default(false),
+  restrictMember: boolean("restrict_member").notNull().default(false),
+  restrictSwimTeam: boolean("restrict_swim_team").notNull().default(false),
+  restrictEmployee: boolean("restrict_employee").notNull().default(false),
+  announcement: text("announcement"),
+  notifyInAdvance: boolean("notify_in_advance").notNull().default(true),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  idxDate: index("idx_parking_event_days_date").on(table.eventDate),
+}));
+
+export const insertParkingEventDaySchema = createInsertSchema(parkingEventDays).omit({
+  id: true, createdAt: true,
+}).extend({
+  name: z.string().min(1).max(200),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/).optional().nullable(),
+  announcement: z.string().max(2000).optional().nullable(),
+});
+export type InsertParkingEventDay = z.infer<typeof insertParkingEventDaySchema>;
+export type ParkingEventDay = typeof parkingEventDays.$inferSelect;
+
 // External source payloads, such as Ragic, schedule, booking, LINE, Gmail, or
 // Replit-hosted migration feeds, are stored here before projection. These rows
 // are not the system of record for internal workbench business state.

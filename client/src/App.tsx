@@ -21,6 +21,11 @@ import AdminWorkLogWaterSchedules from "@/pages/admin/work-logs/water-schedules"
 import AdminWorkLogWaterStandards from "@/pages/admin/work-logs/water-standards";
 import AdminWorkLogSubmissions from "@/pages/admin/work-logs/submissions";
 import AdminLaneRentals from "@/pages/admin/lane-rentals";
+import AdminParkingDashboard from "@/pages/admin/parking/dashboard";
+import AdminParkingVehicles from "@/pages/admin/parking/vehicles";
+import AdminParkingPlans from "@/pages/admin/parking/plans";
+import AdminParkingContracts from "@/pages/admin/parking/contracts";
+import AdminParkingPayments from "@/pages/admin/parking/payments";
 import SystemTopology from "@/pages/system-topology";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
@@ -89,6 +94,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/counter-logs/recurring-templates": "櫃台日誌 · 每週循環",
   "/admin/counter-logs/submissions": "櫃台日誌 · 主管審核",
   "/admin/lane-rentals": "水道租借管理",
+  "/admin/parking/dashboard": "停車場 · 戰情總覽",
+  "/admin/parking/vehicles": "停車場 · 車輛管理",
+  "/admin/parking/plans": "停車場 · 方案管理",
+  "/admin/parking/contracts": "停車場 · 租約管理",
+  "/admin/parking/payments": "停車場 · 付款審核",
   "/system/topology": "模組拓撲圖",
 };
 
@@ -114,6 +124,11 @@ function AppRouter() {
       <Route path="/admin/counter-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
       <Route path="/admin/counter-logs/submissions" component={AdminWorkLogSubmissions} />
       <Route path="/admin/lane-rentals" component={AdminLaneRentals} />
+      <Route path="/admin/parking/dashboard" component={AdminParkingDashboard} />
+      <Route path="/admin/parking/vehicles" component={AdminParkingVehicles} />
+      <Route path="/admin/parking/plans" component={AdminParkingPlans} />
+      <Route path="/admin/parking/contracts" component={AdminParkingContracts} />
+      <Route path="/admin/parking/payments" component={AdminParkingPayments} />
       <Route component={NotFound} />
     </Switch>
   );
