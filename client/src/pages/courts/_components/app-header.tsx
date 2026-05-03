@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import {
+  ArrowLeft,
   CalendarDays,
   CalendarRange,
   LayoutGrid,
@@ -98,6 +99,17 @@ export function AppHeader({
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 gap-3">
           <div className="flex items-center gap-3 min-w-0">
+            <Link href="/employee">
+              <button
+                data-testid="link-back-workbench"
+                className="flex items-center gap-1 px-2 h-8 rounded-md text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition"
+                title="返回工作台"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">返回工作台</span>
+              </button>
+            </Link>
+            <div className="hidden sm:block h-5 w-px bg-gray-200" />
             <Link href={`/courts/${school}`}>
               <div
                 className="flex items-center gap-2 cursor-pointer group"

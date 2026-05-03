@@ -97,6 +97,17 @@ export default function PortalShell({ children, facilityKey, pageTitle }: Portal
           >
             <MaterialIcon name={mobileOpen ? "close" : "menu"} />
           </button>
+          <Link href="/employee">
+            <button
+              type="button"
+              className="flex items-center gap-1 px-2.5 h-9 rounded-lg text-slate-200 hover:bg-white/10 text-sm"
+              data-testid="link-back-workbench"
+              title="返回工作台"
+            >
+              <MaterialIcon name="arrow_back" className="text-base" />
+              <span className="hidden sm:inline">返回工作台</span>
+            </button>
+          </Link>
           <div className="flex items-center gap-3">
             <img
               src={companyLogo}
