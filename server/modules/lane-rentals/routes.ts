@@ -6,7 +6,7 @@ import { insertLaneRentalSchema, type LaneRental } from "@shared/schema";
 interface CallerProfile {
   employeeNumber: string;
   name: string;
-  isSupervisor: boolean;
+  isSystem: boolean;
 }
 
 interface RegisterDeps {
@@ -19,9 +19,7 @@ function getCaller(req: import("express").Request): CallerProfile {
   return {
     employeeNumber: session?.userId ?? "unknown",
     name: session?.displayName ?? "未知員工",
-    isSupervisor:
-      !!session?.grantedRoles?.includes?.("supervisor") ||
-      !!session?.grantedRoles?.includes?.("system"),
+    isSystem: !!session?.grantedRoles?.includes?.("system"),
   };
 }
 
@@ -33,7 +31,10 @@ const LANE_RENTAL_ALLOWED_FACILITIES = new Set<string>(["songshan_pool"]);
 
 function canAccessFacility(req: import("express").Request, caller: CallerProfile, facilityKey: string): boolean {
   if (!LANE_RENTAL_ALLOWED_FACILITIES.has(facilityKey)) return false;
-  if (caller.isSupervisor) return true;
+  // Only `system` admins bypass facility grants. Supervisors and regular
+  // employees must have the facility explicitly granted in their session;
+  // this prevents non-Songshan supervisors from touching Songshan rentals.
+  if (caller.isSystem) return true;
   if (!req.workbenchSession) return false;
   return req.workbenchSession.grantedFacilities?.includes(facilityKey) ?? false;
 }
@@ -81,7 +82,7 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
-  app.post("/api/lane-rentals", requireEmployee(), async (req, res) => {
+  app.post("/api/lane-rentals", requireSupervisor(), async (req, res) => {
     try {
       const parsed = insertLaneRentalSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -114,7 +115,7 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
-  app.patch("/api/lane-rentals/:id", requireEmployee(), async (req, res) => {
+  app.patch("/api/lane-rentals/:id", requireSupervisor(), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
@@ -151,7 +152,7 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
-  app.delete("/api/lane-rentals/:id", requireEmployee(), async (req, res) => {
+  app.delete("/api/lane-rentals/:id", requireSupervisor(), async (req, res) => {
     try {
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
@@ -169,5 +170,5 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
-  void requireSupervisor;
+  void requireEmployee;
 }
