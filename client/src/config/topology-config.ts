@@ -37,7 +37,7 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "announcements",     label: "公告審核中心",      englishKey: "announcements",      group: "admin",  description: "LINE 群公告分類與審核", path: "/announcements" },
   { id: "work-logs",         label: "救生員日誌",        englishKey: "work-logs",          group: "admin",  description: "每日固定/交辦/水質日誌", path: "/admin/work-logs/submissions" },
   { id: "counter-logs",      label: "櫃台日誌",          englishKey: "counter-logs",       group: "admin",  description: "櫃台日常作業記錄與審核", path: "/admin/counter-logs/submissions" },
-  { id: "lane-rentals",      label: "水道租借",          englishKey: "lane-rentals",       group: "admin",  description: "松山館水道時段預訂管理", path: "/admin/lane-rentals" },
+  { id: "lane-rentals",      label: "水道租借 (松山)",   englishKey: "lane-rentals",       group: "admin",  description: "松山館水道時段預訂管理（僅松山開放）", path: "/admin/lane-rentals" },
   { id: "topology",          label: "模組拓撲圖",        englishKey: "topology",           group: "admin",  description: "系統全景模組關係圖", path: "/system/topology" },
 
   // 員工入口 portal

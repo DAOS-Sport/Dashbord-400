@@ -25,7 +25,14 @@ function getCaller(req: import("express").Request): CallerProfile {
   };
 }
 
+// Rollout scope: lane rentals are only enabled for 松山國小 in this phase.
+// Adding new facilities should be a deliberate config change here, NOT just a
+// caller permissions question — keeping the allowlist server-side enforced
+// ensures other facilities can't be created/mutated even by privileged users.
+const LANE_RENTAL_ALLOWED_FACILITIES = new Set<string>(["songshan_pool"]);
+
 function canAccessFacility(req: import("express").Request, caller: CallerProfile, facilityKey: string): boolean {
+  if (!LANE_RENTAL_ALLOWED_FACILITIES.has(facilityKey)) return false;
   if (caller.isSupervisor) return true;
   if (!req.workbenchSession) return false;
   return req.workbenchSession.grantedFacilities?.includes(facilityKey) ?? false;

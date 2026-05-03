@@ -26,8 +26,16 @@ import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "./role-switcher";
 import { fetchModuleNavigation } from "@/shared/modules/api";
+import { useAuthMe } from "@/shared/auth/session";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
+
+// Rollout-scoped slots: hidden unless the caller has access to one of the
+// listed facilities (system role bypasses). Mirrors server-side allowlist
+// in server/modules/lane-rentals/routes.ts.
+const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {
+  "lane-rentals": ["songshan_pool"],
+};
 
 type NavItem = {
   id: string;
@@ -122,14 +130,31 @@ const toSystemNavItems = (items: NavigationModuleDto[] | undefined): NavItem[] =
   });
 };
 
-const toRoleNavItems = (role: "supervisor" | "system", items: NavigationModuleDto[] | undefined): NavItem[] => {
+interface SessionContext {
+  isSystem: boolean;
+  grantedFacilities: string[];
+}
+
+const toRoleNavItems = (
+  role: "supervisor" | "system",
+  items: NavigationModuleDto[] | undefined,
+  sessionContext: SessionContext | null,
+): NavItem[] => {
   if (role === "system") {
     return toSystemNavItems(items);
   }
 
   const supervisorItems = (items ?? []).filter((item) => item.routePath.startsWith("/supervisor"));
   const supervisorItemsById = new Map(supervisorItems.map((item) => [item.id, item]));
-  return supervisorNavigationSlots.map((slot) => {
+  return supervisorNavigationSlots.filter((slot) => {
+    const requiredFacilities = slot.ids
+      .map((id) => FACILITY_SCOPED_SLOTS[id])
+      .find((v) => Array.isArray(v));
+    if (!requiredFacilities) return true;
+    if (!sessionContext) return false;
+    if (sessionContext.isSystem) return true;
+    return requiredFacilities.some((fk) => sessionContext.grantedFacilities.includes(fk));
+  }).map((slot) => {
     const item = slot.ids.map((id) => supervisorItemsById.get(id)).find(Boolean);
     return item
       ? {
@@ -162,7 +187,14 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
     queryFn: fetchModuleNavigation,
     staleTime: 60_000,
   });
-  const nav = toRoleNavItems(role, navigation.data?.items);
+  const session = useAuthMe();
+  const sessionContext: SessionContext | null = session.data
+    ? {
+        isSystem: !!session.data.grantedRoles?.includes("system"),
+        grantedFacilities: session.data.grantedFacilities ?? [],
+      }
+    : null;
+  const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
   const mobileItems = nav.slice(0, 5);
   const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";

@@ -7,6 +7,7 @@ import MustReadList from "@/components/portal/MustReadList";
 import CampaignHero from "@/components/portal/CampaignHero";
 import AnnouncementDrawer from "@/components/portal/AnnouncementDrawer";
 import { getFacilityConfig } from "@/config/facility-configs";
+import PortalLaneRentalCard from "@/components/portal/PortalLaneRentalCard";
 import { usePortalHome, useTodayShift } from "@/hooks/usePortalHome";
 import { useQuickLinks, useSystemAnnouncements, trackPortalEvent } from "@/hooks/usePortalData";
 import { usePortalAuth } from "@/hooks/use-bound-facility";
@@ -220,6 +221,13 @@ export default function PortalHome({ facilityKey }: PortalHomeProps) {
                   </div>
                 </BentoCard>
               </div>
+
+              {/* Lane rental — surfaced read-only when sections.rental is enabled */}
+              {config.sections.rental && (
+                <div className="md:col-span-12">
+                  <PortalLaneRentalCard facilityKey={facilityKey} />
+                </div>
+              )}
 
               {/* (4) Company / Group Announcements - col-span-8 */}
               <div className="md:col-span-8">
