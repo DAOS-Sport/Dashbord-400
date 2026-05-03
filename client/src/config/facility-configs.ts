@@ -16,7 +16,8 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
       handover: true,
       onDutyStaff: true,
       contacts: true,
-      rental: true,
+      // rental gated server-side to songshan_pool only (LANE_RENTAL_ALLOWED_FACILITIES)
+      rental: false,
     },
     contactPoints: [
       { type: "general", label: "櫃台窗口", name: "櫃台" },

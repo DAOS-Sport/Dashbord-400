@@ -170,5 +170,4 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
-  void requireEmployee;
 }
