@@ -52,3 +52,12 @@ The system is designed with a modular project structure, separating client-side 
   - Public mobile route `/parking/sign/:token` mounted in `App.tsx` BEFORE the workbench shell branch (no sidebar, no auth).
   - Admin contracts page: 詳情 drawer now shows signed photos + signature, plus "開啟簽約（現場）" (in-person tablet flow inside a Dialog) and "產生簽約連結" (copy-to-clipboard sharing dialog).
 - Object Storage: Replit blueprint installed (bucket `repl-default-bucket-…`). `registerObjectStorageRoutes` mounted in `server/routes.ts`; `/objects/(.+)` route uses a regex (path-to-regexp v8 no longer accepts `:objectPath(*)`).
+
+## 場地預約模組（courts）
+
+- 兩所學校：新北高中（`xinbei`，14 個場地）、三重商工（`sanchong`，3 個場地）。
+- 共用設定：`shared/court-config.ts`（school/court 列表、解析正規式）。
+- 後端：`server/modules/courts/{routes,storage,google-calendar}.ts`，掛載於 `/api/courts/:school/...`，全部端點走 `requireEmployee()`（員工＋主管皆可讀寫）。Google Calendar 同步在缺少 `GOOGLE_REFRESH_TOKEN` 時 no-op。
+- 資料表：`court_reservations`、`court_sync_logs`、`court_sync_errors`（school 欄位區分學校）。
+- 前端：`client/src/pages/courts/{calendar,week,month,search,admin}.tsx`、共用元件於 `_components/`、`@/lib/court-{school,utils,date-utils}`，路由 `/courts/:school[/(week|month|search|admin)]`，已加入 sidebar「場地預約」分組與員工首頁導覽。
+- 拓撲：`courts-xinbei`、`courts-sanchong` 節點與 PostgreSQL、Google Calendar 邊在 `topology-config.ts`。

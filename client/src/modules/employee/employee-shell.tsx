@@ -63,6 +63,7 @@ const employeeNavigationSlots: Array<{
   { ids: ["employee-training"], label: "員工教材", href: "/employee/training", iconKey: "graduation-cap" },
   { ids: ["personal-note"], label: "個人工作記事", href: "/employee/personal-note", iconKey: "file-text" },
   { ids: ["knowledge-base-qna"], label: "相關問題詢問", href: "/employee/qna", iconKey: "book-open" },
+  { ids: ["courts"], label: "場地預約", href: "/courts/xinbei", iconKey: "calendar-days" },
 ];
 
 const isActivePath = (location: string, href: string) =>

@@ -1309,3 +1309,143 @@ export const sourceSnapshots = pgTable("source_snapshots", {
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
   capturedAt: timestamp("captured_at").defaultNow().notNull(),
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// 場地預約系統（新北高中 / 三重商工）— Courts module
+// Tables intentionally prefixed `court_` to avoid colliding with other
+// reservation-shaped tables we may add later.
+// ──────────────────────────────────────────────────────────────────────────
+export const COURT_SCHOOL_IDS = ["xinbei", "sanchong"] as const;
+export type CourtSchoolId = (typeof COURT_SCHOOL_IDS)[number];
+export const courtSchoolEnum = z.enum(COURT_SCHOOL_IDS);
+
+export const courtReservations = pgTable(
+  "court_reservations",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    school: text("school").notNull().default("xinbei"),
+    date: text("date").notNull(),
+    court: integer("court").notNull(),
+    startTime: text("start_time").notNull(),
+    endTime: text("end_time").notNull(),
+    customerName: text("customer_name").notNull(),
+    phone: text("phone").notNull(),
+    notes: text("notes"),
+    status: text("status").notNull().default("confirmed"),
+    createdAt: timestamp("created_at").defaultNow(),
+    bookingNumber: text("booking_number"),
+    serviceName: text("service_name"),
+    rawTitle: text("raw_title"),
+    rawDescription: text("raw_description"),
+    source: text("source").notNull().default("manual"),
+  },
+  (table) => ({
+    dateIdx: index("court_reservations_date_idx").on(table.date),
+    schoolDateIdx: index("court_reservations_school_date_idx").on(
+      table.school,
+      table.date,
+    ),
+    schoolDateCourtIdx: index("court_reservations_school_date_court_idx").on(
+      table.school,
+      table.date,
+      table.court,
+    ),
+  }),
+);
+
+export const insertCourtReservationSchema = createInsertSchema(courtReservations)
+  .pick({
+    school: true,
+    date: true,
+    court: true,
+    startTime: true,
+    endTime: true,
+    customerName: true,
+    phone: true,
+    notes: true,
+    status: true,
+    serviceName: true,
+    source: true,
+  })
+  .extend({
+    school: courtSchoolEnum,
+    court: z.number().int().min(1),
+    status: z.enum(["confirmed", "pending", "member"]),
+    source: z.enum(["manual", "google", "batch"]).optional(),
+  });
+
+export type InsertCourtReservation = z.infer<typeof insertCourtReservationSchema>;
+export type CourtReservation = typeof courtReservations.$inferSelect;
+
+export const courtBatchImportSchema = z.object({
+  school: courtSchoolEnum,
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式須為 YYYY-MM-DD"),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日期格式須為 YYYY-MM-DD"),
+  weekdays: z.array(z.number().min(0).max(6)).min(1, "至少選擇一個星期"),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, "時間格式須為 HH:MM"),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, "時間格式須為 HH:MM"),
+  court: z.number().int().min(1),
+  customerName: z.string().min(1, "請輸入使用者名稱"),
+  phone: z.string().optional(),
+  notes: z.string().optional(),
+  serviceName: z.string().optional(),
+  status: z.enum(["confirmed", "pending", "member"]).default("member"),
+});
+
+export type CourtBatchImportPayload = z.infer<typeof courtBatchImportSchema>;
+
+export const courtSyncLogs = pgTable(
+  "court_sync_logs",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    school: text("school").notNull().default("xinbei"),
+    source: text("source").notNull().default("google_calendar"),
+    scope: text("scope").notNull(),
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    eventCount: integer("event_count").notNull().default(0),
+    reservationCount: integer("reservation_count").notNull().default(0),
+    skippedCount: integer("skipped_count").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    status: text("status").notNull(),
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index("court_sync_logs_created_at_idx").on(table.createdAt),
+    schoolCreatedAtIdx: index("court_sync_logs_school_created_at_idx").on(
+      table.school,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type CourtSyncLog = typeof courtSyncLogs.$inferSelect;
+export type InsertCourtSyncLog = typeof courtSyncLogs.$inferInsert;
+
+export const courtSyncErrors = pgTable(
+  "court_sync_errors",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    school: text("school").notNull().default("xinbei"),
+    source: text("source").notNull().default("google_calendar"),
+    eventId: text("event_id"),
+    summary: text("summary"),
+    location: text("location"),
+    description: text("description"),
+    reason: text("reason").notNull(),
+    payload: jsonb("payload"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => ({
+    createdAtIdx: index("court_sync_errors_created_at_idx").on(table.createdAt),
+    reasonIdx: index("court_sync_errors_reason_idx").on(table.reason),
+    schoolCreatedAtIdx: index("court_sync_errors_school_created_at_idx").on(
+      table.school,
+      table.createdAt,
+    ),
+  }),
+);
+
+export type CourtSyncError = typeof courtSyncErrors.$inferSelect;
+export type InsertCourtSyncError = typeof courtSyncErrors.$inferInsert;

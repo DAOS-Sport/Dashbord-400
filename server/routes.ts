@@ -832,6 +832,9 @@ export async function registerRoutes(
   const { registerParkingRoutes } = await import("./modules/parking/routes");
   registerParkingRoutes(app, { requireEmployee, requireSupervisor });
 
+  const { registerCourtsRoutes } = await import("./modules/courts/routes");
+  registerCourtsRoutes(app, { requireEmployee, requireSupervisor });
+
   // Object Storage routes (presigned upload + /objects/:path proxy).
   const { registerObjectStorageRoutes } = await import("./replit_integrations/object_storage");
   registerObjectStorageRoutes(app);

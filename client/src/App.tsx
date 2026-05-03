@@ -28,6 +28,11 @@ import AdminParkingContracts from "@/pages/admin/parking/contracts";
 import AdminParkingPayments from "@/pages/admin/parking/payments";
 import ParkingSignPage from "@/pages/parking/sign";
 import SystemTopology from "@/pages/system-topology";
+import CourtsCalendarPage from "@/pages/courts/calendar";
+import CourtsWeekPage from "@/pages/courts/week";
+import CourtsMonthPage from "@/pages/courts/month";
+import CourtsSearchPage from "@/pages/courts/search";
+import CourtsAdminPage from "@/pages/courts/admin";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
@@ -101,6 +106,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/parking/contracts": "停車場 · 租約管理",
   "/admin/parking/payments": "停車場 · 付款審核",
   "/system/topology": "模組拓撲圖",
+  "/courts/xinbei": "場地預約 · 新北高中",
+  "/courts/sanchong": "場地預約 · 三重商工",
 };
 
 function AppRouter() {
@@ -362,6 +369,14 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
+      <Route path="/courts/:school/week" component={CourtsWeekPage} />
+      <Route path="/courts/:school/month" component={CourtsMonthPage} />
+      <Route path="/courts/:school/search" component={CourtsSearchPage} />
+      <Route path="/courts/:school/admin" component={CourtsAdminPage} />
+      <Route path="/courts/:school" component={CourtsCalendarPage} />
+      <Route path="/courts">
+        <Redirect to="/courts/xinbei" />
+      </Route>
       <Route component={SystemDashboardPage} />
     </Switch>
   );
@@ -526,7 +541,9 @@ function App() {
     normalizedLocation === "/supervisor" ||
     normalizedLocation.startsWith("/supervisor/") ||
     normalizedLocation === "/system" ||
-    normalizedLocation.startsWith("/system/");
+    normalizedLocation.startsWith("/system/") ||
+    normalizedLocation === "/courts" ||
+    normalizedLocation.startsWith("/courts/");
 
   // Public customer-facing parking-sign page: no admin shell, no auth, mobile-first.
   if (isParkingSign) {

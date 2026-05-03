@@ -43,6 +43,8 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "parking-plans",     label: "停車場方案",        englishKey: "parking-plans",      group: "admin",  description: "月租/季租/年租/會員/特約方案", path: "/admin/parking/plans" },
   { id: "parking-contracts", label: "停車場租約",        englishKey: "parking-contracts",  group: "admin",  description: "合約建立、簽約、終止、退款", path: "/admin/parking/contracts" },
   { id: "parking-payments",  label: "停車場付款審核",    englishKey: "parking-payments",   group: "admin",  description: "客戶回報付款的後台核准/拒絕", path: "/admin/parking/payments" },
+  { id: "courts-xinbei",     label: "場地預約 · 新北高中", englishKey: "courts-xinbei",     group: "admin",  description: "新北高中場地預約（14 個場地）+ Google Calendar 同步", path: "/courts/xinbei" },
+  { id: "courts-sanchong",   label: "場地預約 · 三重商工", englishKey: "courts-sanchong",   group: "admin",  description: "三重商工場地預約（3 個場地）+ Google Calendar 同步", path: "/courts/sanchong" },
   { id: "topology",          label: "模組拓撲圖",        englishKey: "topology",           group: "admin",  description: "系統全景模組關係圖", path: "/system/topology" },
 
   // 員工入口 portal
@@ -55,6 +57,7 @@ export const topologyNodes: TopologyNodeDef[] = [
 
   // 系統基礎設施 infra
   { id: "postgres",          label: "PostgreSQL",        englishKey: "postgres",           group: "infra",  description: "業務資料持久化", path: "/system/health" },
+  { id: "google-calendar",   label: "Google Calendar",   englishKey: "google-calendar",    group: "infra",  description: "場地預約來源（外部行事曆）", path: "/system/health" },
   { id: "ragic",             label: "Ragic",             englishKey: "ragic",              group: "infra",  description: "員工/排程/公告外部資料庫", path: "/system/integrations" },
   { id: "linebot-api",       label: "LINE Messaging API", englishKey: "linebot-api",       group: "infra",  description: "LINE 官方訊息收發", path: "/system/integrations" },
   { id: "schedule-api",      label: "Smart Schedule API", englishKey: "schedule-api",      group: "infra",  description: "智能排班服務", path: "/system/integrations" },
@@ -85,6 +88,10 @@ export const topologyEdges: TopologyEdgeDef[] = [
   { source: "parking-payments",  target: "parking-contracts", label: "核准延約" },
   { source: "parking-contracts", target: "parking-vehicles",  label: "綁定車輛" },
   { source: "parking-contracts", target: "parking-plans",     label: "套用方案" },
+  { source: "courts-xinbei",     target: "postgres",          label: "讀寫" },
+  { source: "courts-sanchong",   target: "postgres",          label: "讀寫" },
+  { source: "courts-xinbei",     target: "google-calendar",   label: "同步" },
+  { source: "courts-sanchong",   target: "google-calendar",   label: "同步" },
 
   // external -> admin / infra
   { source: "linebot",         target: "linebot-api",  label: "Webhook" },
