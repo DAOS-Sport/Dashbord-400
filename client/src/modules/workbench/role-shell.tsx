@@ -16,9 +16,11 @@ import {
   Menu,
   MoreHorizontal,
   Megaphone,
+  Network,
   Search,
   ShieldCheck,
   Users,
+  Waves,
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
@@ -50,6 +52,8 @@ const iconByKey: Record<string, LucideIcon> = {
   megaphone: Megaphone,
   users: Users,
   lifebuoy: LifeBuoy,
+  waves: Waves,
+  network: Network,
 };
 
 type NavigationSlot = {
@@ -72,6 +76,7 @@ const systemNavigationSlots: NavigationSlot[] = [
   { ids: ["telemetry-audit"], label: "Audit / Telemetry", href: "/system/audit", iconKey: "shield-check" },
   { ids: ["raw-inspector"], label: "Raw Inspector", href: "/system/raw-inspector", iconKey: "shield-check" },
   { ids: ["employee-training"], label: "教材觀看紀錄", href: "/system/training-views", iconKey: "graduation-cap" },
+  { ids: ["system-topology"], label: "模組拓撲圖", href: "/system/topology", iconKey: "network" },
 ];
 
 const supervisorNavigationSlots: NavigationSlot[] = [
@@ -82,6 +87,7 @@ const supervisorNavigationSlots: NavigationSlot[] = [
   { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
   { ids: ["work-logs"], label: "救生員日誌", href: "/admin/work-logs/submissions", iconKey: "lifebuoy" },
   { ids: ["counter-logs"], label: "櫃台日誌", href: "/admin/counter-logs/submissions", iconKey: "clipboard-check" },
+  { ids: ["lane-rentals"], label: "水道租借", href: "/admin/lane-rentals", iconKey: "waves" },
   { ids: ["employee-training"], label: "員工教材", href: "/supervisor/training", iconKey: "graduation-cap" },
   { ids: ["anomalies"], label: "異常審核", href: "/supervisor/anomalies", iconKey: "shield-check" },
   { ids: ["analytics"], label: "報表", href: "/supervisor/reports", iconKey: "gauge" },

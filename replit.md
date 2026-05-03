@@ -33,3 +33,7 @@ The system is designed with a modular project structure, separating client-side 
 - **PostgreSQL Database**: Used with Drizzle ORM for data persistence, including anomaly reports, users, and work-logs schema. (e.g., Neon serverless)
 - **Gmail SMTP**: For sending email notifications via Nodemailer, requiring `GMAIL_USER` and `GMAIL_APP_PASSWORD` environment variables.
 - **Ragic API**: For employee portal login authentication, requiring `RAGIC_API_KEY`, `RAGIC_ACCOUNT_PATH`, and `RAGIC_EMPLOYEE_SHEET` environment variables.
+## Recent additions (Task #14)
+- **松山國小水道租借管理** (`/admin/lane-rentals`): supervisor-only grid (5:30–22:00 × 5 lanes A–E), click-to-book with overlap prevention. Backend uses postgres advisory locks (hashtextextended) inside a transaction to atomically re-check and insert/update, eliminating TOCTOU on concurrent bookings. PATCH endpoint uses a strict zod whitelist that forbids editing facilityKey/bookingDate/laneCode/createdBy/createdByName, preventing cross-facility privilege escalation and audit-field tampering.
+- **模組拓撲圖** (`/system/topology`): React Flow diagram driven by data-only `client/src/config/topology-config.ts`. Add nodes/edges in the config to surface them on the diagram — no UI code change required. Route is registered inside `WorkbenchRouter` (must be placed BEFORE the catch-all `/system` route).
+- New table `lane_rentals` (drizzle); IStorage methods `listLaneRentals/getLaneRentalById/findLaneRentalConflicts/createLaneRental/updateLaneRental/deleteLaneRental`.

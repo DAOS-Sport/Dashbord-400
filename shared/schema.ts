@@ -1048,6 +1048,45 @@ export const insertDailyReportSubmissionSchema = createInsertSchema(dailyReportS
 export type InsertDailyReportSubmission = z.infer<typeof insertDailyReportSubmissionSchema>;
 export type DailyReportSubmission = typeof dailyReportSubmissions.$inferSelect;
 
+// 水道租借 (Lane rentals — currently used by 松山國小 only)
+export const laneRentals = pgTable("lane_rentals", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  bookingDate: text("booking_date").notNull(),
+  laneCode: text("lane_code").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  renterName: text("renter_name").notNull(),
+  renterContact: text("renter_contact"),
+  note: text("note"),
+  status: text("status").default("active").notNull(),
+  createdBy: text("created_by"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  idxLookup: index("idx_lane_rentals_lookup").on(table.facilityKey, table.bookingDate, table.laneCode),
+}));
+
+export const insertLaneRentalSchema = createInsertSchema(laneRentals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  laneCode: z.enum(["A", "B", "C", "D", "E"]),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  renterName: z.string().min(1).max(100),
+  renterContact: z.string().max(100).optional().nullable(),
+  note: z.string().max(500).optional().nullable(),
+  status: z.enum(["active", "cancelled"]).optional(),
+});
+
+export type InsertLaneRental = z.infer<typeof insertLaneRentalSchema>;
+export type LaneRental = typeof laneRentals.$inferSelect;
+
 // External source payloads, such as Ragic, schedule, booking, LINE, Gmail, or
 // Replit-hosted migration feeds, are stored here before projection. These rows
 // are not the system of record for internal workbench business state.

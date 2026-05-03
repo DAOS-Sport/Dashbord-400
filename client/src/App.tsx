@@ -20,6 +20,8 @@ import AdminWorkLogRecurringTemplates from "@/pages/admin/work-logs/recurring-te
 import AdminWorkLogWaterSchedules from "@/pages/admin/work-logs/water-schedules";
 import AdminWorkLogWaterStandards from "@/pages/admin/work-logs/water-standards";
 import AdminWorkLogSubmissions from "@/pages/admin/work-logs/submissions";
+import AdminLaneRentals from "@/pages/admin/lane-rentals";
+import SystemTopology from "@/pages/system-topology";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
@@ -86,6 +88,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/counter-logs/assigned-tasks": "櫃台日誌 · 主管交辦",
   "/admin/counter-logs/recurring-templates": "櫃台日誌 · 每週循環",
   "/admin/counter-logs/submissions": "櫃台日誌 · 主管審核",
+  "/admin/lane-rentals": "水道租借管理",
+  "/system/topology": "模組拓撲圖",
 };
 
 function AppRouter() {
@@ -109,6 +113,7 @@ function AppRouter() {
       <Route path="/admin/counter-logs/assigned-tasks" component={AdminWorkLogAssignedTasks} />
       <Route path="/admin/counter-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
       <Route path="/admin/counter-logs/submissions" component={AdminWorkLogSubmissions} />
+      <Route path="/admin/lane-rentals" component={AdminLaneRentals} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -294,6 +299,7 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
+      <Route path="/system/topology" component={SystemTopology} />
       <Route path="/system/overview" component={SystemDashboardPage} />
       <Route path="/system" component={SystemDashboardPage} />
       <Route path="/employee/tasks">

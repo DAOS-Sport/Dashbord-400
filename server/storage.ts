@@ -22,12 +22,14 @@ import {
   type WaterQualityRecord, type InsertWaterQualityRecord,
   type LifeguardHandoverNote, type InsertLifeguardHandoverNote,
   type DailyReportSubmission, type InsertDailyReportSubmission,
+  type LaneRental, type InsertLaneRental,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
   waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions,
+  laneRentals,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, and, or, isNull, gte, lte, sql, ilike } from "drizzle-orm";
@@ -173,6 +175,14 @@ export interface IStorage {
   getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined>;
   createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
   updateDailyReportSubmissionReview(id: number, data: { status: string; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<DailyReportSubmission | undefined>;
+
+  // Lane rentals (水道租借)
+  listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]>;
+  getLaneRentalById(id: number): Promise<LaneRental | undefined>;
+  findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; excludeId?: number }): Promise<LaneRental[]>;
+  createLaneRental(input: InsertLaneRental): Promise<LaneRental>;
+  updateLaneRental(id: number, data: Partial<InsertLaneRental>): Promise<LaneRental | undefined>;
+  deleteLaneRental(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -945,6 +955,106 @@ export class DatabaseStorage implements IStorage {
       reviewedAt: new Date(),
     }).where(eq(dailyReportSubmissions.id, id)).returning();
     return row;
+  }
+
+  // ==================== Lane rentals (水道租借) ====================
+
+  async listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]> {
+    const conditions = [eq(laneRentals.facilityKey, opts.facilityKey)];
+    if (opts.bookingDate) conditions.push(eq(laneRentals.bookingDate, opts.bookingDate));
+    if (opts.status) conditions.push(eq(laneRentals.status, opts.status));
+    return db.select().from(laneRentals).where(and(...conditions))
+      .orderBy(asc(laneRentals.bookingDate), asc(laneRentals.laneCode), asc(laneRentals.startTime));
+  }
+
+  async getLaneRentalById(id: number): Promise<LaneRental | undefined> {
+    const [row] = await db.select().from(laneRentals).where(eq(laneRentals.id, id)).limit(1);
+    return row;
+  }
+
+  async findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; excludeId?: number }): Promise<LaneRental[]> {
+    // Two intervals [a,b) and [c,d) overlap iff a < d AND c < b.
+    // We compare HH:MM strings lexicographically — valid for fixed-format zero-padded times.
+    const conditions = [
+      eq(laneRentals.facilityKey, opts.facilityKey),
+      eq(laneRentals.bookingDate, opts.bookingDate),
+      eq(laneRentals.laneCode, opts.laneCode),
+      eq(laneRentals.status, "active"),
+      sql`${laneRentals.startTime} < ${opts.endTime}`,
+      sql`${opts.startTime} < ${laneRentals.endTime}`,
+    ];
+    const rows = await db.select().from(laneRentals).where(and(...conditions));
+    return opts.excludeId ? rows.filter((r) => r.id !== opts.excludeId) : rows;
+  }
+
+  async createLaneRental(input: InsertLaneRental): Promise<LaneRental> {
+    // Atomic create: serialize concurrent writers on (facility, date, lane) via advisory lock
+    // then re-check conflicts inside the same transaction before insert. This closes the
+    // TOCTOU window between findLaneRentalConflicts() and INSERT.
+    const lockKey = `${input.facilityKey}|${input.bookingDate}|${input.laneCode}`;
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+      const conflicts = await tx.select().from(laneRentals).where(and(
+        eq(laneRentals.facilityKey, input.facilityKey),
+        eq(laneRentals.bookingDate, input.bookingDate),
+        eq(laneRentals.laneCode, input.laneCode),
+        eq(laneRentals.status, "active"),
+        sql`${laneRentals.startTime} < ${input.endTime}`,
+        sql`${input.startTime} < ${laneRentals.endTime}`,
+      ));
+      if (conflicts.length > 0) {
+        const c = conflicts[0];
+        const err: Error & { code?: string; conflicts?: LaneRental[] } = new Error(
+          `時段衝突：水道 ${c.laneCode} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
+        );
+        err.code = "LANE_RENTAL_CONFLICT";
+        err.conflicts = conflicts;
+        throw err;
+      }
+      const [row] = await tx.insert(laneRentals).values({ ...input, updatedAt: new Date() }).returning();
+      return row;
+    });
+  }
+
+  async updateLaneRental(id: number, data: Partial<InsertLaneRental>): Promise<LaneRental | undefined> {
+    // Atomic update with the same advisory-lock pattern. The lock key uses the existing row's
+    // (facility, date, lane) — the route layer is responsible for forbidding edits to those
+    // immutable fields, so the lock key is stable for the lifetime of the rental.
+    const existing = await this.getLaneRentalById(id);
+    if (!existing) return undefined;
+    const merged = { ...existing, ...data } as LaneRental;
+    const lockKey = `${existing.facilityKey}|${existing.bookingDate}|${existing.laneCode}`;
+    return await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+      if (merged.status !== "cancelled") {
+        const conflicts = await tx.select().from(laneRentals).where(and(
+          eq(laneRentals.facilityKey, existing.facilityKey),
+          eq(laneRentals.bookingDate, existing.bookingDate),
+          eq(laneRentals.laneCode, existing.laneCode),
+          eq(laneRentals.status, "active"),
+          sql`${laneRentals.startTime} < ${merged.endTime}`,
+          sql`${merged.startTime} < ${laneRentals.endTime}`,
+        ));
+        const real = conflicts.filter((r) => r.id !== id);
+        if (real.length > 0) {
+          const c = real[0];
+          const err: Error & { code?: string; conflicts?: LaneRental[] } = new Error(
+            `時段衝突：水道 ${c.laneCode} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
+          );
+          err.code = "LANE_RENTAL_CONFLICT";
+          err.conflicts = real;
+          throw err;
+        }
+      }
+      const [row] = await tx.update(laneRentals).set({ ...data, updatedAt: new Date() })
+        .where(eq(laneRentals.id, id)).returning();
+      return row;
+    });
+  }
+
+  async deleteLaneRental(id: number): Promise<boolean> {
+    const result = await db.delete(laneRentals).where(eq(laneRentals.id, id)).returning({ id: laneRentals.id });
+    return result.length > 0;
   }
 }
 

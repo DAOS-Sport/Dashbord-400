@@ -63,7 +63,7 @@ export const facilityConfigs: Record<string, FacilityConfig> = {
       handover: true,
       onDutyStaff: true,
       contacts: true,
-      rental: false,
+      rental: true,
     },
     contactPoints: [
       { type: "general", label: "櫃台窗口", name: "櫃台" },
