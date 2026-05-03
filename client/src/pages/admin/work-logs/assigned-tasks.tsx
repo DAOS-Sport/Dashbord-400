@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ function Inner() {
   const moduleType = useModuleType();
   const [facilityKey, setFacilityKey] = useAdminFacility();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<LifeguardAssignedTask | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [taskDateFilter, setTaskDateFilter] = useState<string>("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -114,7 +115,7 @@ function Inner() {
                 <TableHead className="w-32">輸入類型</TableHead>
                 <TableHead className="w-24">狀態</TableHead>
                 <TableHead className="w-32">指派人</TableHead>
-                <TableHead className="w-16 text-right">操作</TableHead>
+                <TableHead className="w-24 text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,6 +135,9 @@ function Inner() {
                   <TableCell><StatusBadge status={row.status} /></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{row.assignedByName ?? row.assignedBy ?? "—"}</TableCell>
                   <TableCell className="text-right">
+                    <Button size="icon" variant="ghost" onClick={() => setEditing(row)} data-testid={`button-edit-assigned-${row.id}`}>
+                      <Pencil className="h-3.5 w-3.5 text-sky-600" />
+                    </Button>
                     <Button size="icon" variant="ghost" onClick={() => setDeletingId(row.id)} data-testid={`button-delete-assigned-${row.id}`}>
                       <Trash2 className="h-3.5 w-3.5 text-rose-500" />
                     </Button>
@@ -145,7 +149,8 @@ function Inner() {
         </div>
       )}
 
-      {creating && <CreateDialog facilityKey={facilityKey} moduleType={moduleType} onClose={() => setCreating(false)} />}
+      {creating && <TaskDialog facilityKey={facilityKey} moduleType={moduleType} onClose={() => setCreating(false)} />}
+      {editing && <TaskDialog facilityKey={facilityKey} moduleType={moduleType} task={editing} onClose={() => setEditing(null)} />}
 
       <AlertDialog open={deletingId !== null} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
@@ -196,23 +201,26 @@ interface FormValues {
   taskDate?: string | null;
   dueDate?: string | null;
   isRequired: boolean;
+  status?: "active" | "completed" | "cancelled";
 }
 
-function CreateDialog({ facilityKey, moduleType, onClose }: { facilityKey: string; moduleType: "lifeguard" | "counter"; onClose: () => void }) {
+function TaskDialog({ facilityKey, moduleType, task, onClose }: { facilityKey: string; moduleType: "lifeguard" | "counter"; task?: LifeguardAssignedTask; onClose: () => void }) {
   const { toast } = useToast();
+  const isEdit = !!task;
   const form = useForm<FormValues>({
     resolver: zodResolver(insertLifeguardAssignedTaskSchema),
     defaultValues: {
       facilityKey,
       moduleType,
-      taskName: "",
-      description: "",
-      inputType: "checkbox",
-      assignedToEmployeeNumber: "",
-      assignedToShift: null,
-      taskDate: "",
-      dueDate: "",
-      isRequired: true,
+      taskName: task?.taskName ?? "",
+      description: task?.description ?? "",
+      inputType: task?.inputType ?? "checkbox",
+      assignedToEmployeeNumber: task?.assignedToEmployeeNumber ?? "",
+      assignedToShift: (task?.assignedToShift as FormValues["assignedToShift"]) ?? null,
+      taskDate: task?.taskDate ?? "",
+      dueDate: task?.dueDate ?? "",
+      isRequired: task?.isRequired ?? true,
+      status: (task?.status as FormValues["status"]) ?? "active",
     },
   });
 
@@ -226,20 +234,24 @@ function CreateDialog({ facilityKey, moduleType, onClose }: { facilityKey: strin
         dueDate: values.dueDate || null,
         description: values.description || null,
       };
-      await apiRequest("POST", "/api/work-logs/admin/assigned-tasks", payload);
+      if (isEdit && task) {
+        await apiRequest("PATCH", `/api/work-logs/admin/assigned-tasks/${task.id}`, payload);
+      } else {
+        await apiRequest("POST", "/api/work-logs/admin/assigned-tasks", payload);
+      }
     },
     onSuccess: () => {
-      toast({ title: "已指派任務" });
+      toast({ title: isEdit ? "已更新任務" : "已指派任務" });
       queryClient.invalidateQueries({ queryKey: ["/api/work-logs/admin/assigned-tasks", moduleType, facilityKey] });
       onClose();
     },
-    onError: (e: Error) => toast({ title: "指派失敗", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: isEdit ? "更新失敗" : "指派失敗", description: e.message, variant: "destructive" }),
   });
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>指派交辦任務</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{isEdit ? "編輯交辦任務" : "指派交辦任務"}</DialogTitle></DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit((v) => saveMut.mutate(v))} className="space-y-3">
             <FormField name="taskName" control={form.control} render={({ field }) => (
@@ -302,10 +314,25 @@ function CreateDialog({ facilityKey, moduleType, onClose }: { facilityKey: strin
                 </FormItem>
               )} />
             </div>
+            {isEdit && (
+              <FormField name="status" control={form.control} render={({ field }) => (
+                <FormItem>
+                  <FormLabel>狀態</FormLabel>
+                  <Select value={field.value ?? "active"} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger data-testid="select-assigned-status"><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">執行中</SelectItem>
+                      <SelectItem value="completed">已完成</SelectItem>
+                      <SelectItem value="cancelled">已取消</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>取消</Button>
               <Button type="submit" disabled={saveMut.isPending} data-testid="button-save-assigned">
-                {saveMut.isPending ? "送出中…" : "指派"}
+                {saveMut.isPending ? "送出中…" : isEdit ? "儲存" : "指派"}
               </Button>
             </DialogFooter>
           </form>
