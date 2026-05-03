@@ -97,18 +97,18 @@ function EmployeeDesktopSidebar({
   onNavigate: (item: EmployeeNavItem) => void;
 }) {
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-3 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
-      <BrandLockup markClassName="h-9 w-9 rounded-[8px]" titleClassName="text-[15px] text-white" />
+    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-4 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
+      <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
 
-      <div className="mt-3 shrink-0 rounded-[8px] bg-white/8 p-2.5">
-        <div className="mb-1 flex items-center gap-2 text-[11px] font-bold text-[#9dd84f]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#9dd84f]" />
+      <div className="mt-4 shrink-0 rounded-[8px] bg-white/8 p-3">
+        <div className="mb-1.5 flex items-center gap-2 text-[12px] font-bold text-[#9dd84f]">
+          <span className="h-2 w-2 rounded-full bg-[#9dd84f]" />
           營運中
         </div>
-        <p className="line-clamp-1 text-[12px] font-bold">新北高中游泳池 & 運動中心</p>
+        <p className="line-clamp-2 text-[13px] font-bold">新北高中游泳池 & 運動中心</p>
       </div>
 
-      <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
+      <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
         {!items.length && loading ? (
           <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
         ) : null}
@@ -120,7 +120,7 @@ function EmployeeDesktopSidebar({
               href={item.href}
               onClick={() => onNavigate(item)}
               className={cn(
-                "workbench-focus flex min-h-9 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[13px] font-bold transition",
+                "workbench-focus flex min-h-10 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
                 active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
               )}
             >
@@ -132,12 +132,12 @@ function EmployeeDesktopSidebar({
         })}
       </nav>
 
-      <div className="mt-2 shrink-0 border-t border-white/10 pt-2">
-        <div className="flex items-center gap-2 rounded-[8px] px-2 py-1.5">
-          <div className="grid h-7 w-7 place-items-center rounded-full bg-[#007166] text-[11px] font-black">駿</div>
+      <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
+        <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
+          <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">駿</div>
           <div className="min-w-0">
-            <p className="truncate text-[12px] font-bold">員工工作台</p>
-            <p className="text-[10px] text-[#b6c7d9]">員工</p>
+            <p className="truncate text-[13px] font-bold">員工工作台</p>
+            <p className="text-[11px] text-[#b6c7d9]">員工</p>
           </div>
         </div>
       </div>
