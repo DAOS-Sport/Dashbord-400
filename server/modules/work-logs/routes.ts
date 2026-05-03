@@ -732,6 +732,37 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     res.json({ ok: true });
   });
 
+  // Bulk CSV import: validate each row independently, return per-row results
+  // so the UI can show success/failure counts plus the row numbers that failed.
+  app.post("/api/work-logs/admin/daily-templates/bulk", requireSupervisor(), async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items : null;
+    if (!items) return res.status(400).json({ message: "items 必須為陣列" });
+    if (items.length === 0) return res.status(400).json({ message: "未提供任何項目" });
+    if (items.length > 500) return res.status(400).json({ message: "單次最多 500 筆" });
+    const caller = getCaller(req);
+    let successCount = 0;
+    const errors: Array<{ row: number; message: string }> = [];
+    for (let i = 0; i < items.length; i++) {
+      const parsed = insertDailyTaskTemplateSchema.safeParse(items[i]);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.slice(0, 3).map((x) => `${x.path.join(".") || "?"}: ${x.message}`).join("; ");
+        errors.push({ row: i + 1, message: issues });
+        continue;
+      }
+      if (!canAccessFacility(req, caller, parsed.data.facilityKey)) {
+        errors.push({ row: i + 1, message: "無此館別權限" });
+        continue;
+      }
+      try {
+        await storage.createDailyTaskTemplate(parsed.data);
+        successCount++;
+      } catch (e) {
+        errors.push({ row: i + 1, message: e instanceof Error ? e.message : "建立失敗" });
+      }
+    }
+    res.json({ successCount, failureCount: errors.length, errors });
+  });
+
   app.get("/api/work-logs/admin/assigned-tasks", requireSupervisor(), async (req, res) => {
     const facilityKey = String(req.query.facilityKey || "");
     const moduleType = req.query.moduleType ? String(req.query.moduleType) : "lifeguard";
@@ -799,6 +830,35 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     const ok = await storage.deleteRecurringTaskTemplate(id);
     if (!ok) return res.status(404).json({ message: "找不到項目" });
     res.json({ ok: true });
+  });
+
+  app.post("/api/work-logs/admin/recurring-templates/bulk", requireSupervisor(), async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items : null;
+    if (!items) return res.status(400).json({ message: "items 必須為陣列" });
+    if (items.length === 0) return res.status(400).json({ message: "未提供任何項目" });
+    if (items.length > 500) return res.status(400).json({ message: "單次最多 500 筆" });
+    const caller = getCaller(req);
+    let successCount = 0;
+    const errors: Array<{ row: number; message: string }> = [];
+    for (let i = 0; i < items.length; i++) {
+      const parsed = insertRecurringTaskTemplateSchema.safeParse(items[i]);
+      if (!parsed.success) {
+        const issues = parsed.error.issues.slice(0, 3).map((x) => `${x.path.join(".") || "?"}: ${x.message}`).join("; ");
+        errors.push({ row: i + 1, message: issues });
+        continue;
+      }
+      if (!canAccessFacility(req, caller, parsed.data.facilityKey)) {
+        errors.push({ row: i + 1, message: "無此館別權限" });
+        continue;
+      }
+      try {
+        await storage.createRecurringTaskTemplate(parsed.data);
+        successCount++;
+      } catch (e) {
+        errors.push({ row: i + 1, message: e instanceof Error ? e.message : "建立失敗" });
+      }
+    }
+    res.json({ successCount, failureCount: errors.length, errors });
   });
 
   app.get("/api/work-logs/admin/water-schedules", requireSupervisor(), async (req, res) => {

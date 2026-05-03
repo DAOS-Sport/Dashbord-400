@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload } from "lucide-react";
+import { CsvImportDialog, type CsvColumn } from "./csv-import-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,26 @@ const CATEGORY_LABELS: Record<DailyTaskCategory, string> = {
   locker_inspection: "更衣室",
 };
 
+const DAILY_CSV_COLUMNS: CsvColumn[] = [
+  { key: "category", required: true, type: "string", hint: "routine | opening | closing | locker_inspection" },
+  { key: "shiftType", required: true, type: "string", hint: "morning | noon | night | all" },
+  { key: "taskName", required: true, type: "string", hint: "任務名稱" },
+  { key: "description", type: "string", hint: "任務說明（選填）" },
+  { key: "inputType", required: true, type: "string", hint: "checkbox | text | number | photo …" },
+  { key: "isRequired", type: "boolean", hint: "true / false（預設 true）" },
+  { key: "requirePhoto", type: "boolean", hint: "true / false" },
+  { key: "intervalMinutes", type: "number", hint: "更衣室巡視才需要，5–720 分鐘" },
+  { key: "sortOrder", type: "number", hint: "排序，數字越小越前面" },
+  { key: "isActive", type: "boolean", hint: "true / false（預設 true）" },
+];
+
+const DAILY_TEMPLATE_ROWS: Record<string, string>[] = [
+  { category: "routine", shiftType: "all", taskName: "擦拭櫃台", description: "保持乾淨", inputType: "checkbox", isRequired: "true", requirePhoto: "false", intervalMinutes: "", sortOrder: "10", isActive: "true" },
+  { category: "opening", shiftType: "morning", taskName: "開大廳燈", description: "", inputType: "checkbox", isRequired: "true", requirePhoto: "false", intervalMinutes: "", sortOrder: "1", isActive: "true" },
+  { category: "closing", shiftType: "night", taskName: "關空調", description: "", inputType: "checkbox", isRequired: "true", requirePhoto: "false", intervalMinutes: "", sortOrder: "1", isActive: "true" },
+  { category: "locker_inspection", shiftType: "all", taskName: "女更衣室巡視", description: "", inputType: "checkbox", isRequired: "true", requirePhoto: "true", intervalMinutes: "60", sortOrder: "1", isActive: "true" },
+];
+
 const CATEGORY_BADGE_CLASS: Record<DailyTaskCategory, string> = {
   routine: "bg-slate-100 text-slate-700 border-slate-300",
   opening: "bg-amber-50 text-amber-700 border-amber-300",
@@ -54,6 +75,7 @@ function Inner() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<"all" | DailyTaskCategory>("all");
+  const [importing, setImporting] = useState(false);
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: DailyTaskTemplate[] }>({
@@ -101,9 +123,14 @@ function Inner() {
       facilityKey={facilityKey}
       onFacilityChange={setFacilityKey}
       actions={
-        <Button onClick={() => setCreating(true)} data-testid="button-create-daily-template">
-          <Plus className="h-4 w-4 mr-1" /> 新增項目
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)} data-testid="button-import-csv-daily">
+            <Upload className="h-4 w-4 mr-1" /> 匯入 CSV
+          </Button>
+          <Button onClick={() => setCreating(true)} data-testid="button-create-daily-template">
+            <Plus className="h-4 w-4 mr-1" /> 新增項目
+          </Button>
+        </div>
       }
     >
       <div className="mb-3 flex flex-wrap gap-1 border-b border-border pb-1">
@@ -217,6 +244,18 @@ function Inner() {
           onClose={() => { setCreating(false); setEditing(null); }}
         />
       )}
+
+      <CsvImportDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        title="每日固定事項"
+        endpoint="/api/work-logs/admin/daily-templates/bulk"
+        invalidateQueryKey={["/api/work-logs/admin/daily-templates", moduleType, facilityKey]}
+        facilityKey={facilityKey}
+        moduleType={moduleType}
+        columns={DAILY_CSV_COLUMNS}
+        templateRows={DAILY_TEMPLATE_ROWS}
+      />
 
       <AlertDialog open={deletingId !== null} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>

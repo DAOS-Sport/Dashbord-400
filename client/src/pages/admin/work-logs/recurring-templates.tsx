@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload } from "lucide-react";
+import { CsvImportDialog, type CsvColumn } from "./csv-import-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertRecurringTaskTemplateSchema, type RecurringTaskTemplate } from "@shared/schema";
 import { AdminRoleGuard, EmptyState, ErrorState, INPUT_TYPES, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
+
+const RECURRING_CSV_COLUMNS: CsvColumn[] = [
+  { key: "taskName", required: true, type: "string", hint: "任務名稱" },
+  { key: "description", type: "string", hint: "說明（選填）" },
+  { key: "inputType", required: true, type: "string", hint: "checkbox | text | number | photo …" },
+  { key: "recurrenceType", required: true, type: "string", hint: "daily | weekly | monthly" },
+  { key: "recurrenceDays", type: "intArray", hint: "weekly: 0=日 1=一 … 6=六；monthly: 1–31，多個用逗號分隔" },
+  { key: "shiftType", type: "string", hint: "morning | noon | night | all（預設 all）" },
+  { key: "isRequired", type: "boolean", hint: "true / false" },
+  { key: "isActive", type: "boolean", hint: "true / false" },
+];
+
+const RECURRING_TEMPLATE_ROWS: Record<string, string>[] = [
+  { taskName: "蓄水池清潔", description: "每週一執行", inputType: "checkbox", recurrenceType: "weekly", recurrenceDays: "1", shiftType: "morning", isRequired: "true", isActive: "true" },
+  { taskName: "月底盤點", description: "", inputType: "checkbox", recurrenceType: "monthly", recurrenceDays: "28,29,30", shiftType: "all", isRequired: "true", isActive: "true" },
+  { taskName: "每日設備檢查", description: "", inputType: "checkbox", recurrenceType: "daily", recurrenceDays: "", shiftType: "all", isRequired: "true", isActive: "true" },
+];
 
 const WEEKDAYS = [
   { value: 0, label: "日" },
@@ -37,6 +55,7 @@ function Inner() {
   const [editing, setEditing] = useState<RecurringTaskTemplate | null>(null);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
   const { toast } = useToast();
 
   const { data, isLoading, isError } = useQuery<{ items: RecurringTaskTemplate[] }>({
@@ -67,9 +86,14 @@ function Inner() {
       facilityKey={facilityKey}
       onFacilityChange={setFacilityKey}
       actions={
-        <Button onClick={() => setCreating(true)} data-testid="button-create-recurring">
-          <Plus className="h-4 w-4 mr-1" /> 新增循環任務
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setImporting(true)} data-testid="button-import-csv-recurring">
+            <Upload className="h-4 w-4 mr-1" /> 匯入 CSV
+          </Button>
+          <Button onClick={() => setCreating(true)} data-testid="button-create-recurring">
+            <Plus className="h-4 w-4 mr-1" /> 新增循環任務
+          </Button>
+        </div>
       }
     >
       {isLoading ? <LoadingState /> : isError ? <ErrorState message="載入失敗" /> : items.length === 0 ? (
@@ -134,6 +158,18 @@ function Inner() {
       {(creating || editing) && (
         <EditDialog facilityKey={facilityKey} moduleType={moduleType} existing={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       )}
+
+      <CsvImportDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        title="每週循環任務"
+        endpoint="/api/work-logs/admin/recurring-templates/bulk"
+        invalidateQueryKey={["/api/work-logs/admin/recurring-templates", moduleType, facilityKey]}
+        facilityKey={facilityKey}
+        moduleType={moduleType}
+        columns={RECURRING_CSV_COLUMNS}
+        templateRows={RECURRING_TEMPLATE_ROWS}
+      />
 
       <AlertDialog open={deletingId !== null} onOpenChange={(o) => !o && setDeletingId(null)}>
         <AlertDialogContent>
