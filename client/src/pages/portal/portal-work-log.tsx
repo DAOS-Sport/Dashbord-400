@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import PortalShell from "@/components/portal/PortalShell";
 import BentoCard from "@/components/portal/BentoCard";
 import { Button } from "@/components/ui/button";
@@ -842,6 +843,7 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
                   日報狀態：{submission.status === "submitted" ? "已送出（等待主管）" : submission.status === "approved" ? `已核可（${submission.reviewedByName ?? "-"}）` : `退件（${submission.reviewNote ?? "請補正"}）`}
                 </p>
               )}
+              {submission && <ReviewActionsTimeline submissionId={submission.id} />}
             </div>
           </BentoCard>
 
@@ -1033,5 +1035,52 @@ export default function PortalWorkLog({ facilityKey }: { facilityKey: string }) 
         </div>
       )}
     </PortalShell>
+  );
+}
+
+interface ReviewActionDTO {
+  id: number;
+  submissionId: number;
+  action: "approve" | "return";
+  reviewerEmployeeNumber: string;
+  reviewerName: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+function ReviewActionsTimeline({ submissionId }: { submissionId: number }) {
+  const { data } = useQuery<{ items: ReviewActionDTO[] }>({
+    queryKey: ["/api/work-logs/submissions", submissionId, "review-actions"],
+    queryFn: async () => {
+      const r = await fetch(`/api/work-logs/submissions/${submissionId}/review-actions`, { credentials: "include" });
+      if (!r.ok) throw new Error("載入稽核紀錄失敗");
+      return r.json();
+    },
+  });
+  const items = data?.items ?? [];
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-3 rounded-md border border-slate-200 bg-slate-50/60 p-3" data-testid="section-review-actions">
+      <p className="text-[11px] font-bold text-slate-500 mb-2">審核紀錄</p>
+      <ol className="space-y-2 border-l-2 border-slate-200 pl-3">
+        {items.map((a) => (
+          <li key={a.id} className="relative" data-testid={`item-review-action-${a.id}`}>
+            <span
+              className={`absolute -left-[17px] top-1 h-2.5 w-2.5 rounded-full ring-2 ring-slate-50 ${a.action === "approve" ? "bg-emerald-500" : "bg-rose-500"}`}
+            />
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className={`px-1.5 py-0.5 rounded font-bold ${a.action === "approve" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                {a.action === "approve" ? "批准" : "退回"}
+              </span>
+              <span className="font-medium text-slate-700">{a.reviewerName ?? a.reviewerEmployeeNumber}</span>
+              <span className="text-slate-400">
+                {new Date(a.createdAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })}
+              </span>
+            </div>
+            {a.note && <p className="text-xs mt-0.5 italic text-slate-700">{a.note}</p>}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { DailyReportSubmission, WorkLogTaskCompletion, WaterQualityRecord, LifeguardHandoverNote } from "@shared/schema";
+import type { DailyReportSubmission, WorkLogTaskCompletion, WaterQualityRecord, LifeguardHandoverNote, WorkLogReviewAction } from "@shared/schema";
 import { AdminRoleGuard, EmptyState, ErrorState, LoadingState, WorkLogAdminShell, shiftLabel, useAdminFacility, useModuleType } from "./_shared";
 
 interface DetailResponse {
@@ -17,6 +17,7 @@ interface DetailResponse {
   completions: WorkLogTaskCompletion[];
   waterRecords: WaterQualityRecord[];
   handovers: LifeguardHandoverNote[];
+  reviewActions: WorkLogReviewAction[];
 }
 
 export default function SubmissionsPage() {
@@ -419,11 +420,36 @@ function DetailDialog({ id, onClose }: { id: number; onClose: () => void }) {
               </div>
               {data.submission.reviewNote && (
                 <div className="col-span-2">
-                  <p className="text-muted-foreground">前次審核留言</p>
+                  <p className="text-muted-foreground">最近一次審核留言</p>
                   <p className="text-sm italic">{data.submission.reviewNote}</p>
                 </div>
               )}
             </div>
+
+            {data.reviewActions.length > 0 && (
+              <div>
+                <SectionTitle icon={<Clock className="h-4 w-4 text-slate-600" />} title={`審核紀錄 (${data.reviewActions.length})`} />
+                <ol className="space-y-2 border-l-2 border-slate-200 pl-3">
+                  {data.reviewActions.map((a) => (
+                    <li key={a.id} className="relative" data-testid={`item-review-action-${a.id}`}>
+                      <span
+                        className={`absolute -left-[17px] top-1 h-3 w-3 rounded-full ring-2 ring-background ${a.action === "approve" ? "bg-emerald-500" : "bg-rose-500"}`}
+                      />
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`px-2 py-0.5 rounded font-bold ${a.action === "approve" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                          {a.action === "approve" ? "批准" : "退回"}
+                        </span>
+                        <span className="font-medium">{a.reviewerName ?? a.reviewerEmployeeNumber}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(a.createdAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })}
+                        </span>
+                      </div>
+                      {a.note && <p className="text-sm mt-1 italic">{a.note}</p>}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             <div>
               <SectionTitle icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />} title={`完成項目 (${data.completions.filter((c) => c.isCompleted).length}/${data.completions.length})`} />

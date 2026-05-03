@@ -22,6 +22,7 @@ import {
   type WaterQualityRecord, type InsertWaterQualityRecord,
   type LifeguardHandoverNote, type InsertLifeguardHandoverNote,
   type DailyReportSubmission, type InsertDailyReportSubmission,
+  type WorkLogReviewAction, type InsertWorkLogReviewAction,
   type LaneRental, type InsertLaneRental,
   type ParkingPlan, type InsertParkingPlan,
   type ParkingVehicle, type InsertParkingVehicle,
@@ -33,7 +34,7 @@ import {
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
-  waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions,
+  waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions, workLogReviewActions,
   laneRentals,
   parkingPlans, parkingVehicles, parkingContracts, parkingPayments, parkingEventDays,
 } from "@shared/schema";
@@ -181,6 +182,14 @@ export interface IStorage {
   getDailyReportSubmissionById(id: number): Promise<DailyReportSubmission | undefined>;
   createDailyReportSubmission(input: InsertDailyReportSubmission): Promise<DailyReportSubmission>;
   updateDailyReportSubmissionReview(id: number, data: { status: string; reviewedBy: string; reviewedByName: string; reviewNote?: string | null }): Promise<DailyReportSubmission | undefined>;
+  createWorkLogReviewAction(input: InsertWorkLogReviewAction): Promise<WorkLogReviewAction>;
+  listWorkLogReviewActionsBySubmission(submissionId: number): Promise<WorkLogReviewAction[]>;
+  recordDailyReportReview(id: number, data: {
+    action: "approve" | "return";
+    reviewerEmployeeNumber: string;
+    reviewerName: string;
+    note: string | null;
+  }): Promise<{ submission: DailyReportSubmission; reviewAction: WorkLogReviewAction } | undefined>;
 
   // Lane rentals (水道租借)
   listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]>;
@@ -1023,6 +1032,43 @@ export class DatabaseStorage implements IStorage {
       reviewedAt: new Date(),
     }).where(eq(dailyReportSubmissions.id, id)).returning();
     return row;
+  }
+
+  async createWorkLogReviewAction(input: InsertWorkLogReviewAction): Promise<WorkLogReviewAction> {
+    const [row] = await db.insert(workLogReviewActions).values(input).returning();
+    return row;
+  }
+
+  async listWorkLogReviewActionsBySubmission(submissionId: number): Promise<WorkLogReviewAction[]> {
+    return db.select().from(workLogReviewActions)
+      .where(eq(workLogReviewActions.submissionId, submissionId))
+      .orderBy(asc(workLogReviewActions.createdAt));
+  }
+
+  async recordDailyReportReview(id: number, data: {
+    action: "approve" | "return";
+    reviewerEmployeeNumber: string;
+    reviewerName: string;
+    note: string | null;
+  }): Promise<{ submission: DailyReportSubmission; reviewAction: WorkLogReviewAction } | undefined> {
+    return await db.transaction(async (tx) => {
+      const [submission] = await tx.update(dailyReportSubmissions).set({
+        status: data.action === "approve" ? "approved" : "returned",
+        reviewedBy: data.reviewerEmployeeNumber,
+        reviewedByName: data.reviewerName,
+        reviewNote: data.note,
+        reviewedAt: new Date(),
+      }).where(eq(dailyReportSubmissions.id, id)).returning();
+      if (!submission) return undefined;
+      const [reviewAction] = await tx.insert(workLogReviewActions).values({
+        submissionId: id,
+        action: data.action,
+        reviewerEmployeeNumber: data.reviewerEmployeeNumber,
+        reviewerName: data.reviewerName,
+        note: data.note,
+      }).returning();
+      return { submission, reviewAction };
+    });
   }
 
   // ==================== Parking (停車場會員與租約) ====================

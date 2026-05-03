@@ -1048,6 +1048,28 @@ export const insertDailyReportSubmissionSchema = createInsertSchema(dailyReportS
 export type InsertDailyReportSubmission = z.infer<typeof insertDailyReportSubmissionSchema>;
 export type DailyReportSubmission = typeof dailyReportSubmissions.$inferSelect;
 
+export const workLogReviewActions = pgTable("work_log_review_actions", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").notNull(),
+  action: text("action").notNull(),
+  reviewerEmployeeNumber: text("reviewer_employee_number").notNull(),
+  reviewerName: text("reviewer_name"),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  idxBySubmission: index("idx_work_log_review_actions_submission").on(table.submissionId, table.createdAt),
+}));
+
+export const insertWorkLogReviewActionSchema = createInsertSchema(workLogReviewActions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  action: z.enum(["approve", "return"]),
+});
+
+export type InsertWorkLogReviewAction = z.infer<typeof insertWorkLogReviewActionSchema>;
+export type WorkLogReviewAction = typeof workLogReviewActions.$inferSelect;
+
 // 水道租借 (Lane rentals — currently used by 松山國小 only)
 export const laneRentals = pgTable("lane_rentals", {
   id: serial("id").primaryKey(),

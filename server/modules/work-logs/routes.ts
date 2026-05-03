@@ -1018,12 +1018,13 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
       const submission = await storage.getDailyReportSubmissionById(id);
       if (!submission) return res.status(404).json({ message: "找不到日報" });
-      const [completions, waterRecords, handovers] = await Promise.all([
+      const [completions, waterRecords, handovers, reviewActions] = await Promise.all([
         storage.listTaskCompletions({ facilityKey: submission.facilityKey, workDate: submission.workDate, shiftType: submission.shiftType }),
         storage.listWaterQualityRecords({ facilityKey: submission.facilityKey, workDate: submission.workDate, shiftType: submission.shiftType }),
         storage.listLifeguardHandoverNotes({ facilityKey: submission.facilityKey, workDate: submission.workDate, fromShift: submission.shiftType }),
+        storage.listWorkLogReviewActionsBySubmission(submission.id),
       ]);
-      res.json({ submission, completions, waterRecords, handovers });
+      res.json({ submission, completions, waterRecords, handovers, reviewActions });
     } catch (e) {
       console.error("[work-logs] admin submission detail failed", e);
       res.status(500).json({ message: "載入失敗" });
@@ -1034,14 +1035,15 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
     const caller = getCaller(req);
-    const row = await storage.updateDailyReportSubmissionReview(id, {
-      status: "approved",
-      reviewedBy: caller.employeeNumber,
-      reviewedByName: caller.name,
-      reviewNote: typeof req.body?.reviewNote === "string" ? req.body.reviewNote : null,
+    const rawNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : "";
+    const result = await storage.recordDailyReportReview(id, {
+      action: "approve",
+      reviewerEmployeeNumber: caller.employeeNumber,
+      reviewerName: caller.name,
+      note: rawNote ? rawNote : null,
     });
-    if (!row) return res.status(404).json({ message: "找不到日報" });
-    res.json({ item: row });
+    if (!result) return res.status(404).json({ message: "找不到日報" });
+    res.json({ item: result.submission });
   });
 
   app.post("/api/work-logs/admin/submissions/:id/return", requireSupervisor(), async (req, res) => {
@@ -1050,14 +1052,37 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
     const reviewNote = typeof req.body?.reviewNote === "string" ? req.body.reviewNote.trim() : "";
     if (!reviewNote) return res.status(400).json({ message: "退回時必須填寫原因" });
     const caller = getCaller(req);
-    const row = await storage.updateDailyReportSubmissionReview(id, {
-      status: "returned",
-      reviewedBy: caller.employeeNumber,
-      reviewedByName: caller.name,
-      reviewNote,
+    const result = await storage.recordDailyReportReview(id, {
+      action: "return",
+      reviewerEmployeeNumber: caller.employeeNumber,
+      reviewerName: caller.name,
+      note: reviewNote,
     });
-    if (!row) return res.status(404).json({ message: "找不到日報" });
-    res.json({ item: row });
+    if (!result) return res.status(404).json({ message: "找不到日報" });
+    res.json({ item: result.submission });
+  });
+
+  // List review action audit trail for a submission.
+  // Supervisors can read any submission; employees can read their own submission.
+  app.get("/api/work-logs/submissions/:id/review-actions", requireEmployee(), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
+      const submission = await storage.getDailyReportSubmissionById(id);
+      if (!submission) return res.status(404).json({ message: "找不到日報" });
+      const caller = getCaller(req);
+      if (!caller.isSupervisor && submission.submittedBy !== caller.employeeNumber) {
+        return res.status(403).json({ message: "無權限檢視此日報" });
+      }
+      if (!canAccessFacility(req, caller, submission.facilityKey)) {
+        return res.status(403).json({ message: "無此館別權限" });
+      }
+      const items = await storage.listWorkLogReviewActionsBySubmission(id);
+      res.json({ items });
+    } catch (e) {
+      console.error("[work-logs] list review actions failed", e);
+      res.status(500).json({ message: "查詢稽核紀錄失敗" });
+    }
   });
 }
 
