@@ -1863,14 +1863,29 @@ export default function EmployeeHomePage() {
               </motion.div>
               {primaryWidgets.length ? (
                 <>
-                  <motion.div variants={riseIn} className="hidden gap-4 lg:grid lg:grid-cols-3">
-                    {["handover", "tasks", "announcements"].map((key) => {
-                      if (!primaryWidgets.some((widget) => widget.key === key)) return null;
-                      if (key === "handover") return <HandoverCard key={key} handovers={data.handover.data ?? []} payload={handoverPayload} onOpenDrawer={() => setHandoverDrawerOpen(true)} />;
-                      if (key === "tasks") return <TasksCard key={key} tasks={data.tasks.data ?? []} />;
-                      if (key === "announcements") return <AnnouncementCard key={key} announcements={data.announcements.data ?? []} />;
-                      return null;
-                    })}
+                  <motion.div
+                    variants={riseIn}
+                    className="hidden gap-4 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:auto-rows-min"
+                  >
+                    {primaryWidgets.some((widget) => widget.key === "handover") ? (
+                      <div className="lg:col-start-1 lg:row-start-1">
+                        <HandoverCard
+                          handovers={data.handover.data ?? []}
+                          payload={handoverPayload}
+                          onOpenDrawer={() => setHandoverDrawerOpen(true)}
+                        />
+                      </div>
+                    ) : null}
+                    {primaryWidgets.some((widget) => widget.key === "tasks") ? (
+                      <div className="lg:col-start-1 lg:row-start-2">
+                        <TasksCard tasks={data.tasks.data ?? []} />
+                      </div>
+                    ) : null}
+                    {primaryWidgets.some((widget) => widget.key === "announcements") ? (
+                      <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:h-full [&>*]:h-full">
+                        <AnnouncementCard announcements={data.announcements.data ?? []} />
+                      </div>
+                    ) : null}
                   </motion.div>
                   <motion.div variants={riseIn} className="space-y-4 lg:hidden">
                     {primaryWidgets.some((widget) => widget.key === "tasks") ? <TasksCard tasks={data.tasks.data ?? []} /> : null}
