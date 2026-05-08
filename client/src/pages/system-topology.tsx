@@ -44,7 +44,7 @@ const NODE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   "anomaly-reports": Bell,
   "announcements": Megaphone,
   "work-logs": LifeBuoy,
-  "counter-logs": ClipboardCheck,
+  "counter-log": ClipboardCheck,
   "lane-rentals": Waves,
   "topology": Workflow,
   "portal": Users,

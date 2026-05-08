@@ -25,7 +25,7 @@ const SIDE_NAV: NavItem[] = [
   { label: "群組公告", icon: "campaign", path: "/announcements" },
   { label: "活動檔期", icon: "event", path: "/campaigns" },
   { label: "班表入口", icon: "badge", path: "/shift" },
-  { label: "點擊熱力", icon: "leaderboard", path: "/analytics", supervisorOnly: true },
+  { label: "點擊熱力", icon: "leaderboard", path: "/supervisor/reports", supervisorOnly: true },
   { label: "公告審核", icon: "fact_check", path: "/review", supervisorOnly: true },
   { label: "後台管理", icon: "admin_panel_settings", path: "/manage", supervisorOnly: true },
 ];

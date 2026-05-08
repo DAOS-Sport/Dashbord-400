@@ -99,6 +99,20 @@ export interface EmployeeTaskDTO {
 
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
 
+export interface EmployeeCourtReservationPreview {
+  id?: string | number;
+  date: string;
+  court: number;
+  startTime: string;
+  endTime: string;
+  customerName?: string | null;
+  serviceName?: string | null;
+  status?: string | null;
+}
+
+export const fetchEmployeeCourtsToday = (school = "xinbei", date: string) =>
+  apiGet<EmployeeCourtReservationPreview[]>(`/api/courts/${school}/reservations/${date}`);
+
 export const fetchEmployeeHandoverSummary = () =>
   apiGet<HandoverSummaryDto>("/api/bff/employee/handover/summary");
 

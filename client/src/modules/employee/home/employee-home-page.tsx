@@ -8,28 +8,21 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
-  GraduationCap,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ClipboardCheck,
   CloudSun,
   FileText,
   Gauge,
-  GripVertical,
+  GraduationCap,
   Home,
   Link as LinkIcon,
   ListChecks,
   Menu,
   MessageSquareText,
-  PlusCircle,
   Plus,
   Search,
   ShieldCheck,
   StickyNote,
-  Trash2,
-  UserRound,
-  Wrench,
 } from "lucide-react";
 import type {
   AnnouncementSummary,
@@ -40,7 +33,6 @@ import type {
   HandoverSummary,
   ShiftBoardDto,
   ShiftSummary,
-  ShortcutSummary,
   StickyNoteSummary,
   TaskSummary,
 } from "@shared/domain/workbench";
@@ -58,6 +50,7 @@ import {
   createEmployeeFrontDeskHandover,
   completeEmployeeFrontDeskHandover,
   deleteEmployeeFrontDeskHandover,
+  fetchEmployeeCourtsToday,
   fetchEmployeeHome,
   readEmployeeFrontDeskHandover,
   replyEmployeeFrontDeskHandover,
@@ -67,79 +60,20 @@ import {
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { cn } from "@/lib/utils";
 import { facilityConfigs } from "@/config/facility-configs";
+import { FacilityGate } from "@/shared/auth/facility-gate";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
+import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
+import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@/lib/court-utils";
 
-const shortcutIcons = {
-  blue: ClipboardCheck,
-  green: FileText,
-  amber: CheckCircle2,
-  violet: CalendarDays,
-  rose: Wrench,
-  cyan: FileText,
-};
-
-const shortcutIconsById: Record<string, LucideIcon> = {
-  clock: ClipboardCheck,
-  handover: MessageSquareText,
-  announcements: Bell,
-  events: CalendarDays,
-  documents: FileText,
-  "sticky-notes": StickyNote,
-  qna: BookOpen,
-};
-
-const getShortcutIcon = (shortcut: ShortcutSummary) =>
-  shortcutIconsById[shortcut.id] ?? shortcutIcons[shortcut.tone];
-
-const toneClass: Record<ShortcutSummary["tone"], string> = {
-  blue: "bg-white/55 text-[#1f6fd1]",
-  green: "bg-white/55 text-[#15935d]",
-  amber: "bg-white/55 text-[#d27a16]",
-  violet: "bg-white/55 text-[#6947d8]",
-  rose: "bg-white/55 text-[#db4b5a]",
-  cyan: "bg-white/55 text-[#1487a8]",
-};
-
-const shortcutSurfaceClass: Record<ShortcutSummary["tone"], string> = {
-  blue: "border-[#c8ddf8] bg-[#eef6ff] hover:border-[#95bee9] hover:bg-[#e4f1ff]",
-  green: "border-[#bfe7d2] bg-[#eaf8f0] hover:border-[#8ed5ae] hover:bg-[#def3e9]",
-  amber: "border-[#efd5a5] bg-[#fff2d7] hover:border-[#e0b660] hover:bg-[#ffe9c4]",
-  violet: "border-[#d1c6fb] bg-[#efeaff] hover:border-[#aa98ef] hover:bg-[#e8e0ff]",
-  rose: "border-[#efc6cc] bg-[#ffedf0] hover:border-[#e497a4] hover:bg-[#ffe1e6]",
-  cyan: "border-[#bfe5ee] bg-[#e8f9fc] hover:border-[#8ccfdd] hover:bg-[#dcf4fa]",
-};
-
-const shortcutToneOptions: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
-const shortcutPreferenceKey = "junsi.cms.employee.quick-actions.v4";
 const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
-const shortcutLimit = 7;
 
 const toOptionalIso = (date: string, time: string) => {
   if (!date) return undefined;
   const parsed = new Date(`${date}T${time || "00:00"}`);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 };
-
-const shortcutCandidates: ShortcutSummary[] = [
-  { id: "handover", label: "交辦事項", href: "/employee/handover", tone: "green" },
-  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
-  { id: "events", label: "活動檔期", href: "/employee/activity-periods", tone: "amber" },
-  { id: "documents", label: "常用文件", href: "/employee/documents", tone: "cyan" },
-  { id: "sticky-notes", label: "個人工作記事", href: "/employee/personal-note", tone: "rose" },
-  { id: "qna", label: "相關問題詢問", href: "/employee/qna", tone: "violet" },
-];
-
-const normalizeActionableShortcuts = (shortcuts: ShortcutSummary[]) =>
-  shortcuts
-    .filter((shortcut) => {
-      const href = shortcut.href?.trim();
-      if (!href || href.startsWith("#")) return false;
-      if (shortcut.id === "more" || shortcut.id === "checkins" || href === "/employee/more") return false;
-      return true;
-    })
-    .slice(0, shortcutLimit);
 
 const iconByKey: Record<string, LucideIcon> = {
   home: Home,
@@ -163,32 +97,17 @@ type EmployeeNavigationItem = {
   badge?: string;
 };
 
-const employeeNavigationSlots: Array<{
-  ids: string[];
-  label: string;
-  href: string;
-  iconKey: string;
-}> = [
-  { ids: ["employee-home", "dashboard"], label: "首頁", href: "/employee", iconKey: "home" },
-  { ids: ["handover"], label: "櫃台交接", href: "/employee/handover", iconKey: "message-square-text" },
-  { ids: ["activity-periods", "campaigns-events"], label: "活動檔期/課程快訊", href: "/employee/activity-periods", iconKey: "calendar-days" },
-  { ids: ["employee-resources", "quick-links"], label: "常用文件", href: "/employee/documents", iconKey: "file-text" },
-  { ids: ["employee-training"], label: "員工教材", href: "/employee/training", iconKey: "graduation-cap" },
-  { ids: ["personal-note"], label: "個人工作記事", href: "/employee/personal-note", iconKey: "file-text" },
-  { ids: ["knowledge-base-qna"], label: "相關問題詢問", href: "/employee/qna", iconKey: "book-open" },
-];
-
 const toEmployeeNavigationItems = (items: NavigationModuleDto[] | undefined): EmployeeNavigationItem[] => {
   const apiItems = (items ?? []).filter((item) => item.routePath.startsWith("/employee"));
   const sourceById = new Map(apiItems.map((item) => [item.id, item]));
-  return employeeNavigationSlots
-    .map((slot) => {
-      const source = slot.ids.map((id) => sourceById.get(id)).find(Boolean);
+  return getWorkbenchRoutes("employee")
+    .map((route) => {
+      const source = sourceById.get(route.moduleId);
       return {
-        id: source?.id ?? slot.ids[0],
-        label: slot.label,
-        icon: iconByKey[source?.iconKey ?? slot.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
-        href: slot.href,
+        id: source?.id ?? route.moduleId,
+        label: route.label,
+        icon: iconByKey[source?.iconKey ?? route.iconKey] ?? iconByKey[route.iconKey] ?? Home,
+        href: route.primaryPath,
       };
     })
     .filter((item): item is EmployeeNavigationItem => Boolean(item));
@@ -220,6 +139,11 @@ const formatShortDateTime = (value?: string | null) => {
   }).format(parsed);
 };
 
+const todayDateString = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
 const isInternalHref = (href?: string | null) => Boolean(href?.startsWith("/"));
 
 type HandoverHomePayload = {
@@ -235,6 +159,30 @@ const isHandoverHomePayload = (value: unknown): value is HandoverHomePayload =>
 
 const isShiftBoardPayload = (value: unknown): value is ShiftBoardDto =>
   Boolean(value && typeof value === "object" && Array.isArray((value as ShiftBoardDto).shifts));
+
+type EmployeeHomeSlotKey =
+  | "search"
+  | "handover"
+  | "announcements"
+  | "shifts"
+  | "events"
+  | "documents"
+  | "stickyNotes"
+  | "courts"
+  | "tutoringToday";
+
+type EmployeeHomeResolvedLayout = {
+  enabledKeys: Set<string>;
+  isEnabled: (key: EmployeeHomeSlotKey) => boolean;
+};
+
+const resolveEmployeeHomeSlots = (items: ReturnType<typeof normalizeWidgetLayout>): EmployeeHomeResolvedLayout => {
+  const enabledKeys = new Set(items.filter((item) => item.enabled).map((item) => item.key));
+  return {
+    enabledKeys,
+    isEnabled: (key) => enabledKeys.has(key),
+  };
+};
 
 const defaultDueDateTime = () => {
   const date = new Date();
@@ -289,12 +237,14 @@ function SectionTitle({
 function DesktopSidebar() {
   const [location] = useLocation();
   const trackEvent = useTrackEvent();
+  const { data: session } = useAuthMe();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", "employee-home-sidebar"],
     queryFn: fetchModuleNavigation,
     staleTime: 60_000,
   });
   const items = toEmployeeNavigationItems(navigation.data?.items);
+  const facilityName = session?.activeFacility ? facilityConfigs[session.activeFacility]?.facilityName ?? session.activeFacility : "尚未選擇場館";
   return (
     <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[18px] text-white" />
@@ -304,7 +254,7 @@ function DesktopSidebar() {
           <span className="h-2 w-2 rounded-full bg-[#9dd84f]" />
           營運中
         </div>
-        <p className="line-clamp-2 text-[13px] font-bold">新北高中游泳池 & 運動中心</p>
+        <p className="line-clamp-2 text-[13px] font-bold">{facilityName}</p>
       </div>
 
       <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
@@ -349,8 +299,8 @@ function TopBar() {
   const { data: session } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
-  const activeFacility = session?.activeFacility ?? granted[0] ?? "xinbei_pool";
-  const activeFacilityName = facilityConfigs[activeFacility]?.facilityName ?? activeFacility;
+  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : "";
+  const activeFacilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "尚未選擇場館";
   return (
     <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/90 lg:text-[#10233f] lg:backdrop-blur-xl">
       <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
@@ -489,7 +439,7 @@ function Hero({
 function TasksCard({ tasks }: { tasks: TaskSummary[] }) {
   const activeTasks = tasks.filter((task) => task.status !== "done");
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <SectionTitle title="今日任務" eyebrow="Tasks" actionHref="/employee/tasks" />
       {activeTasks.length > 0 ? (
         <div className="space-y-3">
@@ -511,7 +461,7 @@ function TasksCard({ tasks }: { tasks: TaskSummary[] }) {
           ))}
         </div>
       ) : (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">目前沒有待辦任務。</div>
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">目前沒有待辦任務。</div>
       )}
     </WorkbenchCard>
   );
@@ -538,7 +488,7 @@ function HandoverCard({
     }));
   const total = payload?.totalPending ?? items.length;
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <SectionTitle title="交辦事項" eyebrow="Handover" action="查看全部" actionHref="/employee/handover" />
       {total > 0 ? (
         <div className="space-y-3">
@@ -555,11 +505,11 @@ function HandoverCard({
           </div>
         </div>
       ) : (
-        <div className="flex min-h-[170px] flex-col items-center justify-center rounded-[8px] bg-[#f7f9fb] px-4 text-center">
-          <div className="grid h-14 w-14 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
-            <MessageSquareText className="h-7 w-7" />
+        <div className="flex min-h-[128px] flex-col items-center justify-center rounded-[8px] bg-[#f7f9fb] px-4 py-5 text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
+            <MessageSquareText className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-[16px] font-black text-[#10233f]">尚未設定交辦事項</p>
+          <p className="mt-3 text-[15px] font-black text-[#10233f]">尚未設定交辦事項</p>
           <p className="mt-1 text-[12px] font-medium text-[#637185]">請新增交辦事項</p>
           <button type="button" onClick={onOpenDrawer} className="workbench-focus mt-4 min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
             新增交辦事項
@@ -785,254 +735,27 @@ function HandoverDrawer({
 
 function AnnouncementCard({ announcements }: { announcements: AnnouncementSummary[] }) {
   return (
-    <WorkbenchCard tone="navy" className="p-5">
-      <SectionTitle title="群組重要公告" eyebrow="Must Read" action="查看全部" actionHref="/employee/announcements" dark />
+    <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.55)]">
+      <SectionTitle title="群組重要公告" eyebrow="Pinned" action="全部公告" actionHref="/employee/announcements" />
       <div className="space-y-3">
-        {announcements.map((item) => (
-          <button key={item.id} className="flex min-h-[68px] w-full items-center gap-3 rounded-[8px] bg-white p-3 text-left text-[#10233f]">
-            <Bell className="h-5 w-5 shrink-0 text-[#2f6fe8]" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-black">{item.title}</p>
-              <p className="mt-1 truncate text-[11px] font-medium text-[#64748b]">{item.effectiveRange}</p>
-            </div>
-            <span className={cn("rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", item.priority === "required" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#fff1e7] text-[#ef7d22]")}>
+        {announcements.length ? announcements.slice(0, 3).map((item) => (
+          <Link key={item.id} href={`/employee/announcements/${encodeURIComponent(item.id)}`} className="flex min-h-[68px] w-full items-center gap-3 rounded-[8px] border border-[#f6dfaa] bg-white/90 p-3 text-left text-[#10233f] transition hover:bg-white">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-[#fff0d4] text-[#b45309]">
+              <Bell className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-black">{item.title}</span>
+              <span className="mt-1 block truncate text-[11px] font-medium text-[#64748b]">{item.effectiveRange}</span>
+            </span>
+            <span className={cn("shrink-0 rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", item.priority === "required" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#fff1e7] text-[#b45309]")}>
               {item.priority === "required" ? "重要" : "提醒"}
             </span>
-          </button>
-        ))}
-        <button className="min-h-11 w-full rounded-[8px] bg-white/12 text-[13px] font-black text-white">查看所有公告</button>
-      </div>
-    </WorkbenchCard>
-  );
-}
-
-const isShortcutTone = (value: unknown): value is ShortcutSummary["tone"] =>
-  typeof value === "string" && shortcutToneOptions.includes(value as ShortcutSummary["tone"]);
-
-const normalizeShortcutHref = (href: string | undefined, fallback: string) => {
-  const value = href?.trim();
-  if (!value) return fallback;
-  if (value.startsWith("/employee") || value.startsWith("http://") || value.startsWith("https://") || value.startsWith("#")) {
-    return value;
-  }
-  return fallback;
-};
-
-const readShortcutPreference = (): ShortcutSummary[] | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(shortcutPreferenceKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return parsed
-      .filter((item): item is ShortcutSummary =>
-        item &&
-        typeof item === "object" &&
-        typeof item.id === "string" &&
-        typeof item.label === "string" &&
-        typeof item.href === "string" &&
-        isShortcutTone(item.tone),
-      )
-      .slice(0, shortcutLimit);
-  } catch {
-    return null;
-  }
-};
-
-const writeShortcutPreference = (shortcuts: ShortcutSummary[]) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(shortcutPreferenceKey, JSON.stringify(shortcuts.slice(0, shortcutLimit)));
-};
-
-const mergeShortcutPreference = (source: ShortcutSummary[], preference: ShortcutSummary[] | null): ShortcutSummary[] => {
-  const sourceItems = source.slice(0, shortcutLimit);
-  const sourceById = new Map(sourceItems.map((item) => [item.id, item]));
-  const merged: ShortcutSummary[] = [];
-  for (const saved of preference ?? []) {
-    const base = sourceById.get(saved.id);
-    if (!base) continue;
-    merged.push({
-      ...base,
-      label: base.label,
-      href: normalizeShortcutHref(saved.href, base.href),
-      tone: isShortcutTone(saved.tone) ? saved.tone : base.tone,
-    });
-  }
-  for (const item of sourceItems) {
-    if (!merged.some((saved) => saved.id === item.id)) {
-      merged.push(item);
-    }
-  }
-  return merged.slice(0, shortcutLimit);
-};
-
-function Shortcuts({ shortcuts }: { shortcuts: ShortcutSummary[] }) {
-  const baseShortcuts = useMemo(() => normalizeActionableShortcuts(shortcuts), [shortcuts]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [showAddMenu, setShowAddMenu] = useState(false);
-  const [customShortcuts, setCustomShortcuts] = useState<ShortcutSummary[]>(() => mergeShortcutPreference(baseShortcuts, readShortcutPreference()));
-
-  useEffect(() => {
-    setCustomShortcuts(mergeShortcutPreference(baseShortcuts, readShortcutPreference()));
-  }, [baseShortcuts]);
-
-  const moveShortcut = (index: number, direction: -1 | 1) => {
-    const nextIndex = index + direction;
-    if (nextIndex < 0 || nextIndex >= customShortcuts.length) return;
-    setCustomShortcuts((current) => {
-      const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      writeShortcutPreference(next);
-      return next;
-    });
-  };
-
-  const resetShortcuts = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(shortcutPreferenceKey);
-    }
-    setCustomShortcuts(baseShortcuts);
-  };
-
-  const dropShortcut = (targetIndex: number) => {
-    if (dragIndex === null || dragIndex === targetIndex) return;
-    setCustomShortcuts((current) => {
-      const next = [...current];
-      const [moved] = next.splice(dragIndex, 1);
-      next.splice(targetIndex, 0, moved);
-      writeShortcutPreference(next);
-      return next;
-    });
-    setDragIndex(null);
-  };
-
-  const removeShortcut = (id: string) => {
-    setCustomShortcuts((current) => {
-      const next = current.filter((item) => item.id !== id);
-      writeShortcutPreference(next);
-      return next;
-    });
-  };
-
-  const addShortcut = (shortcut: ShortcutSummary) => {
-    setCustomShortcuts((current) => {
-      if (current.some((item) => item.id === shortcut.id) || current.length >= shortcutLimit) return current;
-      const next = [...current, shortcut];
-      writeShortcutPreference(next);
-      return next;
-    });
-    setShowAddMenu(false);
-  };
-
-  const remainingCandidates = shortcutCandidates.filter((candidate) => !customShortcuts.some((item) => item.id === candidate.id));
-
-  return (
-    <WorkbenchCard className="p-5">
-      <SectionTitle
-        title="快速操作"
-        eyebrow="Shortcuts"
-        action={isEditing ? "完成" : "自訂排序"}
-        onAction={() => {
-          setIsEditing((current) => !current);
-          setShowAddMenu(false);
-        }}
-      />
-      {isEditing ? (
-        <div className="mb-3 rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-[12px] font-bold text-[#536175]">
-              <GripVertical className="h-4 w-4 text-[#007166]" />
-              拖曳圖示即可調整順序，點擊加號新增模組入口。
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={customShortcuts.length >= shortcutLimit || !remainingCandidates.length}
-                onClick={() => setShowAddMenu((current) => !current)}
-                className="inline-flex min-h-8 items-center gap-1 rounded-[8px] bg-[#0d2a50] px-2 text-[11px] font-black text-white disabled:opacity-45"
-              >
-                <PlusCircle className="h-3.5 w-3.5" />
-                新增模組
-              </button>
-              <button
-                type="button"
-                onClick={resetShortcuts}
-                className="inline-flex min-h-8 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-2 text-[11px] font-black text-[#536175]"
-              >
-                重設
-              </button>
-            </div>
+          </Link>
+        )) : (
+          <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
+            目前沒有需要優先閱讀的群組公告。
           </div>
-          {showAddMenu ? (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {remainingCandidates.map((candidate) => (
-                <button
-                  key={candidate.id}
-                  type="button"
-                  onClick={() => addShortcut(candidate)}
-                  className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-left text-[12px] font-black text-[#263b56] hover:border-[#9dd84f]"
-                >
-                  <Plus className="h-4 w-4 text-[#007166]" />
-                  {candidate.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      <div className={cn("grid gap-3", isEditing ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-7" : "grid-cols-3 sm:grid-cols-4 lg:grid-cols-7")}>
-        {customShortcuts.map((shortcut, index) => {
-          const Icon = getShortcutIcon(shortcut);
-          return isEditing ? (
-            <div
-              key={shortcut.id}
-              draggable
-              onDragStart={() => setDragIndex(index)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => dropShortcut(index)}
-              onDragEnd={() => setDragIndex(null)}
-              className={cn(
-                "relative flex min-h-[92px] cursor-grab flex-col items-center justify-center gap-2 rounded-[8px] border p-3 text-center shadow-[0_12px_28px_-26px_rgba(15,34,58,0.45)] transition-[transform,box-shadow,border-color,background-color]",
-                shortcutSurfaceClass[shortcut.tone],
-                dragIndex === index ? "scale-[0.98] opacity-60" : "hover:-translate-y-0.5 hover:shadow-md",
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => removeShortcut(shortcut.id)}
-                className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-[#fff0f1] text-[#db4b5a]"
-                aria-label={`移除 ${shortcut.label}`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-              <div className="absolute left-2 top-2 text-[#9aa8ba]" aria-hidden>
-                <GripVertical className="h-4 w-4" />
-              </div>
-              <span className={cn("grid h-10 w-10 place-items-center rounded-[8px]", toneClass[shortcut.tone])}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="max-w-full truncate text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
-            </div>
-          ) : (
-            <a
-              key={shortcut.id}
-              href={shortcut.href}
-              target={isInternalHref(shortcut.href) ? undefined : "_blank"}
-              rel={isInternalHref(shortcut.href) ? undefined : "noreferrer"}
-              className={cn(
-                "group flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-[8px] border px-2 text-center shadow-[0_12px_28px_-26px_rgba(15,34,58,0.45)] transition-[transform,box-shadow,border-color,background-color] hover:-translate-y-0.5 hover:shadow-md",
-                shortcutSurfaceClass[shortcut.tone],
-              )}
-            >
-              <span className={cn("grid h-10 w-10 place-items-center rounded-[8px]", toneClass[shortcut.tone])}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="max-w-full truncate text-[12px] font-black text-[#263b56]">{shortcut.label}</span>
-            </a>
-          );
-        })}
+        )}
       </div>
     </WorkbenchCard>
   );
@@ -1165,7 +888,7 @@ function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; 
 
 function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteSummary[]; facilityKey: string; onCreated: () => void }) {
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <SectionTitle title="便利貼" eyebrow="Notes" action="員工自建" />
       <div className="space-y-3">
         <AddResourceForm
@@ -1237,7 +960,7 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
             <span className="shrink-0 rounded-full bg-[#edf8f2] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
           </Link>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1246,7 +969,7 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
 
 function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <SectionTitle title="常用文件" eyebrow="Documents" action="查看更多" actionHref="/employee/documents" />
       <div className="space-y-2">
         {documents.length ? documents.slice(0, 4).map((doc) => {
@@ -1282,7 +1005,7 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
             </a>
           );
         }) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1465,7 +1188,7 @@ function StickyNoteComposer({
 function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: StickyNoteSummary[]; facilityKey: string; onChanged: () => void }) {
   const [composerOpen, setComposerOpen] = useState(false);
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[15px] font-bold text-[#10233f]">便利貼</h2>
@@ -1491,7 +1214,7 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
             <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
           </button>
         )) : (
-          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185] hover:bg-[#f3f6f9]">
+          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185] hover:bg-[#f3f6f9]">
             尚未新增便利貼。
           </button>
         )}
@@ -1504,6 +1227,129 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
           onCreated={onChanged}
         />
       ) : null}
+    </WorkbenchCard>
+  );
+}
+
+function CourtsPreviewCard() {
+  const workDate = todayDateString();
+  const xinbeiQuery = useQuery({
+    queryKey: ["/api/courts/xinbei/reservations", workDate, "employee-home"],
+    queryFn: () => fetchEmployeeCourtsToday("xinbei", workDate),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const sanchongQuery = useQuery({
+    queryKey: ["/api/courts/sanchong/reservations", workDate, "employee-home"],
+    queryFn: () => fetchEmployeeCourtsToday("sanchong", workDate),
+    staleTime: 60_000,
+    retry: false,
+  });
+
+  const renderSchoolPanel = (
+    school: SchoolId,
+    query: typeof xinbeiQuery,
+    tone: "blue" | "green",
+  ) => {
+    const reservations = query.data ?? [];
+    const nextReservations = reservations
+      .slice()
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .slice(0, 2);
+    const schoolName = getSchoolName(school);
+    const courtsCount = getCourtsBySchool(school).length;
+    const toneClass =
+      tone === "blue"
+        ? "border-[#cfe0f7] bg-[#f3f8ff] text-[#1f5ca8]"
+        : "border-[#cce9df] bg-[#f2fbf7] text-[#007166]";
+    const buttonClass =
+      tone === "blue"
+        ? "bg-[#0d2a50] text-white hover:bg-[#173c69]"
+        : "bg-[#0f8b69] text-white hover:bg-[#0b7559]";
+
+    return (
+      <div key={school} className="rounded-[8px] border border-[#dfe7ef] bg-white p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-[14px] font-black text-[#10233f]">{schoolName}場租</p>
+            <p className="mt-0.5 text-[11px] font-bold text-[#637185]">{courtsCount} 個場地 · 今日場租查看</p>
+          </div>
+          <div className={cn("shrink-0 rounded-[8px] border px-2 py-1 text-right", toneClass)}>
+            <p className="text-[22px] font-black leading-none tabular-nums">{reservations.length}</p>
+            <p className="mt-0.5 text-[10px] font-black">今日</p>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {query.isLoading ? (
+            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#637185]">場租資料載入中...</div>
+          ) : query.isError ? (
+            <div className="rounded-[8px] border border-[#ffd7dd] bg-[#fff5f6] p-3 text-[12px] font-bold text-[#d7334f]">場租資料暫時無法載入。</div>
+          ) : nextReservations.length ? (
+            nextReservations.map((reservation) => (
+              <Link
+                key={`${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
+                href={`/employee/courts/${school}?date=${reservation.date}`}
+                className="workbench-focus flex items-center justify-between gap-3 rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-left transition hover:bg-[#eef8f3]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-black text-[#10233f]">{reservation.customerName || "未命名場租"}</p>
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-[#637185]">{getCourtName(reservation.court)} · {reservation.serviceName || "一般場租"}</p>
+                </div>
+                <span className="shrink-0 text-[12px] font-black tabular-nums text-[#007166]">{reservation.startTime}</span>
+              </Link>
+            ))
+          ) : (
+            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#637185]">今日尚無場租紀錄。</div>
+          )}
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Link href={`/employee/courts/${school}`} className={cn("workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] px-3 text-[12px] font-black", buttonClass)}>
+            完整查看
+          </Link>
+          <Link href={`/employee/courts/${school}/search`} className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#edf7f4] px-3 text-[12px] font-black text-[#007166]">
+            搜尋場租
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <WorkbenchCard className="h-full p-5">
+      <SectionTitle title="場租查看" eyebrow="Courts" action="新北完整頁" actionHref="/employee/courts/xinbei" />
+      <div className="grid gap-3 md:grid-cols-2">
+        {renderSchoolPanel("xinbei", xinbeiQuery, "blue")}
+        {renderSchoolPanel("sanchong", sanchongQuery, "green")}
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function TodayTutoringCard() {
+  return (
+    <WorkbenchCard className="h-full p-5">
+      <SectionTitle title="今日家教預約" eyebrow="Tutoring" showAction={false} />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-[8px] bg-[#f7f9fb] p-3">
+          <p className="text-[11px] font-black text-[#637185]">今日</p>
+          <p className="mt-1 text-[24px] font-black tabular-nums text-[#10233f]">0</p>
+          <p className="text-[11px] font-bold text-[#8b9aae]">筆預約</p>
+        </div>
+        <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-3">
+          <p className="text-[11px] font-black text-[#7a5b12]">尚未接線</p>
+          <p className="mt-1 text-[13px] font-black text-[#10233f]">家教預約</p>
+          <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">待 Ragic / booking provider</p>
+        </div>
+      </div>
+      <div className="mt-4 rounded-[8px] border border-dashed border-[#d8e1ec] bg-[#fbfcfd] p-4 text-center">
+        <div className="mx-auto grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff] text-[#1f6fd1]">
+          <GraduationCap className="h-5 w-5" />
+        </div>
+        <p className="mt-3 text-[13px] font-black text-[#10233f]">家教預約資料尚未接入</p>
+        <p className="mt-1 text-[11px] font-bold leading-5 text-[#637185]">此卡先保留今日工作台位置，不建立新入口、不顯示假資料。</p>
+      </div>
     </WorkbenchCard>
   );
 }
@@ -1594,7 +1440,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
     : null;
 
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
@@ -1752,13 +1598,12 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
 }
 
 function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
-  const shiftBoard = isShiftBoardPayload(home.homeCards?.shiftReminder.payload) ? home.homeCards?.shiftReminder.payload : undefined;
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-      {visibleKeys.has("shifts") ? <ShiftBoardCard board={shiftBoard} /> : null}
       {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
       {visibleKeys.has("documents") ? <CompactDocumentsCard documents={home.documents.data ?? []} /> : null}
       {visibleKeys.has("stickyNotes") ? <CompactStickyNotesCard notes={home.stickyNotes.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
+      {visibleKeys.has("courts") ? <CourtsPreviewCard /> : null}
     </div>
   );
 }
@@ -1806,7 +1651,7 @@ function LoadingState() {
   );
 }
 
-export default function EmployeeHomePage() {
+function EmployeeHomeContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [handoverDrawerOpen, setHandoverDrawerOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1815,13 +1660,9 @@ export default function EmployeeHomePage() {
     queryFn: fetchEmployeeHome,
   });
   const layoutItems = useMemo(() => normalizeWidgetLayout(data?.layout?.data, defaultEmployeeHomeWidgets), [data?.layout?.data]);
-  const visibleWidgets = useMemo(() => new Set(layoutItems.filter((item) => item.enabled).map((item) => item.key)), [layoutItems]);
-  const primaryWidgets = layoutItems.filter((item) => item.enabled && item.area === "primary");
-  const lowerWidgets = layoutItems.filter((item) => item.enabled && item.area === "lower");
+  const homeSlots = useMemo(() => resolveEmployeeHomeSlots(layoutItems), [layoutItems]);
   const handoverPayload = isHandoverHomePayload(data?.homeCards?.handover.payload) ? data?.homeCards?.handover.payload : undefined;
-  const shortcutPayload = Array.isArray(data?.homeCards?.quickActions.payload)
-    ? data.homeCards.quickActions.payload as ShortcutSummary[]
-    : data?.shortcuts.data ?? [];
+  const shiftBoard = isShiftBoardPayload(data?.homeCards?.shiftReminder.payload) ? data?.homeCards?.shiftReminder.payload : undefined;
   const searchQueryResult = useQuery({
     queryKey: ["/api/bff/employee/search", data?.facility.key, searchQuery],
     queryFn: () => searchEmployeeWorkbench(searchQuery, data?.facility.key),
@@ -1849,9 +1690,9 @@ export default function EmployeeHomePage() {
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar />
           <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-6 lg:px-6 lg:py-7">
-            <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-5">
+            <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="mx-auto max-w-[1760px] space-y-4">
               <motion.div variants={riseIn}>
-                {visibleWidgets.has("search") ? (
+                {homeSlots.isEnabled("search") ? (
                   <Hero
                     home={data}
                     searchQuery={searchQuery}
@@ -1861,52 +1702,69 @@ export default function EmployeeHomePage() {
                   />
                 ) : null}
               </motion.div>
-              {primaryWidgets.length ? (
-                <>
-                  <motion.div
-                    variants={riseIn}
-                    className="hidden gap-4 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:auto-rows-min"
-                  >
-                    {primaryWidgets.some((widget) => widget.key === "handover") ? (
-                      <div className="lg:col-start-1 lg:row-start-1">
-                        <HandoverCard
-                          handovers={data.handover.data ?? []}
-                          payload={handoverPayload}
-                          onOpenDrawer={() => setHandoverDrawerOpen(true)}
-                        />
-                      </div>
-                    ) : null}
-                    {primaryWidgets.some((widget) => widget.key === "tasks") ? (
-                      <div className="lg:col-start-1 lg:row-start-2">
-                        <TasksCard tasks={data.tasks.data ?? []} />
-                      </div>
-                    ) : null}
-                    {primaryWidgets.some((widget) => widget.key === "announcements") ? (
-                      <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:h-full [&>*]:h-full">
-                        <AnnouncementCard announcements={data.announcements.data ?? []} />
-                      </div>
-                    ) : null}
-                  </motion.div>
-                  <motion.div variants={riseIn} className="space-y-4 lg:hidden">
-                    {primaryWidgets.some((widget) => widget.key === "tasks") ? <TasksCard tasks={data.tasks.data ?? []} /> : null}
-                    {visibleWidgets.has("shortcuts") ? <Shortcuts shortcuts={shortcutPayload} /> : null}
-                    {primaryWidgets.some((widget) => widget.key === "announcements") ? <AnnouncementCard announcements={data.announcements.data ?? []} /> : null}
-                    {primaryWidgets.some((widget) => widget.key === "handover") ? <HandoverCard handovers={data.handover.data ?? []} payload={handoverPayload} onOpenDrawer={() => setHandoverDrawerOpen(true)} /> : null}
-                  </motion.div>
-                </>
-              ) : null}
-              {visibleWidgets.has("shortcuts") ? (
-                <motion.div variants={riseIn} className="hidden lg:block">
-                  <Shortcuts shortcuts={shortcutPayload} />
-                </motion.div>
-              ) : null}
-              {lowerWidgets.length ? (
+              <motion.div variants={riseIn} className="grid items-start gap-4 lg:grid-cols-12">
+                {homeSlots.isEnabled("handover") ? (
+                  <div className="lg:col-span-4">
+                    <HandoverCard
+                      handovers={data.handover.data ?? []}
+                      payload={handoverPayload}
+                      onOpenDrawer={() => setHandoverDrawerOpen(true)}
+                    />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("tutoringToday") ? (
+                  <div className="lg:col-span-4">
+                    <TodayTutoringCard />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("announcements") ? (
+                  <div className="lg:col-span-4">
+                    <AnnouncementCard announcements={data.announcements.data ?? []} />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("shifts") ? (
+                  <div className="lg:col-span-4">
+                    <ShiftBoardCard board={shiftBoard} />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("events") ? (
+                  <div className="lg:col-span-4">
+                    <CompactEventsCard
+                      campaigns={data.campaigns.data ?? []}
+                      facilityKey={data.facility.key}
+                      onChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
+                    />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("documents") ? (
+                  <div className="lg:col-span-4">
+                    <CompactDocumentsCard documents={data.documents.data ?? []} />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("courts") ? (
+                  <div className="lg:col-span-8">
+                    <CourtsPreviewCard />
+                  </div>
+                ) : null}
+                {homeSlots.isEnabled("stickyNotes") ? (
+                  <div className="lg:col-span-4">
+                    <CompactStickyNotesCard
+                      notes={data.stickyNotes.data ?? []}
+                      facilityKey={data.facility.key}
+                      onChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
+                    />
+                  </div>
+                ) : null}
+              </motion.div>
+              {homeSlots.enabledKeys.size === 0 ? (
                 <motion.div variants={riseIn}>
-                  <LowerGrid
-                    home={data}
-                    visibleKeys={new Set(lowerWidgets.map((item) => item.key))}
-                    onResourceCreated={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
-                  />
+                  <WorkbenchCard className="p-6 text-center">
+                    <p className="text-[15px] font-black text-[#10233f]">目前沒有啟用的首頁模組</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#637185]">可到員工設定重新啟用首頁卡片。</p>
+                    <Link href="/employee/settings" className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white">
+                      開啟員工設定
+                    </Link>
+                  </WorkbenchCard>
                 </motion.div>
               ) : null}
             </motion.div>
@@ -1925,5 +1783,17 @@ export default function EmployeeHomePage() {
         }}
       />
     </div>
+  );
+}
+
+export default function EmployeeHomePage() {
+  return (
+    <FacilityGate
+      role="employee"
+      title="選擇今日工作場館"
+      subtitle="員工端會先確認 activeFacility，確認後才載入今日班表、交辦、公告與日誌資料。"
+    >
+      <EmployeeHomeContent />
+    </FacilityGate>
   );
 }

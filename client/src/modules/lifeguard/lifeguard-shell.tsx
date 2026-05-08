@@ -7,7 +7,7 @@ import type { NavigationModuleDto } from "@shared/modules";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { BrandLockup } from "@/shared/brand";
 import { facilityConfigs } from "@/config/facility-configs";
-import { useAuthMe } from "@/shared/auth/session";
+import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,29 @@ const toNavItems = (items: NavigationModuleDto[] | undefined) =>
     Icon: iconByKey[item.iconKey] ?? Home,
   }));
 
+function FacilitySwitcher() {
+  const { data: session } = useAuthMe();
+  const switchFacility = useSwitchFacility();
+  const granted = session?.grantedFacilities ?? [];
+  if (!granted.length) return null;
+  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : granted[0];
+
+  return (
+    <select
+      value={activeFacility}
+      onChange={(event) => switchFacility.mutate(event.target.value)}
+      className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f]"
+      aria-label="切換救生場館"
+    >
+      {granted.map((facilityKey) => (
+        <option key={facilityKey} value={facilityKey}>
+          {facilityConfigs[facilityKey]?.facilityName ?? facilityKey}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function LifeguardShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   const [location] = useLocation();
   const trackEvent = useTrackEvent();
@@ -43,7 +66,9 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
   });
   const nav = toNavItems(navigation.data?.items);
   const mobileItems = nav.slice(0, 5);
-  const facilityName = facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? session?.activeFacility ?? "授權場館";
+  const granted = session?.grantedFacilities ?? [];
+  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
+  const facilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "尚未選擇場館";
 
   return (
     <div className="workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]">
@@ -97,6 +122,9 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <div className="hidden md:block">
+                  <FacilitySwitcher />
+                </div>
                 <div className="hidden lg:block">
                   <RoleSwitcher visualActiveRole="lifeguard" />
                 </div>

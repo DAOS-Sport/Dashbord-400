@@ -4,16 +4,6 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import Dashboard from "@/pages/dashboard";
-import Analytics from "@/pages/analytics";
-import Operations from "@/pages/operations";
-import HrAudit from "@/pages/hr-audit";
-import SystemHealth from "@/pages/system-health";
-import AnomalyReports from "@/pages/anomaly-reports";
-import Announcements from "@/pages/announcements";
-import AnnouncementSummary from "@/pages/announcement-summary";
 import AdminWorkLogDailyTemplates from "@/pages/admin/work-logs/daily-templates";
 import AdminWorkLogAssignedTasks from "@/pages/admin/work-logs/assigned-tasks";
 import AdminWorkLogRecurringTemplates from "@/pages/admin/work-logs/recurring-templates";
@@ -55,8 +45,10 @@ import EmployeeMorePage from "@/modules/employee/more/page";
 import EmployeePersonalNotePage from "@/modules/employee/personal-note/page";
 import EmployeeQnaPage from "@/modules/employee/qna/page";
 import EmployeeShiftPage from "@/modules/employee/shift/page";
+import EmployeeSettingsPage from "@/modules/employee/settings/page";
 import EmployeeTasksPage from "@/modules/employee/tasks/page";
 import EmployeeTrainingPage from "@/modules/employee/training/page";
+import { EmployeeShell } from "@/modules/employee/employee-shell";
 import LifeguardHomePage from "@/modules/lifeguard/home/page";
 import LifeguardLogPage from "@/modules/lifeguard/log/page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
@@ -68,6 +60,7 @@ import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
 import SupervisorReportsPage from "@/modules/supervisor/reports/page";
 import SupervisorTasksPage from "@/modules/supervisor/tasks/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
+import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
 import SystemDashboardPage from "@/modules/system/dashboard-page";
 import SystemAlertsPage from "@/modules/system/alerts/page";
 import SystemAuditPage from "@/modules/system/audit/page";
@@ -82,68 +75,7 @@ import { usePortalAuth } from "@/hooks/use-bound-facility";
 import { getFacilityConfig } from "@/config/facility-configs";
 import { apiPost } from "@/shared/api/client";
 import { getCorrelationId } from "@/shared/telemetry/correlation";
-
-const PAGE_TITLES: Record<string, string> = {
-  "/": "營運戰情總覽",
-  "/analytics": "決策與數據洞察",
-  "/operations": "跨館資源監控",
-  "/hr-audit": "HR 與權限稽核",
-  "/system-health": "微服務健康監控",
-  "/anomaly-reports": "打卡異常管理",
-  "/announcements": "公告審核中心",
-  "/announcements/summary": "公告分析總覽",
-  "/admin/work-logs/daily-templates": "救生員日誌 · 每日固定事項",
-  "/admin/work-logs/assigned-tasks": "救生員日誌 · 主管交辦",
-  "/admin/work-logs/recurring-templates": "救生員日誌 · 每週循環",
-  "/admin/work-logs/water-schedules": "救生員日誌 · 水質時段",
-  "/admin/work-logs/water-standards": "救生員日誌 · 水質標準",
-  "/admin/work-logs/submissions": "救生員日誌 · 主管審核",
-  "/admin/counter-logs/daily-templates": "櫃台日誌 · 每日固定事項",
-  "/admin/counter-logs/assigned-tasks": "櫃台日誌 · 主管交辦",
-  "/admin/counter-logs/recurring-templates": "櫃台日誌 · 每週循環",
-  "/admin/counter-logs/submissions": "櫃台日誌 · 主管審核",
-  "/admin/lane-rentals": "水道租借管理",
-  "/admin/parking/dashboard": "停車場 · 戰情總覽",
-  "/admin/parking/vehicles": "停車場 · 車輛管理",
-  "/admin/parking/plans": "停車場 · 方案管理",
-  "/admin/parking/contracts": "停車場 · 租約管理",
-  "/admin/parking/payments": "停車場 · 付款審核",
-  "/system/topology": "模組拓撲圖",
-  "/courts/xinbei": "場地預約 · 新北高中",
-  "/courts/sanchong": "場地預約 · 三重商工",
-};
-
-function AppRouter() {
-  return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/operations" component={Operations} />
-      <Route path="/hr-audit" component={HrAudit} />
-      <Route path="/system-health" component={SystemHealth} />
-      <Route path="/anomaly-reports" component={AnomalyReports} />
-      <Route path="/announcements/summary" component={AnnouncementSummary} />
-      <Route path="/announcements" component={Announcements} />
-      <Route path="/admin/work-logs/daily-templates" component={AdminWorkLogDailyTemplates} />
-      <Route path="/admin/work-logs/assigned-tasks" component={AdminWorkLogAssignedTasks} />
-      <Route path="/admin/work-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
-      <Route path="/admin/work-logs/water-schedules" component={AdminWorkLogWaterSchedules} />
-      <Route path="/admin/work-logs/water-standards" component={AdminWorkLogWaterStandards} />
-      <Route path="/admin/work-logs/submissions" component={AdminWorkLogSubmissions} />
-      <Route path="/admin/counter-logs/daily-templates" component={AdminWorkLogDailyTemplates} />
-      <Route path="/admin/counter-logs/assigned-tasks" component={AdminWorkLogAssignedTasks} />
-      <Route path="/admin/counter-logs/recurring-templates" component={AdminWorkLogRecurringTemplates} />
-      <Route path="/admin/counter-logs/submissions" component={AdminWorkLogSubmissions} />
-      <Route path="/admin/lane-rentals" component={AdminLaneRentals} />
-      <Route path="/admin/parking/dashboard" component={AdminParkingDashboard} />
-      <Route path="/admin/parking/vehicles" component={AdminParkingVehicles} />
-      <Route path="/admin/parking/plans" component={AdminParkingPlans} />
-      <Route path="/admin/parking/contracts" component={AdminParkingContracts} />
-      <Route path="/admin/parking/payments" component={AdminParkingPayments} />
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
+import { getRedirectForLegacyPath } from "@shared/navigation/workbench-routes";
 
 function PortalAuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading } = usePortalAuth();
@@ -279,6 +211,47 @@ function WorkbenchRouter() {
       <Route path="/EMPLOYEE" component={EmployeeHomePage} />
       <Route path="/LIFEGUARD" component={LifeguardHomePage} />
       <Route path="/supervisor/home" component={SupervisorDashboardPage} />
+      <Route path="/supervisor/parking/vehicles" component={AdminParkingVehicles} />
+      <Route path="/supervisor/parking/plans" component={AdminParkingPlans} />
+      <Route path="/supervisor/parking/contracts" component={AdminParkingContracts} />
+      <Route path="/supervisor/parking/payments" component={AdminParkingPayments} />
+      <Route path="/supervisor/parking/event-days">
+        <Redirect to="/supervisor/parking" />
+      </Route>
+      <Route path="/supervisor/parking" component={AdminParkingDashboard} />
+      <Route path="/supervisor/counter-log/daily-templates" component={AdminWorkLogDailyTemplates} />
+      <Route path="/supervisor/counter-log/assigned-tasks" component={AdminWorkLogAssignedTasks} />
+      <Route path="/supervisor/counter-log/recurring-templates" component={AdminWorkLogRecurringTemplates} />
+      <Route path="/supervisor/counter-log/submissions" component={AdminWorkLogSubmissions} />
+      <Route path="/supervisor/lane-rentals" component={AdminLaneRentals} />
+      <Route path="/supervisor/courts/:school/week">
+        <SupervisorCourtsFrame>
+          <CourtsWeekPage />
+        </SupervisorCourtsFrame>
+      </Route>
+      <Route path="/supervisor/courts/:school/month">
+        <SupervisorCourtsFrame>
+          <CourtsMonthPage />
+        </SupervisorCourtsFrame>
+      </Route>
+      <Route path="/supervisor/courts/:school/search">
+        <SupervisorCourtsFrame>
+          <CourtsSearchPage />
+        </SupervisorCourtsFrame>
+      </Route>
+      <Route path="/supervisor/courts/:school/admin">
+        <SupervisorCourtsFrame>
+          <CourtsAdminPage />
+        </SupervisorCourtsFrame>
+      </Route>
+      <Route path="/supervisor/courts/:school">
+        <SupervisorCourtsFrame>
+          <CourtsCalendarPage />
+        </SupervisorCourtsFrame>
+      </Route>
+      <Route path="/supervisor/courts">
+        <Redirect to="/supervisor/courts/xinbei" />
+      </Route>
       <Route path="/supervisor/tasks">
         <SupervisorTasksPage />
       </Route>
@@ -337,6 +310,34 @@ function WorkbenchRouter() {
       <Route path="/system/topology" component={SystemTopology} />
       <Route path="/system/overview" component={SystemDashboardPage} />
       <Route path="/system" component={SystemDashboardPage} />
+      <Route path="/employee/courts/:school/week">
+        <EmployeeCourtsFrame>
+          <CourtsWeekPage />
+        </EmployeeCourtsFrame>
+      </Route>
+      <Route path="/employee/courts/:school/month">
+        <EmployeeCourtsFrame>
+          <CourtsMonthPage />
+        </EmployeeCourtsFrame>
+      </Route>
+      <Route path="/employee/courts/:school/search">
+        <EmployeeCourtsFrame>
+          <CourtsSearchPage />
+        </EmployeeCourtsFrame>
+      </Route>
+      <Route path="/employee/courts/:school/admin">
+        <EmployeeCourtsFrame>
+          <CourtsAdminPage />
+        </EmployeeCourtsFrame>
+      </Route>
+      <Route path="/employee/courts/:school">
+        <EmployeeCourtsFrame>
+          <CourtsCalendarPage />
+        </EmployeeCourtsFrame>
+      </Route>
+      <Route path="/employee/courts">
+        <Redirect to="/employee/courts/xinbei" />
+      </Route>
       <Route path="/employee/tasks">
         <EmployeeTasksPage />
       </Route>
@@ -373,6 +374,9 @@ function WorkbenchRouter() {
       <Route path="/employee/qna">
         <EmployeeQnaPage />
       </Route>
+      <Route path="/employee/settings">
+        <EmployeeSettingsPage />
+      </Route>
       <Route path="/employee/checkins">
         <EmployeeMorePage />
       </Route>
@@ -381,16 +385,33 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
-      <Route path="/courts/:school/week" component={CourtsWeekPage} />
-      <Route path="/courts/:school/month" component={CourtsMonthPage} />
-      <Route path="/courts/:school/search" component={CourtsSearchPage} />
-      <Route path="/courts/:school/admin" component={CourtsAdminPage} />
-      <Route path="/courts/:school" component={CourtsCalendarPage} />
-      <Route path="/courts">
-        <Redirect to="/courts/xinbei" />
-      </Route>
       <Route component={SystemDashboardPage} />
     </Switch>
+  );
+}
+
+function SupervisorCourtsFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <SupervisorModuleShell
+      moduleId="courts"
+      title="場地預約"
+      eyebrow="COURT RESERVATIONS"
+      description="新北高中與三重商工場地排程、搜尋、匯入與 Google Calendar 同步。"
+      layoutMode="schedule"
+    >
+      {children}
+    </SupervisorModuleShell>
+  );
+}
+
+function EmployeeCourtsFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <EmployeeShell
+      title="場租查看"
+      subtitle="查看新北高中與三重商工場租排程，並依場館切換單日、週、月、搜尋與管理檢視。"
+    >
+      {children}
+    </EmployeeShell>
   );
 }
 
@@ -532,20 +553,10 @@ function DebugDreamLoaderOverlay() {
   );
 }
 
-const sidebarStyle = {
-  "--sidebar-width": "16rem",
-  "--sidebar-width-icon": "3rem",
-};
-
-function HeaderTitle() {
-  const [location] = useLocation();
-  const title = PAGE_TITLES[location] || "駿斯 CMS";
-  return <span className="text-[13px] font-medium text-muted-foreground" data-testid="text-page-title">{title}</span>;
-}
-
 function App() {
   const [location] = useLocation();
   const normalizedLocation = location.toLowerCase();
+  const legacyRedirect = getRedirectForLegacyPath(location);
   const isPortal = location.startsWith("/portal");
   const isLogin = normalizedLocation === "/login";
   const isParkingSign = normalizedLocation.startsWith("/parking/sign/");
@@ -558,9 +569,7 @@ function App() {
     normalizedLocation === "/supervisor" ||
     normalizedLocation.startsWith("/supervisor/") ||
     normalizedLocation === "/system" ||
-    normalizedLocation.startsWith("/system/") ||
-    normalizedLocation === "/courts" ||
-    normalizedLocation.startsWith("/courts/");
+    normalizedLocation.startsWith("/system/");
 
   // Public customer-facing parking-sign page: no admin shell, no auth, mobile-first.
   if (isParkingSign) {
@@ -570,6 +579,17 @@ function App() {
           <Switch>
             <Route path="/parking/sign/:token" component={ParkingSignPage} />
           </Switch>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (legacyRedirect) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Redirect to={legacyRedirect} />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
@@ -592,21 +612,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-          <div className="flex h-screen w-full bg-background">
-            <AppSidebar />
-            <div className="flex flex-col flex-1 min-w-0">
-              <header className="flex items-center gap-2.5 px-4 h-12 border-b bg-background/80 backdrop-blur-md" style={{ boxShadow: "rgba(0,0,0,0.08) 0px 1px 0px" }}>
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <div className="h-4 w-px bg-border" />
-                <HeaderTitle />
-              </header>
-              <main className="flex-1 overflow-hidden">
-                <AppRouter />
-              </main>
-            </div>
-          </div>
-        </SidebarProvider>
+        <NotFound />
         <DebugDreamLoaderOverlay />
         <Toaster />
       </TooltipProvider>

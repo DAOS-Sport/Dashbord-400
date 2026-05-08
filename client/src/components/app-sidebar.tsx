@@ -19,6 +19,10 @@ import {
   FlaskConical,
   ClipboardCheck,
   Trophy,
+  Car,
+  Tags,
+  Wallet,
+  Waves,
 } from "lucide-react";
 import {
   Sidebar,
@@ -47,6 +51,16 @@ const navItems = [
   { title: "水質測量時段", url: "/admin/work-logs/water-schedules", icon: Droplets, group: "救生員日誌" },
   { title: "水質標準值", url: "/admin/work-logs/water-standards", icon: FlaskConical, group: "救生員日誌" },
   { title: "主管審核", url: "/admin/work-logs/submissions", icon: ClipboardCheck, group: "救生員日誌" },
+  { title: "櫃台每日固定", url: "/admin/counter-logs/daily-templates", icon: ClipboardList, group: "櫃台工作" },
+  { title: "櫃台交辦任務", url: "/admin/counter-logs/assigned-tasks", icon: ListChecks, group: "櫃台工作" },
+  { title: "櫃台主管審核", url: "/admin/counter-logs/submissions", icon: ClipboardCheck, group: "櫃台工作" },
+  { title: "水道租借", url: "/admin/lane-rentals", icon: Waves, group: "櫃台工作" },
+  { title: "停車場總覽", url: "/admin/parking/dashboard", icon: Car, group: "停車場" },
+  { title: "車輛管理", url: "/admin/parking/vehicles", icon: Car, group: "停車場" },
+  { title: "方案管理", url: "/admin/parking/plans", icon: Tags, group: "停車場" },
+  { title: "租約管理", url: "/admin/parking/contracts", icon: FileText, group: "停車場" },
+  { title: "付款審核", url: "/admin/parking/payments", icon: Wallet, group: "停車場" },
+  { title: "活動日", url: "/admin/parking/event-days", icon: CalendarRange, group: "停車場" },
   { title: "新北高中", url: "/courts/xinbei", icon: Trophy, group: "場地預約" },
   { title: "三重商工", url: "/courts/sanchong", icon: Trophy, group: "場地預約" },
   { title: "HR 與權限稽核", url: "/hr-audit", icon: ShieldCheck, group: "系統管理" },
@@ -107,7 +121,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {["營運管理", "公告歸納", "救生員日誌", "場地預約", "系統管理"].map((group) => (
+        {["營運管理", "公告歸納", "救生員日誌", "櫃台工作", "停車場", "場地預約", "系統管理"].map((group) => (
           <SidebarGroup key={group}>
             <SidebarGroupLabel className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground px-3">
               {group}

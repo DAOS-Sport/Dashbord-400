@@ -14,6 +14,13 @@ import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { LaneRental } from "@shared/schema";
+import {
+  SupervisorErrorState,
+  SupervisorLoadingState,
+  SupervisorMetricCard,
+  SupervisorModuleShell,
+  SupervisorPanel,
+} from "@/modules/supervisor/module-shell";
 
 const LANES: Array<{ code: "A" | "B" | "C" | "D" | "E"; label: string }> = [
   { code: "A", label: "水道 A" },
@@ -136,20 +143,11 @@ export default function AdminLaneRentalsPage() {
     onError: (e: Error) => toast({ title: "取消失敗", description: e.message, variant: "destructive" }),
   });
 
-  if (sessLoading) {
-    return <div className="grid h-full place-items-center"><DreamLoader label="權限驗證中" /></div>;
-  }
+  if (sessLoading) return <SupervisorLoadingState label="權限驗證中" />;
   if (sessError || !session) return <Redirect to="/login" />;
   const allowed = session.grantedRoles?.includes("supervisor") || session.grantedRoles?.includes("system");
   if (!allowed) {
-    return (
-      <div className="grid h-full place-items-center p-8">
-        <div className="max-w-sm text-center space-y-3" data-testid="text-no-permission">
-          <p className="text-lg font-bold">無瀏覽權限</p>
-          <p className="text-sm text-muted-foreground">此頁面僅開放給主管或系統管理員使用。</p>
-        </div>
-      </div>
-    );
+    return <SupervisorErrorState message="無瀏覽權限：此頁面僅開放給主管或系統管理員使用。" />;
   }
 
   // Build a lookup: laneCode → rentals on that lane
@@ -159,62 +157,58 @@ export default function AdminLaneRentalsPage() {
     rentalsByLane[r.laneCode].push(r);
   }
 
-  return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="px-6 pt-5 pb-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">水道租借管理 · LANE RENTALS</p>
-              <h1 className="text-xl font-bold mt-0.5 flex items-center gap-2" data-testid="text-page-title">
-                <Waves className="h-5 w-5 text-primary" />
-                水道租借
-              </h1>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Select value={facilityKey} onValueChange={setFacilityKey}>
-                <SelectTrigger className="w-[260px]" data-testid="select-lane-rental-facility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {allFacilityKeys.map((k) => (
-                    <SelectItem key={k} value={k} data-testid={`option-facility-${k}`}>
-                      {facilityConfigs[k].shortName} · {facilityConfigs[k].facilityName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, -1))} data-testid="button-prev-day">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="relative">
-                <Calendar className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value || todayStr())}
-                  className="pl-8 w-[170px]"
-                  data-testid="input-date"
-                />
-              </div>
-              <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, 1))} data-testid="button-next-day">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" onClick={() => setDate(todayStr())} data-testid="button-today">今日</Button>
-            </div>
-          </div>
-
-          {isSongshan && (
-            <div className="grid grid-cols-3 gap-3 mt-4 max-w-2xl">
-              <MetricCard label="總時數" value={`${metrics.total.toFixed(1)} 小時`} testId="metric-total" />
-              <MetricCard label="已租時數" value={`${metrics.booked.toFixed(1)} 小時`} testId="metric-booked" tone="primary" />
-              <MetricCard label="空檔時數" value={`${metrics.free.toFixed(1)} 小時`} testId="metric-free" tone="muted" />
-            </div>
-          )}
-        </div>
+  const actions = (
+    <>
+      <Select value={facilityKey} onValueChange={setFacilityKey}>
+        <SelectTrigger className="h-9 w-[260px] rounded-[7px] border-[#d3d8de] bg-white text-[12px] font-bold" data-testid="select-lane-rental-facility">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {allFacilityKeys.map((k) => (
+            <SelectItem key={k} value={k} data-testid={`option-facility-${k}`}>
+              {facilityConfigs[k].shortName} · {facilityConfigs[k].facilityName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, -1))} data-testid="button-prev-day">
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <div className="relative">
+        <Calendar className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7c8998]" />
+        <Input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value || todayStr())}
+          className="h-9 w-[170px] rounded-[7px] border-[#d3d8de] bg-white pl-8 text-[12px] font-bold"
+          data-testid="input-date"
+        />
       </div>
+      <Button variant="outline" size="icon" onClick={() => setDate(shiftDate(date, 1))} data-testid="button-next-day">
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <Button variant="outline" onClick={() => setDate(todayStr())} data-testid="button-today">今日</Button>
+    </>
+  );
 
-      <div className="p-6">
+  return (
+    <SupervisorModuleShell
+      moduleId="lane-rentals"
+      title="水道租借"
+      eyebrow="LANE RENTALS"
+      description="松山館水道時段租借、現場查詢與衝突控管。"
+      actions={actions}
+      layoutMode="schedule"
+    >
+      {isSongshan && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3 xl:max-w-3xl">
+          <SupervisorMetricCard label="總時數" value={`${metrics.total.toFixed(1)} 小時`} testId="metric-total" />
+          <SupervisorMetricCard label="已租時數" value={`${metrics.booked.toFixed(1)} 小時`} testId="metric-booked" tone="green" />
+          <SupervisorMetricCard label="空檔時數" value={`${metrics.free.toFixed(1)} 小時`} testId="metric-free" tone="muted" />
+        </div>
+      )}
+
+      <div>
         {!isSongshan && (
           <div className="rounded-lg border border-dashed border-border bg-muted/40 p-12 text-center" data-testid="text-only-songshan">
             <Waves className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -228,14 +222,14 @@ export default function AdminLaneRentalsPage() {
         )}
 
         {isSongshan && !rentalsQ.isLoading && (
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
+          <SupervisorPanel className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-muted/40 sticky top-0">
+                <thead className="sticky top-0 bg-[#f7f9fb]">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold w-[88px] border-r border-border">時段</th>
+                    <th className="w-[88px] border-r border-[var(--supervisor-border)] px-3 py-2 text-left font-black text-[#102940]">時段</th>
                     {LANES.map((l) => (
-                      <th key={l.code} className="px-3 py-2 text-center font-bold border-r border-border last:border-r-0" data-testid={`header-lane-${l.code}`}>
+                      <th key={l.code} className="border-r border-[var(--supervisor-border)] px-3 py-2 text-center font-black text-[#102940] last:border-r-0" data-testid={`header-lane-${l.code}`}>
                         {l.label}
                       </th>
                     ))}
@@ -243,8 +237,8 @@ export default function AdminLaneRentalsPage() {
                 </thead>
                 <tbody>
                   {SLOTS.map((slot, idx) => (
-                    <tr key={slot.start} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                      <td className="px-3 py-1.5 font-mono text-[11px] text-muted-foreground border-r border-border whitespace-nowrap">
+                    <tr key={slot.start} className={idx % 2 === 0 ? "bg-white" : "bg-[#fafbfc]"}>
+                      <td className="whitespace-nowrap border-r border-[var(--supervisor-border)] px-3 py-1.5 font-mono text-[11px] text-[#7c8998]">
                         {slot.start}-{slot.end}
                       </td>
                       {LANES.map((lane) => {
@@ -253,12 +247,12 @@ export default function AdminLaneRentalsPage() {
                         // Show renter name only on the first slot of the rental
                         const isFirstSlot = hit && hit.startTime === slot.start;
                         return (
-                          <td key={lane.code} className="border-r border-border last:border-r-0 p-0">
+                          <td key={lane.code} className="border-r border-[var(--supervisor-border)] p-0 last:border-r-0">
                             {hit ? (
                               <button
                                 type="button"
                                 onClick={() => setDialog({ mode: "edit", laneCode: lane.code, startTime: hit.startTime, endTime: hit.endTime, rental: hit })}
-                                className="w-full h-7 px-2 text-left bg-emerald-100 hover:bg-emerald-200 text-emerald-900 transition border-l-2 border-emerald-500"
+                                className="h-7 w-full border-l-2 border-[#2f9e5b] bg-[#e7f4ec] px-2 text-left text-[#165f35] transition hover:bg-[#d7eddf]"
                                 data-testid={`cell-rental-${lane.code}-${slot.start}`}
                               >
                                 {isFirstSlot ? <span className="text-[10px] font-bold truncate block">{hit.renterName}</span> : ""}
@@ -267,7 +261,7 @@ export default function AdminLaneRentalsPage() {
                               <button
                                 type="button"
                                 onClick={() => setDialog({ mode: "create", laneCode: lane.code, startTime: slot.start, endTime: slot.end })}
-                                className="w-full h-7 hover:bg-primary/10 transition"
+                                className="h-7 w-full transition hover:bg-[#e7f4ec]"
                                 data-testid={`cell-empty-${lane.code}-${slot.start}`}
                                 aria-label={`新增 ${lane.label} ${slot.start}-${slot.end}`}
                               />
@@ -280,7 +274,7 @@ export default function AdminLaneRentalsPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </SupervisorPanel>
         )}
       </div>
 
@@ -295,7 +289,7 @@ export default function AdminLaneRentalsPage() {
           slots={SLOTS}
         />
       )}
-    </div>
+    </SupervisorModuleShell>
   );
 }
 

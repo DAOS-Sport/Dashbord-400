@@ -1,7 +1,12 @@
-import { Link, useLocation } from "wouter";
 import { Car, LayoutDashboard, Tags, FileText, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import {
+  SupervisorErrorState,
+  SupervisorLoadingState,
+  SupervisorModuleShell,
+  type SupervisorModuleTab,
+} from "@/modules/supervisor/module-shell";
 
 // Plan/vehicle type labels
 export const PLAN_TYPE_LABELS: Record<string, string> = {
@@ -65,12 +70,12 @@ export const PAYMENT_STATUS_VARIANT: Record<string, "default" | "secondary" | "d
   rejected: "destructive",
 };
 
-const PARKING_TABS: Array<{ href: string; label: string; Icon: typeof Car }> = [
-  { href: "/admin/parking/dashboard", label: "戰情總覽", Icon: LayoutDashboard },
-  { href: "/admin/parking/vehicles", label: "車輛管理",  Icon: Car },
-  { href: "/admin/parking/plans",    label: "方案管理",  Icon: Tags },
-  { href: "/admin/parking/contracts",label: "租約管理",  Icon: FileText },
-  { href: "/admin/parking/payments", label: "付款審核",  Icon: Wallet },
+const PARKING_TABS: SupervisorModuleTab[] = [
+  { href: "/supervisor/parking", label: "戰情總覽", Icon: LayoutDashboard, exact: true, testId: "tab-parking-dashboard" },
+  { href: "/supervisor/parking/vehicles", label: "車輛管理",  Icon: Car, testId: "tab-parking-vehicles" },
+  { href: "/supervisor/parking/plans",    label: "方案管理",  Icon: Tags, testId: "tab-parking-plans" },
+  { href: "/supervisor/parking/contracts",label: "租約管理",  Icon: FileText, testId: "tab-parking-contracts" },
+  { href: "/supervisor/parking/payments", label: "付款審核",  Icon: Wallet, testId: "tab-parking-payments" },
 ];
 
 export function ParkingShell({ title, subtitle, headerExtra, children }: {
@@ -78,47 +83,18 @@ export function ParkingShell({ title, subtitle, headerExtra, children }: {
   headerExtra?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [location] = useLocation();
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="px-6 pt-5 pb-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">PARKING · 停車場會員與租約管理</p>
-              <h1 className="text-xl font-bold mt-0.5 flex items-center gap-2" data-testid="text-page-title">
-                <Car className="h-5 w-5 text-primary" />
-                {title}
-              </h1>
-              {subtitle ? <p className="text-xs text-muted-foreground mt-1">{subtitle}</p> : null}
-            </div>
-            {headerExtra ? <div className="flex items-center gap-2 flex-wrap">{headerExtra}</div> : null}
-          </div>
-          <nav className="mt-3 flex flex-wrap gap-1.5" aria-label="parking sub-nav">
-            {PARKING_TABS.map(({ href, label, Icon }) => {
-              const active = location === href;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  data-testid={`tab-parking-${href.split("/").pop()}`}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold border transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-card text-muted-foreground border-border hover-elevate active-elevate-2",
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-      <div className="p-6">{children}</div>
-    </div>
+    <SupervisorModuleShell
+      moduleId="parking"
+      title={title}
+      eyebrow="PARKING OPERATIONS"
+      description={subtitle ?? "停車場會員、租約、付款與活動日控管。"}
+      tabs={PARKING_TABS}
+      actions={headerExtra}
+      layoutMode="wide"
+    >
+      {children}
+    </SupervisorModuleShell>
   );
 }
 
@@ -156,24 +132,13 @@ export function StatusBadge({ value, labels, variants }: {
 export function ParkingGuard({ session, isLoading, isError, children }: {
   session: any; isLoading: boolean; isError: boolean; children: React.ReactNode;
 }) {
-  if (isLoading) return <div className="grid h-full place-items-center p-8 text-sm text-muted-foreground">驗證中…</div>;
+  if (isLoading) return <SupervisorLoadingState label="權限驗證中" />;
   if (isError || !session) {
-    return (
-      <div className="grid h-full place-items-center p-8">
-        <p className="text-sm text-muted-foreground" data-testid="text-need-login">請先登入後台。</p>
-      </div>
-    );
+    return <SupervisorErrorState message="請先登入後台。" />;
   }
   const ok = session.grantedRoles?.includes("supervisor") || session.grantedRoles?.includes("system");
   if (!ok) {
-    return (
-      <div className="grid h-full place-items-center p-8">
-        <div className="max-w-sm text-center space-y-3" data-testid="text-no-permission">
-          <p className="text-lg font-bold">無瀏覽權限</p>
-          <p className="text-sm text-muted-foreground">此頁面僅開放給主管或系統管理員。</p>
-        </div>
-      </div>
-    );
+    return <SupervisorErrorState message="無瀏覽權限：此頁面僅開放給主管或系統管理員。" />;
   }
   return <>{children}</>;
 }

@@ -8,6 +8,7 @@ import {
   getNavigationModules,
 } from "../shared/modules";
 import type { WorkbenchRole } from "../shared/auth/me";
+import { getPrimaryRoute, getRedirectForLegacyPath, getWorkbenchRoutes } from "../shared/navigation/workbench-routes";
 
 const repoRoot = process.cwd();
 const roles: WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
@@ -57,11 +58,11 @@ for (const role of roles) {
 assert(!getNavigationModules("employee").some((item) => item.routePath.startsWith("/system")), "employee can see a system route");
 assert(!getNavigationModules("supervisor").some((item) => item.id === "raw-inspector"), "supervisor can see raw inspector");
 assert(
-  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna,checkins",
+  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,checkins",
   `employee navigation order changed: ${getNavigationModules("employee").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
   `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
 );
 assert(
@@ -73,11 +74,30 @@ assert(
   `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,tasks,announcements,handover,employee-training,anomalies,analytics",
+  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics",
   `supervisor navigation order changed: ${getNavigationModules("supervisor").map((item) => item.id).join(",")}`,
 );
+for (const item of getNavigationModules("supervisor")) {
+  assert(!item.routePath.startsWith("/admin/"), `supervisor navigation must not include legacy admin path: ${item.id} -> ${item.routePath}`);
+  assert(!item.routePath.startsWith("/courts/"), `supervisor navigation must not include naked courts path: ${item.id} -> ${item.routePath}`);
+  assert(item.routePath !== "/analytics", "supervisor navigation must not include legacy analytics path");
+  assert(item.routePath !== "/operations", "supervisor navigation must not include legacy operations path");
+}
 assert(
-  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,tasks,announcements,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+  getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics",
+  "supervisor route manifest must match sidebar order",
+);
+assert(getPrimaryRoute("parking", "supervisor") === "/supervisor/parking", "parking supervisor primary path changed");
+assert(getPrimaryRoute("counter-log", "supervisor") === "/supervisor/counter-log/submissions", "counter-log supervisor primary path changed");
+assert(getPrimaryRoute("lane-rentals", "supervisor") === "/supervisor/lane-rentals", "lane-rentals supervisor primary path changed");
+assert(getPrimaryRoute("courts", "supervisor") === "/supervisor/courts/xinbei", "courts supervisor primary path changed");
+assert(getPrimaryRoute("courts", "employee") === "/employee/courts/xinbei", "courts employee primary path changed");
+assert(getRedirectForLegacyPath("/admin/parking/dashboard") === "/supervisor/parking", "legacy admin parking dashboard must redirect to supervisor parking");
+assert(getRedirectForLegacyPath("/admin/counter-logs/submissions") === "/supervisor/counter-log/submissions", "legacy counter logs path must redirect to supervisor counter log");
+assert(getRedirectForLegacyPath("/admin/lane-rentals") === "/supervisor/lane-rentals", "legacy lane rentals path must redirect to supervisor lane rentals");
+assert(getRedirectForLegacyPath("/courts/xinbei") === "/supervisor/courts/xinbei", "legacy courts path must redirect to supervisor courts");
+assert(
+  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
   `supervisor home card order changed: ${getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",")}`,
 );
 assert(
@@ -163,6 +183,45 @@ assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : isLi
 assert(authSessionStore.includes('"lifeguard" as const'), "Lifeguard sessions must include lifeguard granted role");
 assert(bffRoutes.includes('/api/bff/lifeguard/home'), "lifeguard BFF home route must be registered");
 assert(appRoutes.includes('/lifeguard/log'), "lifeguard log route must be registered");
+assert(appRoutes.includes('/supervisor/parking/event-days'), "parking event-days supervisor route must be registered");
+assert(appRoutes.includes('/supervisor/parking'), "parking supervisor route must be registered");
+assert(appRoutes.includes('/supervisor/counter-log/submissions'), "counter-log supervisor route must be registered");
+assert(appRoutes.includes('/supervisor/lane-rentals'), "lane-rentals supervisor route must be registered");
+assert(appRoutes.includes('/supervisor/courts/:school'), "courts supervisor route must be registered");
+assert(appRoutes.includes('SupervisorCourtsFrame'), "courts supervisor routes must be wrapped in the supervisor module shell");
+assert(appRoutes.includes('/employee/courts/:school'), "courts employee route must be registered");
+assert(appRoutes.includes('EmployeeCourtsFrame'), "courts employee routes must be wrapped in the employee shell");
+assert(!appRoutes.includes('AppSidebar'), "App.tsx must not import or render the legacy AppSidebar");
+assert(!appRoutes.includes('SidebarProvider'), "App.tsx must not import or render the legacy SidebarProvider fallback");
+const moduleIdsSource = readFileSync(join(repoRoot, "shared", "modules", "ids.ts"), "utf8");
+for (const id of ["parking", "parking-vehicles", "parking-plans", "parking-contracts", "parking-payments", "parking-event-days", "lane-rentals", "courts", "lifeguard-log", "counter-log"]) {
+  assert(moduleIdsSource.includes(`"${id}"`), `canonical module id missing: ${id}`);
+}
+const topologySource = readFileSync(join(repoRoot, "client", "src", "config", "topology-config.ts"), "utf8");
+assert(topologySource.includes('id: "counter-log"'), "topology must use counter-log canonical id");
+assert(!topologySource.includes('id: "counter-logs"'), "topology must not keep counter-logs duplicate id");
+assert(!topologySource.includes('id: "courts-xinbei"'), "topology must not keep school-specific courts module id");
+assert(!topologySource.includes('id: "courts-sanchong"'), "topology must not keep school-specific courts module id");
+assert(!topologySource.includes('path: "/admin/parking'), "topology must not use legacy admin parking paths");
+assert(!topologySource.includes('path: "/courts/'), "topology must not use naked courts paths");
+const supervisorModuleShell = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "module-shell.tsx"), "utf8");
+assert(supervisorModuleShell.includes("SupervisorModuleShell"), "supervisor module shell must exist");
+const parkingShell = readFileSync(join(repoRoot, "client", "src", "pages", "admin", "parking", "_shared.tsx"), "utf8");
+const counterLogShell = readFileSync(join(repoRoot, "client", "src", "pages", "admin", "work-logs", "_shared.tsx"), "utf8");
+const laneRentalsPage = readFileSync(join(repoRoot, "client", "src", "pages", "admin", "lane-rentals.tsx"), "utf8");
+const courtsHeader = readFileSync(join(repoRoot, "client", "src", "pages", "courts", "_components", "app-header.tsx"), "utf8");
+assert(parkingShell.includes("SupervisorModuleShell"), "parking pages must render inside supervisor module shell");
+assert(counterLogShell.includes("SupervisorModuleShell"), "counter-log pages must render inside supervisor module shell");
+assert(laneRentalsPage.includes("SupervisorModuleShell"), "lane rentals page must render inside supervisor module shell");
+assert(!/href:\s*"\/admin\/parking/.test(parkingShell), "parking tabs must not use legacy admin hrefs");
+assert(!/counter:\s*"\/admin\/counter-logs"/.test(counterLogShell), "counter-log tabs must not use legacy admin prefix");
+assert(!courtsHeader.includes("`/courts/${school}"), "courts header must not use naked courts links");
+assert(!courtsHeader.includes('href="/employee"'), "courts header must not expose old return-to-employee entry");
+const facilityGateSource = readFileSync(join(repoRoot, "client", "src", "shared", "auth", "facility-gate.tsx"), "utf8");
+assert(facilityGateSource.includes("無可用場館"), "facility gate must render no-facility state");
+const lifeguardLogPage = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "log", "page.tsx"), "utf8");
+assert(lifeguardLogPage.includes("currentShiftInTaipei"), "lifeguard log must derive current shift");
+assert(!lifeguardLogPage.includes('"xinbei_pool"'), "lifeguard log must not fallback to xinbei_pool");
 const workLogRoutes = readFileSync(join(repoRoot, "server", "modules", "work-logs", "routes.ts"), "utf8");
 assert(workLogRoutes.includes('action: "LIFEGUARD_LOG_CREATED"'), "lifeguard log create must write audit action");
 assert(workLogRoutes.includes('action: "LIFEGUARD_LOG_UPDATED"'), "lifeguard log update must write audit action");
@@ -170,22 +229,71 @@ assert(telemetryRepository.includes("createPostgresTelemetryRepository"), "creat
 assert(employeeTrainingPage.includes("resourceId: String(item.resourceId ?? item.id)"), "TRAINING_VIEW must send a stable string resourceId");
 assert(employeeQnaPage.includes("fetchKnowledgeBaseQna"), "/employee/qna must read knowledge base Q&A data");
 assert(employeeQnaPage.includes("createKnowledgeBaseQna"), "/employee/qna must create Q&A entries");
-assert(roleShellSource.includes("supervisorNavigationSlots"), "supervisor shell must use curated supervisor navigation slots");
+const employeeHomePageSource = readFileSync(join(repoRoot, "client", "src", "modules", "employee", "home", "employee-home-page.tsx"), "utf8");
+assert(!employeeHomePageSource.includes("FloatingQuickActionsPanel"), "employee home must not render the floating quick actions panel");
+assert(!employeeHomePageSource.includes("QuickEntryStrip"), "employee home must not include the quick entry strip");
+assert(employeeHomePageSource.includes("resolveEmployeeHomeSlots"), "employee home must use fixed canonical slots");
+assert(employeeHomePageSource.includes('homeSlots.isEnabled("announcements")'), "employee announcements must render from canonical enabled slot");
+assert(employeeHomePageSource.includes('homeSlots.isEnabled("tutoringToday")'), "employee home must render today tutoring from a canonical slot");
+assert(employeeHomePageSource.includes("TodayTutoringCard"), "employee home must include the today tutoring placeholder card");
+assert(!employeeHomePageSource.includes('homeSlots.isEnabled("tasks")'), "employee home must not render the today tasks card");
+assert(
+  /homeSlots\.isEnabled\("handover"\)[\s\S]*homeSlots\.isEnabled\("tutoringToday"\)[\s\S]*homeSlots\.isEnabled\("announcements"\)[\s\S]*homeSlots\.isEnabled\("shifts"\)[\s\S]*homeSlots\.isEnabled\("events"\)[\s\S]*homeSlots\.isEnabled\("documents"\)[\s\S]*homeSlots\.isEnabled\("courts"\)[\s\S]*homeSlots\.isEnabled\("stickyNotes"\)/.test(employeeHomePageSource),
+  "employee home slots must render in the requested dashboard order",
+);
+assert(
+  /homeSlots\.isEnabled\("courts"\)[\s\S]*lg:col-span-8[\s\S]*<CourtsPreviewCard \/>/.test(employeeHomePageSource),
+  "employee courts preview must span two desktop grid blocks",
+);
+assert(employeeHomePageSource.includes('fetchEmployeeCourtsToday("xinbei"'), "employee courts preview must load Xinbei rent summary");
+assert(employeeHomePageSource.includes('fetchEmployeeCourtsToday("sanchong"'), "employee courts preview must load Sanchong rent summary");
+assert(employeeHomePageSource.includes("/employee/courts/${school}"), "employee courts preview must link school-specific rent pages");
+const courtsHeaderSource = readFileSync(join(repoRoot, "client", "src", "pages", "courts", "_components", "app-header.tsx"), "utf8");
+assert(courtsHeaderSource.includes("{schoolName}場租查看"), "courts page header must show school-specific rent view title");
+assert(courtsHeaderSource.includes("單日場租"), "courts page must expose a daily rent view tab");
+assert(courtsHeaderSource.includes("搜尋場租"), "courts page must expose a rent search tab");
+const tutoringCardSource = employeeHomePageSource.match(/function TodayTutoringCard\(\)[\s\S]*?\n}\n\nconst formatShiftClock/)?.[0] ?? "";
+assert(tutoringCardSource.includes("家教預約資料尚未接入"), "today tutoring card must render a not-connected placeholder");
+for (const forbidden of ["POST", "PATCH", "DELETE", "apiRequest(", "/employee/tutoring"]) {
+  assert(!tutoringCardSource.includes(forbidden), `today tutoring placeholder must not call mutation or nonexistent route: ${forbidden}`);
+}
+assert(employeeHomePageSource.includes("CourtsPreviewCard"), "employee home must render courts preview");
+assert(!employeeHomePageSource.includes('xl:pr-[280px]'), "employee desktop content must keep the original page width");
+assert(!employeeHomePageSource.includes('xl:pr-[104px]'), "employee desktop content must not reserve quick-action rail space");
+assert(!employeeHomePageSource.includes("apiRequest("), "employee home placeholder cards must not call mutation APIs");
+assert(roleShellSource.includes('getWorkbenchRoutes("supervisor")'), "supervisor shell must use canonical workbench route manifest");
 assert(roleShellSource.includes("h-dvh overflow-hidden"), "workbench shell must stay full viewport height without body scroll gaps");
 assert(roleShellSource.includes("w-[220px]"), "desktop supervisor/system sidebar width must follow supervisor design token width");
 const supervisorDashboardPage = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "dashboard-page.tsx"), "utf8");
+const supervisorHomeDrawers = readFileSync(join(repoRoot, "client", "src", "modules", "supervisor", "home-module-drawers.tsx"), "utf8");
 assert(supervisorDashboardPage.includes("現在當班人員"), "supervisor dashboard must expose now-on-duty drawer");
 assert(supervisorDashboardPage.includes("查看當班人員"), "supervisor facility module must provide a visible now-on-duty drawer trigger");
 assert(supervisorDashboardPage.includes("OnDutyDrawer"), "supervisor dashboard must keep now-on-duty drawer as an explicit component");
 assert(supervisorDashboardPage.includes("buildDutyGroups"), "supervisor now-on-duty drawer must group staff by facility and position");
 assert(supervisorDashboardPage.includes("positionLabel"), "supervisor now-on-duty drawer must derive an extensible position grouping label");
+assert(supervisorDashboardPage.includes("SupervisorQuickActionRail"), "supervisor desktop quick actions must use a floating panel");
+assert(supervisorDashboardPage.includes("canLoadSupervisorDashboard"), "supervisor dashboard must wait for supervisor/system active role before loading BFF data");
+assert(supervisorDashboardPage.includes("enabled: Boolean(canLoadSupervisorDashboard)"), "supervisor dashboard query must not fire before active role is supervisor/system");
+assert(/queryKey: \["supervisor-home", "parking"\][\s\S]*?retry: false,/.test(supervisorDashboardPage), "supervisor preview queries must fail fast when optional module APIs return errors");
+assert(supervisorDashboardPage.includes("主管資料無法載入"), "supervisor dashboard must show an explicit BFF error state instead of infinite loading");
+for (const id of ["parking", "counter-log", "lane-rentals", "courts"]) {
+  assert(supervisorDashboardPage.includes(`moduleId: "${id}"`), `supervisor dashboard module drawer missing ${id}`);
+  assert(supervisorHomeDrawers.includes(`supervisor-module-preview-${"${preview.moduleId}"}`), "supervisor module preview cards must expose stable test ids");
+}
+for (const path of ["/supervisor/parking", "/supervisor/parking/payments", "/supervisor/counter-log/submissions", "/supervisor/lane-rentals", "/supervisor/courts/xinbei", "/supervisor/courts/xinbei/search"]) {
+  assert(supervisorDashboardPage.includes(path), `supervisor home drawer CTA missing ${path}`);
+}
+for (const forbidden of ["/admin/", 'href="/courts/', 'href: "/courts/', "apiRequest(", '"POST"', '"PATCH"', '"DELETE"', "/approve", "/return", "reviewMutation", "createContract", "deleteLaneRental"]) {
+  assert(!supervisorHomeDrawers.includes(forbidden), `supervisor home drawers must be preview-only and canonical, found ${forbidden}`);
+}
 assert(appRoutes.includes('/supervisor/facilities/:facilityKey'), "supervisor facility detail route must be registered");
 assert(supervisorDashboardPage.includes('const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`'), "supervisor dashboard must define facility detail route helper");
 assert(
-  supervisorDashboardPage.includes("onOpenFacilityDetail(facilityKey)") &&
-  supervisorDashboardPage.includes("navigate(getFacilityDetailHref(facilityKey))") &&
+  supervisorDashboardPage.includes("navigate(getFacilityDetailHref(facility.facilityKey))") &&
+  supervisorDashboardPage.includes("isInteractiveRailTarget") &&
+  supervisorDashboardPage.includes("suppressFacilityClickAfterDrag") &&
   supervisorDashboardPage.includes("進入詳細面板"),
-  "supervisor dashboard facility entry button must open the facility detail panel",
+  "supervisor dashboard facility entry must deterministically navigate to the facility detail panel",
 );
 assert(supervisorPeoplePage.includes("FACILITY DETAIL"), "supervisor facilities page must render a facility detail mode");
 assert(supervisorTasksPage.includes("setCreateOpen(true)") && supervisorTasksPage.includes("supervisor-drawer"), "supervisor tasks page must use a right-side create drawer");
@@ -193,6 +301,21 @@ assert(supervisorPeoplePage.includes("selectedFacilityKey") && supervisorPeopleP
 assert(!supervisorHandoverPage.includes("targetShiftLabel"), "supervisor handover page must not require fixed shift labels");
 assert(supervisorAnnouncementsPage.includes("手動發布公告"), "supervisor announcements page must support manual announcement publishing");
 assert(supervisorAnnouncementsPage.includes("公告類型") && supervisorAnnouncementsPage.includes("置頂") && supervisorAnnouncementsPage.includes("發布時間"), "supervisor announcements form must expose type, pinning, and publish time controls");
+const lifeguardHomePageSource = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "home", "page.tsx"), "utf8");
+const systemDashboardPageSource = readFileSync(join(repoRoot, "client", "src", "modules", "system", "dashboard-page.tsx"), "utf8");
+assert(lifeguardHomePageSource.includes("FloatingQuickActionsPanel"), "lifeguard desktop quick actions must use a floating panel");
+assert(systemDashboardPageSource.includes("FloatingQuickActionsPanel"), "system desktop quick tools must use a floating panel");
+assert(!lifeguardHomePageSource.includes('xl:pr-[280px]'), "lifeguard desktop content must keep the original page width");
+assert(!systemDashboardPageSource.includes('xl:pr-[280px]'), "system desktop content must keep the original page width");
+const floatingQuickActionsSource = readFileSync(join(repoRoot, "client", "src", "modules", "workbench", "floating-quick-actions.tsx"), "utf8");
+assert(floatingQuickActionsSource.includes('w-[80px]'), "floating quick actions must use the fixed compact rail width");
+assert(floatingQuickActionsSource.includes("defaultActionSlot"), "floating quick actions must keep the same top control format across roles");
+assert(floatingQuickActionsSource.includes("onPointerDown={beginDrag}"), "floating quick actions must support drag repositioning");
+assert(floatingQuickActionsSource.includes("setIsOpen(false)") && floatingQuickActionsSource.includes("setIsOpen(true)"), "floating quick actions must support close and reopen");
+assert(floatingQuickActionsSource.includes("shortcutTileClasses"), "floating quick actions must render colored full-tile shortcuts");
+assert(!floatingQuickActionsSource.includes('helper ?? "工作台入口"'), "floating quick actions must not show repeated workspace-entry helper text");
+assert(floatingQuickActionsSource.includes("aria-current"), "floating quick actions must expose active route state");
+assert(floatingQuickActionsSource.includes("sr-only"), "floating quick action accessibility text must be preserved");
 assert(supervisorAnnouncementMigration.includes("announcement_type") && supervisorAnnouncementMigration.includes("is_pinned"), "supervisor announcement migration must add type and pinning fields");
 assert(qnaMigration.includes("CREATE TABLE IF NOT EXISTS knowledge_base_qna"), "Q&A migration must create knowledge_base_qna table");
 assert(storageSource.includes("listKnowledgeBaseQna"), "storage must expose knowledge base Q&A list query");

@@ -1,4 +1,5 @@
 import type { WorkbenchRole } from "../auth/me";
+import { getPrimaryRoute } from "../navigation/workbench-routes";
 import { MODULE_REGISTRY } from "./registry";
 import type {
   AppRole,
@@ -68,6 +69,15 @@ const chineseKeywords: Record<string, string[]> = {
   "knowledge-base-qna": ["知識庫", "問答", "Q&A"],
   "employee-training": ["員工教材", "教學", "訓練", "影片"],
   "personal-note": ["個人工作記事", "便利貼"],
+  "counter-log": ["櫃台日誌", "櫃台工作", "每日固定事項"],
+  "lane-rentals": ["水道租借", "松山", "水道事項"],
+  courts: ["場地預約", "新北高中", "三重商工"],
+  parking: ["停車場", "租約", "會員車輛"],
+  "parking-vehicles": ["停車場車輛", "車牌", "車主"],
+  "parking-plans": ["停車場方案", "月租", "季租", "年租"],
+  "parking-contracts": ["停車場租約", "合約", "簽約"],
+  "parking-payments": ["停車場付款", "付款審核", "轉帳"],
+  "parking-event-days": ["停車場活動日", "活動日", "提前通知"],
   anomalies: ["異常", "打卡異常"],
   "system-health": ["系統健康", "健康"],
   "raw-inspector": ["原始資料", "raw"],
@@ -80,6 +90,7 @@ const employeeNavigationOrder = [
   "employee-resources",
   "employee-training",
   "personal-note",
+  "courts",
   "knowledge-base-qna",
   "checkins",
 ];
@@ -98,6 +109,10 @@ const lifeguardNavigationOrder = [
 const supervisorNavigationOrder = [
   "supervisor-dashboard",
   "facilities",
+  "parking",
+  "counter-log",
+  "lane-rentals",
+  "courts",
   "tasks",
   "announcements",
   "handover",
@@ -123,6 +138,7 @@ const employeeHomeOrder = [
   "employee-resources",
   "employee-training",
   "personal-note",
+  "courts",
   "knowledge-base-qna",
   "shift-reminder",
   "booking-snapshot",
@@ -148,6 +164,10 @@ const lifeguardHomeOrder = [
 const supervisorHomeOrder = [
   "supervisor-dashboard",
   "facilities",
+  "parking",
+  "counter-log",
+  "lane-rentals",
+  "courts",
   "tasks",
   "announcements",
   "handover",
@@ -188,14 +208,18 @@ const roleHomeOrder: Record<WorkbenchRole, string[]> = {
 };
 
 const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
-  "employee-home": { shortName: "首頁", routePath: "/employee", iconKey: "home", menuOrder: 1, navVisible: true },
-  handover: { name: "櫃台交接", shortName: "櫃台交接", routePath: "/employee/handover", iconKey: "message-square-text", menuOrder: 2, navVisible: true },
-  "activity-periods": { shortName: "活動檔期/課程快訊", routePath: "/employee/activity-periods", iconKey: "calendar-days", menuOrder: 3, navVisible: true },
-  "employee-resources": { shortName: "常用文件", routePath: "/employee/documents", iconKey: "file-text", menuOrder: 4, navVisible: true },
-  "employee-training": { name: "員工教材", shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
-  "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 6, navVisible: true },
-  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 7, navVisible: true, requiredPermissions: ["employee:qna:read"] },
-  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 8, cardOrder: 13, navVisible: true, cardVisible: true },
+  "employee-home": { shortName: "首頁", routePath: getPrimaryRoute("employee-home", "employee"), iconKey: "home", menuOrder: 1, navVisible: true },
+  handover: { name: "櫃台交接", shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "employee"), iconKey: "message-square-text", menuOrder: 2, navVisible: true },
+  "activity-periods": { shortName: "活動檔期/課程快訊", routePath: getPrimaryRoute("activity-periods", "employee"), iconKey: "calendar-days", menuOrder: 3, navVisible: true },
+  "employee-resources": { shortName: "常用文件", routePath: getPrimaryRoute("employee-resources", "employee"), iconKey: "file-text", menuOrder: 4, navVisible: true },
+  "employee-training": { name: "員工教材", shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "employee"), iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
+  "personal-note": { shortName: "個人工作記事", routePath: getPrimaryRoute("personal-note", "employee"), iconKey: "file-text", menuOrder: 6, navVisible: true },
+  courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "employee"), iconKey: "calendar-days", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true, requiredPermissions: ["employee:booking:read"] },
+  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: getPrimaryRoute("knowledge-base-qna", "employee"), iconKey: "book-open", menuOrder: 8, navVisible: true, requiredPermissions: ["employee:qna:read"] },
+  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 9, cardOrder: 14, navVisible: true, cardVisible: true },
+  parking: { navVisible: false, cardVisible: false },
+  "counter-log": { navVisible: false, cardVisible: false },
+  "lane-rentals": { navVisible: false, cardVisible: false },
 };
 
 const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<ModuleDescriptor>>> = {
@@ -212,14 +236,18 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     search: { shortName: "快速搜尋", routePath: "/lifeguard", iconKey: "search", menuOrder: 20, cardOrder: 20, navVisible: false, cardVisible: true },
   },
   supervisor: {
-    "supervisor-dashboard": { shortName: "營運總覽", routePath: "/supervisor", iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
-    facilities: { shortName: "場館", routePath: "/supervisor/facilities", iconKey: "building", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"] },
-    tasks: { shortName: "任務管理", routePath: "/supervisor/tasks", iconKey: "clipboard-check", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
-    announcements: { shortName: "公告管理", routePath: "/supervisor/announcements", iconKey: "bell", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
-    handover: { shortName: "櫃台交接", routePath: "/supervisor/handover", iconKey: "message-square-text", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
-    "employee-training": { shortName: "員工教材", routePath: "/supervisor/training", iconKey: "graduation-cap", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
-    anomalies: { shortName: "異常審核", routePath: "/supervisor/anomalies", iconKey: "shield-check", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
-    analytics: { shortName: "報表", routePath: "/supervisor/reports", iconKey: "gauge", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "REPORT_EXPORT"] },
+    "supervisor-dashboard": { shortName: "營運總覽", routePath: getPrimaryRoute("supervisor-dashboard", "supervisor"), iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
+    facilities: { shortName: "場館", routePath: getPrimaryRoute("facilities", "supervisor"), iconKey: "building", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"] },
+    parking: { shortName: "停車場", routePath: getPrimaryRoute("parking", "supervisor"), iconKey: "car", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
+    "counter-log": { shortName: "櫃台日誌", routePath: getPrimaryRoute("counter-log", "supervisor"), iconKey: "clipboard-list", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
+    "lane-rentals": { shortName: "水道租借", routePath: getPrimaryRoute("lane-rentals", "supervisor"), iconKey: "waves", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
+    courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "supervisor"), iconKey: "calendar-days", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
+    tasks: { shortName: "任務管理", routePath: getPrimaryRoute("tasks", "supervisor"), iconKey: "clipboard-check", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
+    announcements: { shortName: "公告管理", routePath: getPrimaryRoute("announcements", "supervisor"), iconKey: "bell", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
+    handover: { shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "supervisor"), iconKey: "message-square-text", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
+    "employee-training": { shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "supervisor"), iconKey: "graduation-cap", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true },
+    anomalies: { shortName: "異常審核", routePath: getPrimaryRoute("anomalies", "supervisor"), iconKey: "shield-check", menuOrder: 11, cardOrder: 11, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
+    analytics: { shortName: "報表", routePath: getPrimaryRoute("analytics", "supervisor"), iconKey: "gauge", menuOrder: 12, cardOrder: 12, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "REPORT_EXPORT"] },
   },
   system: {
     "system-dashboard": { shortName: "系統總覽", routePath: "/system", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
@@ -230,6 +258,10 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     "raw-inspector": { shortName: "Raw Inspector", routePath: "/system/raw-inspector", iconKey: "shield-check", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "RAW_INSPECTOR_QUERY"] },
     "employee-training": { shortName: "教材觀看紀錄", routePath: "/system/training-views", iconKey: "graduation-cap", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
     "watchdog-events": { shortName: "Watchdog", routePath: "/system/alerts", iconKey: "gauge", menuOrder: 8, cardOrder: 8, navVisible: false, cardVisible: true, telemetryEvents: ["WATCHDOG_EVENT_VIEW"] },
+    parking: { navVisible: false, cardVisible: false },
+    "counter-log": { navVisible: false, cardVisible: false },
+    "lane-rentals": { navVisible: false, cardVisible: false },
+    courts: { navVisible: false, cardVisible: false },
   },
 };
 

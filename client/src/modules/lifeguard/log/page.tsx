@@ -13,26 +13,34 @@ type LifeguardTodayDto = {
 };
 
 const todayInTaipei = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+const currentShiftInTaipei = (): LifeguardTodayDto["shiftType"] => {
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Taipei", hour: "2-digit", hour12: false }).format(new Date()));
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 17) return "noon";
+  return "night";
+};
+const nextShift = (shift: LifeguardTodayDto["shiftType"]): LifeguardTodayDto["shiftType"] =>
+  shift === "morning" ? "noon" : shift === "noon" ? "night" : "morning";
 
 export default function LifeguardLogPage() {
   const { data: session } = useAuthMe();
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
-  const facilityKey = session?.activeFacility ?? "xinbei_pool";
+  const facilityKey = session?.activeFacility && session.grantedFacilities.includes(session.activeFacility) ? session.activeFacility : "";
   const workDate = todayInTaipei();
-  const shiftType = "morning";
+  const shiftType = currentShiftInTaipei();
   const queryKey = useMemo(() => ["/api/work-logs/today", facilityKey, workDate, shiftType], [facilityKey, workDate, shiftType]);
   const today = useQuery({
     queryKey,
     queryFn: () => apiGet<LifeguardTodayDto>(`/api/work-logs/today?facilityKey=${encodeURIComponent(facilityKey)}&workDate=${workDate}&shiftType=${shiftType}&moduleType=lifeguard`),
-    enabled: Boolean(session),
+    enabled: Boolean(session && facilityKey),
   });
   const createHandover = useMutation({
     mutationFn: () => apiPost("/api/work-logs/handover", {
       facilityKey,
       workDate,
       fromShift: shiftType,
-      toShift: "noon",
+      toShift: nextShift(shiftType),
       category: "general",
       content,
       isImportant: false,
@@ -46,6 +54,12 @@ export default function LifeguardLogPage() {
 
   return (
     <LifeguardShell title="救生員日誌" subtitle="記錄今日水質、交接事項與值勤日報，寫入後會留下 audit row。">
+      {!facilityKey ? (
+        <WorkbenchCard className="p-5">
+          <h2 className="text-[16px] font-black text-[#10233f]">無可用場館</h2>
+          <p className="mt-2 text-[13px] font-medium leading-6 text-[#637185]">請先回救生首頁選擇今日場館，再建立救生員日誌。</p>
+        </WorkbenchCard>
+      ) : (
       <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
         <WorkbenchCard className="p-5">
           <h2 className="text-[16px] font-black text-[#10233f]">今日進度</h2>
@@ -92,6 +106,7 @@ export default function LifeguardLogPage() {
           </div>
         </WorkbenchCard>
       </div>
+      )}
     </LifeguardShell>
   );
 }

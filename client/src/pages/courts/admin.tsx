@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { Trash2, Upload } from "lucide-react";
+import { Pencil, Save, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +70,20 @@ interface AdminListResponse {
   results: Reservation[];
 }
 
+type ReservationStatus = "confirmed" | "pending" | "member";
+
+interface ReservationEditDraft {
+  date: string;
+  startTime: string;
+  endTime: string;
+  court: number;
+  customerName: string;
+  serviceName: string;
+  phone: string;
+  notes: string;
+  status: ReservationStatus;
+}
+
 const fmtDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -95,6 +109,8 @@ export default function CourtsAdminPage() {
     "member",
   );
   const [lastResult, setLastResult] = useState<ImportResult | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<ReservationEditDraft | null>(null);
 
   useEffect(() => {
     setCourt(schoolCourts[0]?.id ?? 0);
@@ -136,6 +152,17 @@ export default function CourtsAdminPage() {
     },
   });
   const allReservations = listData?.results ?? [];
+
+  const invalidateCourtQueries = () => {
+    queryClient.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey[0];
+        return (
+          typeof k === "string" && k.startsWith(`/api/courts/${school}/`)
+        );
+      },
+    });
+  };
 
   const previewDates = useMemo(() => {
     if (!startDate || !endDate || weekdays.length === 0) return [];
@@ -181,14 +208,7 @@ export default function CourtsAdminPage() {
     },
     onSuccess: (result) => {
       setLastResult(result);
-      queryClient.invalidateQueries({
-        predicate: (q) => {
-          const k = q.queryKey[0];
-          return (
-            typeof k === "string" && k.startsWith(`/api/courts/${school}/`)
-          );
-        },
-      });
+      invalidateCourtQueries();
       toast({
         title: "匯入完成",
         description: `成功新增 ${result.createdCount} 筆，跳過 ${result.skippedCount} 筆`,
@@ -211,14 +231,7 @@ export default function CourtsAdminPage() {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        predicate: (q) => {
-          const k = q.queryKey[0];
-          return (
-            typeof k === "string" && k.startsWith(`/api/courts/${school}/`)
-          );
-        },
-      });
+      invalidateCourtQueries();
       toast({ title: "已刪除預約" });
     },
     onError: (error: Error) => {
@@ -229,6 +242,69 @@ export default function CourtsAdminPage() {
       });
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, draft }: { id: string; draft: ReservationEditDraft }) => {
+      const res = await apiRequest(
+        "PATCH",
+        `/api/courts/${school}/admin/reservations/${id}`,
+        {
+          date: draft.date,
+          startTime: draft.startTime,
+          endTime: draft.endTime,
+          court: draft.court,
+          customerName: draft.customerName,
+          serviceName: draft.serviceName || undefined,
+          phone: draft.phone || "",
+          notes: draft.notes || undefined,
+          status: draft.status,
+        },
+      );
+      return (await res.json()) as Reservation;
+    },
+    onSuccess: () => {
+      setEditingId(null);
+      setEditDraft(null);
+      invalidateCourtQueries();
+      toast({ title: "已更新預約" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "更新失敗",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const startEdit = (reservation: Reservation) => {
+    setEditingId(reservation.id);
+    setEditDraft({
+      date: reservation.date,
+      startTime: reservation.startTime,
+      endTime: reservation.endTime,
+      court: reservation.court,
+      customerName: reservation.customerName,
+      serviceName: reservation.serviceName ?? "",
+      phone: reservation.phone ?? "",
+      notes: reservation.notes ?? "",
+      status: reservation.status as ReservationStatus,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft(null);
+  };
+
+  const saveEdit = () => {
+    if (!editingId || !editDraft) return;
+    if (!editDraft.customerName.trim()) {
+      toast({ title: "請輸入使用者名稱", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate({ id: editingId, draft: editDraft });
+  };
 
   const toggleWeekday = (value: number) =>
     setWeekdays((prev) =>
@@ -260,10 +336,10 @@ export default function CourtsAdminPage() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans">
+    <div className="font-sans">
       <AppHeader />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className="space-y-6">
         <div>
           <h2
             className="text-xl sm:text-2xl font-bold text-gray-900"
@@ -572,70 +648,191 @@ export default function CourtsAdminPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {allReservations.map((r) => (
-                      <TableRow
-                        key={r.id}
-                        data-testid={`reservation-row-${r.id}`}
-                      >
-                        <TableCell className="text-sm">
-                          {format(
-                            new Date(r.date + "T00:00:00"),
-                            "M/d (EEE)",
-                            { locale: zhTW },
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm tabular-nums">
-                          {r.startTime}–{r.endTime}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {getCourtName(r.court)}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {r.customerName}
-                          {r.serviceName && (
-                            <span className="ml-1 text-gray-400 text-xs">
-                              · {r.serviceName}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {r.status === "member"
-                              ? "會員"
-                              : r.status === "confirmed"
-                                ? "已確認"
-                                : "待確認"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {r.source === "batch"
-                              ? "批次"
-                              : r.source === "manual"
-                                ? "手動"
-                                : r.source}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `確定刪除 ${r.date} ${r.startTime}-${r.endTime} 的預約？`,
-                                )
-                              ) {
-                                deleteMutation.mutate(r.id);
-                              }
-                            }}
-                            data-testid={`button-delete-${r.id}`}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {allReservations.map((r) => {
+                      const isEditing = editingId === r.id && editDraft;
+                      return (
+                        <TableRow
+                          key={r.id}
+                          data-testid={`reservation-row-${r.id}`}
+                        >
+                          <TableCell className="text-sm">
+                            {isEditing ? (
+                              <Input
+                                type="date"
+                                value={editDraft.date}
+                                onChange={(event) => setEditDraft({ ...editDraft, date: event.target.value })}
+                                className="h-8 w-32"
+                                data-testid={`edit-date-${r.id}`}
+                              />
+                            ) : (
+                              format(
+                                new Date(r.date + "T00:00:00"),
+                                "M/d (EEE)",
+                                { locale: zhTW },
+                              )
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm tabular-nums">
+                            {isEditing ? (
+                              <div className="flex min-w-[150px] items-center gap-1">
+                                <Select value={editDraft.startTime} onValueChange={(value) => setEditDraft({ ...editDraft, startTime: value })}>
+                                  <SelectTrigger className="h-8 w-20" data-testid={`edit-start-time-${r.id}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {TIME_OPTIONS.map((time) => (
+                                      <SelectItem key={time} value={time}>{time}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <span className="text-gray-400">-</span>
+                                <Select value={editDraft.endTime} onValueChange={(value) => setEditDraft({ ...editDraft, endTime: value })}>
+                                  <SelectTrigger className="h-8 w-20" data-testid={`edit-end-time-${r.id}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {TIME_OPTIONS.map((time) => (
+                                      <SelectItem key={time} value={time}>{time}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              `${r.startTime}–${r.endTime}`
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {isEditing ? (
+                              <Select value={String(editDraft.court)} onValueChange={(value) => setEditDraft({ ...editDraft, court: Number(value) })}>
+                                <SelectTrigger className="h-8 min-w-[140px]" data-testid={`edit-court-${r.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {schoolCourts.map((courtOption) => (
+                                    <SelectItem key={courtOption.id} value={String(courtOption.id)}>
+                                      {courtOption.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              getCourtName(r.court)
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {isEditing ? (
+                              <div className="grid min-w-[220px] gap-1">
+                                <Input
+                                  value={editDraft.customerName}
+                                  onChange={(event) => setEditDraft({ ...editDraft, customerName: event.target.value })}
+                                  className="h-8"
+                                  data-testid={`edit-customer-${r.id}`}
+                                />
+                                <Input
+                                  value={editDraft.serviceName}
+                                  onChange={(event) => setEditDraft({ ...editDraft, serviceName: event.target.value })}
+                                  className="h-8"
+                                  placeholder="服務名稱"
+                                  data-testid={`edit-service-${r.id}`}
+                                />
+                              </div>
+                            ) : (
+                              <>
+                                {r.customerName}
+                                {r.serviceName && (
+                                  <span className="ml-1 text-gray-400 text-xs">
+                                    · {r.serviceName}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditing ? (
+                              <Select value={editDraft.status} onValueChange={(value) => setEditDraft({ ...editDraft, status: value as ReservationStatus })}>
+                                <SelectTrigger className="h-8 w-24" data-testid={`edit-status-${r.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="member">會員</SelectItem>
+                                  <SelectItem value="confirmed">已確認</SelectItem>
+                                  <SelectItem value="pending">待確認</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                {r.status === "member"
+                                  ? "會員"
+                                  : r.status === "confirmed"
+                                    ? "已確認"
+                                    : "待確認"}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="text-xs">
+                              {r.source === "batch"
+                                ? "批次"
+                                : r.source === "manual"
+                                  ? "手動"
+                                  : r.source}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              {isEditing ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={saveEdit}
+                                    disabled={updateMutation.isPending}
+                                    data-testid={`button-save-${r.id}`}
+                                  >
+                                    <Save className="w-4 h-4 text-emerald-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={cancelEdit}
+                                    data-testid={`button-cancel-${r.id}`}
+                                  >
+                                    <X className="w-4 h-4 text-gray-500" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEdit(r)}
+                                    data-testid={`button-edit-${r.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4 text-blue-600" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (
+                                        window.confirm(
+                                          `確定刪除 ${r.date} ${r.startTime}-${r.endTime} 的預約？`,
+                                        )
+                                      ) {
+                                        deleteMutation.mutate(r.id);
+                                      }
+                                    }}
+                                    data-testid={`button-delete-${r.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ReservationDetailModal } from "./_components/reservation-detail-modal";
-import { AppHeader } from "./_components/app-header";
+import { AppHeader, getCourtsBasePath } from "./_components/app-header";
 import {
   getCourtName,
   getCourtType,
@@ -53,6 +53,8 @@ function defaultRange() {
 
 export default function CourtsSearchPage() {
   const school = useSchool();
+  const [location] = useLocation();
+  const basePath = getCourtsBasePath(location);
   const initialRange = defaultRange();
   const [keyword, setKeyword] = useState("");
   const [submittedKeyword, setSubmittedKeyword] = useState("");
@@ -97,10 +99,10 @@ export default function CourtsSearchPage() {
     });
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans">
+    <div className="font-sans">
       <AppHeader lastSync={dataUpdatedAt || null} syncLoading={isFetching} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main>
         <div className="mb-4">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
             搜尋預約
@@ -235,7 +237,7 @@ export default function CourtsSearchPage() {
                       data-testid={`group-date-${date}`}
                     >
                       {formatDateHeader(date)}
-                      <Link href={`/courts/${school}?date=${date}`}>
+                      <Link href={`${basePath}/${school}?date=${date}`}>
                         <span className="ml-2 text-xs text-blue-600 hover:underline cursor-pointer">
                           查看當日排程 →
                         </span>

@@ -1,9 +1,15 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { useLocation, Link, Redirect } from "wouter";
+import { useLocation, Redirect } from "wouter";
 import { useAuthMe } from "@/shared/auth/session";
 import { facilityConfigs } from "@/config/facility-configs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
+import {
+  SupervisorEmptyState,
+  SupervisorErrorState,
+  SupervisorLoadingState,
+  SupervisorModuleShell,
+} from "@/modules/supervisor/module-shell";
 
 export type WorkLogModule = "lifeguard" | "counter";
 
@@ -19,11 +25,11 @@ const MODULE_LABEL: Record<WorkLogModule, string> = {
 
 const URL_PREFIX: Record<WorkLogModule, string> = {
   lifeguard: "/admin/work-logs",
-  counter: "/admin/counter-logs",
+  counter: "/supervisor/counter-log",
 };
 
 export function detectModuleFromPath(path: string): WorkLogModule {
-  return path.startsWith("/admin/counter-logs") ? "counter" : "lifeguard";
+  return path.startsWith("/admin/counter-logs") || path.startsWith("/supervisor/counter-log") ? "counter" : "lifeguard";
 }
 
 export function useModuleType(): WorkLogModule {
@@ -97,62 +103,38 @@ export function WorkLogAdminShell({
   const moduleType = detectModuleFromPath(location);
   const tabs = tabsForModule(moduleType);
   const moduleLabel = MODULE_LABEL[moduleType];
+  const actionsSlot = (
+    <div className="flex flex-wrap items-center gap-2">
+      {showFacility && (
+        <Select value={facilityKey} onValueChange={onFacilityChange}>
+          <SelectTrigger className="h-9 w-[260px] rounded-[7px] border-[#d3d8de] bg-white text-[12px] font-bold" data-testid="select-admin-facility">
+            <SelectValue placeholder="選擇場館" />
+          </SelectTrigger>
+          <SelectContent>
+            {FACILITY_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} data-testid={`option-facility-${o.value}`}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {actions}
+    </div>
+  );
 
   return (
-    <div className="h-full overflow-auto bg-background">
-      <div className="border-b border-border bg-card/50 backdrop-blur">
-        <div className="px-6 pt-5 pb-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                {moduleLabel} · 後台管理
-              </p>
-              <h1 className="text-xl font-bold mt-0.5" data-testid="text-page-title">{title}</h1>
-              {description && (
-                <p className="text-xs text-muted-foreground mt-1">{description}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {showFacility && (
-                <Select value={facilityKey} onValueChange={onFacilityChange}>
-                  <SelectTrigger className="w-[260px]" data-testid="select-admin-facility">
-                    <SelectValue placeholder="選擇場館" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FACILITY_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value} data-testid={`option-facility-${o.value}`}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {actions}
-            </div>
-          </div>
-          <nav className="flex gap-1 mt-4 -mb-px overflow-x-auto" role="tablist">
-            {tabs.map((t) => {
-              const active = location === t.url;
-              return (
-                <Link
-                  key={t.url}
-                  href={t.url}
-                  className={`px-3 py-2 text-xs font-medium rounded-t-md border-b-2 transition whitespace-nowrap ${
-                    active
-                      ? "border-primary text-primary bg-background"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  }`}
-                  data-testid={`tab-${t.slug}`}
-                >
-                  {t.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-      <div className="p-6">{children}</div>
-    </div>
+    <SupervisorModuleShell
+      moduleId={moduleType === "counter" ? "counter-log" : "lifeguard-log"}
+      title={title}
+      eyebrow={`${moduleLabel} · SUPERVISOR REVIEW`}
+      description={description ?? "每日固定、主管交辦與回報審核。"}
+      tabs={tabs.map((tab) => ({ href: tab.url, label: tab.label, testId: `tab-${tab.slug}`, exact: true }))}
+      actions={actionsSlot}
+      layoutMode="wide"
+    >
+      {children}
+    </SupervisorModuleShell>
   );
 }
 
@@ -174,9 +156,7 @@ export function AdminRoleGuard({ children }: { children: ReactNode }) {
       <div className="grid h-full place-items-center p-8">
         <div className="max-w-sm text-center space-y-3" data-testid="text-no-permission">
           <p className="text-lg font-bold">無瀏覽權限</p>
-          <p className="text-sm text-muted-foreground">
-            此頁面僅開放給主管或系統管理員使用，目前帳號無對應權限。
-          </p>
+          <p className="text-sm text-muted-foreground">此頁面僅開放給主管或系統管理員使用，目前帳號無對應權限。</p>
         </div>
       </div>
     );
@@ -185,27 +165,15 @@ export function AdminRoleGuard({ children }: { children: ReactNode }) {
 }
 
 export function ErrorState({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center text-sm text-destructive" data-testid="text-error">
-      {message}
-    </div>
-  );
+  return <SupervisorErrorState message={message} />;
 }
 
 export function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground" data-testid="text-empty">
-      {message}
-    </div>
-  );
+  return <SupervisorEmptyState message={message} />;
 }
 
 export function LoadingState() {
-  return (
-    <div className="grid place-items-center py-16" data-testid="text-loading">
-      <DreamLoader label="載入中" compact />
-    </div>
-  );
+  return <SupervisorLoadingState />;
 }
 
 const SHIFT_LABEL: Record<string, string> = {

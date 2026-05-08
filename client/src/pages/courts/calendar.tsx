@@ -155,14 +155,14 @@ export default function CourtsCalendarPage() {
   const noCourts = schoolCourts.length === 0;
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans">
+    <div className="font-sans">
       <AppHeader
         rightSlot={headerRight}
         lastSync={dataUpdatedAt || null}
         syncLoading={isFetching}
       />
 
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main>
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h2

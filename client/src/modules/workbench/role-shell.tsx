@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Building2,
+  CalendarDays,
   ClipboardCheck,
   ClipboardList,
   FileText,
@@ -31,6 +32,7 @@ import { useAuthMe } from "@/shared/auth/session";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { facilityConfigs } from "@/config/facility-configs";
+import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 
 // Rollout-scoped slots: hidden unless the caller has access to one of the
 // listed facilities (system role bypasses). Mirrors server-side allowlist
@@ -54,6 +56,7 @@ const iconByKey: Record<string, LucideIcon> = {
   "message-square-text": FileText,
   "file-text": FileText,
   "graduation-cap": GraduationCap,
+  "calendar-days": CalendarDays,
   gauge: Gauge,
   "shield-check": ShieldCheck,
   search: Search,
@@ -67,43 +70,6 @@ const iconByKey: Record<string, LucideIcon> = {
   car: Car,
 };
 
-type NavigationSlot = {
-  ids: string[];
-  label: string;
-  href: string;
-  iconKey: string;
-};
-
-const systemNavigationSlots: NavigationSlot[] = [
-  { ids: ["system-dashboard", "dashboard"], label: "系統總覽", href: "/system", iconKey: "gauge" },
-  { ids: ["system-health"], label: "系統健康", href: "/system/health", iconKey: "gauge" },
-  { ids: ["system-observability", "watchdog-events"], label: "告警中心", href: "/system/alerts", iconKey: "bell" },
-  {
-    ids: ["integration-sync-jobs", "linebot-integration", "schedule-integration", "ragic-integration"],
-    label: "整合狀態",
-    href: "/system/integrations",
-    iconKey: "link",
-  },
-  { ids: ["telemetry-audit"], label: "Audit / Telemetry", href: "/system/audit", iconKey: "shield-check" },
-  { ids: ["raw-inspector"], label: "Raw Inspector", href: "/system/raw-inspector", iconKey: "shield-check" },
-  { ids: ["employee-training"], label: "教材觀看紀錄", href: "/system/training-views", iconKey: "graduation-cap" },
-  { ids: ["system-topology"], label: "模組拓撲圖", href: "/system/topology", iconKey: "network" },
-];
-
-const supervisorNavigationSlots: NavigationSlot[] = [
-  { ids: ["supervisor-dashboard", "dashboard"], label: "營運總覽", href: "/supervisor", iconKey: "home" },
-  { ids: ["facilities"], label: "場館", href: "/supervisor/facilities", iconKey: "building" },
-  { ids: ["tasks"], label: "任務管理", href: "/supervisor/tasks", iconKey: "clipboard-check" },
-  { ids: ["announcements", "announcement-review"], label: "公告管理", href: "/supervisor/announcements", iconKey: "megaphone" },
-  { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
-  { ids: ["counter-logs"], label: "櫃台日誌", href: "/admin/counter-logs/submissions", iconKey: "clipboard-check" },
-  { ids: ["lane-rentals"], label: "水道租借", href: "/admin/lane-rentals", iconKey: "waves" },
-  { ids: ["parking"], label: "停車場管理", href: "/admin/parking/dashboard", iconKey: "car" },
-  { ids: ["employee-training"], label: "員工教材", href: "/supervisor/training", iconKey: "graduation-cap" },
-  { ids: ["anomalies"], label: "異常審核", href: "/supervisor/anomalies", iconKey: "shield-check" },
-  { ids: ["analytics"], label: "報表", href: "/supervisor/reports", iconKey: "gauge" },
-];
-
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
   id: item.id,
   label: item.name,
@@ -112,23 +78,22 @@ const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
 });
 
 const toSystemNavItems = (items: NavigationModuleDto[] | undefined): NavItem[] => {
-  const systemItems = (items ?? []).filter((item) => item.routePath.startsWith("/system"));
-  const systemItemsById = new Map(systemItems.map((item) => [item.id, item]));
+  const systemItemsById = new Map((items ?? []).filter((item) => item.routePath.startsWith("/system")).map((item) => [item.id, item]));
 
-  return systemNavigationSlots.map((slot) => {
-    const item = slot.ids.map((id) => systemItemsById.get(id)).find(Boolean);
+  return getWorkbenchRoutes("system").map((route) => {
+    const item = systemItemsById.get(route.moduleId);
     return item
       ? {
           ...fromNavigationModule(item),
-          label: slot.label,
-          href: slot.href,
-          Icon: iconByKey[item.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+          label: route.label,
+          href: route.primaryPath,
+          Icon: iconByKey[item.iconKey] ?? iconByKey[route.iconKey] ?? Home,
         }
       : {
-          id: slot.ids[0],
-          label: slot.label,
-          href: slot.href,
-          Icon: iconByKey[slot.iconKey] ?? Home,
+          id: route.moduleId,
+          label: route.label,
+          href: route.primaryPath,
+          Icon: iconByKey[route.iconKey] ?? Home,
         };
   });
 };
@@ -147,30 +112,27 @@ const toRoleNavItems = (
     return toSystemNavItems(items);
   }
 
-  const supervisorItems = (items ?? []).filter((item) => item.routePath.startsWith("/supervisor"));
-  const supervisorItemsById = new Map(supervisorItems.map((item) => [item.id, item]));
-  return supervisorNavigationSlots.filter((slot) => {
-    const requiredFacilities = slot.ids
-      .map((id) => FACILITY_SCOPED_SLOTS[id])
-      .find((v) => Array.isArray(v));
+  const supervisorItemsById = new Map((items ?? []).map((item) => [item.id, item]));
+  return getWorkbenchRoutes("supervisor").filter((route: WorkbenchRouteDescriptor) => {
+    const requiredFacilities = FACILITY_SCOPED_SLOTS[route.moduleId];
     if (!requiredFacilities) return true;
     if (!sessionContext) return false;
     if (sessionContext.isSystem) return true;
     return requiredFacilities.some((fk) => sessionContext.grantedFacilities.includes(fk));
-  }).map((slot) => {
-    const item = slot.ids.map((id) => supervisorItemsById.get(id)).find(Boolean);
+  }).map((route) => {
+    const item = supervisorItemsById.get(route.moduleId);
     return item
       ? {
           ...fromNavigationModule(item),
-          label: slot.label,
-          href: slot.href,
-          Icon: iconByKey[item.iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+          label: route.label,
+          href: route.primaryPath,
+          Icon: iconByKey[item.iconKey] ?? iconByKey[route.iconKey] ?? Home,
         }
       : {
-          id: slot.ids[0],
-          label: slot.label,
-          href: slot.href,
-          Icon: iconByKey[slot.iconKey] ?? Home,
+          id: route.moduleId,
+          label: route.label,
+          href: route.primaryPath,
+          Icon: iconByKey[route.iconKey] ?? Home,
         };
   });
 };

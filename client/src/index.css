@@ -260,6 +260,57 @@
   box-shadow: var(--supervisor-shadow-sm);
 }
 
+.supervisor-module {
+  color: var(--supervisor-text);
+}
+
+.supervisor-module :is(.bg-card, .bg-background, .bg-white) {
+  background-color: var(--supervisor-surface);
+}
+
+.supervisor-module :is(.border-border, .border-gray-200) {
+  border-color: var(--supervisor-border);
+}
+
+.supervisor-module :is(.rounded-lg, .rounded-xl) {
+  border-radius: 8px;
+}
+
+.supervisor-module :is(input, textarea, button, [role="combobox"]) {
+  letter-spacing: 0;
+}
+
+.supervisor-module :is(input, textarea, [role="combobox"]) {
+  border-color: var(--supervisor-border-strong);
+  background-color: #fff;
+  color: var(--supervisor-text);
+}
+
+.supervisor-module :is(table) {
+  border-color: var(--supervisor-border);
+}
+
+.supervisor-module :is(th) {
+  color: var(--supervisor-text);
+  font-weight: 800;
+}
+
+.supervisor-module :is(td) {
+  color: var(--supervisor-text-2);
+}
+
+.supervisor-module :is(.shadow-sm) {
+  box-shadow: var(--supervisor-shadow-sm);
+}
+
+.supervisor-module :is(.text-muted-foreground, .text-gray-500, .text-gray-600) {
+  color: var(--supervisor-text-3);
+}
+
+.supervisor-module :is(.text-gray-900, .text-foreground) {
+  color: var(--supervisor-text);
+}
+
 .supervisor-workbench .workbench-card:hover {
   border-color: var(--supervisor-border-strong);
   box-shadow: var(--supervisor-shadow-md);

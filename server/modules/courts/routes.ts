@@ -2,9 +2,11 @@ import type { Express, Request, Response, RequestHandler } from "express";
 import { z } from "zod";
 import {
   courtBatchImportSchema,
+  insertCourtReservationSchema,
   COURT_SCHOOL_IDS,
   type CourtSchoolId,
 } from "@shared/schema";
+import type { AuditEventInput } from "../../shared/telemetry/audit-writer";
 import { isValidCourtForSchool } from "@shared/court-config";
 import { courtsStorage } from "./storage";
 import {
@@ -16,6 +18,7 @@ import {
 interface RegisterDeps {
   requireEmployee: () => RequestHandler;
   requireSupervisor: () => RequestHandler;
+  recordAudit?: (event: AuditEventInput) => Promise<void>;
 }
 
 const isCourtSchool = (s: unknown): s is CourtSchoolId =>
@@ -34,8 +37,42 @@ function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+type CourtCaller = {
+  employeeNumber?: string;
+  name?: string;
+  isSupervisor?: boolean;
+};
+
+const getCourtCaller = (req: Request): CourtCaller => {
+  const caller = (req as unknown as { caller?: CourtCaller }).caller;
+  return caller ?? {
+    employeeNumber: req.workbenchSession?.userId,
+    name: req.workbenchSession?.displayName,
+    isSupervisor: req.workbenchSession?.grantedRoles?.includes("supervisor") || req.workbenchSession?.grantedRoles?.includes("system"),
+  };
+};
+
+const roleFromRequest = (req: Request, caller: CourtCaller) =>
+  req.workbenchSession?.activeRole ?? (caller.isSupervisor ? "supervisor" : "employee");
+
 export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
   const auth = deps.requireEmployee();
+  const audit = async (
+    req: Request,
+    input: Omit<AuditEventInput, "actorId" | "role"> & { role?: string },
+  ) => {
+    if (!deps.recordAudit) return;
+    const caller = getCourtCaller(req);
+    try {
+      await deps.recordAudit({
+        actorId: caller.employeeNumber ?? "unknown",
+        role: input.role ?? roleFromRequest(req, caller),
+        ...input,
+      });
+    } catch (error) {
+      console.warn("[courts] audit write failed:", error);
+    }
+  };
 
   app.get(
     "/api/courts/:school/reservations/:date",
@@ -65,7 +102,15 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
           }
         }
 
-        res.json([...local, ...googleEvents]);
+        const reservations = [...local, ...googleEvents];
+        await audit(req, {
+          action: "COURTS_RESERVATIONS_VIEWED",
+          resource: "courts.reservations",
+          facilityKey: school,
+          payload: { school, date, count: reservations.length },
+          resultStatus: "success",
+        });
+        res.json(reservations);
       } catch (error) {
         console.error(
           "[courts] GET /api/courts/:school/reservations/:date failed:",
@@ -127,6 +172,13 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
           if (counts[r.date] !== undefined) counts[r.date] += 1;
         }
 
+        await audit(req, {
+          action: "COURTS_MONTH_VIEWED",
+          resource: "courts.reservations",
+          facilityKey: school,
+          payload: { school, yearMonth, startDate, endDate, count: local.length + googleEvents.length },
+          resultStatus: "success",
+        });
         res.json({ yearMonth, counts });
       } catch (error) {
         console.error("[courts] month aggregation failed:", error);
@@ -141,7 +193,16 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
       if (!school) return;
 
       const q = String(req.query.q ?? "").trim();
-      if (!q) return res.json({ query: "", count: 0, results: [] });
+      if (!q) {
+        await audit(req, {
+          action: "COURTS_RESERVATION_SEARCHED",
+          resource: "courts.search",
+          facilityKey: school,
+          payload: { school, query: "", count: 0 },
+          resultStatus: "success",
+        });
+        return res.json({ query: "", count: 0, results: [] });
+      }
 
       const today = new Date();
       const defaultStart = new Date(today);
@@ -200,6 +261,13 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
         return a.court - b.court;
       });
 
+      await audit(req, {
+        action: "COURTS_RESERVATION_SEARCHED",
+        resource: "courts.search",
+        facilityKey: school,
+        payload: { school, query: q, startDate, endDate, count: matches.length },
+        resultStatus: "success",
+      });
       res.json({
         query: q,
         startDate,
@@ -240,6 +308,13 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
           startDate,
           endDate,
         );
+        await audit(req, {
+          action: "COURTS_RESERVATION_ADMIN_LISTED",
+          resource: "courts.admin.reservations",
+          facilityKey: school,
+          payload: { school, startDate, endDate, count: rows.length },
+          resultStatus: "success",
+        });
         res.json({ startDate, endDate, count: rows.length, results: rows });
       } catch (error) {
         console.error("[courts] admin list failed:", error);
@@ -317,6 +392,22 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
         cursor.setDate(cursor.getDate() + 1);
       }
 
+      await audit(req, {
+        action: "COURTS_RESERVATION_IMPORTED",
+        resource: "courts.admin.import",
+        facilityKey: school,
+        payload: {
+          school,
+          court: payload.court,
+          startDate: payload.startDate,
+          endDate: payload.endDate,
+          startTime: payload.startTime,
+          endTime: payload.endTime,
+          createdCount: created.length,
+          skippedCount: skipped.length,
+        },
+        resultStatus: "success",
+      });
       res.json({
         createdCount: created.length,
         skippedCount: skipped.length,
@@ -364,6 +455,89 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
     }
   });
 
+  app.patch(
+    "/api/courts/:school/admin/reservations/:id",
+    auth,
+    async (req, res) => {
+      try {
+        const school = pickSchool(req, res);
+        if (!school) return;
+        const id = String(req.params.id);
+        const existing = await courtsStorage.getReservation(id);
+        if (!existing) return res.status(404).json({ message: "找不到該預約" });
+        if (existing.school !== school) {
+          return res.status(403).json({ message: "預約不屬於該學校" });
+        }
+
+        const patchSchema = insertCourtReservationSchema.partial().omit({ school: true, source: true });
+        const payload = patchSchema.parse(req.body);
+        const next = {
+          ...existing,
+          ...payload,
+          school,
+          source: existing.source,
+        };
+
+        if (!isValidCourtForSchool(school, next.court)) {
+          return res
+            .status(400)
+            .json({ message: `場地 ${next.court} 不屬於 ${school}` });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(next.date)) {
+          return res.status(400).json({ message: "日期格式須為 YYYY-MM-DD" });
+        }
+        const toMin = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          return h * 60 + m;
+        };
+        if (!/^\d{2}:\d{2}$/.test(next.startTime) || !/^\d{2}:\d{2}$/.test(next.endTime) || toMin(next.endTime) <= toMin(next.startTime)) {
+          return res.status(400).json({ message: "時間格式無效或結束時間未晚於開始時間" });
+        }
+        const conflict = await courtsStorage.checkConflict(
+          school,
+          next.date,
+          next.court,
+          next.startTime,
+          next.endTime,
+          id,
+        );
+        if (conflict) {
+          return res.status(409).json({ message: "已有相同場地時段預約" });
+        }
+        const nextStatus = ["confirmed", "pending", "member"].includes(next.status)
+          ? (next.status as "confirmed" | "pending" | "member")
+          : "confirmed";
+
+        const updated = await courtsStorage.updateReservation(id, {
+          date: next.date,
+          court: next.court,
+          startTime: next.startTime,
+          endTime: next.endTime,
+          customerName: next.customerName,
+          phone: next.phone ?? "",
+          notes: next.notes ?? null,
+          status: nextStatus,
+          serviceName: next.serviceName ?? null,
+        });
+        await audit(req, {
+          action: "COURTS_RESERVATION_UPDATED",
+          resource: "courts.reservation",
+          resourceId: id,
+          facilityKey: school,
+          payload: { school, before: existing, after: updated },
+          resultStatus: "success",
+        });
+        res.json(updated);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "參數驗證失敗", errors: error.errors });
+        }
+        console.error("[courts] update failed:", error);
+        res.status(500).json({ message: "更新失敗" });
+      }
+    },
+  );
+
   app.delete(
     "/api/courts/:school/admin/reservations/:id",
     auth,
@@ -379,6 +553,14 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
         }
         const ok = await courtsStorage.deleteReservation(id);
         if (!ok) return res.status(404).json({ message: "找不到該預約" });
+        await audit(req, {
+          action: "COURTS_RESERVATION_DELETED",
+          resource: "courts.reservation",
+          resourceId: id,
+          facilityKey: school,
+          payload: { school, reservation: r },
+          resultStatus: "success",
+        });
         res.json({ success: true });
       } catch {
         res.status(500).json({ message: "刪除失敗" });

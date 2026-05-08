@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AppHeader } from "./_components/app-header";
+import { AppHeader, getCourtsBasePath } from "./_components/app-header";
 import { useSchool } from "@/lib/court-school";
 import { getTodayString } from "@/lib/court-date-utils";
 
@@ -35,7 +35,8 @@ function buildMonthCells(year: number, month: number) {
 export default function CourtsMonthPage() {
   const today = getTodayString();
   const school = useSchool();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const basePath = getCourtsBasePath(location);
 
   const initialDate = new Date(today + "T00:00:00");
   const [currentMonth, setCurrentMonth] = useState({
@@ -78,7 +79,7 @@ export default function CourtsMonthPage() {
   };
 
   const handleDateClick = (dateStr: string) =>
-    setLocation(`/courts/${school}?date=${dateStr}`);
+    setLocation(`${basePath}/${school}?date=${dateStr}`);
 
   const monthDisplay = format(
     new Date(`${yearMonth}-01T00:00:00`),
@@ -123,14 +124,14 @@ export default function CourtsMonthPage() {
   );
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans">
+    <div className="font-sans">
       <AppHeader
         rightSlot={headerRight}
         lastSync={dataUpdatedAt || null}
         syncLoading={isFetching}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main>
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900">

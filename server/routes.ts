@@ -838,7 +838,11 @@ export async function registerRoutes(
   registerParkingRoutes(app, { requireEmployee, requireSupervisor });
 
   const { registerCourtsRoutes } = await import("./modules/courts/routes");
-  registerCourtsRoutes(app, { requireEmployee, requireSupervisor });
+  registerCourtsRoutes(app, {
+    requireEmployee,
+    requireSupervisor,
+    recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
+  });
 
   // Object Storage routes (presigned upload + /objects/:path proxy).
   const { registerObjectStorageRoutes } = await import("./replit_integrations/object_storage");

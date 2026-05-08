@@ -45,7 +45,9 @@ export const useSwitchFacility = () => {
     onSuccess: (session) => {
       queryClient.setQueryData(authMeKey, session);
       queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/lifeguard/home"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/work-logs/today"] });
     },
   });
 };

@@ -7,17 +7,18 @@ import { apiGet } from "@/shared/api/client";
 import { fetchModuleHealth } from "@/shared/modules/api";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { RoleShell } from "@/modules/workbench/role-shell";
+import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
 import { cn } from "@/lib/utils";
 
 const fetchSystemOverview = () => apiGet<SystemOverviewDto>("/api/bff/system/overview");
 const metricIcons: readonly LucideIcon[] = [Gauge, Server, Database, ShieldAlert, Users];
-const quickTools: readonly (readonly [label: string, Icon: LucideIcon])[] = [
-  ["Raw Inspector", FileSearch],
-  ["操作稽核查詢", ShieldAlert],
-  ["整合監控", Server],
-  ["報表產生器", Database],
-  ["設定管理", Settings],
-  ["使用者管理", Users],
+const quickTools: readonly FloatingQuickActionItem[] = [
+  { label: "Raw Inspector", helper: "受控 API 探查", href: "/system/raw-inspector", Icon: FileSearch },
+  { label: "操作稽核查詢", helper: "Audit log 檢視", href: "/system/audit", Icon: ShieldAlert },
+  { label: "整合監控", helper: "外部串接狀態", href: "/system/integrations", Icon: Server },
+  { label: "系統健康", helper: "Module health", href: "/system/health", Icon: Database },
+  { label: "設定管理", helper: "系統入口總覽", href: "/system", Icon: Settings },
+  { label: "教育紀錄", helper: "教材檢視紀錄", href: "/system/training-views", Icon: Users },
 ];
 
 function StatusBadge({ status }: { status: "ok" | "warning" | "critical" }) {
@@ -162,17 +163,7 @@ export default function SystemDashboardPage() {
             </WorkbenchCard>
           </div>
 
-          <WorkbenchCard className="p-5">
-            <h2 className="mb-4 text-[15px] font-black">快速工具</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-              {quickTools.map(([label, Icon]) => (
-                <button key={label} className="min-h-[76px] rounded-[8px] bg-[#fbfcfd] p-3 text-[12px] font-black text-[#263b56] hover:bg-white hover:shadow">
-                  <Icon className="mx-auto mb-2 h-5 w-5 text-[#2f6fe8]" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </WorkbenchCard>
+          <FloatingQuickActionsPanel eyebrow="Floating Tools" title="快速工具" items={[...quickTools]} tone="blue" />
         </div>
       )}
     </RoleShell>

@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AppHeader } from "./_components/app-header";
+import { AppHeader, getCourtsBasePath } from "./_components/app-header";
 import { ReservationDetailModal } from "./_components/reservation-detail-modal";
 import { useSchool } from "@/lib/court-school";
 import { getTodayString } from "@/lib/court-date-utils";
@@ -84,6 +84,7 @@ export default function CourtsWeekPage() {
   const today = getTodayString();
   const school = useSchool();
   const [location, navigate] = useLocation();
+  const basePath = getCourtsBasePath(location);
   const schoolCourts = getCourtsBySchool(school);
 
   const initialAnchor = useMemo(() => {
@@ -245,14 +246,14 @@ export default function CourtsWeekPage() {
   const noCourts = schoolCourts.length === 0;
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans">
+    <div className="font-sans">
       <AppHeader
         rightSlot={headerRight}
         lastSync={lastSync}
         syncLoading={isFetching}
       />
 
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main>
         <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -302,7 +303,7 @@ export default function CourtsWeekPage() {
                       <button
                         key={dateStr}
                         onClick={() =>
-                          navigate(`/courts/${school}?date=${dateStr}`)
+                          navigate(`${basePath}/${school}?date=${dateStr}`)
                         }
                         data-testid={`week-header-${dateStr}`}
                         title="點擊查看該日詳細排程"
@@ -512,7 +513,7 @@ export default function CourtsWeekPage() {
               </div>
 
               <div className="pt-2 border-t border-gray-100">
-                <Link href={`/courts/${school}?date=${openCellData.date}`}>
+                <Link href={`${basePath}/${school}?date=${openCellData.date}`}>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -27,6 +27,7 @@ import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
+import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 
 type EmployeeNavItem = {
   id: string;
@@ -50,21 +51,6 @@ const iconByKey: Record<string, LucideIcon> = {
   search: Search,
 };
 
-const employeeNavigationSlots: Array<{
-  ids: string[];
-  label: string;
-  href: string;
-  iconKey: string;
-}> = [
-  { ids: ["employee-home", "dashboard"], label: "首頁", href: "/employee", iconKey: "home" },
-  { ids: ["handover"], label: "櫃台交接", href: "/employee/handover", iconKey: "message-square-text" },
-  { ids: ["activity-periods", "campaigns-events"], label: "活動檔期/課程快訊", href: "/employee/activity-periods", iconKey: "calendar-days" },
-  { ids: ["employee-resources", "quick-links"], label: "常用文件", href: "/employee/documents", iconKey: "file-text" },
-  { ids: ["employee-training"], label: "員工教材", href: "/employee/training", iconKey: "graduation-cap" },
-  { ids: ["personal-note"], label: "個人工作記事", href: "/employee/personal-note", iconKey: "file-text" },
-  { ids: ["knowledge-base-qna"], label: "相關問題詢問", href: "/employee/qna", iconKey: "book-open" },
-];
-
 const isActivePath = (location: string, href: string) =>
   href === "/employee" ? location === href || location === "/EMPLOYEE" : location === href || location.startsWith(`${href}/`);
 
@@ -72,14 +58,14 @@ const toEmployeeNavItems = (items: NavigationModuleDto[] | undefined): EmployeeN
   const apiItems = (items ?? []).filter((item) => item.routePath.startsWith("/employee"));
   const sourceById = new Map(apiItems.map((item) => [item.id, item]));
 
-  return employeeNavigationSlots.map((slot) => {
-    const source = slot.ids.map((id) => sourceById.get(id)).find(Boolean);
-    const iconKey = source?.iconKey ?? slot.iconKey;
+  return getWorkbenchRoutes("employee").map((route) => {
+    const source = sourceById.get(route.moduleId);
+    const iconKey = source?.iconKey ?? route.iconKey;
     return {
-      id: source?.id ?? slot.ids[0],
-      label: slot.label,
-      href: slot.href,
-      Icon: iconByKey[iconKey] ?? iconByKey[slot.iconKey] ?? Home,
+      id: source?.id ?? route.moduleId,
+      label: route.label,
+      href: route.primaryPath,
+      Icon: iconByKey[iconKey] ?? iconByKey[route.iconKey] ?? Home,
     };
   });
 };
@@ -89,11 +75,13 @@ function EmployeeDesktopSidebar({
   loading,
   location,
   onNavigate,
+  facilityName,
 }: {
   items: EmployeeNavItem[];
   loading: boolean;
   location: string;
   onNavigate: (item: EmployeeNavItem) => void;
+  facilityName: string;
 }) {
   return (
     <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-4 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
@@ -104,7 +92,7 @@ function EmployeeDesktopSidebar({
           <span className="h-2 w-2 rounded-full bg-[#9dd84f]" />
           營運中
         </div>
-        <p className="line-clamp-2 text-[13px] font-bold">新北高中游泳池 & 運動中心</p>
+        <p className="line-clamp-2 text-[13px] font-bold">{facilityName}</p>
       </div>
 
       <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
@@ -154,11 +142,12 @@ function FacilitySwitcher() {
   const { data: session } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
-  if (granted.length <= 1) return null;
+  if (!granted.length) return null;
+  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : granted[0];
 
   return (
     <select
-      value={session?.activeFacility ?? granted[0]}
+      value={activeFacility}
       onChange={(event) => switchFacility.mutate(event.target.value)}
       className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f]"
       aria-label="切換館別"
@@ -183,6 +172,9 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
   });
   const nav = toEmployeeNavItems(navigation.data?.items);
   const mobileItems = nav.slice(0, 5);
+  const granted = session?.grantedFacilities ?? [];
+  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
+  const facilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "尚未選擇場館";
 
   return (
     <div className="workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]">
@@ -192,6 +184,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
           loading={navigation.isLoading}
           location={location}
           onNavigate={(item) => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
+          facilityName={facilityName}
         />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white/[0.92] lg:text-[#10233f] lg:backdrop-blur-xl">
@@ -204,7 +197,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
                   <Home className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0">
-                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] lg:text-[13px] lg:text-[#10233f]">{facilityConfigs[session?.activeFacility ?? "xinbei_pool"]?.facilityName ?? "新北泳池館"}</p>
+                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] lg:text-[13px] lg:text-[#10233f]">{facilityName}</p>
                   <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] lg:block">Dashboard</p>
                 </div>
               </div>
