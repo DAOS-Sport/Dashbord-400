@@ -254,6 +254,24 @@ function WorkbenchRouter() {
       <Route path="/supervisor/courts">
         <Redirect to="/supervisor/courts/xinbei" />
       </Route>
+      <Route path="/courts/:school/week">
+        {(params) => <Redirect to={`/supervisor/courts/${params.school}/week`} />}
+      </Route>
+      <Route path="/courts/:school/month">
+        {(params) => <Redirect to={`/supervisor/courts/${params.school}/month`} />}
+      </Route>
+      <Route path="/courts/:school/search">
+        {(params) => <Redirect to={`/supervisor/courts/${params.school}/search`} />}
+      </Route>
+      <Route path="/courts/:school/admin">
+        {(params) => <Redirect to={`/supervisor/courts/${params.school}/admin`} />}
+      </Route>
+      <Route path="/courts/:school">
+        {(params) => <Redirect to={`/supervisor/courts/${params.school}`} />}
+      </Route>
+      <Route path="/courts">
+        <Redirect to="/supervisor/courts/xinbei" />
+      </Route>
       <Route path="/supervisor/tasks">
         <SupervisorTasksPage />
       </Route>

@@ -70,5 +70,5 @@ The system is designed with a modular project structure, separating client-side 
 - 共用設定：`shared/court-config.ts`（school/court 列表、解析正規式）。
 - 後端：`server/modules/courts/{routes,storage,google-calendar}.ts`，掛載於 `/api/courts/:school/...`，全部端點走 `requireEmployee()`（員工＋主管皆可讀寫）。Google Calendar 同步在缺少 `GOOGLE_REFRESH_TOKEN` 時 no-op。
 - 資料表：`court_reservations`、`court_sync_logs`、`court_sync_errors`（school 欄位區分學校）。
-- 前端：`client/src/pages/courts/{calendar,week,month,search,admin}.tsx`、共用元件於 `_components/`、`@/lib/court-{school,utils,date-utils}`，路由 `/courts/:school[/(week|month|search|admin)]`，已加入 sidebar「場地預約」分組與員工首頁導覽。
+- 前端：`client/src/pages/courts/{calendar,week,month,search,admin}.tsx`、共用元件於 `_components/`、`@/lib/court-{school,utils,date-utils}`。路由分主管/員工兩套：`/supervisor/courts/:school[/(week|month|search|admin)]`（包 `SupervisorCourtsFrame`）、`/employee/courts/:school[/(week|month|search|admin)]`（包 `EmployeeCourtsFrame`）。`/courts/:school[/...]` 為 legacy alias，自動 redirect 到 supervisor 版。Sidebar「場地預約」分組指向主管路由；員工 nav 透過 `getWorkbenchRoutes("employee")` 自動帶入 `/employee/courts/xinbei`。
 - 拓撲：`courts-xinbei`、`courts-sanchong` 節點與 PostgreSQL、Google Calendar 邊在 `topology-config.ts`。

@@ -74,3 +74,40 @@ export async function fetchLineMessages(params: {
 export function clearLineMessagesCache() {
   cache.clear();
 }
+
+export async function fetchRecentLineMessages(params: {
+  hours?: number;
+  limit?: number;
+  type?: "text";
+}): Promise<LineMessagesResponse> {
+  if (!env.lineBotAdminToken) {
+    throw new Error("LINE_BOT_ADMIN_TOKEN not configured");
+  }
+  const url = new URL("/api/admin/messages", env.lineBotBaseUrl);
+  url.searchParams.set("sourceType", "group");
+  if (params.type) url.searchParams.set("type", params.type);
+  url.searchParams.set("limit", String(params.limit ?? 200));
+  if (params.hours) {
+    url.searchParams.set("start", new Date(Date.now() - params.hours * 3_600_000).toISOString());
+  }
+
+  const cacheKey = url.toString();
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${env.lineBotAdminToken}`,
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new Error(`upstream ${response.status}`);
+  }
+  const data = (await response.json()) as LineMessagesResponse;
+  cache.set(cacheKey, { fetchedAt: Date.now(), data });
+  return data;
+}

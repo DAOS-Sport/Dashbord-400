@@ -61,8 +61,8 @@ const navItems = [
   { title: "租約管理", url: "/admin/parking/contracts", icon: FileText, group: "停車場" },
   { title: "付款審核", url: "/admin/parking/payments", icon: Wallet, group: "停車場" },
   { title: "活動日", url: "/admin/parking/event-days", icon: CalendarRange, group: "停車場" },
-  { title: "新北高中", url: "/courts/xinbei", icon: Trophy, group: "場地預約" },
-  { title: "三重商工", url: "/courts/sanchong", icon: Trophy, group: "場地預約" },
+  { title: "新北高中", url: "/supervisor/courts/xinbei", icon: Trophy, group: "場地預約" },
+  { title: "三重商工", url: "/supervisor/courts/sanchong", icon: Trophy, group: "場地預約" },
   { title: "HR 與權限稽核", url: "/hr-audit", icon: ShieldCheck, group: "系統管理" },
   { title: "微服務健康監控", url: "/system-health", icon: Activity, group: "系統管理" },
 ];
