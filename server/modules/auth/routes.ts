@@ -7,7 +7,7 @@ import { createSessionFromAuthUser, createMemorySessionStore, hasRole } from "./
 import { listRagicH05FacilityCandidates, localFacilityCandidates } from "../../integrations/ragic/facility-adapter";
 import { mockRagicAuthAdapter } from "../../integrations/ragic/mock-auth-adapter";
 
-const workbenchRoles: readonly WorkbenchRole[] = ["employee", "supervisor", "system"];
+const workbenchRoles: readonly WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 export const registerAuthRoutes = (app: Express, container: AppContainer) => {
   const sessionStore = createMemorySessionStore();

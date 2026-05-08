@@ -55,6 +55,8 @@ export interface AnnouncementSummary {
   linkLabel?: string;
   acknowledgedAt?: string | null;
   isAcknowledged?: boolean;
+  externalReferenceId?: string;
+  createdAt?: string;
 }
 
 export interface HandoverSummary {
@@ -121,6 +123,7 @@ export interface ShiftSummary {
   timeRange: string;
   status: "active" | "upcoming" | "finished";
   employeeName?: string;
+  facilityKey?: string;
   venueName?: string;
   role?: string;
   startsAt?: string;

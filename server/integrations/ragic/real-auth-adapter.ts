@@ -18,6 +18,7 @@ const RAGIC_KEY = {
 
 const normalizePhone = (phone: unknown) => String(phone || "").trim().replace(/[-\s()]/g, "");
 const isSupervisorTitle = (title: string) => /主管|經理|組長|店長|館長|總監|協理|副理|副總/.test(title);
+const isLifeguardTitle = (title: string) => /救生員|救生/.test(title);
 const parseDepartments = (department: unknown) =>
   Array.isArray(department)
     ? department.map((item) => String(item).trim()).filter(Boolean)
@@ -39,11 +40,12 @@ export const realRagicAuthAdapter: RagicAuthAdapter = {
         userId: "dev-fullstack-1111",
         displayName: "全端測試開發",
         employeeNumber: "1111",
-        title: "系統管理員",
+        title: "系統管理員 / 救生員",
         department: "新北高中, 三重商工, 松山國小, 三民高中",
         departments: ["新北高中", "三重商工", "松山國小", "三民高中"],
         status: "在職",
         isSupervisor: true,
+        isLifeguard: true,
       });
     }
 
@@ -97,6 +99,7 @@ export const realRagicAuthAdapter: RagicAuthAdapter = {
         departments,
         status,
         isSupervisor: isSupervisorTitle(title),
+        isLifeguard: isLifeguardTitle(title),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown Ragic auth error";

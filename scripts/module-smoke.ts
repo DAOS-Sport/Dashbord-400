@@ -10,7 +10,7 @@ import {
 import type { WorkbenchRole } from "../shared/auth/me";
 
 const repoRoot = process.cwd();
-const roles: WorkbenchRole[] = ["employee", "supervisor", "system"];
+const roles: WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 const assert = (condition: boolean, message: string) => {
   if (!condition) throw new Error(message);
@@ -63,6 +63,14 @@ assert(
 assert(
   getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
   `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
+);
+assert(
+  getNavigationModules("lifeguard").map((item) => item.id).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training",
+  `lifeguard navigation order changed: ${getNavigationModules("lifeguard").map((item) => item.id).join(",")}`,
+);
+assert(
+  getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training,search",
+  `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",")}`,
 );
 assert(
   getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,tasks,announcements,handover,employee-training,anomalies,analytics",
@@ -147,11 +155,17 @@ assert(/app\.get\("\/api\/bff\/employee\/search",\s*requireSession/.test(bffRout
 assert(/app\.get\("\/api\/search\/global",\s*requireSession/.test(bffRoutes), "/api/search/global must require session");
 assert(/app\.get\("\/api\/bff\/supervisor\/dashboard",\s*requireRole\("supervisor",\s*"system"\)/.test(bffRoutes), "/api/bff/supervisor/dashboard must require supervisor or system role");
 assert(bffRoutes.includes("const mapSystemAnnouncementSummary"), "employee BFF must expose a shared system announcement mapper");
-assert(/const enrichEmployeeHome[\s\S]*storage\.listSystemAnnouncements\(normalizedFacilityKey,\s*false\)/.test(bffRoutes), "employee BFF enrich path must merge supervisor-published system announcements");
+assert(/const enrichEmployeeHome[\s\S]*storage\.listSystemAnnouncements\(normalizedFacilityKey,\s*true\)/.test(bffRoutes), "employee BFF enrich path must merge active supervisor-published system announcements");
 assert(/uniqueAnnouncements\(\[\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(bffRoutes), "employee BFF announcements must merge portal system announcements before projection announcements");
 assert(!authSessionStore.includes("user.isSupervisor ?? true"), "Ragic auth mapping must not fail open to supervisor/system");
 assert(authSessionStore.includes("user.isSupervisor === true"), "Ragic auth mapping must explicitly require isSupervisor === true");
-assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : "employee"'), "Supervisor sessions must default to supervisor, not system");
+assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee"'), "Lifeguard sessions must default to lifeguard and supervisor sessions must default to supervisor, not system");
+assert(authSessionStore.includes('"lifeguard" as const'), "Lifeguard sessions must include lifeguard granted role");
+assert(bffRoutes.includes('/api/bff/lifeguard/home'), "lifeguard BFF home route must be registered");
+assert(appRoutes.includes('/lifeguard/log'), "lifeguard log route must be registered");
+const workLogRoutes = readFileSync(join(repoRoot, "server", "modules", "work-logs", "routes.ts"), "utf8");
+assert(workLogRoutes.includes('action: "LIFEGUARD_LOG_CREATED"'), "lifeguard log create must write audit action");
+assert(workLogRoutes.includes('action: "LIFEGUARD_LOG_UPDATED"'), "lifeguard log update must write audit action");
 assert(telemetryRepository.includes("createPostgresTelemetryRepository"), "createPostgresTelemetryRepository must exist");
 assert(employeeTrainingPage.includes("resourceId: String(item.resourceId ?? item.id)"), "TRAINING_VIEW must send a stable string resourceId");
 assert(employeeQnaPage.includes("fetchKnowledgeBaseQna"), "/employee/qna must read knowledge base Q&A data");

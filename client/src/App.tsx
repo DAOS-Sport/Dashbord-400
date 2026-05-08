@@ -57,6 +57,8 @@ import EmployeeQnaPage from "@/modules/employee/qna/page";
 import EmployeeShiftPage from "@/modules/employee/shift/page";
 import EmployeeTasksPage from "@/modules/employee/tasks/page";
 import EmployeeTrainingPage from "@/modules/employee/training/page";
+import LifeguardHomePage from "@/modules/lifeguard/home/page";
+import LifeguardLogPage from "@/modules/lifeguard/log/page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
 import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
@@ -275,6 +277,7 @@ function WorkbenchRouter() {
       <Route path="/SYSTEM" component={SystemDashboardPage} />
       <Route path="/SUPERVISOR" component={SupervisorDashboardPage} />
       <Route path="/EMPLOYEE" component={EmployeeHomePage} />
+      <Route path="/LIFEGUARD" component={LifeguardHomePage} />
       <Route path="/supervisor/home" component={SupervisorDashboardPage} />
       <Route path="/supervisor/tasks">
         <SupervisorTasksPage />
@@ -310,6 +313,11 @@ function WorkbenchRouter() {
         <SupervisorQnaReviewPage />
       </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
+      <Route path="/lifeguard/log">
+        <LifeguardLogPage />
+      </Route>
+      <Route path="/lifeguard/home" component={LifeguardHomePage} />
+      <Route path="/lifeguard" component={LifeguardHomePage} />
       <Route path="/system/health" component={SystemDashboardPage} />
       <Route path="/system/alerts">
         <SystemAlertsPage />
@@ -389,6 +397,7 @@ function WorkbenchRouter() {
 const routeRoleFromLocation = (location: string): WorkbenchRole | null => {
   const normalized = location.toLowerCase();
   if (normalized === "/employee" || normalized.startsWith("/employee/") || normalized === "/employee/home" || normalized === "/employee".toLowerCase()) return "employee";
+  if (normalized === "/lifeguard" || normalized.startsWith("/lifeguard/")) return "lifeguard";
   if (normalized === "/supervisor" || normalized.startsWith("/supervisor/")) return "supervisor";
   if (normalized === "/system" || normalized.startsWith("/system/")) return "system";
   if (normalized === "/employee" || normalized === "/supervisor" || normalized === "/system") return normalized.slice(1) as WorkbenchRole;
@@ -398,12 +407,14 @@ const routeRoleFromLocation = (location: string): WorkbenchRole | null => {
 const canAccessWorkbenchRole = (session: AuthMeDto, role: WorkbenchRole) => {
   if (role === "system") return session.grantedRoles.includes("system");
   if (role === "supervisor") return session.grantedRoles.includes("supervisor") || session.grantedRoles.includes("system");
+  if (role === "lifeguard") return session.grantedRoles.includes("lifeguard") || session.grantedRoles.includes("system");
   return session.grantedRoles.includes("employee") || session.grantedRoles.includes("supervisor") || session.grantedRoles.includes("system");
 };
 
 const firstAllowedWorkbenchPath = (session: AuthMeDto) => {
   if (session.grantedRoles.includes("system")) return roleHomePath.system;
   if (session.grantedRoles.includes("supervisor")) return roleHomePath.supervisor;
+  if (session.grantedRoles.includes("lifeguard")) return roleHomePath.lifeguard;
   return roleHomePath.employee;
 };
 
@@ -542,6 +553,8 @@ function App() {
     normalizedLocation === "/" ||
     normalizedLocation === "/employee" ||
     normalizedLocation.startsWith("/employee/") ||
+    normalizedLocation === "/lifeguard" ||
+    normalizedLocation.startsWith("/lifeguard/") ||
     normalizedLocation === "/supervisor" ||
     normalizedLocation.startsWith("/supervisor/") ||
     normalizedLocation === "/system" ||

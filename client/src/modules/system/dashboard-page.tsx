@@ -34,6 +34,8 @@ function ModuleHealthBadge({ status }: { status: ModuleHealthDto["status"] }) {
       "rounded-full px-2 py-1 text-[10px] font-black",
       status === "ready"
         ? "bg-[#eaf8ef] text-[#15935d]"
+        : status === "telemetry_pending"
+          ? "bg-[#eef2f6] text-[#536175]"
         : status === "degraded"
           ? "bg-[#fff6e7] text-[#ef7d22]"
           : status === "error"
@@ -51,6 +53,7 @@ export default function SystemDashboardPage() {
   const healthItems = healthQuery.data?.items ?? [];
   const healthCounts = {
     ready: healthItems.filter((item) => item.status === "ready").length,
+    telemetryPending: healthItems.filter((item) => item.status === "telemetry_pending").length,
     degraded: healthItems.filter((item) => item.status === "degraded").length,
     notConnected: healthItems.filter((item) => item.status === "not_connected").length,
     error: healthItems.filter((item) => item.status === "error").length,
@@ -90,6 +93,10 @@ export default function SystemDashboardPage() {
                 <div className="rounded-[8px] bg-[#fbfcfd] p-4">
                   <p className="text-[12px] font-bold text-[#637185]">Ready</p>
                   <p className="mt-2 text-[24px] font-black text-[#15935d]">{healthCounts.ready}</p>
+                </div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4">
+                  <p className="text-[12px] font-bold text-[#637185]">Telemetry Pending</p>
+                  <p className="mt-2 text-[24px] font-black text-[#536175]">{healthCounts.telemetryPending}</p>
                 </div>
                 <div className="rounded-[8px] bg-[#fbfcfd] p-4">
                   <p className="text-[12px] font-bold text-[#637185]">Degraded</p>

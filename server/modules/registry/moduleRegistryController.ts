@@ -11,7 +11,7 @@ import {
   readModuleRegistryItem,
 } from "./moduleRegistryService";
 
-const appRoles: AppRole[] = ["employee", "supervisor", "system", "SYSTEM_ADMIN"];
+const appRoles: AppRole[] = ["employee", "lifeguard", "supervisor", "system", "SYSTEM_ADMIN"];
 
 const isAppRole = (value: string): value is AppRole =>
   appRoles.includes(value as AppRole);

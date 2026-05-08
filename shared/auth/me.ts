@@ -1,4 +1,4 @@
-export type WorkbenchRole = "employee" | "supervisor" | "system";
+export type WorkbenchRole = "employee" | "lifeguard" | "supervisor" | "system";
 
 export interface AuthMeDto {
   userId: string;
@@ -46,12 +46,14 @@ export interface SwitchFacilityRequestDto {
 
 export const roleHomePath: Record<WorkbenchRole, string> = {
   employee: "/employee",
+  lifeguard: "/lifeguard",
   supervisor: "/supervisor",
   system: "/system",
 };
 
 export const roleLabels: Record<WorkbenchRole, string> = {
   employee: "員工",
+  lifeguard: "救生員",
   supervisor: "主管",
   system: "系統",
 };

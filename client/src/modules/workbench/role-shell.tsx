@@ -30,6 +30,7 @@ import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useAuthMe } from "@/shared/auth/session";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
+import { facilityConfigs } from "@/config/facility-configs";
 
 // Rollout-scoped slots: hidden unless the caller has access to one of the
 // listed facilities (system role bypasses). Mirrors server-side allowlist
@@ -95,7 +96,6 @@ const supervisorNavigationSlots: NavigationSlot[] = [
   { ids: ["tasks"], label: "任務管理", href: "/supervisor/tasks", iconKey: "clipboard-check" },
   { ids: ["announcements", "announcement-review"], label: "公告管理", href: "/supervisor/announcements", iconKey: "megaphone" },
   { ids: ["handover"], label: "櫃台交接", href: "/supervisor/handover", iconKey: "message-square-text" },
-  { ids: ["work-logs"], label: "救生員日誌", href: "/admin/work-logs/submissions", iconKey: "lifebuoy" },
   { ids: ["counter-logs"], label: "櫃台日誌", href: "/admin/counter-logs/submissions", iconKey: "clipboard-check" },
   { ids: ["lane-rentals"], label: "水道租借", href: "/admin/lane-rentals", iconKey: "waves" },
   { ids: ["parking"], label: "停車場管理", href: "/admin/parking/dashboard", iconKey: "car" },
@@ -202,6 +202,8 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
   const supervisorShell = role === "supervisor";
+  const activeFacility = session.data?.activeFacility;
+  const activeFacilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "授權場館";
 
   return (
     <div className={cn("workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]", supervisorShell && "supervisor-workbench")}>
@@ -316,7 +318,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                   <RoleSwitcher compact />
                 </div>
                 <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">2026/04/23</button>
-                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">台中館</button>
+                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">{activeFacilityName}</button>
               </div>
             </div>
             {children}

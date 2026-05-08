@@ -64,12 +64,17 @@ export const createMockSession = (
   userId: string,
   displayName: string,
   isSupervisor = false,
+  isLifeguard = false,
   departments: string[] = [],
 ): Omit<SessionRecord, "issuedAt" | "lastActive"> => ({
   userId,
   displayName,
-  grantedRoles: isSupervisor ? ["employee", "supervisor", "system"] : ["employee"],
-  activeRole: isSupervisor ? "supervisor" : "employee",
+  grantedRoles: [
+    "employee",
+    ...(isLifeguard ? ["lifeguard" as const] : []),
+    ...(isSupervisor ? ["supervisor" as const, "system" as const] : []),
+  ],
+  activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee",
   grantedFacilities: resolveGrantedFacilities(isSupervisor, departments),
   activeFacility: resolveGrantedFacilities(isSupervisor, departments)[0] ?? "xinbei_pool",
   permissionsSnapshot: [
@@ -88,6 +93,9 @@ export const createMockSession = (
     "workbench:role:switch",
     "workbench:search",
     "employee:facility:switch",
+    "lifeguard:home:read",
+    "lifeguard:log:read",
+    "lifeguard:log:write",
   ],
 });
 
@@ -104,5 +112,6 @@ export const createSessionFromAuthUser = (user: RagicAuthUser): Omit<SessionReco
     user.userId,
     user.displayName,
     user.isSupervisor === true,
+    user.isLifeguard === true || /救生員|救生/.test(`${user.title ?? ""} ${user.department ?? ""} ${(user.departments ?? []).join(" ")}`),
     user.departments ?? (user.department ? [user.department] : []),
   );

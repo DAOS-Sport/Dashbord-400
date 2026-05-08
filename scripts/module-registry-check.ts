@@ -1,7 +1,7 @@
 import type { AppRole, ModuleDefinition, ModuleImplementationStatus } from "../shared/modules";
 import { MODULE_REGISTRY, assertModuleRegistryValid, getHomepageModules, getModulesByRole } from "../shared/modules";
 
-const roles: AppRole[] = ["employee", "supervisor", "system", "SYSTEM_ADMIN"];
+const roles: AppRole[] = ["employee", "lifeguard", "supervisor", "system", "SYSTEM_ADMIN"];
 const statuses: ModuleImplementationStatus[] = ["implemented", "partial", "planned", "legacy", "external", "mock", "deprecated"];
 
 const countByStatus = (status: ModuleImplementationStatus) =>

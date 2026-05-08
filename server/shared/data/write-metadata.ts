@@ -53,7 +53,7 @@ export const withTaskCreateMetadata = <T extends Record<string, unknown>>(
   actor: ActorContext,
   displayName: string,
 ): T & {
-  source: WorkbenchRole;
+  source: Exclude<WorkbenchRole, "lifeguard">;
   inputSource: MetadataSource;
   createdByUserId: string;
   createdByName: string;
@@ -62,7 +62,7 @@ export const withTaskCreateMetadata = <T extends Record<string, unknown>>(
   facilityKey?: string;
 } => ({
   ...data,
-  source: actor.role,
+  source: actor.role === "lifeguard" ? "employee" : actor.role,
   inputSource: actor.source ?? "manual",
   createdByUserId: actor.userId,
   createdByName: displayName,

@@ -825,7 +825,11 @@ export async function registerRoutes(
 
   // Mount Work Logs (工作日誌) module
   const { registerWorkLogRoutes } = await import("./modules/work-logs/routes");
-  registerWorkLogRoutes(app, { requireEmployee, requireSupervisor });
+  registerWorkLogRoutes(app, {
+    requireEmployee,
+    requireSupervisor,
+    recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
+  });
 
   const { registerLaneRentalRoutes } = await import("./modules/lane-rentals/routes");
   registerLaneRentalRoutes(app, { requireEmployee, requireSupervisor });

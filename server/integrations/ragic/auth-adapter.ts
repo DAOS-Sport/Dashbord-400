@@ -14,6 +14,7 @@ export interface RagicAuthUser {
   departments?: string[];
   status?: string;
   isSupervisor?: boolean;
+  isLifeguard?: boolean;
 }
 
 export interface RagicEmployeeRecord extends RagicAuthUser {

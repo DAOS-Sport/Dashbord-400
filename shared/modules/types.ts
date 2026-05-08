@@ -2,6 +2,7 @@ import type { ModuleId } from "./ids";
 
 export type AppRole =
   | "employee"
+  | "lifeguard"
   | "supervisor"
   | "system"
   | "SYSTEM_ADMIN";
@@ -47,6 +48,7 @@ export interface ModuleRouteBinding {
     | "legacy_admin"
     | "legacy_portal"
     | "employee"
+    | "lifeguard"
     | "supervisor"
     | "system"
     | "api"
@@ -120,6 +122,7 @@ export interface ModuleDefinition {
   homepageWidget: boolean;
   priority: {
     employee?: number;
+    lifeguard?: number;
     supervisor?: number;
     system?: number;
   };
@@ -170,7 +173,7 @@ export interface ModuleDescriptor {
   description: string;
   domain: ModuleDescriptorDomain;
   stage: ModuleStage;
-  roles: Extract<AppRole, "employee" | "supervisor" | "system">[];
+  roles: Extract<AppRole, "employee" | "lifeguard" | "supervisor" | "system">[];
   defaultEnabled: boolean;
   navVisible: boolean;
   cardVisible: boolean;
@@ -219,7 +222,7 @@ export interface HomeCardDto {
 
 export interface ModuleHealthDto {
   moduleId: string;
-  status: "ready" | "degraded" | "not_connected" | "error";
+  status: "ready" | "telemetry_pending" | "degraded" | "not_connected" | "error";
   routeOk: boolean;
   bffOk: boolean;
   permissionOk: boolean;

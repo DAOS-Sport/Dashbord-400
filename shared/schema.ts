@@ -18,7 +18,7 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 const metadataSourceSchema = z.enum(["manual", "agent", "webhook", "system", "migration", "external", "external-checkin-system"]);
-const workbenchRoleSchema = z.enum(["employee", "supervisor", "system"]);
+const workbenchRoleSchema = z.enum(["employee", "lifeguard", "supervisor", "system"]);
 
 export const facilities = pgTable("facilities", {
   id: serial("id").primaryKey(),

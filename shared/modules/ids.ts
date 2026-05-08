@@ -1,6 +1,8 @@
 export const MODULE_IDS = [
   "auth",
   "dashboard",
+  "lifeguard-home",
+  "lifeguard-log",
   "analytics",
   "operations",
   "hr-audit",

@@ -289,23 +289,12 @@ function SectionTitle({
 function DesktopSidebar() {
   const [location] = useLocation();
   const trackEvent = useTrackEvent();
-  const { data: session } = useAuthMe();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", "employee-home-sidebar"],
     queryFn: fetchModuleNavigation,
     staleTime: 60_000,
   });
-  const baseItems = toEmployeeNavigationItems(navigation.data?.items);
-  const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
-  const workLogItem: EmployeeNavigationItem = {
-    id: "work-log",
-    label: "救生員日誌",
-    icon: ClipboardCheck,
-    href: `/portal/${workLogFacility}/work-log`,
-  };
-  const items: EmployeeNavigationItem[] = baseItems.length
-    ? [baseItems[0], workLogItem, ...baseItems.slice(1)]
-    : [workLogItem];
+  const items = toEmployeeNavigationItems(navigation.data?.items);
   return (
     <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[18px] text-white" />
@@ -1591,24 +1580,12 @@ function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHom
 function BottomNav() {
   const [location] = useLocation();
   const trackEvent = useTrackEvent();
-  const { data: session } = useAuthMe();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", "employee-home-mobile-nav"],
     queryFn: fetchModuleNavigation,
     staleTime: 60_000,
   });
-  const baseItems = toEmployeeNavigationItems(navigation.data?.items);
-  const workLogFacility = session?.activeFacility ?? session?.grantedFacilities?.[0] ?? "xinbei_pool";
-  const workLogItem: EmployeeNavigationItem = {
-    id: "work-log",
-    label: "救生員日誌",
-    icon: ClipboardCheck,
-    href: `/portal/${workLogFacility}/work-log`,
-  };
-  const items = (baseItems.length
-    ? [baseItems[0], workLogItem, ...baseItems.slice(1)]
-    : [workLogItem]
-  ).slice(0, 5);
+  const items = toEmployeeNavigationItems(navigation.data?.items).slice(0, 5);
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
       {!items.length && navigation.isLoading ? (

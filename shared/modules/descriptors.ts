@@ -12,7 +12,7 @@ import type {
   NavigationModuleDto,
 } from "./types";
 
-const workbenchRoles: WorkbenchRole[] = ["employee", "supervisor", "system"];
+const workbenchRoles: WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 const hasBffBinding = (module: ModuleDefinition) =>
   Boolean(
@@ -84,6 +84,17 @@ const employeeNavigationOrder = [
   "checkins",
 ];
 
+const lifeguardNavigationOrder = [
+  "lifeguard-home",
+  "lifeguard-log",
+  "shift-reminder",
+  "announcements",
+  "handover",
+  "personal-note",
+  "knowledge-base-qna",
+  "employee-training",
+];
+
 const supervisorNavigationOrder = [
   "supervisor-dashboard",
   "facilities",
@@ -122,6 +133,18 @@ const employeeHomeOrder = [
   "search",
 ];
 
+const lifeguardHomeOrder = [
+  "lifeguard-home",
+  "lifeguard-log",
+  "shift-reminder",
+  "announcements",
+  "handover",
+  "personal-note",
+  "knowledge-base-qna",
+  "employee-training",
+  "search",
+];
+
 const supervisorHomeOrder = [
   "supervisor-dashboard",
   "facilities",
@@ -152,12 +175,14 @@ const systemHomeOrder = [
 
 const roleNavigationOrder: Record<WorkbenchRole, string[]> = {
   employee: employeeNavigationOrder,
+  lifeguard: lifeguardNavigationOrder,
   supervisor: supervisorNavigationOrder,
   system: systemNavigationOrder,
 };
 
 const roleHomeOrder: Record<WorkbenchRole, string[]> = {
   employee: employeeHomeOrder,
+  lifeguard: lifeguardHomeOrder,
   supervisor: supervisorHomeOrder,
   system: systemHomeOrder,
 };
@@ -175,6 +200,17 @@ const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
 
 const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<ModuleDescriptor>>> = {
   employee: employeeNavigationOverrides,
+  lifeguard: {
+    "lifeguard-home": { shortName: "救生首頁", routePath: "/lifeguard", iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
+    "lifeguard-log": { shortName: "救生員日誌", routePath: "/lifeguard/log", iconKey: "lifebuoy", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true },
+    "shift-reminder": { shortName: "今日班表", routePath: "/employee/shift", iconKey: "calendar-days", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
+    announcements: { shortName: "群組公告", routePath: "/employee/announcements", iconKey: "bell", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
+    handover: { shortName: "櫃台交接", routePath: "/employee/handover", iconKey: "message-square-text", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
+    "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
+    "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
+    "employee-training": { shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
+    search: { shortName: "快速搜尋", routePath: "/lifeguard", iconKey: "search", menuOrder: 20, cardOrder: 20, navVisible: false, cardVisible: true },
+  },
   supervisor: {
     "supervisor-dashboard": { shortName: "營運總覽", routePath: "/supervisor", iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
     facilities: { shortName: "場館", routePath: "/supervisor/facilities", iconKey: "building", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"] },
@@ -233,6 +269,7 @@ const telemetryEventsFromModule = (module: ModuleDefinition) => {
 
 const bffEndpointForRole = (module: ModuleDefinition, role: WorkbenchRole) => {
   if (role === "employee" && module.bff.employeeSectionKey) return "/api/bff/employee/home";
+  if (role === "lifeguard" && module.bff.employeeSectionKey) return "/api/bff/lifeguard/home";
   if (role === "supervisor" && module.bff.supervisorSectionKey) return "/api/bff/supervisor/dashboard";
   if (role === "system" && module.bff.systemSectionKey) return "/api/bff/system/dashboard";
   return module.apis.find((api) => api.kind === "bff")?.path ?? module.bff.plannedEndpoints?.[0];
@@ -246,6 +283,9 @@ const apiPrefixFromModule = (module: ModuleDefinition) => {
 
 const descriptorFromModule = (module: ModuleDefinition): ModuleDescriptor => {
   const roles = module.visibleRoles.filter((role): role is WorkbenchRole => workbenchRoles.includes(role as WorkbenchRole));
+  if (module.visibleRoles.includes("employee") && lifeguardHomeOrder.includes(module.id) && !roles.includes("lifeguard")) {
+    roles.push("lifeguard");
+  }
   const primaryRole = roles[0] ?? "employee";
   const routePath = routeForRole(module, primaryRole);
   return {
@@ -342,12 +382,57 @@ const extraDescriptors: ModuleDescriptor[] = [
     notConnectedText: "系統儀表板已註冊，但 BFF 尚未接線。",
   },
   {
+    id: "lifeguard-home",
+    name: "救生首頁",
+    description: "Lifeguard role home composition generated from employee-grade BFF cards and lifeguard log entry state.",
+    domain: "dashboard",
+    stage: "bff-wired",
+    roles: ["lifeguard"],
+    defaultEnabled: true,
+    navVisible: true,
+    cardVisible: true,
+    routePath: "/lifeguard",
+    bffEndpoint: "/api/bff/lifeguard/home",
+    iconKey: "home",
+    menuOrder: 1,
+    cardOrder: 1,
+    requiredPermissions: ["lifeguard:home:read"],
+    dependencies: ["shift-reminder", "announcements", "handover"],
+    searchKeywords: ["救生", "救生員", "首頁", "lifeguard home"],
+    telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"],
+    emptyStateText: "救生首頁目前沒有可顯示卡片。",
+    notConnectedText: "救生首頁已註冊，但 BFF 尚未接線。",
+  },
+  {
+    id: "lifeguard-log",
+    name: "救生員日誌",
+    description: "Lifeguard-owned daily log, water quality, handover, and submission workflow.",
+    domain: "operations",
+    stage: "bff-wired",
+    roles: ["lifeguard"],
+    defaultEnabled: true,
+    navVisible: true,
+    cardVisible: true,
+    routePath: "/lifeguard/log",
+    bffEndpoint: "/api/bff/lifeguard/home",
+    apiPrefix: "/api/work-logs",
+    iconKey: "lifebuoy",
+    menuOrder: 2,
+    cardOrder: 2,
+    requiredPermissions: ["lifeguard:log:read"],
+    dependencies: ["shift-reminder", "handover"],
+    searchKeywords: ["救生員日誌", "水質", "交接", "日報", "lifeguard log"],
+    telemetryEvents: ["PAGE_VIEW", "LIFEGUARD_LOG_CREATED", "LIFEGUARD_LOG_UPDATED"],
+    emptyStateText: "今日尚未建立救生員日誌。",
+    notConnectedText: "救生員日誌已註冊，但資料來源尚未接線。",
+  },
+  {
     id: "search",
     name: "快速搜尋",
     description: "Global module and workbench search BFF.",
     domain: "knowledge",
     stage: "bff-wired",
-    roles: ["employee", "supervisor", "system"],
+    roles: ["employee", "lifeguard", "supervisor", "system"],
     defaultEnabled: true,
     navVisible: false,
     cardVisible: true,
@@ -538,10 +623,11 @@ export const getModuleHealth = (role?: WorkbenchRole, permissionsSnapshot?: stri
       module.stage === "api-wired" ? `${module.name} 已有 API，但尚未接入首頁/BFF。` : "",
       module.stage === "bff-wired" ? "" : "",
     ].filter(Boolean);
+    const hasOnlyTelemetryIssue = issues.length === 1 && !telemetryOk;
     return {
       moduleId: module.id,
       status: module.stage === "production-ready" || module.stage === "bff-wired"
-        ? issues.length ? "degraded" : "ready"
+        ? issues.length ? (hasOnlyTelemetryIssue ? "telemetry_pending" : "degraded") : "ready"
         : module.stage === "disabled" || module.stage === "planned" || module.stage === "ui-only" || module.stage === "api-wired"
           ? "not_connected"
           : "degraded",

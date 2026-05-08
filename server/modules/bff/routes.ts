@@ -20,7 +20,7 @@ import type {
 } from "@shared/domain/workbench";
 import type { OperationalHandover, SystemAnnouncement, Task } from "@shared/schema";
 import type { BffSection } from "@shared/bff/envelope";
-import { getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
+import { getHomeLayoutCards, getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
 import { requireRole, requireSession } from "../auth/context";
@@ -167,6 +167,9 @@ const buildShiftBoardFromSummaries = (
   };
 };
 
+const filterShiftSummariesForFacility = (shifts: ShiftSummary[] | null | undefined, facilityKey: string) =>
+  (shifts ?? []).filter((shift) => !shift.facilityKey || shift.facilityKey === facilityKey);
+
 const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): EmployeeHomeDto => {
   const session = req.workbenchSession!;
   const facilityName = facilityLabel(session.activeFacility ?? dto.facility.key);
@@ -211,7 +214,7 @@ const attachEmployeeHomeContract = (dto: EmployeeHomeDto, req: Request): Employe
   const quickActions = sectionToCard("quick-links", "快速操作", 40, undefined, dto.shortcuts, "目前沒有快速操作。", "快速操作已註冊，但資料來源尚未接線。");
   quickActions.payload = dto.shortcuts.data?.slice(0, 7) ?? defaultEmployeeShortcuts;
   const shiftReminder = sectionToCard("shift-reminder", "今日班表", 50, "/employee/shift", dto.shifts, "目前沒有班表資料。", "班表模組已註冊，但外部排班來源尚未接線。");
-  shiftReminder.payload = buildShiftBoardFromSummaries(dto.facility.key, session.userId, dto.shifts.data, {
+  shiftReminder.payload = buildShiftBoardFromSummaries(dto.facility.key, session.userId, filterShiftSummariesForFacility(dto.shifts.data, dto.facility.key), {
     connected: dto.shifts.status !== "unavailable",
     lastSyncedAt: dto.shifts.meta.lastSyncAt,
     errorMessage: dto.shifts.status === "unavailable" ? dto.shifts.meta.fallbackReason ?? "班表資料暫時無法取得。" : undefined,
@@ -354,6 +357,7 @@ const mapEmployeeAnnouncementResource = (item: {
   const publishedAt = item.createdAt ? item.createdAt.toISOString() : new Date().toISOString();
   return {
     id: `employee-ann-${item.id}`,
+    externalReferenceId: `employee-resource:${item.id}`,
     resourceId: item.id,
     title: item.title,
     summary: parsed.body || "員工新增公告",
@@ -363,12 +367,14 @@ const mapEmployeeAnnouncementResource = (item: {
     isPinned: item.isPinned,
     effectiveRange: parsed.scheduledAt ? new Date(parsed.scheduledAt).toLocaleString("zh-TW") : new Date(publishedAt).toLocaleString("zh-TW"),
     publishedAt,
+    createdAt: publishedAt,
     scheduledAt: parsed.scheduledAt,
   };
 };
 
 const mapSystemAnnouncementSummary = (item: SystemAnnouncement, now: string): AnnouncementSummary => ({
   id: `portal-ann-${item.id}`,
+  externalReferenceId: `${item.source}:${item.id}`,
   title: item.title,
   summary: item.content,
   content: item.content,
@@ -383,20 +389,28 @@ const mapSystemAnnouncementSummary = (item: SystemAnnouncement, now: string): An
   isPinned: Boolean(item.isPinned) || item.severity === "critical",
   effectiveRange: item.publishedAt ? new Date(item.publishedAt).toLocaleString("zh-TW") : "即時",
   publishedAt: item.publishedAt ? item.publishedAt.toISOString() : now,
+  createdAt: item.createdAt ? item.createdAt.toISOString() : now,
   deadlineLabel: item.expiresAt ? new Date(item.expiresAt).toLocaleDateString("zh-TW") : "未設定",
 });
 
 const uniqueAnnouncements = (items: AnnouncementSummary[]) => {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
+  const byKey = new Map<string, AnnouncementSummary>();
+  for (const item of items) {
+    const key = item.externalReferenceId || item.id;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, item);
+      continue;
+    }
+    const currentRank = Number(Boolean(item.isPinned)) * 100 + announcementSortTime(item);
+    const existingRank = Number(Boolean(existing.isPinned)) * 100 + announcementSortTime(existing);
+    if (currentRank >= existingRank) byKey.set(key, item);
+  }
+  return Array.from(byKey.values());
 };
 
 const announcementSortTime = (item: AnnouncementSummary) => {
-  const parsed = Date.parse(item.scheduledAt ?? item.publishedAt ?? item.effectiveRange ?? "");
+  const parsed = Date.parse(item.publishedAt ?? item.createdAt ?? item.scheduledAt ?? item.effectiveRange ?? "");
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
@@ -437,11 +451,13 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
       const candidateType = readText(item.candidateType).toLowerCase();
       const status = readText(item.status).toLowerCase();
       const confidence = Number(item.confidence ?? 0);
-      return candidateType !== "ignore" && status !== "vip_chat" && confidence >= 0.7;
+      const approved = status === "approved" || status === "published" || status === "active";
+      return candidateType !== "ignore" && approved && confidence >= 0.7;
     })
     .slice(0, 8)
     .map((item, index) => ({
       id: String(item.id ?? `candidate-${index}`),
+      externalReferenceId: readText(item.externalReferenceId ?? item.sourceMessageId ?? item.messageId ?? item.id, `candidate-${index}`),
       title: readText(item.title, "未命名公告"),
       summary: readText(item.summary ?? item.originalText, ""),
       content: readText(item.body ?? item.content ?? item.originalText ?? item.summary, ""),
@@ -450,6 +466,7 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
       isPinned: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8,
       effectiveRange: readText(item.detectedAt ?? item.startAt, "即時"),
       publishedAt: readText(item.detectedAt ?? item.startAt, new Date().toISOString()),
+      createdAt: readText(item.createdAt ?? item.detectedAt ?? item.startAt, new Date().toISOString()),
       deadlineLabel: readText(item.effectiveEndAt ?? item.endAt ?? item.expiresAt ?? item.detectedAt ?? item.startAt, "未設定"),
     }));
 };
@@ -468,7 +485,7 @@ const buildEmployeeHomeFallback = async (
     storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listQuickLinks(normalizedFacilityKey, false),
     storage.listEmployeeResources({ facilityKey: normalizedFacilityKey, limit: 100 }),
-    storage.listSystemAnnouncements(normalizedFacilityKey, false),
+    storage.listSystemAnnouncements(normalizedFacilityKey, true),
     env.dataSourceMode === "mock"
       ? Promise.resolve(sourceUnavailable<ScheduleShift[]>("smart-schedule", "Smart Schedule is not connected; mock schedule data is disabled for employee shift board.", "SMART_SCHEDULE_NOT_CONNECTED"))
       : container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
@@ -633,6 +650,7 @@ const mapScheduleShifts = (items: Awaited<ReturnType<AppContainer["integrations"
         status,
         employeeName: item.employeeName,
         venueName: item.venueName,
+        facilityKey: item.facilityKey,
         role: item.role,
         period: item.period,
         startsAt: item.startsAt,
@@ -908,7 +926,7 @@ const enrichEmployeeHome = async (
     training: dto.training ?? ok([], now),
   };
   const employeeResources = await getEmployeeResourceSections(normalizedFacilityKey);
-  const systemAnnouncements = await storage.listSystemAnnouncements(normalizedFacilityKey, false).catch(() => []);
+  const systemAnnouncements = await storage.listSystemAnnouncements(normalizedFacilityKey, true).catch(() => []);
   const portalAnnouncements = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
   nextDto = {
@@ -985,6 +1003,26 @@ const attachAnnouncementAcknowledgements = async (
 };
 
 export const registerBffRoutes = (app: Express, container: AppContainer) => {
+  app.get("/api/bff/lifeguard/home", requireRole("lifeguard", "system"), async (req, res) => {
+    const session = req.workbenchSession!;
+    const facilityKey = session.activeFacility;
+    const cards = getHomeLayoutCards("lifeguard", session.permissionsSnapshot).map((card) => ({
+      ...card,
+      payload: card.moduleId === "shift-reminder"
+        ? buildShiftBoardFromSummaries(facilityKey, session.userId, [], {
+            connected: false,
+            errorMessage: "班表資料暫時無法取得。",
+          })
+        : card.payload,
+    }));
+    return res.json({
+      facility: { key: facilityKey, name: facilityLabel(facilityKey) },
+      currentUser: { id: session.userId, displayName: session.displayName, role: "lifeguard" },
+      cards,
+      navigation: getNavigationModules("lifeguard", session.permissionsSnapshot),
+    });
+  });
+
   app.get("/api/bff/employee/home", requireSession, async (req, res) => {
     const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
     const session = req.workbenchSession!;
@@ -1029,12 +1067,55 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
       }));
     }
     const result = await container.integrations.schedule.listTodayShifts(facilityKey);
-    const shifts = mapScheduleShifts(result.data ?? []);
+    const shifts = filterShiftSummariesForFacility(mapScheduleShifts(result.data ?? []), facilityKey);
     return res.json(buildShiftBoardFromSummaries(facilityKey, session.userId, shifts, {
       connected: Boolean(result.data),
       lastSyncedAt: new Date().toISOString(),
       errorMessage: result.data ? undefined : result.meta.fallbackReason || "班表資料暫時無法取得。",
     }));
+  });
+
+  app.get("/api/bff/employee/announcements", requireSession, async (req, res) => {
+    const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    const session = req.workbenchSession!;
+    if (requestedFacilityKey && !session.grantedFacilities.includes(requestedFacilityKey)) {
+      return res.status(403).json({ message: "Facility is not granted" });
+    }
+    const facilityKey = requestedFacilityKey || session.activeFacility;
+    const result = await container.integrations.replitData.getEmployeeHomeProjection(facilityKey);
+    const home = result.data
+      ? await enrichEmployeeHome(result.data, facilityKey, container)
+      : await buildEmployeeHomeFallback(facilityKey, container, result.meta.fallbackReason || "Employee home projection is unavailable");
+    const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, session.userId);
+    const items = uniqueAnnouncements(acknowledgedHome.announcements.data ?? [])
+      .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
+      .slice(0, 100);
+    return res.json({
+      facility: { key: facilityKey, name: facilityLabel(facilityKey) },
+      items,
+      sourceStatus: {
+        connected: acknowledgedHome.announcements.status !== "unavailable",
+        lastSyncedAt: acknowledgedHome.announcements.meta.lastSyncAt,
+        errorMessage: acknowledgedHome.announcements.meta.fallbackReason,
+      },
+    });
+  });
+
+  app.get("/api/bff/employee/announcements/:id", requireSession, async (req, res) => {
+    const requestedFacilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+    const session = req.workbenchSession!;
+    if (requestedFacilityKey && !session.grantedFacilities.includes(requestedFacilityKey)) {
+      return res.status(403).json({ message: "Facility is not granted" });
+    }
+    const facilityKey = requestedFacilityKey || session.activeFacility;
+    const result = await container.integrations.replitData.getEmployeeHomeProjection(facilityKey);
+    const home = result.data
+      ? await enrichEmployeeHome(result.data, facilityKey, container)
+      : await buildEmployeeHomeFallback(facilityKey, container, result.meta.fallbackReason || "Employee home projection is unavailable");
+    const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, session.userId);
+    const item = uniqueAnnouncements(acknowledgedHome.announcements.data ?? []).find((announcement) => announcement.id === req.params.id);
+    if (!item) return res.status(404).json({ message: "Announcement not found" });
+    return res.json({ item });
   });
 
   app.get("/api/bff/employee/search", requireSession, async (req, res) => {

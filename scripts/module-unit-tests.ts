@@ -28,6 +28,7 @@ const sourceMatches = (path: string, pattern: RegExp, message: string) => {
 
 const rolePermissions = {
   employee: ["employee:home:read", "employee:resources:read", "employee:qna:read", "employee:checkin:read", "employee:booking:read", "workbench:search"],
+  lifeguard: ["employee:home:read", "employee:resources:read", "employee:qna:read", "lifeguard:home:read", "lifeguard:log:read", "lifeguard:log:write", "workbench:search"],
   supervisor: ["supervisor:dashboard:read", "workbench:search"],
   system: [
     "system:overview:read",
@@ -39,23 +40,31 @@ const rolePermissions = {
   ],
 };
 
-const roles: WorkbenchRole[] = ["employee", "supervisor", "system"];
+const roles: WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 const acceptedBackgroundPending = new Set([
   "auth",
   "bff-projections",
+  "booking-snapshot",
+  "campaigns-events",
+  "employee-resources",
   "file-upload-export",
   "facilities",
   "gmail-integration",
   "integration-sync-jobs",
   "legacy-users",
   "linebot-integration",
+  "notification-center",
   "notification-recipients",
   "operations",
+  "portal-home",
   "portal-manage",
   "portal-review",
+  "quick-links",
   "ragic-integration",
   "schedule-integration",
+  "system-announcements",
+  "tasks",
   "session-governance",
   "user-role-snapshots",
   "widget-layout-settings",
@@ -93,6 +102,23 @@ const runSupervisorModuleTests = () => {
   sourceIncludes("client/src/modules/supervisor/announcements/page.tsx", "手動發布公告", "announcements must support manual publish");
 };
 
+const runLifeguardModuleTests = () => {
+  const navigation = getNavigationModules("lifeguard", rolePermissions.lifeguard);
+  const cards = getHomeLayoutCards("lifeguard", rolePermissions.lifeguard);
+  const expected = ["lifeguard-home", "lifeguard-log", "shift-reminder", "announcements", "handover", "personal-note", "knowledge-base-qna", "employee-training"];
+  assert(navigation.map((item) => item.id).join(",") === expected.join(","), `lifeguard navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
+  assert(cards.map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training,search", `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
+  expected.forEach((id) => assert(cards.some((card) => card.moduleId === id), `lifeguard home card missing ${id}`));
+  sourceIncludes("server/modules/auth/session-store.ts", '"lifeguard" as const', "lifeguard role must be added to grantedRoles");
+  sourceIncludes("server/modules/auth/session-store.ts", 'activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee"', "lifeguard-only users must default to lifeguard active role");
+  sourceIncludes("server/integrations/ragic/real-auth-adapter.ts", "isLifeguardTitle", "Ragic auth adapter must infer lifeguard role from title");
+  sourceMatches("server/modules/bff/routes.ts", /app\.get\("\/api\/bff\/lifeguard\/home",\s*requireRole\("lifeguard",\s*"system"\)/, "lifeguard home BFF must require lifeguard or system role");
+  sourceIncludes("client/src/App.tsx", "/lifeguard/log", "lifeguard log page must be routed");
+  sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "/api/work-logs/handover", "lifeguard log page must write via work-log endpoint");
+  sourceIncludes("server/modules/work-logs/routes.ts", 'action: "LIFEGUARD_LOG_CREATED"', "lifeguard log create must write audit row");
+  sourceIncludes("server/modules/work-logs/routes.ts", 'action: "LIFEGUARD_LOG_UPDATED"', "lifeguard log update must write audit row");
+};
+
 const runSystemModuleTests = () => {
   const navigation = getNavigationModules("system", rolePermissions.system);
   const expected = ["system-dashboard", "system-health", "system-observability", "integration-sync-jobs", "telemetry-audit", "raw-inspector", "employee-training"];
@@ -103,6 +129,8 @@ const runSystemModuleTests = () => {
   const health = getModuleHealth("system", rolePermissions.system);
   assert(health.some((item) => item.moduleId === "raw-inspector"), "system health must include raw inspector");
   assert(health.some((item) => item.moduleId === "watchdog-events"), "system health must include watchdog events");
+  sourceIncludes("shared/modules/types.ts", '"telemetry_pending"', "ModuleHealthDto must expose telemetry_pending");
+  sourceIncludes("client/src/modules/system/dashboard-page.tsx", "Telemetry Pending", "system dashboard must show telemetry_pending separately");
 };
 
 const runRawInspectorTests = () => {
@@ -195,6 +223,7 @@ const runUnfinishedModulePolicyTests = () => {
 };
 
 runEmployeeModuleTests();
+runLifeguardModuleTests();
 runSupervisorModuleTests();
 runSystemModuleTests();
 runRawInspectorTests();
@@ -207,5 +236,6 @@ runUnfinishedModulePolicyTests();
 
 console.log("Module unit tests passed");
 console.log(`employee descriptors: ${getModuleDescriptorsByRole("employee").length}`);
+console.log(`lifeguard descriptors: ${getModuleDescriptorsByRole("lifeguard").length}`);
 console.log(`supervisor descriptors: ${getModuleDescriptorsByRole("supervisor").length}`);
 console.log(`system descriptors: ${getModuleDescriptorsByRole("system").length}`);

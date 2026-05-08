@@ -71,7 +71,7 @@ export const getSupervisorDashboardMock = (): SupervisorDashboardDto => ({
     key: "xinbei-high-school",
     name: "新北高中游泳池 & 運動中心",
     businessDate: "2026/04/23",
-    statusLabel: "台中館",
+    statusLabel: "營運中",
   },
   staffing: ok({ active: 12, total: 15, onShift: 12, absent: 3 }, syncTime),
   facilities: ok([

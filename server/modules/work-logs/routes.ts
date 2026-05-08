@@ -27,6 +27,7 @@ import {
   type WorkLogTaskCompletion,
   type LifeguardHandoverNote,
 } from "@shared/schema";
+import type { AuditEventInput } from "../../shared/telemetry/audit-writer";
 
 interface CallerProfile {
   employeeNumber: string;
@@ -37,6 +38,7 @@ interface CallerProfile {
 interface RegisterDeps {
   requireEmployee: () => RequestHandler;
   requireSupervisor: () => RequestHandler;
+  recordAudit?: (event: AuditEventInput) => Promise<void>;
 }
 
 function getCaller(req: import("express").Request): CallerProfile {
@@ -199,6 +201,7 @@ const uploadFolderSchema = z
 
 export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
   const { requireEmployee, requireSupervisor } = deps;
+  const recordAudit = (event: AuditEventInput) => deps.recordAudit?.(event).catch(() => undefined);
 
   // ============ Photo upload ============
   app.post(
@@ -593,6 +596,16 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         authorEmployeeNumber: caller.employeeNumber,
         authorName: caller.name,
       });
+      await recordAudit({
+        actorId: caller.employeeNumber,
+        role: req.workbenchSession?.activeRole ?? "lifeguard",
+        facilityKey: parsed.data.facilityKey,
+        action: "LIFEGUARD_LOG_CREATED",
+        resource: "lifeguard_handover_notes",
+        resourceId: String(row.id),
+        payload: { content: row.content, fromShift: row.fromShift, toShift: row.toShift },
+        resultStatus: "success",
+      });
       res.json({ item: row });
     } catch (e) {
       console.error("[work-logs] handover create failed", e);
@@ -615,6 +628,16 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
         name: caller.name,
       });
       if (!row) return res.status(404).json({ message: "找不到交接事項" });
+      await recordAudit({
+        actorId: caller.employeeNumber,
+        role: req.workbenchSession?.activeRole ?? "lifeguard",
+        facilityKey: row.facilityKey,
+        action: "LIFEGUARD_LOG_UPDATED",
+        resource: "lifeguard_handover_notes",
+        resourceId: String(row.id),
+        payload: { confirmedBy: caller.employeeNumber, content: row.content },
+        resultStatus: "success",
+      });
       res.json({ item: row });
     } catch (e) {
       console.error("[work-logs] handover confirm failed", e);

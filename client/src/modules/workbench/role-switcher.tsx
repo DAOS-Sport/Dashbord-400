@@ -5,7 +5,7 @@ import { roleHomePath, roleLabels } from "@shared/auth/me";
 import { cn } from "@/lib/utils";
 import { useAuthMe, useLogout } from "@/shared/auth/session";
 
-const roleOrder: readonly WorkbenchRole[] = ["employee", "supervisor", "system"];
+const roleOrder: readonly WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 export function RoleSwitcher({ compact = false, visualActiveRole }: { compact?: boolean; visualActiveRole?: WorkbenchRole }) {
   const [, setLocation] = useLocation();
