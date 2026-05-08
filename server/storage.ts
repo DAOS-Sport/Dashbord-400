@@ -97,13 +97,21 @@ export interface IStorage {
   deleteQuickLink(id: number): Promise<boolean>;
 
   // Employee resources (員工自建入口 / 便利貼)
-  listEmployeeResources(opts: { facilityKey?: string; category?: string; limit?: number }): Promise<EmployeeResource[]>;
+  listEmployeeResources(opts: { facilityKey?: string; category?: string; ownerEmployeeNumber?: string; limit?: number }): Promise<EmployeeResource[]>;
   createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource>;
   updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined>;
   deleteEmployeeResource(id: number): Promise<boolean>;
 
   // Knowledge Base Q&A (相關問題詢問)
-  listKnowledgeBaseQna(opts: { facilityKey?: string; query?: string; includeArchived?: boolean; limit?: number }): Promise<KnowledgeBaseQna[]>;
+  listKnowledgeBaseQna(opts: {
+    facilityKey?: string;
+    query?: string;
+    includeArchived?: boolean;
+    viewerEmployeeNumber?: string;
+    reviewStatus?: "pending" | "approved" | "rejected";
+    includeAllReviewStatuses?: boolean;
+    limit?: number;
+  }): Promise<KnowledgeBaseQna[]>;
   getKnowledgeBaseQnaById(id: number): Promise<KnowledgeBaseQna | undefined>;
   createKnowledgeBaseQna(entry: InsertKnowledgeBaseQna): Promise<KnowledgeBaseQna>;
   updateKnowledgeBaseQna(id: number, data: Partial<InsertKnowledgeBaseQna>): Promise<KnowledgeBaseQna | undefined>;
@@ -480,10 +488,23 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listEmployeeResources(opts: { facilityKey?: string; category?: string; limit?: number }): Promise<EmployeeResource[]> {
+  async listEmployeeResources(opts: { facilityKey?: string; category?: string; ownerEmployeeNumber?: string; limit?: number }): Promise<EmployeeResource[]> {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(employeeResources.facilityKey, opts.facilityKey));
     if (opts.category) conditions.push(eq(employeeResources.category, opts.category));
+    if (opts.category === "sticky_note") {
+      if (opts.ownerEmployeeNumber) {
+        conditions.push(eq(employeeResources.createdByEmployeeNumber, opts.ownerEmployeeNumber));
+      } else {
+        conditions.push(sql`${employeeResources.category} <> 'sticky_note'`);
+      }
+    } else if (!opts.category) {
+      conditions.push(
+        opts.ownerEmployeeNumber
+          ? or(sql`${employeeResources.category} <> 'sticky_note'`, eq(employeeResources.createdByEmployeeNumber, opts.ownerEmployeeNumber))!
+          : sql`${employeeResources.category} <> 'sticky_note'`,
+      );
+    }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const query = where ? db.select().from(employeeResources).where(where) : db.select().from(employeeResources);
     return query
@@ -510,10 +531,27 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listKnowledgeBaseQna(opts: { facilityKey?: string; query?: string; includeArchived?: boolean; limit?: number }): Promise<KnowledgeBaseQna[]> {
+  async listKnowledgeBaseQna(opts: {
+    facilityKey?: string;
+    query?: string;
+    includeArchived?: boolean;
+    viewerEmployeeNumber?: string;
+    reviewStatus?: "pending" | "approved" | "rejected";
+    includeAllReviewStatuses?: boolean;
+    limit?: number;
+  }): Promise<KnowledgeBaseQna[]> {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(knowledgeBaseQna.facilityKey, opts.facilityKey));
     if (!opts.includeArchived) conditions.push(sql`${knowledgeBaseQna.status} <> 'archived'`);
+    if (opts.reviewStatus) {
+      conditions.push(eq(knowledgeBaseQna.reviewStatus, opts.reviewStatus));
+    } else if (!opts.includeAllReviewStatuses) {
+      conditions.push(
+        opts.viewerEmployeeNumber
+          ? or(eq(knowledgeBaseQna.reviewStatus, "approved"), eq(knowledgeBaseQna.createdByEmployeeNumber, opts.viewerEmployeeNumber))!
+          : eq(knowledgeBaseQna.reviewStatus, "approved"),
+      );
+    }
     const query = opts.query?.trim();
     if (query) {
       const pattern = `%${query}%`;

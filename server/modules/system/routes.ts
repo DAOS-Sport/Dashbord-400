@@ -1,8 +1,10 @@
 import type { Express, Request } from "express";
 import { z } from "zod";
 import type { AppContainer } from "../../app/container";
+import { getRawInspectorTarget, isRawInspectorPath } from "@shared/system/raw-inspector";
 import { healthOk } from "../../shared/observability/health";
 import { storage } from "../../storage";
+import { requireRole, requireSession } from "../auth/context";
 
 const readInternalToken = (req: Request) => {
   const auth = Array.isArray(req.headers.authorization) ? req.headers.authorization[0] : req.headers.authorization;
@@ -21,6 +23,13 @@ const watchdogEventSchema = z.object({
   payload: z.unknown().optional(),
   observedAt: z.string().optional(),
 });
+
+const rawInspectorQuerySchema = z.object({
+  path: z.string().min(1),
+});
+
+const hasPermission = (permissions: string[] | undefined, permission: string) =>
+  Boolean(permissions?.includes(permission) || permissions?.some((item) => item.startsWith("system:")));
 
 export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/system/health-overview", (_req, res) => {
@@ -72,6 +81,73 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     const result = await container.integrations.schedule.getScheduleSnapshot({ facilityKey, from, to });
     if (!result.data) return res.status(502).json({ message: result.meta.fallbackReason, meta: result.meta });
     return res.json(result.data);
+  });
+
+  app.post("/api/bff/system/raw-inspector", requireSession, requireRole("system"), async (req, res) => {
+    if (!hasPermission(req.workbenchSession?.permissionsSnapshot, "system:raw-inspector:query")) {
+      return res.status(403).json({ message: "SYSTEM_RAW_INSPECTOR_PERMISSION_REQUIRED" });
+    }
+
+    const parsed = rawInspectorQuerySchema.safeParse(req.body || {});
+    if (!parsed.success || !isRawInspectorPath(parsed.data.path)) {
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: "RAW_INSPECTOR_QUERY_BLOCKED",
+        resource: "system.raw-inspector",
+        payload: { path: parsed.success ? parsed.data.path : undefined, reason: "not_whitelisted" },
+        resultStatus: "failure",
+      });
+      return res.status(400).json({ message: "RAW_INSPECTOR_TARGET_NOT_ALLOWED" });
+    }
+
+    const target = getRawInspectorTarget(parsed.data.path)!;
+    const host = req.get("host");
+    if (!host) return res.status(400).json({ message: "HOST_REQUIRED" });
+
+    const url = new URL(target.path, `${req.protocol}://${host}`);
+    const queriedAt = new Date().toISOString();
+    try {
+      const upstream = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          Cookie: req.headers.cookie ?? "",
+          "x-correlation-id": `${req.workbenchSession?.userId ?? "system"}-${Date.now()}`,
+        },
+      });
+      const text = await upstream.text();
+      const data = text ? JSON.parse(text) : null;
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: "RAW_INSPECTOR_QUERY",
+        resource: "system.raw-inspector",
+        resourceId: target.path,
+        payload: { label: target.label, status: upstream.status },
+        resultStatus: upstream.ok ? "success" : "failure",
+      });
+      return res.status(upstream.ok ? 200 : 502).json({
+        path: target.path,
+        label: target.label,
+        queriedAt,
+        status: upstream.status,
+        data,
+      });
+    } catch (error) {
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: "RAW_INSPECTOR_QUERY",
+        resource: "system.raw-inspector",
+        resourceId: target.path,
+        payload: { label: target.label, error: error instanceof Error ? error.message : String(error) },
+        resultStatus: "failure",
+      });
+      return res.status(502).json({ message: "RAW_INSPECTOR_QUERY_FAILED" });
+    }
   });
 
   app.post("/api/watchdog/events", async (req, res) => {

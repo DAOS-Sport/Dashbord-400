@@ -12,6 +12,7 @@ import { env } from "./shared/config/env";
 import type { OperationalHandover } from "@shared/schema";
 import { findFacilityLineGroup, findScheduleRegionKey } from "@shared/domain/facilities";
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
+import { canMutateEmployeeResource } from "@shared/employee-resources/privacy";
 import { withCreateMetadata, withEmployeeCreateMetadata, withUpdateMetadata } from "./shared/data/write-metadata";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "anomaly-reports");
@@ -1653,11 +1654,17 @@ export async function registerRoutes(
 
   app.get("/api/portal/employee-resources", requireEmployee(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
       const category = req.query.category ? String(req.query.category) : undefined;
       if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
       if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
-      const items = await storage.listEmployeeResources({ facilityKey, category, limit: req.query.limit ? Number(req.query.limit) : 100 });
+      const items = await storage.listEmployeeResources({
+        facilityKey,
+        category,
+        ownerEmployeeNumber: caller.employeeNumber,
+        limit: req.query.limit ? Number(req.query.limit) : 100,
+      });
       res.json({ items });
     } catch (err) {
       if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
@@ -1717,10 +1724,10 @@ export async function registerRoutes(
       const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
-      const existing = (await storage.listEmployeeResources({ limit: 300 })).find((item) => item.id === id);
+      const existing = (await storage.listEmployeeResources({ ownerEmployeeNumber: caller.employeeNumber, limit: 300 })).find((item) => item.id === id);
       if (!existing) return res.status(404).json({ message: "找不到員工資源" });
       if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
-      const canEdit = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      const canEdit = canMutateEmployeeResource(existing, caller);
       if (!canEdit) return res.status(403).json({ message: "只能編輯自己建立的資料" });
       const patchSchema = z.object({
         title: z.string().min(1).max(120).optional(),
@@ -1769,10 +1776,10 @@ export async function registerRoutes(
       const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
-      const existing = (await storage.listEmployeeResources({ limit: 300 })).find((item) => item.id === id);
+      const existing = (await storage.listEmployeeResources({ ownerEmployeeNumber: caller.employeeNumber, limit: 300 })).find((item) => item.id === id);
       if (!existing) return res.status(404).json({ message: "找不到員工資源" });
       if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
-      const canDelete = existing.createdByEmployeeNumber === caller.employeeNumber || caller.isSupervisor;
+      const canDelete = canMutateEmployeeResource(existing, caller);
       if (!canDelete) return res.status(403).json({ message: "只能刪除自己建立的資料" });
       const ok = await storage.deleteEmployeeResource(id);
       res.json({ ok });
@@ -1791,6 +1798,7 @@ export async function registerRoutes(
 
   app.get("/api/portal/knowledge-base-qna", requireEmployee(), async (req, res) => {
     try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
       const facilityKey = String(req.query.facilityKey || req.workbenchSession?.activeFacility || "");
       if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
       if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
@@ -1798,6 +1806,7 @@ export async function registerRoutes(
       const items = await storage.listKnowledgeBaseQna({
         facilityKey,
         query,
+        viewerEmployeeNumber: caller.employeeNumber,
         limit: req.query.limit ? Number(req.query.limit) : 100,
       });
       res.json({ items });
@@ -1816,6 +1825,10 @@ export async function registerRoutes(
       const parsed = insertKnowledgeBaseQnaSchema.safeParse({
         ...body,
         tags: Array.isArray(body.tags) ? body.tags : [],
+        reviewStatus: "pending",
+        reviewNote: null,
+        reviewedBy: null,
+        reviewedAt: null,
         createdByEmployeeNumber: caller.employeeNumber,
         createdByName: caller.name,
       });
@@ -1863,11 +1876,16 @@ export async function registerRoutes(
         tags: z.array(z.string().max(32)).max(12).optional(),
         isPinned: z.boolean().optional(),
         status: z.enum(["draft", "published", "archived"]).optional(),
+        reviewStatus: z.enum(["pending", "approved", "rejected"]).optional(),
+        reviewNote: z.string().max(1000).nullable().optional(),
       });
       const parsed = patchSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       const role = caller.isSupervisor ? "supervisor" : "employee";
-      const updated = await storage.updateKnowledgeBaseQna(id, withUpdateMetadata(parsed.data, {
+      const nextPatch = caller.isSupervisor
+        ? parsed.data
+        : { ...parsed.data, reviewStatus: "pending" as const, reviewNote: null, reviewedBy: null, reviewedAt: null };
+      const updated = await storage.updateKnowledgeBaseQna(id, withUpdateMetadata(nextPatch, {
         userId: caller.employeeNumber,
         role,
         facilityKey: existing.facilityKey,
@@ -1921,6 +1939,85 @@ export async function registerRoutes(
       res.status(500).json({ message: m });
     }
   });
+
+  app.get("/api/bff/supervisor/qna-review", requireSupervisor(), async (req, res) => {
+    try {
+      const facilityKey = req.query.facilityKey ? String(req.query.facilityKey) : undefined;
+      if (facilityKey && !canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const items = await storage.listKnowledgeBaseQna({
+        facilityKey,
+        reviewStatus: "pending",
+        includeArchived: false,
+        limit: req.query.limit ? Number(req.query.limit) : 200,
+      });
+      res.json({ items });
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "主管問答審核查詢失敗";
+      res.status(500).json({ message: m });
+    }
+  });
+
+  const qnaReviewBodySchema = z.object({
+    reviewNote: z.string().max(1000).nullable().optional(),
+  });
+
+  const reviewKnowledgeBaseQna = async (
+    req: import("express").Request,
+    res: import("express").Response,
+    reviewStatus: "approved" | "rejected",
+  ) => {
+    try {
+      const caller = (req as unknown as { caller: EmployeeProfile }).caller;
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "無效 ID" });
+      const parsed = qnaReviewBodySchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      const existing = await storage.getKnowledgeBaseQnaById(id);
+      if (!existing || existing.status === "archived") return res.status(404).json({ message: "找不到相關問題" });
+      if (!canAccessFacility(req, existing.facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      const role = req.workbenchSession?.activeRole === "system" ? "system" : "supervisor";
+      const existingStatus = ["draft", "published", "archived"].includes(existing.status)
+        ? existing.status as "draft" | "published" | "archived"
+        : "published";
+      const updated = await storage.updateKnowledgeBaseQna(id, withUpdateMetadata({
+        reviewStatus,
+        reviewNote: parsed.data.reviewNote ?? null,
+        reviewedBy: caller.employeeNumber,
+        reviewedAt: new Date(),
+        status: reviewStatus === "approved" ? "published" : existingStatus,
+      }, {
+        userId: caller.employeeNumber,
+        role,
+        facilityKey: existing.facilityKey,
+      }));
+      if (!updated) return res.status(404).json({ message: "找不到相關問題" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: caller.employeeNumber,
+        role,
+        facilityKey: existing.facilityKey,
+        action: reviewStatus === "approved" ? "QNA_APPROVED" : "QNA_REJECTED",
+        resource: "knowledge_base_qna",
+        resourceId: String(existing.id),
+        payload: { question: existing.question, reason: parsed.data.reviewNote ?? null },
+        correlationId: correlationIdFromRequest(req),
+        resultStatus: "success",
+      });
+      return res.json(updated);
+    } catch (err) {
+      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      const m = err instanceof Error ? err.message : "主管問答審核失敗";
+      return res.status(500).json({ message: m });
+    }
+  };
+
+  app.post("/api/bff/supervisor/qna-review/:id/approve", requireSupervisor(), (req, res) =>
+    reviewKnowledgeBaseQna(req, res, "approved"),
+  );
+
+  app.post("/api/bff/supervisor/qna-review/:id/reject", requireSupervisor(), (req, res) =>
+    reviewKnowledgeBaseQna(req, res, "rejected"),
+  );
 
   // -------- Portal: System Announcements (主管維護) --------
   app.get("/api/portal/system-announcements", async (req, res) => {

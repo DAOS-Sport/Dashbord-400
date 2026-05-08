@@ -1,6 +1,6 @@
 # IT / System 端執行藍圖
 
-版本：2026-04-30
+版本：2026-05-07
 
 ## 1. 目的
 
@@ -102,7 +102,25 @@ IT 端必須能回答：
 - `KNOWLEDGE_QNA_CREATED`
 - `CLIENT_ERROR_REPORTED`
 
-## 8. 本輪已確認的公告鏈路狀態
+## 8. 本輪已確認的 System / IT 收斂狀態
+
+已完成：
+
+- `/api/system/module-registry*` debug surface 已加上 system session、system role、`system:module-registry:read` permission guard。
+- Raw Inspector 已改為 `POST /api/bff/system/raw-inspector`，只允許 shared whitelist 內的 endpoint。
+- Raw Inspector 每次查詢會寫 `RAW_INSPECTOR_QUERY` audit；拒絕非白名單目標會寫 `RAW_INSPECTOR_QUERY_BLOCKED`。
+- System audit 頁新增 `/api/audit/logs` 讀取最新 audit rows，不再只看 portal analytics。
+- `npm run unit:modules` 覆蓋 employee、supervisor、system、raw inspector、telemetry/audit、module registry guard。
+- `npm run dry-run` 會串 type-check、module registry check、module smoke、module unit tests、build。
+
+仍需 Replit 驗收：
+
+- `RAW_INSPECTOR_QUERY` 是否真實落 `audit_logs`。
+- `/api/system/module-registry*` anonymous / employee / supervisor forbidden 行為。
+- `/api/audit/logs` 在 Neon/Replit DB profile 下能讀到最新 domain write audit rows。
+- Integration status sourceStatus UI 與 `integration_error_logs` / `sync_job_runs` 的正式資料列。
+
+## 9. 本輪已確認的公告鏈路狀態
 
 已完成：
 
@@ -117,7 +135,7 @@ IT 端必須能回答：
 - 本機 shell 沒有 `DATABASE_URL`，無法直接判斷 dev server 連到哪個 DB。
 - Replit 部署前必須確認 `system_announcements` 已套用 `0006_supervisor_announcement_controls.sql`，且表內包含 `announcement_type`、`is_pinned`、`facility_keys`、`published_at`、`expires_at` 等欄位。
 
-## 9. 不做事項
+## 10. 不做事項
 
 - 不在 IT 端重做員工 / 主管功能。
 - 不讓 IT 端直接修改排班外部來源。

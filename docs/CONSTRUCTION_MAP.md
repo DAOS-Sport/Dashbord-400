@@ -1,6 +1,6 @@
 # 駿斯 CMS 施工地圖
 
-更新時間：2026-04-30
+更新時間：2026-05-07
 
 ## 1. 目前架構主線
 
@@ -88,11 +88,11 @@ flowchart LR
 |---|---|---|---|
 | System dashboard | partial | 系統健康與總覽 | 接更多真實 observability |
 | Module Registry / Health | usable | 查看模組、導覽、健康狀態 | 補權限收斂到 SYSTEM_ADMIN |
-| Raw inspector | planned / partial | 原始資料檢查 | 限制權限與查詢範圍 |
-| Telemetry / Audit | deployment-test-ready | UI events、client errors、audit；non-mock profile 會使用 DB-backed repository | Replit 部署後驗證 domain writes 寫入 `audit_logs` row |
+| Raw inspector | locally hardened / pending Replit audit proof | 後端白名單 proxy 檢查原始資料，查詢會寫 audit | Replit 驗證 `RAW_INSPECTOR_QUERY` row 與 forbidden target |
+| Telemetry / Audit | deployment-test-ready | UI events、client errors、audit；non-mock profile 會使用 DB-backed repository；system audit 頁可讀最新 audit rows | Replit 部署後驗證 domain writes 與 Raw Inspector 寫入 `audit_logs` row |
 | 員工教材觀看紀錄 | partial | IT 看誰看過教材 | 部署 DB 驗證排行與最近觀看 |
 
-System 端仍不可宣告 production-ready：`/api/system/module-registry*` debug endpoint 仍需 SYSTEM_ADMIN hard guard；Raw Inspector 目前是白名單 BFF/proxy 檢視與 telemetry 事件，不是完整 audit-backed raw data governance。正式開放前必須補 SYSTEM_ADMIN guard、query audit、查詢範圍限制與高權限警示。
+System 端仍不可宣告 production-ready，因為 Replit/Neon 實資料 row 尚未驗證；但本機已完成 `/api/system/module-registry*` system guard、Raw Inspector 後端白名單 proxy、query audit 與 system audit log 讀取。正式開放前仍需 Replit 驗證 audit rows、integration sourceStatus 與高權限操作警示。
 
 ## 6. 員工教材建議施工圖
 

@@ -39,6 +39,10 @@ export interface KnowledgeBaseQnaDTO {
   category: string | null;
   tags: string[];
   status: "draft" | "published" | "archived";
+  reviewStatus: "pending" | "approved" | "rejected";
+  reviewNote: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
   isPinned: boolean;
   createdByEmployeeNumber: string | null;
   createdByName: string | null;
@@ -195,6 +199,8 @@ export const createKnowledgeBaseQna = (input: {
   category?: string | null;
   tags?: string[];
   isPinned?: boolean;
+  reviewStatus?: "pending" | "approved" | "rejected";
+  reviewNote?: string | null;
 }) => apiPost<KnowledgeBaseQnaDTO>("/api/portal/knowledge-base-qna", input);
 
 export const updateKnowledgeBaseQna = (id: number, input: Partial<{
@@ -204,7 +210,21 @@ export const updateKnowledgeBaseQna = (id: number, input: Partial<{
   tags: string[];
   isPinned: boolean;
   status: "draft" | "published" | "archived";
+  reviewStatus: "pending" | "approved" | "rejected";
+  reviewNote: string | null;
 }>) => apiPatch<KnowledgeBaseQnaDTO>(`/api/portal/knowledge-base-qna/${id}`, input);
+
+export const fetchSupervisorQnaReview = (facilityKey?: string, limit = 200) => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (facilityKey) params.set("facilityKey", facilityKey);
+  return apiGet<{ items: KnowledgeBaseQnaDTO[] }>(`/api/bff/supervisor/qna-review?${params.toString()}`);
+};
+
+export const approveKnowledgeBaseQna = (id: number, reviewNote?: string | null) =>
+  apiPost<KnowledgeBaseQnaDTO>(`/api/bff/supervisor/qna-review/${id}/approve`, { reviewNote });
+
+export const rejectKnowledgeBaseQna = (id: number, reviewNote?: string | null) =>
+  apiPost<KnowledgeBaseQnaDTO>(`/api/bff/supervisor/qna-review/${id}/reject`, { reviewNote });
 
 export const deleteKnowledgeBaseQna = (id: number) => apiDelete<{ ok: boolean }>(`/api/portal/knowledge-base-qna/${id}`);
 

@@ -34,7 +34,7 @@ export default function SystemRawInspectorPage() {
                 onChange={(event) => setTarget(event.target.value as RawInspectorPath)}
                 className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-black text-[#10233f]"
               >
-                {rawInspectorTargets.map(([path, label]) => <option key={path} value={path}>{label}</option>)}
+                {rawInspectorTargets.map(({ path, label }) => <option key={path} value={path}>{label}</option>)}
               </select>
               <button onClick={() => rawQuery.refetch()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[13px] font-black text-white">
                 <RefreshCw className={cn("h-4 w-4", rawQuery.isFetching && "animate-spin")} />
@@ -66,7 +66,7 @@ export default function SystemRawInspectorPage() {
         <WorkbenchCard className="p-4">
           <div className="flex items-start gap-3">
             <Search className="mt-0.5 h-5 w-5 shrink-0 text-[#ef7d22]" />
-            <p className="text-[12px] font-bold leading-5 text-[#637185]">每次查詢會寫入 telemetry 事件，供系統端追蹤 Raw Inspector 使用情況。</p>
+            <p className="text-[12px] font-bold leading-5 text-[#637185]">每次查詢會經由系統端白名單 proxy，並寫入 audit log，供系統治理追蹤 Raw Inspector 使用情況。</p>
           </div>
         </WorkbenchCard>
       </div>

@@ -3,11 +3,12 @@ import type { LucideIcon } from "lucide-react";
 import { Activity, FileSearch, MousePointerClick, ShieldCheck, Users } from "lucide-react";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
-import { fetchAuditPortalAnalytics, fetchUiEventOverview } from "./api";
+import { fetchAuditLogs, fetchAuditPortalAnalytics, fetchUiEventOverview } from "./api";
 
 export default function SystemAuditPage() {
   const uiQuery = useQuery({ queryKey: ["/api/bff/system/ui-event-overview"], queryFn: fetchUiEventOverview });
   const analyticsQuery = useQuery({ queryKey: ["/api/portal/analytics", "audit"], queryFn: fetchAuditPortalAnalytics });
+  const auditLogsQuery = useQuery({ queryKey: ["/api/audit/logs"], queryFn: fetchAuditLogs });
   const analytics = analyticsQuery.data;
   const metrics: readonly (readonly [label: string, value: number, Icon: LucideIcon, tone: string])[] = [
     ["UI 事件", uiQuery.data?.totalEvents ?? 0, MousePointerClick, "text-[#2f6fe8]"],
@@ -60,6 +61,23 @@ export default function SystemAuditPage() {
                 </div>
               ))}
               {!analytics?.topEmployees?.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚無使用者稽核資料。</div> : null}
+            </div>
+          </WorkbenchCard>
+
+          <WorkbenchCard className="p-5 xl:col-span-2">
+            <h2 className="mb-4 text-[15px] font-black">Audit Logs</h2>
+            <div className="space-y-3">
+              {(auditLogsQuery.data?.items ?? []).map((item) => (
+                <div key={`${item.id ?? item.timestamp}-${item.action}`} className="grid gap-2 rounded-[8px] bg-[#fbfcfd] p-3 md:grid-cols-[1fr_150px_120px] md:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-black text-[#10233f]">{item.action}</p>
+                    <p className="truncate text-[11px] font-bold text-[#8b9aae]">{item.resource}{item.resourceId ? ` / ${item.resourceId}` : ""}</p>
+                  </div>
+                  <p className="text-[12px] font-bold text-[#637185]">{item.actorId ?? "system"}</p>
+                  <p className="text-[12px] font-black text-[#10233f]">{item.resultStatus ?? "success"}</p>
+                </div>
+              ))}
+              {!auditLogsQuery.data?.items?.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚無 audit log 資料。</div> : null}
             </div>
           </WorkbenchCard>
         </div>
