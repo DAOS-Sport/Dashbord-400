@@ -1,0 +1,59 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - img "駿斯" [ref=e8]
+        - paragraph [ref=e10]: 駿斯 CMS
+      - generic [ref=e11]:
+        - generic [ref=e12]: 營運中
+        - paragraph [ref=e14]: 新北高中游泳池 & 運動中心
+      - navigation [ref=e15]:
+        - link "首頁" [ref=e16] [cursor=pointer]:
+          - /url: /employee
+          - img [ref=e17]
+          - generic [ref=e20]: 首頁
+        - link "櫃台交接" [ref=e21] [cursor=pointer]:
+          - /url: /employee/handover
+          - img [ref=e22]
+          - generic [ref=e24]: 櫃台交接
+        - link "活動檔期/課程快訊" [ref=e25] [cursor=pointer]:
+          - /url: /employee/activity-periods
+          - img [ref=e26]
+          - generic [ref=e28]: 活動檔期/課程快訊
+        - link "常用文件" [ref=e29] [cursor=pointer]:
+          - /url: /employee/documents
+          - img [ref=e30]
+          - generic [ref=e33]: 常用文件
+        - link "個人工作記事" [ref=e34] [cursor=pointer]:
+          - /url: /employee/personal-note
+          - img [ref=e35]
+          - generic [ref=e38]: 個人工作記事
+        - link "相關問題詢問" [ref=e39] [cursor=pointer]:
+          - /url: /employee/qna
+          - img [ref=e40]
+          - generic [ref=e42]: 相關問題詢問
+        - link "點名/報到" [ref=e43] [cursor=pointer]:
+          - /url: /employee/checkins
+          - img [ref=e44]
+          - generic [ref=e47]: 點名/報到
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]: 駿
+          - generic [ref=e51]
+        - link "設定" [ref=e54] [cursor=pointer]:
+          - /url: /employee/more
+          - img [ref=e55]
+          - text: 設定
+    - generic [ref=e58]:
+      - banner [ref=e59]:
+        - generic [ref=e60]:
+          - generic [ref=e61]
+          - generic [ref=e69]
+      - main [ref=e89]:
+        - generic [ref=e90]:
+          - generic [ref=e92]
+          - generic [ref=e114]
+          - generic [ref=e169]
+          - generic [ref=e220]
+  - region "Notifications (F8)":
+    - list

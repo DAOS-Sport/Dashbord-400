@@ -1,0 +1,39 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - complementary [ref=e5]:
+      - generic [ref=e6]:
+        - img "駿斯" [ref=e8]
+        - paragraph [ref=e10]: 駿斯 CMS
+      - generic [ref=e11]:
+        - generic [ref=e12]: 營運中
+        - paragraph [ref=e14]: 新北高中游泳池 & 運動中心
+      - navigation [ref=e15]:
+        - link "Dashboard" [ref=e16] [cursor=pointer]:
+          - /url: /employee
+          - img [ref=e17]
+          - generic [ref=e20]: Dashboard
+        - link "Announcements" [ref=e21] [cursor=pointer]:
+          - /url: /employee/announcements
+          - img [ref=e22]
+          - generic [ref=e25]: Announcements
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: 駿
+          - generic [ref=e29]
+        - link "設定" [ref=e32] [cursor=pointer]:
+          - /url: /employee/more
+          - img [ref=e33]
+          - text: 設定
+    - generic [ref=e36]:
+      - banner [ref=e37]:
+        - generic [ref=e38]:
+          - generic [ref=e39]
+          - generic [ref=e47]
+      - main [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e70]
+          - generic [ref=e92]
+          - generic [ref=e147]
+          - generic [ref=e198]
+  - region "Notifications (F8)":
+    - list

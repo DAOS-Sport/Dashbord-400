@@ -1,0 +1,37 @@
+- generic [ref=e2] [box=0,0,1485,944]:
+  - main [ref=e3] [box=0,0,1485,944]:
+    - generic [ref=e4] [box=0,0,800,944]:
+      - generic [ref=e5] [box=64,64,672,312]:
+        - generic [ref=e6] [box=64,64,672,53]:
+          - img "駿斯" [ref=e8] [box=64,67,48,48]
+          - generic [ref=e9] [box=124,64,128,53]:
+            - heading "駿斯 CMS" [level=1] [ref=e10] [box=124,64,128,31]
+            - paragraph [ref=e11] [box=124,99,128,18]: 總館營運工作中樞 · v1.0
+        - generic [ref=e12] [box=64,197,360,179]:
+          - paragraph [ref=e13] [box=64,197,360,83]:
+            - text: 每天打開的
+            - text: 那一個入口
+          - paragraph [ref=e15] [box=64,320,360,56]: 登入後請選擇你今天要值班的場館。一個帳號可以綁定多個場館，隨時切換。
+      - generic [ref=e16] [box=64,850,672,31]:
+        - generic [ref=e17] [box=64,850,81,31]: 多館別切換
+        - generic [ref=e18] [box=153,850,74,31]: SSO 整合
+        - generic [ref=e19] [box=235,850,92,31]: 個人工作入口
+    - generic [ref=e20] [box=800,0,685,944]:
+      - generic [ref=e21] [box=947,139,390,427]:
+        - generic [ref=e22] [box=976,168,332,52]:
+          - heading "員工登入" [level=2] [ref=e23] [box=976,168,332,30]
+          - paragraph [ref=e24] [box=976,202,332,18]: 步驟 1 / 2 · 確認個人身分
+        - generic [ref=e25] [box=976,244,332,18]: 員工編號
+        - textbox "員工編號" [ref=e26] [box=976,270,332,48]: "1111"
+        - generic [ref=e27] [box=976,334,332,18]: 密碼 / OTP
+        - textbox "密碼 / OTP" [ref=e28] [box=976,360,332,48]: "1111"
+        - paragraph [ref=e29] [box=976,416,332,17]: 已寄出簡訊 OTP 至 09** ***128 · 54s 後可重發
+        - button "下一步：選擇場館 →" [ref=e30] [cursor=pointer] [box=976,457,332,48]:
+          - img [ref=e31] [box=1066,473,16,16]
+          - text: 下一步：選擇場館 →
+        - generic [ref=e34] [box=976,521,332,17]:
+          - button "忘記密碼" [ref=e35] [cursor=pointer] [box=976,521,44,17]
+          - button "主管登入" [ref=e36] [cursor=pointer] [box=1264,521,44,17]
+      - paragraph [ref=e37] [box=1034,788,217,17]: 登入即同意內部使用規範 · 所有操作均會留痕
+  - region "Notifications (F8)" [box=0,944,1485,0]:
+    - list [box=1065,912,420,32]

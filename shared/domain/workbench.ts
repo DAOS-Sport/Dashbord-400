@@ -286,6 +286,7 @@ export interface SupervisorFacilityOverview {
 
 export interface SupervisorDashboardDto {
   facility: FacilitySummary;
+  facilities?: BffSection<SupervisorFacilityOverview[]>;
   staffing: BffSection<SupervisorStaffingSummary>;
   pendingAnomalies: BffSection<SupervisorAnomalySummary[]>;
   incompleteTasks: BffSection<TaskSummary[]>;
@@ -293,7 +294,6 @@ export interface SupervisorDashboardDto {
   handoverOverview: BffSection<{ open: number; confirmed: number }>;
   shifts: BffSection<ShiftSummary[]>;
   campaigns: BffSection<CampaignSummary[]>;
-  facilities?: BffSection<SupervisorFacilityOverview[]>;
 }
 
 export interface SystemMetricSummary {

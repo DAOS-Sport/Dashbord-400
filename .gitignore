@@ -55,4 +55,7 @@ Thumbs.db
 
 # Runtime upload artifacts (work-log photos)
 uploads/work-logs/
+
+# Local auth artifacts
+output/*cookies*.txt
 # <<< repo-bootstrap <<<

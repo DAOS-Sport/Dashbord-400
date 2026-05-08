@@ -1,0 +1,397 @@
+{
+  "project": {
+    "name": "400Qian Frontend Design Export",
+    "sourcePath": "D:\\駿斯工作內容\\02-repos\\400qian-duan-yi-biao-ban",
+    "updatedAt": "2026-04-27",
+    "target": "Figma / Claude Design redesign handoff"
+  },
+  "figmaStructure": [
+    "00 Cover / Scope",
+    "01 Design Tokens",
+    "02 Shared Components",
+    "03 Portal / Facility Screens",
+    "04 Employee Workbench",
+    "05 Supervisor Workbench",
+    "06 System Governance",
+    "07 Legacy Admin",
+    "08 States / Empty / Loading / Error"
+  ],
+  "tokens": {
+    "portal": {
+      "colors": {
+        "primaryNavy": "#001d42",
+        "navyContainer": "#19335a",
+        "secondaryTeal": "#006b60",
+        "accentTeal": "#1CB4A3",
+        "limeGreen": "#8DC63F",
+        "surface": "#ffffff",
+        "background": "#f7f9fb",
+        "surfaceLow": "#f2f4f6",
+        "textPrimary": "#191c1e",
+        "textSecondary": "#44474e",
+        "outline": "#74777f",
+        "outlineVariant": "#c4c6cf"
+      },
+      "typography": {
+        "headline": "Manrope / Noto Sans TC",
+        "body": "Inter / Noto Sans TC"
+      },
+      "layout": {
+        "desktopSidebarWidth": 256,
+        "topbarHeight": 64,
+        "cardRadius": 24,
+        "pillRadius": 9999
+      }
+    },
+    "workbench": {
+      "colors": {
+        "navy": "#10233f",
+        "navyStrong": "#0d2a50",
+        "sidebarBlue": "#1f3f68",
+        "teal": "#1cb4a3",
+        "lime": "#79d146",
+        "blue": "#2f6fe8",
+        "red": "#ff4964",
+        "amber": "#ef7d22",
+        "surface": "#ffffff",
+        "surfaceSoft": "#f7fafc",
+        "border": "#dfe8f2",
+        "mutedText": "#637185"
+      },
+      "layout": {
+        "employeeSidebarWidth": 232,
+        "roleSidebarWidth": 216,
+        "cardRadius": 8,
+        "contentMaxWidth": 1280
+      }
+    }
+  },
+  "sharedComponents": [
+    {
+      "name": "Shell/PortalShell",
+      "source": "client/src/components/portal/PortalShell.tsx",
+      "modules": ["topbar", "desktopSidebar", "mobileDrawer", "mobileSearch", "mobileBottomNav", "globalSearch", "notifications", "userAvatar"]
+    },
+    {
+      "name": "Shell/EmployeeShell",
+      "source": "client/src/modules/employee/employee-shell.tsx",
+      "modules": ["employeeSidebar", "stickyHeader", "roleSwitcher", "facilitySwitcher", "backHome", "mobileBottomNav"]
+    },
+    {
+      "name": "Shell/RoleShell",
+      "source": "client/src/modules/workbench/role-shell.tsx",
+      "modules": ["roleSidebar", "stickyHeader", "roleSwitcher", "notificationButton", "datePill", "facilityPill", "mobileBottomNav"]
+    },
+    {
+      "name": "Card/Bento",
+      "source": "client/src/components/portal/BentoCard.tsx",
+      "variants": ["white", "navy"]
+    },
+    {
+      "name": "Card/Workbench",
+      "source": "client/src/shared/ui-kit/workbench-card.tsx",
+      "variants": ["light", "navy"]
+    },
+    {
+      "name": "Portal/HandoverGrid",
+      "source": "client/src/components/portal/HandoverGrid.tsx"
+    },
+    {
+      "name": "Portal/MustReadList",
+      "source": "client/src/components/portal/MustReadList.tsx"
+    },
+    {
+      "name": "Portal/CampaignHero",
+      "source": "client/src/components/portal/CampaignHero.tsx"
+    },
+    {
+      "name": "Portal/AnnouncementDrawer",
+      "source": "client/src/components/portal/AnnouncementDrawer.tsx"
+    }
+  ],
+  "screens": [
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/login",
+      "frameName": "Portal / Login",
+      "source": "client/src/pages/portal/portal-login.tsx",
+      "modules": ["brandHeader", "loginCard", "employeeNumberInput", "phoneInput", "loginCTA", "loadingState", "errorState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal",
+      "frameName": "Portal / Facility Setup",
+      "source": "client/src/pages/portal/portal-setup.tsx",
+      "modules": ["facilityChooser", "facilityCards", "loggedInUnboundState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool",
+      "frameName": "Portal / Facility Home / xinbei_pool",
+      "source": "client/src/pages/portal/portal-home.tsx",
+      "modules": ["pageHeader", "dateAndShiftStatus", "handoverGrid", "mustReadList", "quickLinks", "shiftQuickActions", "directoryContacts", "recentAnnouncements", "campaignHero", "systemAnnouncements", "announcementDrawer"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/announcements",
+      "frameName": "Portal / Announcements",
+      "source": "client/src/pages/portal/portal-announcements.tsx",
+      "modules": ["typeTabs", "countLabel", "searchFilteredList", "announcementRows", "announcementDrawer", "loadingSkeleton", "emptyState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/announcements/:id",
+      "frameName": "Portal / Announcement Detail",
+      "source": "client/src/pages/portal/portal-announcement-detail.tsx",
+      "modules": ["detailHeader", "summary", "recommendedAction", "recommendedReply", "originalText", "acknowledgeButton", "backNavigation"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/handover",
+      "frameName": "Portal / Handover",
+      "source": "client/src/pages/portal/portal-handover.tsx",
+      "modules": ["newEntryForm", "textareaCounter", "submitButton", "recentList", "handoverItem", "deleteAction", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/campaigns",
+      "frameName": "Portal / Campaigns",
+      "source": "client/src/pages/portal/portal-campaigns.tsx",
+      "modules": ["campaignCardGrid", "campaignCard", "candidateTypeLabel", "dateRange", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/shift",
+      "frameName": "Portal / Shift",
+      "source": "client/src/pages/portal/portal-shift.tsx",
+      "modules": ["todayShiftList", "shiftRow", "checkedInBadge", "smartScheduleCTA", "anomalyReportLink", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/manage",
+      "frameName": "Portal / Manage",
+      "source": "client/src/pages/portal/portal-manage.tsx",
+      "modules": ["quickLinksCRUD", "quickLinksList", "systemAnnouncementsCRUD", "systemAnnouncementsList", "supervisorRedirectState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/review",
+      "frameName": "Portal / Review",
+      "source": "client/src/pages/portal/portal-review.tsx",
+      "modules": ["portalShellWrapper", "embeddedAnnouncementReview", "supervisorRedirectState"]
+    },
+    {
+      "group": "Portal / Facility Screens",
+      "route": "/portal/xinbei_pool/analytics",
+      "frameName": "Portal / Analytics",
+      "source": "client/src/pages/portal/portal-analytics.tsx",
+      "modules": ["analyticsHeader", "rangeSelector", "eventMixCards", "targetTreemap", "employeeTreemap", "dailyTrendBars", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee",
+      "frameName": "Employee / Home",
+      "source": "client/src/modules/employee/home/employee-home-page.tsx",
+      "modules": ["employeeDesktopSidebar", "topBar", "quickSearch", "searchResults", "weatherCard", "handoverCard", "tutorBookingPlaceholder", "announcementCard", "shortcutsGrid", "shiftCard", "eventsCard", "documentsCard", "stickyNotesCard", "mobileBottomNav"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee/tasks",
+      "frameName": "Employee / Tasks",
+      "source": "client/src/modules/employee/tasks/page.tsx",
+      "modules": ["pendingKPI", "doneKPI", "facilityKPI", "taskList", "taskCard", "claimAction", "reportAction", "doneAction", "successMessage", "emptyState"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee/announcements",
+      "frameName": "Employee / Announcements",
+      "source": "client/src/modules/employee/announcements/page.tsx",
+      "modules": ["announcementCountKPI", "requiredKPI", "dataStatusKPI", "requiredAnnouncementsSection", "announcementArticle", "readButton", "loadingState", "errorState", "emptyState"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee/handover",
+      "frameName": "Employee / Handover",
+      "source": "client/src/modules/employee/handover/page.tsx",
+      "modules": ["employeeShell", "handoverCreate", "handoverList", "handoverStatus", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee/shift",
+      "frameName": "Employee / Shift",
+      "source": "client/src/modules/employee/shift/page.tsx",
+      "modules": ["shiftStatus", "todayShift", "eventNews", "externalScheduleLink", "loadingState", "emptyState"]
+    },
+    {
+      "group": "Employee Workbench",
+      "route": "/employee/more",
+      "frameName": "Employee / More",
+      "source": "client/src/modules/employee/more/page.tsx",
+      "modules": ["featureEntryGrid", "documents", "facilityQuickLinks", "personalSettings"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor",
+      "frameName": "Supervisor / Dashboard",
+      "source": "client/src/modules/supervisor/dashboard-page.tsx",
+      "modules": ["layoutControls", "kpiCards", "staffingOverview", "pendingAnomalies", "incompleteTasksTop5", "quickActions", "recentActivity"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/tasks",
+      "frameName": "Supervisor / Tasks",
+      "source": "client/src/modules/supervisor/tasks/page.tsx",
+      "modules": ["taskFilters", "taskStats", "taskList", "taskItem", "assignmentState", "priorityState", "reportState"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/announcements",
+      "frameName": "Supervisor / Announcements",
+      "source": "client/src/modules/supervisor/announcements/page.tsx",
+      "modules": ["summaryCards", "searchFilters", "candidateList", "candidateRow", "detailPanel", "aiSummary", "originalMessage", "recommendedAction", "approveAction", "rejectAction", "apiErrorState"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/anomalies",
+      "frameName": "Supervisor / Anomalies",
+      "source": "client/src/modules/supervisor/anomalies/page.tsx",
+      "modules": ["metricCards", "searchFilter", "statusSegmentedControl", "reportList", "reportDetail", "failureReason", "employeeNote", "fullReportText", "resolveAction", "reopenAction", "deleteAction"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/people",
+      "frameName": "Supervisor / People",
+      "source": "client/src/modules/supervisor/people/page.tsx",
+      "modules": ["peopleKPIs", "peopleSearch", "activeEmployeeList", "currentOnDutyList", "nextOnDutyList", "facilityDistribution"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/handover",
+      "frameName": "Supervisor / Handover",
+      "source": "client/src/modules/supervisor/handover/page.tsx",
+      "modules": ["handoverCreate", "handoverList", "statusChange", "assignment", "targetShift"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/reports",
+      "frameName": "Supervisor / Reports",
+      "source": "client/src/modules/supervisor/reports/page.tsx",
+      "modules": ["metrics", "eventTrendChart", "exportButton", "popularActionsRanking"]
+    },
+    {
+      "group": "Supervisor Workbench",
+      "route": "/supervisor/settings",
+      "frameName": "Supervisor / Settings",
+      "source": "client/src/modules/supervisor/settings/page.tsx",
+      "modules": ["summaryCards", "widgetLayoutEditor", "dragDropWidgetRows", "enableDisableControls", "moveControls", "saveResetActions", "previewSkeleton", "quickLinksList", "systemAnnouncementsList", "governanceCards"]
+    },
+    {
+      "group": "System Governance",
+      "route": "/system",
+      "frameName": "System / Overview",
+      "source": "client/src/modules/system/dashboard-page.tsx",
+      "modules": ["metricCards", "healthScoreCircle", "healthTrendBars", "incidentList", "integrationFailureList", "quickToolsGrid"]
+    },
+    {
+      "group": "System Governance",
+      "route": "/system/alerts",
+      "frameName": "System / Alerts",
+      "source": "client/src/modules/system/alerts/page.tsx",
+      "modules": ["alertMetrics", "systemAlertsList", "anomalyReportList", "dbNotConfiguredState"]
+    },
+    {
+      "group": "System Governance",
+      "route": "/system/integrations",
+      "frameName": "System / Integrations",
+      "source": "client/src/modules/system/integrations/page.tsx",
+      "modules": ["integrationMetrics", "adapterRegistry", "adapterRow", "lastChecked", "refreshAction", "integrationFailurePanel", "emptySuccessState"]
+    },
+    {
+      "group": "System Governance",
+      "route": "/system/audit",
+      "frameName": "System / Audit",
+      "source": "client/src/modules/system/audit/page.tsx",
+      "modules": ["auditMetrics", "eventTypeRanking", "highFrequencyUsers", "emptyStates"]
+    },
+    {
+      "group": "System Governance",
+      "route": "/system/raw-inspector",
+      "frameName": "System / Raw Inspector",
+      "source": "client/src/modules/system/raw-inspector/page.tsx",
+      "modules": ["queryTargetCard", "endpointSelect", "queryButton", "rawJsonPanel", "telemetryNotice", "loadingState", "errorState"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/",
+      "frameName": "Legacy / Dashboard",
+      "source": "client/src/pages/dashboard.tsx",
+      "modules": ["appSidebar", "headerTitle", "operationsKPIs", "globalSummary", "taskTracking"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/analytics",
+      "frameName": "Legacy / Analytics",
+      "source": "client/src/pages/analytics.tsx",
+      "modules": ["decisionMetrics", "historyAnalysis", "charts"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/operations",
+      "frameName": "Legacy / Operations",
+      "source": "client/src/pages/operations.tsx",
+      "modules": ["crossFacilityMonitoring", "resourceHealth", "automationStatus"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/hr-audit",
+      "frameName": "Legacy / HR Audit",
+      "source": "client/src/pages/hr-audit.tsx",
+      "modules": ["employeeSearch", "auditReport", "permissionReview"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/system-health",
+      "frameName": "Legacy / System Health",
+      "source": "client/src/pages/system-health.tsx",
+      "modules": ["serviceHealth", "microserviceStatus", "errorSignals"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/anomaly-reports",
+      "frameName": "Legacy / Anomaly Reports",
+      "source": "client/src/pages/anomaly-reports.tsx",
+      "modules": ["anomalyTable", "recipientManagement", "smtpTest", "imageAttachments"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/announcements",
+      "frameName": "Legacy / Announcement Review",
+      "source": "client/src/pages/announcements.tsx",
+      "modules": ["candidateFilters", "candidateReview", "approveRejectActions"]
+    },
+    {
+      "group": "Legacy Admin",
+      "route": "/announcements/summary",
+      "frameName": "Legacy / Announcement Summary",
+      "source": "client/src/pages/announcement-summary.tsx",
+      "modules": ["announcementKPIs", "weeklyCharts", "summaryReport"]
+    }
+  ],
+  "states": ["default", "loading", "empty", "error", "permissionDenied", "mobile"],
+  "facilities": ["xinbei_pool", "salu_counter", "songshan_pool", "sanmin_pool"],
+  "recommendedBuildOrder": [
+    "Portal / Facility Home / xinbei_pool",
+    "Employee / Home",
+    "Supervisor / Dashboard",
+    "Supervisor / Announcements",
+    "System / Overview",
+    "System / Raw Inspector",
+    "Portal / Handover",
+    "Portal / Shift",
+    "Employee / Tasks",
+    "Supervisor / Anomalies",
+    "Supervisor / Settings",
+    "System / Integrations",
+    "Legacy / Dashboard"
+  ]
+}

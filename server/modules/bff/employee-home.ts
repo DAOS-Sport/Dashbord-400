@@ -74,6 +74,12 @@ export const getSupervisorDashboardMock = (): SupervisorDashboardDto => ({
     statusLabel: "台中館",
   },
   staffing: ok({ active: 12, total: 15, onShift: 12, absent: 3 }, syncTime),
+  facilities: ok([
+    { facilityKey: "xinbei_pool", facilityName: "新北高中游泳池&運動中心", area: "三蘆區", active: 7, onShift: 3, next: 2, openHandovers: 4, incompleteTasks: 2, currentLead: { name: "陳俊宏", title: "主理人", facilityKey: "xinbei_pool", facilityName: "新北高中游泳池&運動中心", status: "active" } },
+    { facilityKey: "salu_counter", facilityName: "三重商工 / 三蘆區櫃台", area: "三蘆區", active: 3, onShift: 1, next: 1, openHandovers: 1, incompleteTasks: 1 },
+    { facilityKey: "sanmin_pool", facilityName: "三民高中游泳池", area: "三蘆區", active: 4, onShift: 2, next: 1, openHandovers: 0, incompleteTasks: 0 },
+    { facilityKey: "songshan_pool", facilityName: "松山國小室內溫水游泳池", area: "台北", active: 5, onShift: 2, next: 2, openHandovers: 2, incompleteTasks: 1 },
+  ], syncTime),
   pendingAnomalies: ok([
     { id: "a-1", employeeName: "林小菁", issue: "遲到打卡", waitingMinutes: 15, priority: "high" },
     { id: "a-2", employeeName: "王大明", issue: "早退", waitingMinutes: 35, priority: "medium" },
