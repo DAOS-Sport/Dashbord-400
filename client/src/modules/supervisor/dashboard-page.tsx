@@ -230,7 +230,7 @@ function FacilityOverviewGrid({
     rail.scrollLeft += event.deltaY;
   };
   const shouldSuppressClickAfterDrag = (event: MouseEvent<HTMLElement>) => {
-    if (!dragState.current.moved) return true;
+    if (!dragState.current.moved) return false;
     event.preventDefault();
     event.stopPropagation();
     dragState.current.moved = false;
