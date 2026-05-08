@@ -5,9 +5,15 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "tsx script/build.ts",
+    "build": "node scripts/run-toolchain.cjs tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
-    "check": "tsc",
+    "type-check": "node scripts/run-toolchain.cjs tsc --pretty false --noEmit",
+    "check": "node scripts/run-toolchain.cjs tsc --pretty false --noEmit",
+    "check:modules": "node scripts/run-toolchain.cjs tsx scripts/module-registry-check.ts",
+    "smoke:modules": "node scripts/run-toolchain.cjs tsx scripts/module-smoke.ts",
+    "unit:modules": "node scripts/run-toolchain.cjs tsx scripts/module-unit-tests.ts",
+    "dry-run": "node scripts/dry-run.cjs",
+    "check:training-flow": "node scripts/run-toolchain.cjs tsx scripts/training-flow-check.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

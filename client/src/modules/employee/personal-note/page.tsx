@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotebookPen, Plus } from "lucide-react";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
-import { createEmployeeResource, fetchEmployeeHome } from "@/modules/employee/home/api";
+import { createEmployeeResource, fetchEmployeeHome, fetchEmployeeResources } from "@/modules/employee/home/api";
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 
@@ -19,7 +19,12 @@ export default function EmployeePersonalNotePage() {
     queryFn: fetchEmployeeHome,
   });
   const facilityKey = homeQuery.data?.facility.key ?? "xinbei_pool";
-  const notes = homeQuery.data?.stickyNotes.data ?? [];
+  const notesQuery = useQuery({
+    queryKey: ["/api/portal/employee-resources", facilityKey, "sticky_note"],
+    queryFn: () => fetchEmployeeResources(facilityKey, "sticky_note", 100),
+    enabled: Boolean(facilityKey),
+  });
+  const notes = notesQuery.data?.items ?? [];
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
@@ -29,6 +34,7 @@ export default function EmployeePersonalNotePage() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
     queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home", "personal-note"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/portal/employee-resources", facilityKey, "sticky_note"] });
   };
 
   const resetForm = () => {
@@ -66,7 +72,7 @@ export default function EmployeePersonalNotePage() {
             <span className="rounded-full bg-[#fff4c8] px-3 py-1 text-[12px] font-black text-[#9a7a1d]">{notes.length} 則</span>
           </div>
 
-          {homeQuery.isLoading ? (
+          {homeQuery.isLoading || notesQuery.isLoading ? (
             <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-[13px] font-bold text-[#637185]">載入便利貼中...</div>
           ) : notes.length ? (
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -80,22 +86,20 @@ export default function EmployeePersonalNotePage() {
                       <h3 className="text-[14px] font-black text-[#10233f]">{note.title}</h3>
                       <p className="mt-2 whitespace-pre-wrap text-[13px] font-bold leading-6 text-[#536175]">{note.content}</p>
                       {note.scheduledAt ? <p className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#9a7a1d]">{new Date(note.scheduledAt).toLocaleString("zh-TW")}</p> : null}
-                      <p className="mt-3 text-[11px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
+                      <p className="mt-3 text-[11px] font-bold text-[#9a7a1d]">{note.createdByName || "員工"} · {note.createdAt}</p>
                     </div>
                   </div>
-                  {note.resourceId ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <EmployeeResourceActions
-                        resourceId={note.resourceId}
-                        title={note.title}
-                        content={note.content}
-                        scheduledAt={note.scheduledAt}
-                        showScheduledAtField
-                        onChanged={invalidate}
-                        className="mt-0"
-                      />
-                    </div>
-                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <EmployeeResourceActions
+                      resourceId={note.id}
+                      title={note.title}
+                      content={note.content ?? undefined}
+                      scheduledAt={note.scheduledAt}
+                      showScheduledAtField
+                      onChanged={invalidate}
+                      className="mt-0"
+                    />
+                  </div>
                 </article>
               ))}
             </div>

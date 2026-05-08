@@ -48,15 +48,44 @@ for (const role of roles) {
   assert(cards.every((card) => ids.has(card.moduleId)), `${role} home-layout references an unknown module`);
   assert(health.every((item) => ids.has(item.moduleId)), `${role} health references an unknown module`);
   assert(cards.every((card) => ["ready", "empty", "not_connected", "incomplete", "error"].includes(card.status)), `${role} has invalid HomeCardDto status`);
-  assert(cards.every((card) => ["bff-wired", "production-ready"].includes(getModuleDescriptors().find((item) => item.id === card.moduleId)?.stage ?? "")), `${role} home-layout exposes a module below bff-wired`);
+  assert(cards.every((card) => {
+    const stage = getModuleDescriptors().find((item) => item.id === card.moduleId)?.stage ?? "";
+    return ["planned", "api-wired", "bff-wired", "production-ready"].includes(stage);
+  }), `${role} home-layout exposes a disabled or ui-only module`);
 }
 
 assert(!getNavigationModules("employee").some((item) => item.routePath.startsWith("/system")), "employee can see a system route");
 assert(!getNavigationModules("supervisor").some((item) => item.id === "raw-inspector"), "supervisor can see raw inspector");
 assert(
-  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna",
+  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna,checkins",
   `employee navigation order changed: ${getNavigationModules("employee").map((item) => item.id).join(",")}`,
 );
+assert(
+  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+  `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
+);
+assert(
+  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,tasks,announcements,handover,employee-training,anomalies,analytics",
+  `supervisor navigation order changed: ${getNavigationModules("supervisor").map((item) => item.id).join(",")}`,
+);
+assert(
+  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,tasks,announcements,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+  `supervisor home card order changed: ${getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",")}`,
+);
+assert(
+  getNavigationModules("system").map((item) => item.id).join(",") === "system-dashboard,system-health,system-observability,integration-sync-jobs,telemetry-audit,raw-inspector,employee-training",
+  `system navigation order changed: ${getNavigationModules("system").map((item) => item.id).join(",")}`,
+);
+assert(
+  getHomeLayoutCards("system").map((item) => item.moduleId).join(",") === "system-dashboard,system-health,system-observability,integration-sync-jobs,telemetry-audit,raw-inspector,employee-training,watchdog-events,booking-snapshot,notification-center,search",
+  `system home card order changed: ${getHomeLayoutCards("system").map((item) => item.moduleId).join(",")}`,
+);
+for (const role of roles) {
+  const cards = getHomeLayoutCards(role);
+  getNavigationModules(role).forEach((item) =>
+    assert(cards.some((card) => card.moduleId === item.id), `${role} navigation module missing home card: ${item.id}`),
+  );
+}
 
 const clientFiles = listFiles(join(repoRoot, "client", "src")).filter((file) => /\.(ts|tsx)$/.test(file));
 const localStorageViolations: string[] = [];

@@ -1,6 +1,6 @@
 # Current Progress and Remaining Plan
 
-Date: 2026-04-30
+Date: 2026-05-07
 
 ## Product Scope Decision
 
@@ -27,6 +27,20 @@ Not in the near-term plan:
 
 ## Current State by Role
 
+Role homepage/navigation alignment is complete locally:
+
+- Employee navigation: 8 modules; homepage: 14 cards.
+- Supervisor navigation: 8 modules; homepage: 11 cards.
+- System navigation: 7 modules; homepage: 11 cards.
+- `npm run unit:modules` and `npm run dry-run` both pass with exact order checks.
+- Any remaining non-ready health rows are external-provider, background-governance, deprecated, or deployment-validation items; they are not promoted to fake ready state without real source data.
+
+Pre-launch final closure batch status:
+
+- Completed: personal-note owner policy, Q&A supervisor review, and unified not_connected/degraded frontend UX.
+- Halted by explicit batch scope: announcement BFF policy, because the required owner file `server/modules/bff/routes.ts` was locked for this batch.
+- New deployment migration: `0007_qna_supervisor_review.sql`.
+
 ### Employee
 
 Status: deployment-ready for core daily workflow.
@@ -45,9 +59,11 @@ Ready:
 Remaining:
 
 - Production DB verification for Q&A migration `0005`
+- Production DB verification for Q&A review migration `0007`
 - Production DB verification for training view telemetry
 - Smart Schedule real source validation for today shift
-- Weather remains not connected
+- Weather, booking/course, check-in, booking snapshot, and notification center remain not-connected provider surfaces, but all are now represented in homepage/navigation policy and tested.
+- Announcement BFF policy still needs an unlocked BFF route pass to fully unify LINE candidate and local announcement policy.
 
 ### Supervisor
 
@@ -76,26 +92,29 @@ Remaining:
 - Production audit row validation for domain writes
 - Facility detail deeper employee-view embedding can be improved post-launch
 - Formal report DTO can be finalized post-launch
+- External/background modules that are not part of the supervisor workbench are policy-classified so they no longer appear as unowned gaps.
 
 ### System / IT
 
-Status: partial, next stabilization area.
+Status: locally hardened; deployment data validation remains.
 
 Ready / usable:
 
 - Module registry and health inspection
+- System navigation and homepage cards aligned to the System / IT control surface
+- System registry debug endpoints now require a system session plus explicit system governance permission
 - System overview aliases
-- Raw inspector skeleton
-- Audit / telemetry table schema and DB-backed write path
+- Raw Inspector server-side whitelist proxy with audit-backed query logging
+- Audit / telemetry table schema, DB-backed write path, and system-only latest audit log API
 - Training view report skeleton
+- Local deterministic module unit tests and full dry-run orchestrator
 
 Remaining:
 
-- SYSTEM_ADMIN policy hardening
-- Raw inspector query scope and audit guard
 - Integration status sourceStatus UI
 - Telemetry / audit production row validation after deployment
 - Module health should become the primary system control surface
+- Background integrations and deprecated layout settings remain policy-classified until real sync-job and integration-error tables are populated.
 
 ## Current Topology
 
@@ -122,13 +141,14 @@ flowchart TD
 
 ## Next Work Order
 
-1. Stabilize System / IT pages.
-   - Focus: module health, raw inspector guard, integration status, audit visibility.
-   - Do not restart module configuration builder.
-
-2. Replit deployment verification.
+1. Replit deployment verification.
    - Apply migrations `0005` and `0006`.
    - Verify Q&A rows, announcement controls, training view telemetry, audit rows.
+
+2. System / IT production validation.
+   - Use module health as the main control surface.
+   - Verify Raw Inspector audit rows and system registry guard behavior in Replit.
+   - Keep module configuration builder paused.
 
 3. Supervisor production acceptance.
    - Re-test all 8 supervisor pages on desktop and mobile.
@@ -136,8 +156,9 @@ flowchart TD
    - Validate supervisor cannot see unauthorized facilities.
 
 4. Employee final polish.
-   - Confirm no homepage visual regression after supervisor changes.
+   - Confirm no homepage visual regression after navigation/card contract alignment.
    - Validate common documents, notes, Q&A, and training on mobile.
+   - Validate provider-backed check-in, weather, booking/course, booking snapshot, and notifications after the real adapters are selected.
 
 5. Post-launch improvements.
    - Facility detail drill-down.

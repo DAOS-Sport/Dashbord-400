@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { AppRole } from "@shared/modules";
-import { requireSession } from "../auth/context";
+import { requireRole, requireSession } from "../auth/context";
 import {
   listHomeLayoutForRole,
   listModuleDescriptors,
@@ -15,6 +15,21 @@ const appRoles: AppRole[] = ["employee", "supervisor", "system", "SYSTEM_ADMIN"]
 
 const isAppRole = (value: string): value is AppRole =>
   appRoles.includes(value as AppRole);
+
+const hasPermission = (permissions: string[] | undefined, permission: string) =>
+  Boolean(permissions?.includes(permission) || permissions?.some((item) => item.startsWith("system:")));
+
+const firstParam = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value ?? "";
+
+const requireSystemRegistryRead: import("express").RequestHandler = (req, res, next) => {
+  if (req.workbenchSession?.activeRole !== "system") {
+    return res.status(403).json({ message: "SYSTEM_ROLE_REQUIRED" });
+  }
+  if (!hasPermission(req.workbenchSession.permissionsSnapshot, "system:module-registry:read")) {
+    return res.status(403).json({ message: "SYSTEM_MODULE_REGISTRY_PERMISSION_REQUIRED" });
+  }
+  return next();
+};
 
 export const registerModuleRegistryRoutes = (app: Express) => {
   app.get("/api/modules/registry", requireSession, (req, res) => {
@@ -66,22 +81,21 @@ export const registerModuleRegistryRoutes = (app: Express) => {
     });
   });
 
-  // TODO: Require SYSTEM_ADMIN before exposing this debug surface in production.
-  app.get("/api/system/module-registry", (_req, res) => {
+  app.get("/api/system/module-registry", requireSession, requireRole("system"), requireSystemRegistryRead, (_req, res) => {
     res.json({
       items: listModuleRegistry(),
-      warning: "Debug endpoint. Production must restrict this to SYSTEM_ADMIN.",
+      visibility: "system-governed",
     });
   });
 
-  app.get("/api/system/module-registry/:id", (req, res) => {
-    const item = readModuleRegistryItem(req.params.id);
+  app.get("/api/system/module-registry/:id", requireSession, requireRole("system"), requireSystemRegistryRead, (req, res) => {
+    const item = readModuleRegistryItem(firstParam(req.params.id));
     if (!item) return res.status(404).json({ message: "Module not found" });
     return res.json(item);
   });
 
-  app.get("/api/system/module-registry-role/:role", (req, res) => {
-    const role = req.params.role;
+  app.get("/api/system/module-registry-role/:role", requireSession, requireRole("system"), requireSystemRegistryRead, (req, res) => {
+    const role = firstParam(req.params.role);
     if (!isAppRole(role)) {
       return res.status(400).json({ message: "Invalid role", allowedRoles: appRoles });
     }

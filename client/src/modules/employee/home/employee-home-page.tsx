@@ -49,6 +49,7 @@ import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domai
 import { Link, useLocation } from "wouter";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
+import { DegradedCard, NotConnectedCard } from "@/components/shared/not-connected-card";
 import { BrandLockup, BrandMark } from "@/shared/brand";
 import { riseIn, staggerContainer } from "@/shared/motion/tokens";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
@@ -476,16 +477,22 @@ function Hero({
           {home.facility.businessDate}
         </p>
       </div>
-      <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,34,58,0.45)]">
-        <div className="flex items-center gap-3">
-          <CloudSun className="h-10 w-10 text-[#ffc340]" />
-          <div>
-            <p className="text-[26px] font-black text-[#10233f]">{home.weather.data?.temperatureC ?? "--"}°C</p>
-            <p className="text-[12px] font-bold text-[#637185]">{home.weather.data?.label ?? "資料暫不可用"}</p>
-            <p className="text-[11px] text-[#8b9aae]">濕度 {home.weather.data?.humidity ?? "--"}%</p>
+      {home.weather.status === "unavailable" || !home.weather.data ? (
+        <NotConnectedCard title="天氣卡片" reason="external_pending" className="min-h-[128px]" />
+      ) : home.weather.status === "degraded" ? (
+        <DegradedCard title="天氣卡片" className="min-h-[128px]" />
+      ) : (
+        <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,34,58,0.45)]">
+          <div className="flex items-center gap-3">
+            <CloudSun className="h-10 w-10 text-[#ffc340]" />
+            <div>
+              <p className="text-[26px] font-black text-[#10233f]">{home.weather.data.temperatureC}°C</p>
+              <p className="text-[12px] font-bold text-[#637185]">{home.weather.data.label}</p>
+              <p className="text-[11px] text-[#8b9aae]">濕度 {home.weather.data.humidity}%</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -1524,8 +1531,10 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   return (
     <WorkbenchCard className="p-5">
       <SectionTitle title="今日班表" eyebrow="Shift" showAction={false} />
-      {!board?.sourceStatus.connected ? (
-        <div className="rounded-[8px] bg-[#fff7f8] p-6 text-center text-[13px] font-bold text-[#ff4964]">班表資料暫時無法取得</div>
+      {!board ? (
+        <NotConnectedCard title="今日班表" reason="external_pending" />
+      ) : !board.sourceStatus.connected ? (
+        <DegradedCard title="今日班表" />
       ) : previewRows.length ? (
         <div className="space-y-3">
           {previewRows.slice(0, 6).map(({ shift, person, status }) => (

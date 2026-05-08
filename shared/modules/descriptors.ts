@@ -81,7 +81,86 @@ const employeeNavigationOrder = [
   "employee-training",
   "personal-note",
   "knowledge-base-qna",
+  "checkins",
 ];
+
+const supervisorNavigationOrder = [
+  "supervisor-dashboard",
+  "facilities",
+  "tasks",
+  "announcements",
+  "handover",
+  "employee-training",
+  "anomalies",
+  "analytics",
+];
+
+const systemNavigationOrder = [
+  "system-dashboard",
+  "system-health",
+  "system-observability",
+  "integration-sync-jobs",
+  "telemetry-audit",
+  "raw-inspector",
+  "employee-training",
+];
+
+const employeeHomeOrder = [
+  "employee-home",
+  "handover",
+  "activity-periods",
+  "employee-resources",
+  "employee-training",
+  "personal-note",
+  "knowledge-base-qna",
+  "shift-reminder",
+  "booking-snapshot",
+  "notification-center",
+  "weather-widget",
+  "registration-courses",
+  "checkins",
+  "search",
+];
+
+const supervisorHomeOrder = [
+  "supervisor-dashboard",
+  "facilities",
+  "tasks",
+  "announcements",
+  "handover",
+  "employee-training",
+  "anomalies",
+  "analytics",
+  "booking-snapshot",
+  "notification-center",
+  "search",
+];
+
+const systemHomeOrder = [
+  "system-dashboard",
+  "system-health",
+  "system-observability",
+  "integration-sync-jobs",
+  "telemetry-audit",
+  "raw-inspector",
+  "employee-training",
+  "watchdog-events",
+  "booking-snapshot",
+  "notification-center",
+  "search",
+];
+
+const roleNavigationOrder: Record<WorkbenchRole, string[]> = {
+  employee: employeeNavigationOrder,
+  supervisor: supervisorNavigationOrder,
+  system: systemNavigationOrder,
+};
+
+const roleHomeOrder: Record<WorkbenchRole, string[]> = {
+  employee: employeeHomeOrder,
+  supervisor: supervisorHomeOrder,
+  system: systemHomeOrder,
+};
 
 const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
   "employee-home": { shortName: "首頁", routePath: "/employee", iconKey: "home", menuOrder: 1, navVisible: true },
@@ -91,7 +170,31 @@ const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
   "employee-training": { name: "員工教材", shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
   "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 6, navVisible: true },
   "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 7, navVisible: true, requiredPermissions: ["employee:qna:read"] },
-  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 70, navVisible: false, cardVisible: false },
+  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 8, cardOrder: 13, navVisible: true, cardVisible: true },
+};
+
+const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<ModuleDescriptor>>> = {
+  employee: employeeNavigationOverrides,
+  supervisor: {
+    "supervisor-dashboard": { shortName: "營運總覽", routePath: "/supervisor", iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
+    facilities: { shortName: "場館", routePath: "/supervisor/facilities", iconKey: "building", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "CARD_CLICK"] },
+    tasks: { shortName: "任務管理", routePath: "/supervisor/tasks", iconKey: "clipboard-check", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
+    announcements: { shortName: "公告管理", routePath: "/supervisor/announcements", iconKey: "bell", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
+    handover: { shortName: "櫃台交接", routePath: "/supervisor/handover", iconKey: "message-square-text", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
+    "employee-training": { shortName: "員工教材", routePath: "/supervisor/training", iconKey: "graduation-cap", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
+    anomalies: { shortName: "異常審核", routePath: "/supervisor/anomalies", iconKey: "shield-check", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
+    analytics: { shortName: "報表", routePath: "/supervisor/reports", iconKey: "gauge", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "REPORT_EXPORT"] },
+  },
+  system: {
+    "system-dashboard": { shortName: "系統總覽", routePath: "/system", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
+    "system-health": { shortName: "系統健康", routePath: "/system/health", iconKey: "gauge", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW"] },
+    "system-observability": { shortName: "告警中心", routePath: "/system/alerts", iconKey: "bell", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "CLIENT_ERROR_VIEW"] },
+    "integration-sync-jobs": { shortName: "整合狀態", routePath: "/system/integrations", iconKey: "link", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/integration-overview", telemetryEvents: ["PAGE_VIEW", "INTEGRATION_STATUS_VIEW"] },
+    "telemetry-audit": { shortName: "Audit / Telemetry", routePath: "/system/audit", iconKey: "shield-check", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "AUDIT_LOG_VIEW"] },
+    "raw-inspector": { shortName: "Raw Inspector", routePath: "/system/raw-inspector", iconKey: "shield-check", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "RAW_INSPECTOR_QUERY"] },
+    "employee-training": { shortName: "教材觀看紀錄", routePath: "/system/training-views", iconKey: "graduation-cap", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
+    "watchdog-events": { shortName: "Watchdog", routePath: "/system/alerts", iconKey: "gauge", menuOrder: 8, cardOrder: 8, navVisible: false, cardVisible: true, telemetryEvents: ["WATCHDOG_EVENT_VIEW"] },
+  },
 };
 
 const routeForRole = (module: ModuleDefinition, role: WorkbenchRole) =>
@@ -105,13 +208,27 @@ const routeForDescriptorRole = (moduleId: string, role: WorkbenchRole, fallback?
 };
 
 const permissionSatisfied = (requiredPermissions: string[], permissionsSnapshot?: string[]) => {
-  if (requiredPermissions.length === 0) return false;
+  if (requiredPermissions.length === 0) return true;
   if (!permissionsSnapshot || permissionsSnapshot.length === 0) return true;
   if (requiredPermissions.some((permission) => permissionsSnapshot.includes(permission))) return true;
   const requiredRoles = new Set(requiredPermissions.map((permission) => permission.split(":")[0]).filter(Boolean));
   return Array.from(requiredRoles).some((role) =>
     permissionsSnapshot.some((permission) => permission.startsWith(`${role}:`)),
   );
+};
+
+const rolePermissionForModule = (role: WorkbenchRole, module: ModuleDescriptor) => {
+  const roleSpecific = module.requiredPermissions.filter((permission) => permission.startsWith(`${role}:`));
+  return roleSpecific.length ? roleSpecific : [`${role}:${module.id}:view`];
+};
+
+const telemetryEventsFromModule = (module: ModuleDefinition) => {
+  const events = [...(module.telemetry.eventTypes ?? [])];
+  if (module.telemetry.trackPageView) events.push("PAGE_VIEW");
+  if (module.telemetry.trackCardClick) events.push("CARD_CLICK");
+  if (module.telemetry.trackActionSubmit) events.push("ACTION_SUBMIT");
+  if (module.telemetry.auditRequired) events.push("AUDIT_REQUIRED");
+  return Array.from(new Set(events));
 };
 
 const bffEndpointForRole = (module: ModuleDefinition, role: WorkbenchRole) => {
@@ -151,7 +268,7 @@ const descriptorFromModule = (module: ModuleDefinition): ModuleDescriptor => {
     requiredPermissions: module.routes.flatMap((route) => route.role ? [`${route.role}:${module.id}:view`] : []),
     dependencies: module.integrations.map((item) => item.provider),
     searchKeywords: [module.id, module.label, module.description, ...(chineseKeywords[module.id] ?? []), ...(module.legacy?.oldNames ?? []), ...(module.legacy?.oldRoutes ?? [])],
-    telemetryEvents: module.telemetry.eventTypes ?? [],
+    telemetryEvents: telemetryEventsFromModule(module),
     emptyStateText: `${module.label} 目前沒有資料。`,
     notConnectedText: `${module.label} 已註冊，但資料來源尚未接線。`,
   };
@@ -251,7 +368,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     description: "Employee home weather card; source is intentionally not connected yet.",
     domain: "integration",
     stage: "planned",
-    roles: ["employee", "supervisor"],
+    roles: ["employee"],
     defaultEnabled: true,
     navVisible: false,
     cardVisible: true,
@@ -272,7 +389,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     description: "Attendance and check-in entry module placeholder.",
     domain: "attendance",
     stage: "planned",
-    roles: ["employee", "supervisor"],
+    roles: ["employee"],
     defaultEnabled: true,
     navVisible: false,
     cardVisible: false,
@@ -292,12 +409,13 @@ const extraDescriptors: ModuleDescriptor[] = [
     name: "活動檔期 / 課程快訊",
     description: "Activity period surface backed by employee resources and announcement candidates.",
     domain: "operations",
-    stage: "api-wired",
+    stage: "bff-wired",
     roles: ["employee", "supervisor"],
     defaultEnabled: true,
     navVisible: true,
     cardVisible: true,
     routePath: "/employee/activity-periods",
+    bffEndpoint: "/api/bff/employee/home",
     apiPrefix: "/api/portal/employee-resources",
     iconKey: "calendar-days",
     menuOrder: 22,
@@ -315,7 +433,7 @@ const extraDescriptors: ModuleDescriptor[] = [
     description: "Registration and course entry; booking provider is not connected yet.",
     domain: "schedule",
     stage: "planned",
-    roles: ["employee", "supervisor"],
+    roles: ["employee"],
     defaultEnabled: true,
     navVisible: true,
     cardVisible: true,
@@ -344,16 +462,20 @@ export const getModuleDescriptorById = (moduleId: string) =>
 export const getModuleDescriptorsByRole = (role: WorkbenchRole): ModuleDescriptor[] =>
   getModuleDescriptors()
     .filter((module) => module.roles.includes(role))
+    .map((module) => {
+      const roleRoutePath = routeForDescriptorRole(module.id, role, module.routePath);
+      const overrides = roleDescriptorOverrides[role][module.id] ?? {};
+      const adjusted = { ...module, routePath: roleRoutePath, ...overrides };
+      return {
+        ...adjusted,
+        requiredPermissions: rolePermissionForModule(role, adjusted),
+      };
+    })
     .sort((a, b) => a.menuOrder - b.menuOrder || a.name.localeCompare(b.name, "zh-TW"));
 
 export const getNavigationModules = (role: WorkbenchRole, permissionsSnapshot?: string[]): NavigationModuleDto[] =>
   getModuleDescriptorsByRole(role)
-    .map((module) => {
-      const roleRoutePath = routeForDescriptorRole(module.id, role, module.routePath);
-      const roleAdjusted = { ...module, routePath: roleRoutePath };
-      return role === "employee" ? { ...roleAdjusted, ...(employeeNavigationOverrides[module.id] ?? {}) } : roleAdjusted;
-    })
-    .filter((module) => role !== "employee" || employeeNavigationOrder.includes(module.id))
+    .filter((module) => roleNavigationOrder[role].includes(module.id))
     .filter((module) => module.navVisible && module.routePath)
     .filter((module) => permissionSatisfied(module.requiredPermissions, permissionsSnapshot))
     .map((module) => ({
@@ -365,28 +487,38 @@ export const getNavigationModules = (role: WorkbenchRole, permissionsSnapshot?: 
       stage: module.stage,
       menuOrder: module.menuOrder,
     }))
-    .sort((a, b) => a.menuOrder - b.menuOrder);
+    .sort((a, b) => roleNavigationOrder[role].indexOf(a.id) - roleNavigationOrder[role].indexOf(b.id));
 
 export const getHomeLayoutCards = (role: WorkbenchRole, permissionsSnapshot?: string[]): HomeCardDto[] =>
   getModuleDescriptorsByRole(role)
-    .filter((module) => module.cardVisible)
+    .filter((module) => roleHomeOrder[role].includes(module.id))
     .filter((module) => permissionSatisfied(module.requiredPermissions, permissionsSnapshot))
-    .filter((module) => module.stage === "bff-wired" || module.stage === "production-ready")
+    .filter((module) => module.stage !== "disabled")
     .map((module) => ({
       moduleId: module.id,
       title: module.shortName ?? module.name,
       subtitle: module.description,
-      status: (module.stage === "production-ready" ? "empty" : "incomplete") as HomeCardDto["status"],
+      status: (
+        module.stage === "production-ready"
+          ? "empty"
+          : module.stage === "bff-wired"
+            ? "incomplete"
+            : "not_connected"
+      ) as HomeCardDto["status"],
       routePath: module.routePath,
       order: module.cardOrder ?? module.menuOrder,
       payload: null,
       sourceStatus: {
         source: module.bffEndpoint ?? module.apiPrefix ?? "MODULE_REGISTRY",
         connected: module.stage === "production-ready" || module.stage === "bff-wired",
-        errorMessage: module.stage === "bff-wired" ? `${module.name} 已接上 BFF，但尚未達到 production-ready。` : undefined,
+        errorMessage: module.stage === "bff-wired"
+          ? `${module.name} 已接上 BFF，但尚未達到 production-ready。`
+          : module.stage === "production-ready"
+            ? undefined
+            : module.notConnectedText,
       },
     }))
-    .sort((a, b) => a.order - b.order);
+    .sort((a, b) => roleHomeOrder[role].indexOf(a.moduleId) - roleHomeOrder[role].indexOf(b.moduleId));
 
 export const getModuleHealth = (role?: WorkbenchRole, permissionsSnapshot?: string[]): ModuleHealthDto[] => {
   const descriptors = role ? getModuleDescriptorsByRole(role) : getModuleDescriptors();
@@ -404,11 +536,11 @@ export const getModuleHealth = (role?: WorkbenchRole, permissionsSnapshot?: stri
       module.stage === "planned" ? module.notConnectedText : "",
       module.stage === "ui-only" ? `${module.name} 仍停留在 ui-only。` : "",
       module.stage === "api-wired" ? `${module.name} 已有 API，但尚未接入首頁/BFF。` : "",
-      module.stage === "bff-wired" ? `${module.name} 已接入 BFF，但仍屬 incomplete。` : "",
+      module.stage === "bff-wired" ? "" : "",
     ].filter(Boolean);
     return {
       moduleId: module.id,
-      status: module.stage === "production-ready"
+      status: module.stage === "production-ready" || module.stage === "bff-wired"
         ? issues.length ? "degraded" : "ready"
         : module.stage === "disabled" || module.stage === "planned" || module.stage === "ui-only" || module.stage === "api-wired"
           ? "not_connected"

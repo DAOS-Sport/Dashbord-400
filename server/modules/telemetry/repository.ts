@@ -28,6 +28,20 @@ export interface TelemetryOverview {
   latestErrors: StoredClientError[];
 }
 
+export interface AuditLogRecord {
+  id?: number;
+  timestamp: string;
+  actorId?: string;
+  role?: string;
+  facilityKey?: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  payload?: unknown;
+  correlationId?: string;
+  resultStatus?: string;
+}
+
 export interface TrainingViewRecord {
   id?: number;
   resourceId?: string;
@@ -70,6 +84,7 @@ export interface TelemetryRepository {
   recordAudit(event: AuditEventInput): Promise<void>;
   getUiEventOverview(): Promise<TelemetryOverview>;
   getTrainingViewReport(): Promise<TrainingViewReport>;
+  listAuditLogs(limit?: number): Promise<AuditLogRecord[]>;
 }
 
 const uiEventMemory: StoredUiEvent[] = [];
@@ -97,6 +112,25 @@ export const createMemoryTelemetryRepository = (): TelemetryRepository => ({
       latestEvents: uiEventMemory.slice(-20).reverse(),
       latestErrors: clientErrorMemory.slice(-20).reverse(),
     };
+  },
+
+  async listAuditLogs(limit = 50) {
+    return auditMemory
+      .slice(-limit)
+      .reverse()
+      .map((event, index) => ({
+        id: index + 1,
+        timestamp: new Date().toISOString(),
+        actorId: event.actorId,
+        role: event.role,
+        facilityKey: event.facilityKey,
+        action: event.action,
+        resource: event.resource,
+        resourceId: event.resourceId,
+        payload: event.payload,
+        correlationId: event.correlationId,
+        resultStatus: event.resultStatus ?? "success",
+      }));
   },
 
   async getTrainingViewReport() {
@@ -344,6 +378,27 @@ export const createPostgresTelemetryRepository = (database: TelemetryDatabase): 
     });
 
     return toTrainingViewReport(events, eventTotal?.count ?? events.length);
+  },
+
+  async listAuditLogs(limit = 50) {
+    const rows = await database
+      .select()
+      .from(auditLogs)
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(Math.min(Math.max(limit, 1), 200));
+    return rows.map((row) => ({
+      id: row.id,
+      timestamp: iso(row.timestamp),
+      actorId: row.actorId ?? undefined,
+      role: row.role ?? undefined,
+      facilityKey: row.facilityKey ?? undefined,
+      action: row.action,
+      resource: row.resource,
+      resourceId: row.resourceId ?? undefined,
+      payload: row.payload ?? undefined,
+      correlationId: row.correlationId ?? undefined,
+      resultStatus: row.resultStatus ?? undefined,
+    }));
   },
 });
 

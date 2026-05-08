@@ -37,6 +37,18 @@ const formatTime = (value: string) => {
   }).format(date);
 };
 
+const reviewStatusLabel: Record<KnowledgeBaseQnaDTO["reviewStatus"], string> = {
+  pending: "待主管審核",
+  approved: "已核准公開",
+  rejected: "已退回",
+};
+
+const reviewStatusTone: Record<KnowledgeBaseQnaDTO["reviewStatus"], string> = {
+  pending: "bg-[#fff4d8] text-[#9b6a00]",
+  approved: "bg-[#e9f8df] text-[#188249]",
+  rejected: "bg-[#fff3f5] text-[#e33f5f]",
+};
+
 function QnaCard({
   item,
   onEdit,
@@ -64,6 +76,9 @@ function QnaCard({
             <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", item.answer ? "bg-[#e9f8df] text-[#188249]" : "bg-[#fff4d8] text-[#9b6a00]")}>
               {item.answer ? "已回答" : "待回答"}
             </span>
+            <span className={cn("rounded-full px-2 py-1 text-[11px] font-black", reviewStatusTone[item.reviewStatus])}>
+              {reviewStatusLabel[item.reviewStatus]}
+            </span>
           </div>
           <h2 className="mt-2 text-[17px] font-black leading-7 text-[#10233f]">{item.question}</h2>
           {item.answer ? (
@@ -76,6 +91,11 @@ function QnaCard({
               {item.tags.map((tag) => (
                 <span key={tag} className="rounded-full bg-[#eef6ff] px-2 py-1 text-[11px] font-black text-[#1b6eea]">{tag}</span>
               ))}
+            </div>
+          ) : null}
+          {item.reviewStatus === "rejected" && item.reviewNote ? (
+            <div className="mt-3 rounded-[8px] border border-[#ffd6dc] bg-[#fff7f8] px-3 py-2 text-[12px] font-bold text-[#a92740]">
+              退回原因：{item.reviewNote}
             </div>
           ) : null}
           <p className="mt-3 text-[11px] font-bold text-[#8b9aae]">

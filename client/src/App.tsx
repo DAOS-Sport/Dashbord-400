@@ -62,6 +62,7 @@ import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page
 import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
 import SupervisorPeoplePage from "@/modules/supervisor/people/page";
 import SupervisorHandoverPage from "@/modules/supervisor/handover/page";
+import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
 import SupervisorReportsPage from "@/modules/supervisor/reports/page";
 import SupervisorTasksPage from "@/modules/supervisor/tasks/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
@@ -304,6 +305,9 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/supervisor/training">
         <SupervisorTrainingPage />
+      </Route>
+      <Route path="/supervisor/qna-review">
+        <SupervisorQnaReviewPage />
       </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/system/health" component={SystemDashboardPage} />

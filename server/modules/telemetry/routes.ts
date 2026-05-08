@@ -79,4 +79,11 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
   app.get("/api/telemetry/training-views", requireSession, requireRole("system"), async (_req, res) => {
     return res.json(await container.repositories.telemetry.getTrainingViewReport());
   });
+
+  app.get("/api/audit/logs", requireSession, requireRole("system"), async (req, res) => {
+    const limit = typeof req.query.limit === "string" ? Number(req.query.limit) : 50;
+    return res.json({
+      items: await container.repositories.telemetry.listAuditLogs(Number.isFinite(limit) ? limit : 50),
+    });
+  });
 };
