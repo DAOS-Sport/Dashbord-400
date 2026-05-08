@@ -33,6 +33,7 @@ export const env = {
   replitDataApiToken: read("REPLIT_DATA_API_TOKEN"),
   replitDataTimeoutMs: Number(read("REPLIT_DATA_TIMEOUT_MS") || 8000),
   lineBotBaseUrl: read("LINE_BOT_BASE_URL") || "https://line-bot-assistant-ronchen2.replit.app",
+  lineBotAdminToken: read("LINE_BOT_ADMIN_TOKEN") || null,
   internalApiToken: read("INTERNAL_API_TOKEN"),
   lineBotInternalToken: read("LINE_BOT_INTERNAL_TOKEN") || read("LINE_BOT_API_TOKEN") || read("REPLIT_DATA_API_TOKEN") || read("INTERNAL_API_TOKEN"),
   smartScheduleBaseUrl: read("SMART_SCHEDULE_BASE_URL") || "https://smart-schedule-manager.replit.app",

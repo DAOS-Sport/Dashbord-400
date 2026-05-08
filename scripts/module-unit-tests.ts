@@ -134,7 +134,7 @@ const runEmployeeModuleTests = () => {
 const runSupervisorModuleTests = () => {
   const navigation = getNavigationModules("supervisor", rolePermissions.supervisor);
   const cards = getHomeLayoutCards("supervisor", rolePermissions.supervisor);
-  const expected = ["supervisor-dashboard", "facilities", "parking", "counter-log", "lane-rentals", "courts", "tasks", "announcements", "handover", "employee-training", "anomalies", "analytics"];
+  const expected = ["supervisor-dashboard", "facilities", "parking", "counter-log", "lane-rentals", "courts", "tasks", "announcements", "announcement-groups", "handover", "employee-training", "anomalies", "analytics"];
   assert(navigation.map((item) => item.id).join(",") === expected.join(","), `supervisor navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
   expected.forEach((id) => assert(cards.some((item) => item.moduleId === id), `supervisor home card missing ${id}`));
   navigation.forEach((item) => {
@@ -145,6 +145,7 @@ const runSupervisorModuleTests = () => {
   });
   assert(getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === expected.join(","), "supervisor manifest order must match navigation order");
   assert(getRedirectForLegacyPath("/admin/parking/dashboard") === "/supervisor/parking", "legacy parking dashboard must redirect to supervisor workbench");
+  assert(getRedirectForLegacyPath("/admin/announcement-groups") === "/supervisor/announcement-groups", "legacy announcement groups path must redirect to supervisor workbench");
   assert(getRedirectForLegacyPath("/courts/xinbei") === "/supervisor/courts/xinbei", "legacy courts path must redirect to supervisor workbench");
   assert(getPrimaryRoute("parking", "supervisor") === "/supervisor/parking", "parking primary route must be supervisor workbench route");
   assert(getPrimaryRoute("counter-log", "supervisor") === "/supervisor/counter-log/submissions", "counter-log primary route must be supervisor workbench route");
@@ -174,24 +175,43 @@ const runSupervisorModuleTests = () => {
   sourceIncludes("client/src/modules/supervisor/dashboard-page.tsx", "OnDutyDrawer", "dashboard must keep on-duty drawer");
   sourceIncludes("client/src/modules/supervisor/tasks/page.tsx", "supervisor-drawer", "tasks must use right drawer create flow");
   sourceIncludes("client/src/modules/supervisor/announcements/page.tsx", "手動發布公告", "announcements must support manual publish");
+  sourceIncludes("client/src/modules/supervisor/announcement-groups/page.tsx", "button-add-announcement-group", "announcement groups page must expose add binding action");
 };
 
 const runLifeguardModuleTests = () => {
   const navigation = getNavigationModules("lifeguard", rolePermissions.lifeguard);
   const cards = getHomeLayoutCards("lifeguard", rolePermissions.lifeguard);
-  const expected = ["lifeguard-home", "lifeguard-log", "shift-reminder", "announcements", "handover", "personal-note", "knowledge-base-qna", "employee-training"];
+  const expected = ["lifeguard-home", "water-quality-photo", "coach-water-photo", "closing-cleanup-photo", "lane-notes", "lost-and-found", "lifeguard-log", "announcements", "employee-training", "knowledge-base-qna"];
   assert(navigation.map((item) => item.id).join(",") === expected.join(","), `lifeguard navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
-  assert(cards.map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training,search", `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
+  assert(cards.map((item) => item.moduleId).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna,search", `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
   expected.forEach((id) => assert(cards.some((card) => card.moduleId === id), `lifeguard home card missing ${id}`));
+  expected.slice(1, 6).forEach((id) => assert(getPrimaryRoute(id, "lifeguard")?.startsWith("/lifeguard/"), `lifeguard operation primary route must be under /lifeguard: ${id}`));
   sourceIncludes("server/modules/auth/session-store.ts", '"lifeguard" as const', "lifeguard role must be added to grantedRoles");
   sourceIncludes("server/modules/auth/session-store.ts", 'activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee"', "lifeguard-only users must default to lifeguard active role");
   sourceIncludes("server/integrations/ragic/real-auth-adapter.ts", "isLifeguardTitle", "Ragic auth adapter must infer lifeguard role from title");
   sourceMatches("server/modules/bff/routes.ts", /app\.get\("\/api\/bff\/lifeguard\/home",\s*requireRole\("lifeguard",\s*"system"\)/, "lifeguard home BFF must require lifeguard or system role");
   sourceIncludes("client/src/App.tsx", "/lifeguard/log", "lifeguard log page must be routed");
+  ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"].forEach((path) =>
+    sourceIncludes("client/src/App.tsx", path, `lifeguard operation detail route missing: ${path}`),
+  );
+  sourceIncludes("client/src/modules/lifeguard/operation-detail-page.tsx", "LifeguardShell", "lifeguard operation detail pages must use LifeguardShell");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "/api/work-logs/handover", "lifeguard log page must write via work-log endpoint");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "currentShiftInTaipei", "lifeguard log must derive shift from Taipei time");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "無可用場館", "lifeguard log must not fallback to a hardcoded facility");
-  sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "水質檢測照片回傳", "lifeguard home must expose mobile-first work-log task categories");
+  sourceIncludes("client/src/modules/lifeguard/operation-modules.ts", "水質檢測照片回傳", "lifeguard operation config must expose mobile-first work-log task categories");
+  sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "LifeguardOperationDrawer", "lifeguard home must expose module preview drawers");
+  sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "setSelectedModuleId(module.id)", "lifeguard home operation cards must open a drawer preview");
+  sourceIncludes("client/src/modules/lifeguard/operation-modules.ts", "LifeguardOperationModuleId", "lifeguard operation config must expose module id type");
+  sourceIncludes("client/src/modules/lifeguard/lifeguard-shell.tsx", "primaryNav", "lifeguard sidebar must use dedicated primary operation nav");
+  sourceIncludes("client/src/modules/lifeguard/lifeguard-shell.tsx", "secondaryNav", "lifeguard sidebar must move shared links to a secondary section");
+  const lifeguardHomeSource = read("client/src/modules/lifeguard/home/page.tsx");
+  const lifeguardOperationSource = read("client/src/modules/lifeguard/operation-modules.ts");
+  ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"].forEach((path) =>
+    assert(lifeguardOperationSource.includes(path), `floating quick actions must link to operation detail page: ${path}`),
+  );
+  ["POST", "PATCH", "DELETE", "apiPost", "apiPatch", "apiDelete", "/submit"].forEach((needle) =>
+    assert(!lifeguardHomeSource.includes(needle), `lifeguard home drawer must stay preview-only, found ${needle}`),
+  );
   sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "FloatingQuickActionsPanel", "lifeguard desktop quick actions must use a floating panel layout");
   assert(!read("client/src/modules/lifeguard/home/page.tsx").includes('xl:pr-[280px]'), "lifeguard desktop content must keep the original page width");
   sourceIncludes("server/modules/work-logs/routes.ts", 'action: "LIFEGUARD_LOG_CREATED"', "lifeguard log create must write audit row");
@@ -213,6 +233,7 @@ const runCanonicalModuleRegistrationTests = () => {
   sourceIncludes("client/src/App.tsx", "/supervisor/parking/event-days", "parking event-days supervisor route must be registered even if it redirects to the dashboard");
   sourceIncludes("client/src/App.tsx", "/supervisor/counter-log/submissions", "counter-log supervisor route must be registered");
   sourceIncludes("client/src/App.tsx", "/supervisor/lane-rentals", "lane-rentals supervisor route must be registered");
+  sourceIncludes("client/src/App.tsx", "/supervisor/announcement-groups", "announcement groups supervisor route must be registered");
   sourceIncludes("client/src/App.tsx", "/supervisor/courts/:school", "courts supervisor route must be registered");
   sourceIncludes("client/src/modules/supervisor/module-shell.tsx", "SupervisorModuleShell", "supervisor module shell must exist for legacy module UIUX");
   sourceIncludes("client/src/pages/admin/parking/_shared.tsx", "SupervisorModuleShell", "parking pages must render inside supervisor module shell");

@@ -33,6 +33,17 @@ The system is designed with a modular project structure, separating client-side 
 - **PostgreSQL Database**: Used with Drizzle ORM for data persistence, including anomaly reports, users, and work-logs schema. (e.g., Neon serverless)
 - **Gmail SMTP**: For sending email notifications via Nodemailer, requiring `GMAIL_USER` and `GMAIL_APP_PASSWORD` environment variables.
 - **Ragic API**: For employee portal login authentication, requiring `RAGIC_API_KEY`, `RAGIC_ACCOUNT_PATH`, and `RAGIC_EMPLOYEE_SHEET` environment variables.
+
+## 群組重要公告綁定 (announcement-groups)
+- 主管端正式入口：`/supervisor/announcement-groups`；舊 `/admin/announcement-groups` 僅保留 redirect。
+- 員工端：`/employee` 與 `/employee/announcements` 依 active facility 讀取已綁定 LINE 群組文字訊息。
+- 後端模組：`server/modules/announcement-groups/`。
+- Upstream：`LINE_BOT_BASE_URL` + `/api/admin/messages`。
+- Auth：Bearer token 從 `LINE_BOT_ADMIN_TOKEN` env 讀取；未設定時 CRUD 可用、LINE 拉取降級顯示。
+- Cache：30 秒 in-memory，依 groupId / hours / limit 查詢快取。
+- Schema：`facility_announcement_groups`，主管可 CRUD 場館與 LINE groupId 綁定。
+- 稽核：主管 CRUD/test-fetch 與員工公告預覽會寫入 `/system/audit`。
+
 ## Recent additions (Task #14)
 - **松山國小水道租借管理** (`/admin/lane-rentals`): supervisor-only grid (5:30–22:00 × 5 lanes A–E), click-to-book with overlap prevention. Backend uses postgres advisory locks (hashtextextended) inside a transaction to atomically re-check and insert/update, eliminating TOCTOU on concurrent bookings. PATCH endpoint uses a strict zod whitelist that forbids editing facilityKey/bookingDate/laneCode/createdBy/createdByName, preventing cross-facility privilege escalation and audit-field tampering.
 - **模組拓撲圖** (`/system/topology`): React Flow diagram driven by data-only `client/src/config/topology-config.ts`. Add nodes/edges in the config to surface them on the diagram — no UI code change required. Route is registered inside `WorkbenchRouter` (must be placed BEFORE the catch-all `/system` route).

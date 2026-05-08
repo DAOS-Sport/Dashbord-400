@@ -66,15 +66,15 @@ assert(
   `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("lifeguard").map((item) => item.id).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training",
+  getNavigationModules("lifeguard").map((item) => item.id).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna",
   `lifeguard navigation order changed: ${getNavigationModules("lifeguard").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-log,shift-reminder,announcements,handover,personal-note,knowledge-base-qna,employee-training,search",
+  getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna,search",
   `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics",
+  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics",
   `supervisor navigation order changed: ${getNavigationModules("supervisor").map((item) => item.id).join(",")}`,
 );
 for (const item of getNavigationModules("supervisor")) {
@@ -84,7 +84,7 @@ for (const item of getNavigationModules("supervisor")) {
   assert(item.routePath !== "/operations", "supervisor navigation must not include legacy operations path");
 }
 assert(
-  getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics",
+  getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics",
   "supervisor route manifest must match sidebar order",
 );
 assert(getPrimaryRoute("parking", "supervisor") === "/supervisor/parking", "parking supervisor primary path changed");
@@ -93,11 +93,12 @@ assert(getPrimaryRoute("lane-rentals", "supervisor") === "/supervisor/lane-renta
 assert(getPrimaryRoute("courts", "supervisor") === "/supervisor/courts/xinbei", "courts supervisor primary path changed");
 assert(getPrimaryRoute("courts", "employee") === "/employee/courts/xinbei", "courts employee primary path changed");
 assert(getRedirectForLegacyPath("/admin/parking/dashboard") === "/supervisor/parking", "legacy admin parking dashboard must redirect to supervisor parking");
+assert(getRedirectForLegacyPath("/admin/announcement-groups") === "/supervisor/announcement-groups", "legacy announcement groups path must redirect to supervisor announcement groups");
 assert(getRedirectForLegacyPath("/admin/counter-logs/submissions") === "/supervisor/counter-log/submissions", "legacy counter logs path must redirect to supervisor counter log");
 assert(getRedirectForLegacyPath("/admin/lane-rentals") === "/supervisor/lane-rentals", "legacy lane rentals path must redirect to supervisor lane rentals");
 assert(getRedirectForLegacyPath("/courts/xinbei") === "/supervisor/courts/xinbei", "legacy courts path must redirect to supervisor courts");
 assert(
-  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
   `supervisor home card order changed: ${getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",")}`,
 );
 assert(
@@ -176,7 +177,7 @@ assert(/app\.get\("\/api\/search\/global",\s*requireSession/.test(bffRoutes), "/
 assert(/app\.get\("\/api\/bff\/supervisor\/dashboard",\s*requireRole\("supervisor",\s*"system"\)/.test(bffRoutes), "/api/bff/supervisor/dashboard must require supervisor or system role");
 assert(bffRoutes.includes("const mapSystemAnnouncementSummary"), "employee BFF must expose a shared system announcement mapper");
 assert(/const enrichEmployeeHome[\s\S]*storage\.listSystemAnnouncements\(normalizedFacilityKey,\s*true\)/.test(bffRoutes), "employee BFF enrich path must merge active supervisor-published system announcements");
-assert(/uniqueAnnouncements\(\[\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(bffRoutes), "employee BFF announcements must merge portal system announcements before projection announcements");
+assert(/uniqueAnnouncements\(\[\.\.\.lineAnnouncementsResult\.announcements,\s*\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(bffRoutes), "employee BFF announcements must merge LINE group announcements, employee announcements, and portal system announcements");
 assert(!authSessionStore.includes("user.isSupervisor ?? true"), "Ragic auth mapping must not fail open to supervisor/system");
 assert(authSessionStore.includes("user.isSupervisor === true"), "Ragic auth mapping must explicitly require isSupervisor === true");
 assert(authSessionStore.includes('activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee"'), "Lifeguard sessions must default to lifeguard and supervisor sessions must default to supervisor, not system");
@@ -185,6 +186,7 @@ assert(bffRoutes.includes('/api/bff/lifeguard/home'), "lifeguard BFF home route 
 assert(appRoutes.includes('/lifeguard/log'), "lifeguard log route must be registered");
 assert(appRoutes.includes('/supervisor/parking/event-days'), "parking event-days supervisor route must be registered");
 assert(appRoutes.includes('/supervisor/parking'), "parking supervisor route must be registered");
+assert(appRoutes.includes('/supervisor/announcement-groups'), "announcement groups supervisor route must be registered");
 assert(appRoutes.includes('/supervisor/counter-log/submissions'), "counter-log supervisor route must be registered");
 assert(appRoutes.includes('/supervisor/lane-rentals'), "lane-rentals supervisor route must be registered");
 assert(appRoutes.includes('/supervisor/courts/:school'), "courts supervisor route must be registered");
@@ -302,8 +304,22 @@ assert(!supervisorHandoverPage.includes("targetShiftLabel"), "supervisor handove
 assert(supervisorAnnouncementsPage.includes("手動發布公告"), "supervisor announcements page must support manual announcement publishing");
 assert(supervisorAnnouncementsPage.includes("公告類型") && supervisorAnnouncementsPage.includes("置頂") && supervisorAnnouncementsPage.includes("發布時間"), "supervisor announcements form must expose type, pinning, and publish time controls");
 const lifeguardHomePageSource = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "home", "page.tsx"), "utf8");
+const lifeguardShellSource = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "lifeguard-shell.tsx"), "utf8");
+const lifeguardOperationSource = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "operation-modules.ts"), "utf8");
+const lifeguardDetailSource = readFileSync(join(repoRoot, "client", "src", "modules", "lifeguard", "operation-detail-page.tsx"), "utf8");
 const systemDashboardPageSource = readFileSync(join(repoRoot, "client", "src", "modules", "system", "dashboard-page.tsx"), "utf8");
 assert(lifeguardHomePageSource.includes("FloatingQuickActionsPanel"), "lifeguard desktop quick actions must use a floating panel");
+assert(lifeguardHomePageSource.includes("LifeguardOperationDrawer"), "lifeguard home must expose module preview drawers");
+assert(lifeguardHomePageSource.includes("setSelectedModuleId(module.id)"), "lifeguard operation cards must open a drawer preview");
+assert(lifeguardShellSource.includes("primaryNav") && lifeguardShellSource.includes("secondaryNav"), "lifeguard sidebar must split dedicated operations and shared links");
+assert(lifeguardDetailSource.includes("LifeguardShell"), "lifeguard operation detail pages must use LifeguardShell");
+for (const path of ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"]) {
+  assert(appRoutes.includes(path), `lifeguard operation detail route missing ${path}`);
+  assert(lifeguardOperationSource.includes(path), `lifeguard operation config must link ${path}`);
+}
+for (const forbidden of ["POST", "PATCH", "DELETE", "apiPost", "apiPatch", "apiDelete", "/submit"]) {
+  assert(!lifeguardHomePageSource.includes(forbidden), `lifeguard home drawer must stay preview-only, found ${forbidden}`);
+}
 assert(systemDashboardPageSource.includes("FloatingQuickActionsPanel"), "system desktop quick tools must use a floating panel");
 assert(!lifeguardHomePageSource.includes('xl:pr-[280px]'), "lifeguard desktop content must keep the original page width");
 assert(!systemDashboardPageSource.includes('xl:pr-[280px]'), "system desktop content must keep the original page width");

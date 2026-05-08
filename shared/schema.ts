@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { facilityLineGroups } from "./domain/facilities";
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -461,6 +462,41 @@ export const insertAnnouncementAcknowledgementSchema = createInsertSchema(announ
 
 export type InsertAnnouncementAcknowledgement = z.infer<typeof insertAnnouncementAcknowledgementSchema>;
 export type AnnouncementAcknowledgement = typeof announcementAcknowledgements.$inferSelect;
+
+const facilityKeySet = new Set(facilityLineGroups.map((facility) => facility.facilityKey));
+
+export const facilityAnnouncementGroups = pgTable("facility_announcement_groups", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  lineGroupId: text("line_group_id").notNull(),
+  label: text("label").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lookbackHours: integer("lookback_hours").default(24).notNull(),
+  notes: text("notes"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  uniqFacilityGroup: uniqueIndex("uniq_facility_group").on(t.facilityKey, t.lineGroupId),
+  byFacility: index("idx_announcement_groups_facility").on(t.facilityKey),
+}));
+
+export const insertFacilityAnnouncementGroupSchema = createInsertSchema(facilityAnnouncementGroups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().refine((value) => facilityKeySet.has(value), "未知場館"),
+  lineGroupId: z.string().regex(/^C[0-9a-f]{32}$/, "LINE groupId 格式錯誤"),
+  label: z.string().min(1, "標籤不可為空").max(60, "標籤過長"),
+  lookbackHours: z.coerce.number().int().min(1).max(168).default(24),
+  isActive: z.boolean().optional(),
+  notes: z.string().max(1000).optional().nullable(),
+  createdBy: z.string().max(120).optional().nullable(),
+});
+
+export type InsertFacilityAnnouncementGroup = z.infer<typeof insertFacilityAnnouncementGroupSchema>;
+export type FacilityAnnouncementGroup = typeof facilityAnnouncementGroups.$inferSelect;
 
 export const portalEvents = pgTable("portal_events", {
   id: serial("id").primaryKey(),

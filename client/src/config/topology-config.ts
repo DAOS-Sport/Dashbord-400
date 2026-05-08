@@ -35,6 +35,7 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "system-health",     label: "微服務健康監控",    englishKey: "system-health",      group: "admin",  description: "整合服務的健康指標", path: "/system-health" },
   { id: "anomaly-reports",   label: "打卡異常管理",      englishKey: "anomaly-reports",    group: "admin",  description: "異常打卡審核與處理", path: "/supervisor/anomalies" },
   { id: "announcements",     label: "公告審核中心",      englishKey: "announcements",      group: "admin",  description: "LINE 群公告分類與審核", path: "/supervisor/announcements" },
+  { id: "announcement-groups", label: "公告群組綁定",     englishKey: "announcement-groups", group: "admin",  description: "場館與 LINE 群組綁定，供員工首頁讀取群組公告", path: "/supervisor/announcement-groups" },
   { id: "work-logs",         label: "救生員日誌",        englishKey: "work-logs",          group: "admin",  description: "每日固定/交辦/水質日誌", path: "/admin/work-logs/submissions" },
   { id: "counter-log",       label: "櫃台日誌",          englishKey: "counter-log",        group: "admin",  description: "櫃台日常作業記錄與審核", path: "/supervisor/counter-log/submissions" },
   { id: "lane-rentals",      label: "水道租借 (松山)",   englishKey: "lane-rentals",       group: "admin",  description: "松山館水道時段預訂管理（僅松山開放）", path: "/supervisor/lane-rentals" },
@@ -60,6 +61,7 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "google-calendar",   label: "Google Calendar",   englishKey: "google-calendar",    group: "infra",  description: "場地預約來源（外部行事曆）", path: "/system/health" },
   { id: "ragic",             label: "Ragic",             englishKey: "ragic",              group: "infra",  description: "員工/排程/公告外部資料庫", path: "/system/integrations" },
   { id: "linebot-api",       label: "LINE Messaging API", englishKey: "linebot-api",       group: "infra",  description: "LINE 官方訊息收發", path: "/system/integrations" },
+  { id: "line-bot-messages-api", label: "LINE Bot Messages API", englishKey: "line-bot-messages-api", group: "infra", description: "LINE Bot Assistant 管理訊息查詢 API", path: "/system/integrations" },
   { id: "schedule-api",      label: "Smart Schedule API", englishKey: "schedule-api",      group: "infra",  description: "智能排班服務", path: "/system/integrations" },
   { id: "gmail",             label: "Gmail",             englishKey: "gmail",              group: "infra",  description: "通知信件寄送", path: "/system/integrations" },
 ];
@@ -77,6 +79,8 @@ export const topologyEdges: TopologyEdgeDef[] = [
   { source: "anomaly-reports", target: "postgres",     label: "存取" },
   { source: "announcements",   target: "linebot",      label: "分類" },
   { source: "announcements",   target: "postgres",     label: "存取" },
+  { source: "announcement-groups", target: "postgres", label: "綁定" },
+  { source: "announcement-groups", target: "line-bot-messages-api", label: "測試拉訊息" },
   { source: "work-logs",       target: "postgres",     label: "讀寫" },
   { source: "counter-log",     target: "postgres",     label: "讀寫" },
   { source: "lane-rentals",    target: "postgres",     label: "讀寫" },
@@ -99,6 +103,8 @@ export const topologyEdges: TopologyEdgeDef[] = [
   // portal -> infra / admin
   { source: "portal",          target: "ragic",        label: "員工驗證" },
   { source: "portal",          target: "postgres",     label: "讀寫" },
+  { source: "portal",          target: "announcement-groups", label: "群組公告" },
+  { source: "portal",          target: "line-bot-messages-api", label: "讀取公告" },
   { source: "portal-handover", target: "postgres",     label: "讀寫" },
   { source: "portal-shift",    target: "schedule-api", label: "班表" },
   { source: "portal",          target: "lane-rentals", label: "讀取今日表" },

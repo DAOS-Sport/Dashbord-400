@@ -81,6 +81,11 @@ const chineseKeywords: Record<string, string[]> = {
   anomalies: ["異常", "打卡異常"],
   "system-health": ["系統健康", "健康"],
   "raw-inspector": ["原始資料", "raw"],
+  "water-quality-photo": ["水質檢測照片回傳", "水質", "照片"],
+  "coach-water-photo": ["教練下水拍照記錄", "教練下水", "拍照"],
+  "closing-cleanup-photo": ["下班打掃照片傳送", "收班", "打掃照片"],
+  "lane-notes": ["水道事項", "水道", "租借"],
+  "lost-and-found": ["失物招領登記", "失物", "拾獲物"],
 };
 
 const employeeNavigationOrder = [
@@ -97,13 +102,15 @@ const employeeNavigationOrder = [
 
 const lifeguardNavigationOrder = [
   "lifeguard-home",
+  "water-quality-photo",
+  "coach-water-photo",
+  "closing-cleanup-photo",
+  "lane-notes",
+  "lost-and-found",
   "lifeguard-log",
-  "shift-reminder",
   "announcements",
-  "handover",
-  "personal-note",
-  "knowledge-base-qna",
   "employee-training",
+  "knowledge-base-qna",
 ];
 
 const supervisorNavigationOrder = [
@@ -115,6 +122,7 @@ const supervisorNavigationOrder = [
   "courts",
   "tasks",
   "announcements",
+  "announcement-groups",
   "handover",
   "employee-training",
   "anomalies",
@@ -151,13 +159,15 @@ const employeeHomeOrder = [
 
 const lifeguardHomeOrder = [
   "lifeguard-home",
+  "water-quality-photo",
+  "coach-water-photo",
+  "closing-cleanup-photo",
+  "lane-notes",
+  "lost-and-found",
   "lifeguard-log",
-  "shift-reminder",
   "announcements",
-  "handover",
-  "personal-note",
-  "knowledge-base-qna",
   "employee-training",
+  "knowledge-base-qna",
   "search",
 ];
 
@@ -170,6 +180,7 @@ const supervisorHomeOrder = [
   "courts",
   "tasks",
   "announcements",
+  "announcement-groups",
   "handover",
   "employee-training",
   "anomalies",
@@ -226,13 +237,15 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
   employee: employeeNavigationOverrides,
   lifeguard: {
     "lifeguard-home": { shortName: "救生首頁", routePath: "/lifeguard", iconKey: "home", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
-    "lifeguard-log": { shortName: "救生員日誌", routePath: "/lifeguard/log", iconKey: "lifebuoy", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true },
-    "shift-reminder": { shortName: "今日班表", routePath: "/employee/shift", iconKey: "calendar-days", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
-    announcements: { shortName: "群組公告", routePath: "/employee/announcements", iconKey: "bell", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
-    handover: { shortName: "櫃台交接", routePath: "/employee/handover", iconKey: "message-square-text", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
-    "personal-note": { shortName: "個人工作記事", routePath: "/employee/personal-note", iconKey: "file-text", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
-    "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
-    "employee-training": { shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
+    "water-quality-photo": { shortName: "水質檢測照片回傳", routePath: "/lifeguard/water-quality-photo", iconKey: "droplets", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true },
+    "coach-water-photo": { shortName: "教練下水拍照記錄", routePath: "/lifeguard/coach-water-photo", iconKey: "camera", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
+    "closing-cleanup-photo": { shortName: "下班打掃照片傳送", routePath: "/lifeguard/closing-cleanup-photo", iconKey: "clipboard-list", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true },
+    "lane-notes": { shortName: "水道事項", routePath: "/lifeguard/lane-notes", iconKey: "waves", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true },
+    "lost-and-found": { shortName: "失物招領登記", routePath: "/lifeguard/lost-and-found", iconKey: "package-search", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
+    "lifeguard-log": { shortName: "救生員日誌", routePath: "/lifeguard/log", iconKey: "lifebuoy", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
+    announcements: { shortName: "群組公告", routePath: "/employee/announcements", iconKey: "bell", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
+    "employee-training": { shortName: "員工教材", routePath: "/employee/training", iconKey: "graduation-cap", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
+    "knowledge-base-qna": { shortName: "相關問題詢問", routePath: "/employee/qna", iconKey: "book-open", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true },
     search: { shortName: "快速搜尋", routePath: "/lifeguard", iconKey: "search", menuOrder: 20, cardOrder: 20, navVisible: false, cardVisible: true },
   },
   supervisor: {
@@ -244,10 +257,11 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "supervisor"), iconKey: "calendar-days", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true },
     tasks: { shortName: "任務管理", routePath: getPrimaryRoute("tasks", "supervisor"), iconKey: "clipboard-check", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
     announcements: { shortName: "公告管理", routePath: getPrimaryRoute("announcements", "supervisor"), iconKey: "bell", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
-    handover: { shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "supervisor"), iconKey: "message-square-text", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
-    "employee-training": { shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "supervisor"), iconKey: "graduation-cap", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true },
-    anomalies: { shortName: "異常審核", routePath: getPrimaryRoute("anomalies", "supervisor"), iconKey: "shield-check", menuOrder: 11, cardOrder: 11, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
-    analytics: { shortName: "報表", routePath: getPrimaryRoute("analytics", "supervisor"), iconKey: "gauge", menuOrder: 12, cardOrder: 12, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "REPORT_EXPORT"] },
+    "announcement-groups": { shortName: "公告群組綁定", routePath: getPrimaryRoute("announcement-groups", "supervisor"), iconKey: "message-square-warning", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
+    handover: { shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "supervisor"), iconKey: "message-square-text", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true },
+    "employee-training": { shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "supervisor"), iconKey: "graduation-cap", menuOrder: 11, cardOrder: 11, navVisible: true, cardVisible: true },
+    anomalies: { shortName: "異常審核", routePath: getPrimaryRoute("anomalies", "supervisor"), iconKey: "shield-check", menuOrder: 12, cardOrder: 12, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
+    analytics: { shortName: "報表", routePath: getPrimaryRoute("analytics", "supervisor"), iconKey: "gauge", menuOrder: 13, cardOrder: 13, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "REPORT_EXPORT"] },
   },
   system: {
     "system-dashboard": { shortName: "系統總覽", routePath: "/system", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true },
@@ -335,8 +349,8 @@ const descriptorFromModule = (module: ModuleDefinition): ModuleDescriptor => {
     bffEndpoint: bffEndpointForRole(module, primaryRole),
     apiPrefix: apiPrefixFromModule(module),
     iconKey: iconKeyFromModule(module),
-    menuOrder: Math.min(module.priority.employee ?? 99, module.priority.supervisor ?? 99, module.priority.system ?? 99),
-    cardOrder: module.homepageWidget ? Math.min(module.priority.employee ?? 99, module.priority.supervisor ?? 99, module.priority.system ?? 99) : undefined,
+    menuOrder: Math.min(module.priority.employee ?? 99, module.priority.lifeguard ?? 99, module.priority.supervisor ?? 99, module.priority.system ?? 99),
+    cardOrder: module.homepageWidget ? Math.min(module.priority.employee ?? 99, module.priority.lifeguard ?? 99, module.priority.supervisor ?? 99, module.priority.system ?? 99) : undefined,
     requiredPermissions: module.routes.flatMap((route) => route.role ? [`${route.role}:${module.id}:view`] : []),
     dependencies: module.integrations.map((item) => item.provider),
     searchKeywords: [module.id, module.label, module.description, ...(chineseKeywords[module.id] ?? []), ...(module.legacy?.oldNames ?? []), ...(module.legacy?.oldRoutes ?? [])],

@@ -57,6 +57,10 @@ export interface AnnouncementSummary {
   isAcknowledged?: boolean;
   externalReferenceId?: string;
   createdAt?: string;
+  sourceLabel?: string;
+  sourceType?: "line-group" | "system" | "employee-resource" | "candidate" | string;
+  sourceRefId?: string | null;
+  publisher?: string | null;
 }
 
 export interface HandoverSummary {

@@ -848,6 +848,13 @@ export async function registerRoutes(
   const { registerObjectStorageRoutes } = await import("./replit_integrations/object_storage");
   registerObjectStorageRoutes(app);
 
+  const { registerAnnouncementGroupRoutes } = await import("./modules/announcement-groups/routes");
+  registerAnnouncementGroupRoutes(app, {
+    requireEmployee,
+    requireSupervisor,
+    recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
+  });
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

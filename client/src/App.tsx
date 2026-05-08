@@ -51,7 +51,9 @@ import EmployeeTrainingPage from "@/modules/employee/training/page";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import LifeguardHomePage from "@/modules/lifeguard/home/page";
 import LifeguardLogPage from "@/modules/lifeguard/log/page";
+import { LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
+import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
 import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
 import SupervisorPeoplePage from "@/modules/supervisor/people/page";
@@ -258,6 +260,9 @@ function WorkbenchRouter() {
       <Route path="/supervisor/announcements">
         <SupervisorAnnouncementsPage />
       </Route>
+      <Route path="/supervisor/announcement-groups">
+        <SupervisorAnnouncementGroupsPage />
+      </Route>
       <Route path="/supervisor/anomalies">
         <SupervisorAnomaliesPage />
       </Route>
@@ -288,6 +293,21 @@ function WorkbenchRouter() {
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/lifeguard/log">
         <LifeguardLogPage />
+      </Route>
+      <Route path="/lifeguard/water-quality-photo">
+        <LifeguardOperationDetailPage moduleId="water-quality-photo" />
+      </Route>
+      <Route path="/lifeguard/coach-water-photo">
+        <LifeguardOperationDetailPage moduleId="coach-water-photo" />
+      </Route>
+      <Route path="/lifeguard/closing-cleanup-photo">
+        <LifeguardOperationDetailPage moduleId="closing-cleanup-photo" />
+      </Route>
+      <Route path="/lifeguard/lane-notes">
+        <LifeguardOperationDetailPage moduleId="lane-notes" />
+      </Route>
+      <Route path="/lifeguard/lost-and-found">
+        <LifeguardOperationDetailPage moduleId="lost-and-found" />
       </Route>
       <Route path="/lifeguard/home" component={LifeguardHomePage} />
       <Route path="/lifeguard" component={LifeguardHomePage} />

@@ -32,6 +32,7 @@ import {
   getSystemOverviewFromSources,
   getSystemOverviewMock,
 } from "./employee-home";
+import { readFacilityLineAnnouncements } from "../announcement-groups/service";
 
 const shortcutTones: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
 
@@ -414,6 +415,22 @@ const announcementSortTime = (item: AnnouncementSummary) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const announcementSectionFromSources = (
+  items: AnnouncementSummary[],
+  lineSource: { connected: boolean; errorMessage: string | null; fetchedAt?: string },
+  now: string,
+): BffSection<AnnouncementSummary[]> => {
+  if (items.length > 0) {
+    return lineSource.connected
+      ? ok(items, lineSource.fetchedAt ?? now)
+      : degraded(items, [lineSource.errorMessage ?? "LINE 公告群組暫時不可用"], lineSource.fetchedAt ?? now);
+  }
+  if (!lineSource.connected) {
+    return unavailable(lineSource.errorMessage ?? "LINE 公告群組尚未接線", "ANNOUNCEMENT_GROUPS_UNAVAILABLE");
+  }
+  return ok([], lineSource.fetchedAt ?? now);
+};
+
 const fetchJsonIfAvailable = async <T>(url: URL, token?: string): Promise<T | null> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), env.externalApiTimeoutMs);
@@ -479,7 +496,7 @@ const buildEmployeeHomeFallback = async (
   const now = new Date().toISOString();
   const facility = findFacilityLineGroup(facilityKey);
   const normalizedFacilityKey = facility?.facilityKey ?? facilityKey;
-  const [handoversResult, operationalHandoversResult, tasksResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult] = await Promise.allSettled([
+  const [handoversResult, operationalHandoversResult, tasksResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult, lineAnnouncementsResult] = await Promise.allSettled([
     storage.listHandovers(normalizedFacilityKey, 20),
     storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }),
@@ -490,6 +507,7 @@ const buildEmployeeHomeFallback = async (
       ? Promise.resolve(sourceUnavailable<ScheduleShift[]>("smart-schedule", "Smart Schedule is not connected; mock schedule data is disabled for employee shift board.", "SMART_SCHEDULE_NOT_CONNECTED"))
       : container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
     fetchAnnouncementCandidateFallback(normalizedFacilityKey),
+    readFacilityLineAnnouncements({ facilityKey: normalizedFacilityKey, limit: 20 }),
   ]);
 
   const handovers = handoversResult.status === "fulfilled" ? handoversResult.value : [];
@@ -500,6 +518,10 @@ const buildEmployeeHomeFallback = async (
   const systemAnnouncements = systemAnnouncementsResult.status === "fulfilled" ? systemAnnouncementsResult.value : [];
   const scheduleResult = shiftsResult.status === "fulfilled" ? shiftsResult.value : null;
   const candidateAnnouncements = candidateAnnouncementsResult.status === "fulfilled" ? candidateAnnouncementsResult.value : [];
+  const lineAnnouncements = lineAnnouncementsResult.status === "fulfilled" ? lineAnnouncementsResult.value.announcements : [];
+  const lineSource = lineAnnouncementsResult.status === "fulfilled"
+    ? { ...lineAnnouncementsResult.value.sourceStatus, fetchedAt: lineAnnouncementsResult.value.fetchedAt }
+    : { connected: false, errorMessage: "LINE 公告群組讀取失敗", fetchedAt: now };
 
   const portalAnnouncements: AnnouncementSummary[] = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const resourceAnnouncements = employeeResources
@@ -601,7 +623,7 @@ const buildEmployeeHomeFallback = async (
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
 
-  const announcements = uniqueAnnouncements([...resourceAnnouncements, ...portalAnnouncements, ...candidateAnnouncements])
+  const announcements = uniqueAnnouncements([...lineAnnouncements, ...resourceAnnouncements, ...portalAnnouncements])
     .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
     .slice(0, 10);
 
@@ -615,9 +637,7 @@ const buildEmployeeHomeFallback = async (
     layout: ok(defaultEmployeeHomeWidgets, now),
     weather: unavailable("天氣資料尚未接入員工 BFF", "WEATHER_NOT_CONNECTED"),
     tasks: ok(employeeTasks.map(mapTaskSummary), now),
-    announcements: announcements.length
-      ? degraded(announcements, ["line-bot-facility-home"], now)
-      : unavailable("公告候選池與 Portal announcement 目前都沒有可用資料", "ANNOUNCEMENT_FALLBACK_EMPTY"),
+    announcements: announcementSectionFromSources(announcements, lineSource, now),
     handover: handoversResult.status === "fulfilled"
       ? degraded(mappedHandovers, ["line-bot-facility-home"], now)
       : unavailable("Portal handover DB 暫時無法讀取", "PORTAL_HANDOVER_UNAVAILABLE"),
@@ -926,19 +946,28 @@ const enrichEmployeeHome = async (
     training: dto.training ?? ok([], now),
   };
   const employeeResources = await getEmployeeResourceSections(normalizedFacilityKey);
+  const lineAnnouncementsResult = await readFacilityLineAnnouncements({ facilityKey: normalizedFacilityKey, limit: 20 }).catch((error) => ({
+    announcements: [] as AnnouncementSummary[],
+    fetchedAt: now,
+    sourceStatus: {
+      connected: false,
+      errorMessage: error instanceof Error ? error.message : "LINE 公告群組讀取失敗",
+    },
+  }));
   const systemAnnouncements = await storage.listSystemAnnouncements(normalizedFacilityKey, true).catch(() => []);
   const portalAnnouncements = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
+  const announcements = uniqueAnnouncements([...lineAnnouncementsResult.announcements, ...employeeResources.announcements, ...portalAnnouncements])
+    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
+    .slice(0, 10);
   nextDto = {
     ...nextDto,
     tasks: ok(localTasks.map(mapTaskSummary), now),
     shortcuts: ok(defaultEmployeeShortcuts, now),
-    announcements: ok(
-      uniqueAnnouncements([...employeeResources.announcements, ...portalAnnouncements, ...(nextDto.announcements.data ?? [])])
-        .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
-        .slice(0, 10),
-      now,
-    ),
+    announcements: announcementSectionFromSources(announcements, {
+      ...lineAnnouncementsResult.sourceStatus,
+      fetchedAt: lineAnnouncementsResult.fetchedAt,
+    }, now),
     campaigns: ok([...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(0, 10), now),
     documents: ok(uniqueDocuments([...employeeResources.documents, ...(nextDto.documents.data ?? [])]).slice(0, 10), now),
     stickyNotes: ok([...employeeResources.stickyNotes, ...(nextDto.stickyNotes.data ?? [])].slice(0, 8), now),
@@ -1002,6 +1031,33 @@ const attachAnnouncementAcknowledgements = async (
   };
 };
 
+const auditEmployeeAnnouncementPreview = async (
+  container: AppContainer,
+  req: Request,
+  facilityKey: string,
+  dto: EmployeeHomeDto,
+  action = "EMPLOYEE_ANNOUNCEMENTS_PREVIEWED",
+) => {
+  try {
+    await container.repositories.telemetry.recordAudit({
+      actorId: req.workbenchSession?.userId ?? "unknown",
+      role: req.workbenchSession?.activeRole ?? "employee",
+      facilityKey,
+      action,
+      resource: "announcements",
+      payload: {
+        count: dto.announcements.data?.length ?? 0,
+        status: dto.announcements.status,
+        errorCode: dto.announcements.meta.errorCode,
+      },
+      correlationId: typeof req.headers["x-correlation-id"] === "string" ? req.headers["x-correlation-id"] : undefined,
+      resultStatus: "success",
+    });
+  } catch (error) {
+    console.warn("[bff] announcement preview audit failed:", error);
+  }
+};
+
 export const registerBffRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/lifeguard/home", requireRole("lifeguard", "system"), async (req, res) => {
     const session = req.workbenchSession!;
@@ -1042,11 +1098,13 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
         result.meta.fallbackReason || "Employee home projection is unavailable",
       );
       const home = await attachAnnouncementAcknowledgements(fallbackHome, facilityKey, session.userId);
+      await auditEmployeeAnnouncementPreview(container, req, facilityKey, home, "EMPLOYEE_HOME_ANNOUNCEMENTS_PREVIEWED");
       return res.json(attachEmployeeHomeContract(home, req));
     }
 
     const home = await enrichEmployeeHome(result.data, facilityKey, container);
     const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, session.userId);
+    await auditEmployeeAnnouncementPreview(container, req, facilityKey, acknowledgedHome, "EMPLOYEE_HOME_ANNOUNCEMENTS_PREVIEWED");
     return res.json(attachEmployeeHomeContract(acknowledgedHome, req));
   });
 
@@ -1087,6 +1145,7 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
       ? await enrichEmployeeHome(result.data, facilityKey, container)
       : await buildEmployeeHomeFallback(facilityKey, container, result.meta.fallbackReason || "Employee home projection is unavailable");
     const acknowledgedHome = await attachAnnouncementAcknowledgements(home, facilityKey, session.userId);
+    await auditEmployeeAnnouncementPreview(container, req, facilityKey, acknowledgedHome, "EMPLOYEE_ANNOUNCEMENTS_LIST_VIEWED");
     const items = uniqueAnnouncements(acknowledgedHome.announcements.data ?? [])
       .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
       .slice(0, 100);

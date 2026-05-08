@@ -10,6 +10,7 @@ import {
   type KnowledgeBaseQna, type InsertKnowledgeBaseQna,
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type AnnouncementAcknowledgement, type InsertAnnouncementAcknowledgement,
+  type FacilityAnnouncementGroup, type InsertFacilityAnnouncementGroup,
   type PortalEvent, type InsertPortalEvent,
   type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
   type WatchdogEvent, type InsertWatchdogEvent,
@@ -30,7 +31,7 @@ import {
   type ParkingPayment, type InsertParkingPayment,
   type ParkingEventDay, type InsertParkingEventDay,
   users, anomalyReports, notificationRecipients,
-  handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, portalEvents,
+  handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
@@ -124,6 +125,11 @@ export interface IStorage {
   deleteSystemAnnouncement(id: number): Promise<boolean>;
   listAnnouncementAcknowledgements(opts: { facilityKey?: string; userId?: string; announcementId?: string }): Promise<AnnouncementAcknowledgement[]>;
   acknowledgeAnnouncement(input: InsertAnnouncementAcknowledgement): Promise<AnnouncementAcknowledgement>;
+  listAnnouncementGroups(filters?: { facilityKey?: string; isActive?: boolean }): Promise<FacilityAnnouncementGroup[]>;
+  getAnnouncementGroupById(id: number): Promise<FacilityAnnouncementGroup | undefined>;
+  createAnnouncementGroup(input: InsertFacilityAnnouncementGroup): Promise<FacilityAnnouncementGroup>;
+  updateAnnouncementGroup(id: number, patch: Partial<InsertFacilityAnnouncementGroup>): Promise<FacilityAnnouncementGroup | undefined>;
+  deleteAnnouncementGroup(id: number): Promise<boolean>;
 
   // Portal Events (analytics)
   recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent>;
@@ -647,6 +653,39 @@ export class DatabaseStorage implements IStorage {
     if (existing) return existing;
     const [created] = await db.insert(announcementAcknowledgements).values(input).returning();
     return created;
+  }
+
+  async listAnnouncementGroups(filters: { facilityKey?: string; isActive?: boolean } = {}): Promise<FacilityAnnouncementGroup[]> {
+    const conditions = [];
+    if (filters.facilityKey) conditions.push(eq(facilityAnnouncementGroups.facilityKey, filters.facilityKey));
+    if (typeof filters.isActive === "boolean") conditions.push(eq(facilityAnnouncementGroups.isActive, filters.isActive));
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const query = where ? db.select().from(facilityAnnouncementGroups).where(where) : db.select().from(facilityAnnouncementGroups);
+    return query.orderBy(asc(facilityAnnouncementGroups.facilityKey), asc(facilityAnnouncementGroups.label));
+  }
+
+  async getAnnouncementGroupById(id: number): Promise<FacilityAnnouncementGroup | undefined> {
+    const [row] = await db.select().from(facilityAnnouncementGroups).where(eq(facilityAnnouncementGroups.id, id)).limit(1);
+    return row;
+  }
+
+  async createAnnouncementGroup(input: InsertFacilityAnnouncementGroup): Promise<FacilityAnnouncementGroup> {
+    const [created] = await db.insert(facilityAnnouncementGroups).values(input).returning();
+    return created;
+  }
+
+  async updateAnnouncementGroup(id: number, patch: Partial<InsertFacilityAnnouncementGroup>): Promise<FacilityAnnouncementGroup | undefined> {
+    const [updated] = await db
+      .update(facilityAnnouncementGroups)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(facilityAnnouncementGroups.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAnnouncementGroup(id: number): Promise<boolean> {
+    const rows = await db.delete(facilityAnnouncementGroups).where(eq(facilityAnnouncementGroups.id, id)).returning();
+    return rows.length > 0;
   }
 
   async recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent> {

@@ -223,6 +223,11 @@ export default function EmployeeAnnouncementsPage({ announcementId }: EmployeeAn
   }), [announcements]);
   const unread = announcements.filter((item) => !item.isAcknowledged).length;
   const pinned = announcements.filter((item) => item.isPinned).length;
+  const emptyMessage = data?.announcements.status === "unavailable"
+    ? data.announcements.meta.fallbackReason
+    : data?.announcements.status === "degraded"
+      ? data.announcements.meta.fallbackReason
+      : "公告模組已接 BFF；沒有資料時不補假公告。";
   const selectedAnnouncement = useMemo(() => {
     if (!announcementId) return undefined;
     const decodedId = decodeURIComponent(announcementId);
@@ -279,7 +284,7 @@ export default function EmployeeAnnouncementsPage({ announcementId }: EmployeeAn
                   <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-black", meta.badgeClass)}>{meta.label}</span>
                   {item.isPinned ? <span className="rounded-[6px] bg-[#eef2f6] px-2 py-1 text-[11px] font-black text-[#637185]">置頂</span> : null}
                   <span className="text-[12px] font-bold text-[#8b9aae]">{toDisplayTime(item.scheduledAt ?? item.publishedAt ?? item.effectiveRange)}</span>
-                  <span className="text-[12px] font-bold text-[#8b9aae]">・駿斯 CMS</span>
+                  <span className="text-[12px] font-bold text-[#8b9aae]">・{item.sourceLabel ?? "駿斯 CMS"}</span>
                 </div>
                 <h2 className="mt-5 max-w-[820px] text-[28px] font-black leading-tight text-[#10233f] lg:text-[34px]">
                   {item.title}
@@ -556,7 +561,7 @@ export default function EmployeeAnnouncementsPage({ announcementId }: EmployeeAn
               <div>
                 <Bell className="mx-auto h-10 w-10 text-[#9aa8ba]" />
                 <p className="mt-3 text-[16px] font-black text-[#10233f]">目前沒有符合條件的公告</p>
-                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">公告模組已接 BFF；沒有資料時不補假公告。</p>
+                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">{emptyMessage}</p>
               </div>
             </div>
           )}

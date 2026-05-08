@@ -37,6 +37,7 @@ import type {
   TaskSummary,
 } from "@shared/domain/workbench";
 import type { NavigationModuleDto } from "@shared/modules";
+import type { BffSection } from "@shared/bff/envelope";
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 import { Link, useLocation } from "wouter";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -733,7 +734,12 @@ function HandoverDrawer({
   );
 }
 
-function AnnouncementCard({ announcements }: { announcements: AnnouncementSummary[] }) {
+function AnnouncementCard({ announcements, source }: { announcements: AnnouncementSummary[]; source?: BffSection<AnnouncementSummary[]> }) {
+  const sourceMessage = source?.status === "unavailable"
+    ? source.meta.fallbackReason
+    : source?.status === "degraded"
+      ? source.meta.fallbackReason
+      : "目前沒有需要優先閱讀的群組公告。";
   return (
     <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.55)]">
       <SectionTitle title="群組重要公告" eyebrow="Pinned" action="全部公告" actionHref="/employee/announcements" />
@@ -745,7 +751,9 @@ function AnnouncementCard({ announcements }: { announcements: AnnouncementSummar
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-black">{item.title}</span>
-              <span className="mt-1 block truncate text-[11px] font-medium text-[#64748b]">{item.effectiveRange}</span>
+              <span className="mt-1 block truncate text-[11px] font-medium text-[#64748b]">
+                {item.sourceLabel ? `${item.sourceLabel} · ` : ""}{item.effectiveRange}
+              </span>
             </span>
             <span className={cn("shrink-0 rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", item.priority === "required" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#fff1e7] text-[#b45309]")}>
               {item.priority === "required" ? "重要" : "提醒"}
@@ -753,7 +761,7 @@ function AnnouncementCard({ announcements }: { announcements: AnnouncementSummar
           </Link>
         )) : (
           <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
-            目前沒有需要優先閱讀的群組公告。
+            {sourceMessage}
           </div>
         )}
       </div>
@@ -1719,7 +1727,7 @@ function EmployeeHomeContent() {
                 ) : null}
                 {homeSlots.isEnabled("announcements") ? (
                   <div className="lg:col-span-4">
-                    <AnnouncementCard announcements={data.announcements.data ?? []} />
+                    <AnnouncementCard announcements={data.announcements.data ?? []} source={data.announcements} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("shifts") ? (
