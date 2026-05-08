@@ -1508,58 +1508,244 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
   );
 }
 
+const formatShiftClock = (value?: string) => {
+  if (!value) return "--:--";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "--:--";
+  return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+};
+
+const formatBoardDateHeader = (value?: string) => {
+  if (!value) return "";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-TW", { month: "long", day: "numeric", weekday: "short" }).format(parsed);
+};
+
+const getShiftPeriodLabel = (start?: string) => {
+  if (!start) return "班次";
+  const hour = new Date(start).getHours();
+  if (Number.isNaN(hour)) return "班次";
+  if (hour < 11) return "早班";
+  if (hour < 16) return "午班";
+  return "晚班";
+};
+
+const ROLE_TAG_STYLES: Record<string, string> = {
+  救生員: "bg-[#e6f0ff] text-[#2a5fd1]",
+  PT: "bg-[#efe6ff] text-[#7a3fcf]",
+  pt: "bg-[#efe6ff] text-[#7a3fcf]",
+  教練: "bg-[#ffe9d6] text-[#c0651a]",
+  櫃台: "bg-[#e1f5ee] text-[#127558]",
+  主管: "bg-[#fff2cf] text-[#8a6510]",
+};
+const roleTagClass = (role: string) =>
+  ROLE_TAG_STYLES[role] ?? ROLE_TAG_STYLES[role.toLowerCase()] ?? "bg-[#eef2f6] text-[#637185]";
+
+const AVATAR_PALETTE = [
+  "bg-[#fde2e4] text-[#9a1f3a]",
+  "bg-[#fde9c9] text-[#8a5a12]",
+  "bg-[#e6f3d4] text-[#3f6c12]",
+  "bg-[#d4ecff] text-[#1d4e8c]",
+  "bg-[#e7defb] text-[#5b3aa8]",
+  "bg-[#ffe1f0] text-[#a32873]",
+  "bg-[#d4f1e8] text-[#0f6b54]",
+];
+const avatarToneClass = (seed: string) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
+};
+
+const formatRemainingHours = (now: number, endIso: string) => {
+  const end = Date.parse(endIso);
+  if (!Number.isFinite(end)) return null;
+  const ms = end - now;
+  if (ms <= 0) return null;
+  const hours = ms / (60 * 60 * 1000);
+  if (hours >= 1) return `${Math.round(hours)}`;
+  const minutes = Math.max(1, Math.round(ms / (60 * 1000)));
+  return `${minutes}m`;
+};
+
 function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   const shifts = board?.shifts ?? [];
-  const previewRows = shifts.flatMap((shift) =>
-    shift.people.map((person) => ({
-      shift,
-      person,
-      status: shift.isCurrent ? "進行中" : shift.isFuture ? "未來" : "已結束",
-    })),
-  );
+  const nowMs = board?.now ? Date.parse(board.now) : Date.now();
+  const dateLabel = formatBoardDateHeader(board?.date);
+  const facilityName = board?.facility?.name ?? "";
+  const headerSubtitle = [facilityName, dateLabel].filter(Boolean).join(" · ");
+
+  const onDutyShift = shifts.find((s) => s.isCurrent);
+  const onDutyPeople = onDutyShift?.people ?? [];
+  const onDutyNames = onDutyPeople.map((p) => p.name).slice(0, 3).join("、");
+
+  const myShift = shifts.find((s) => s.people.some((p) => p.isCurrentUser));
+  const me = myShift?.people.find((p) => p.isCurrentUser);
+  const myStartMs = myShift ? Date.parse(myShift.start) : NaN;
+  const myEndMs = myShift ? Date.parse(myShift.end) : NaN;
+  const myProgress = myShift && Number.isFinite(myStartMs) && Number.isFinite(myEndMs) && myEndMs > myStartMs
+    ? Math.min(1, Math.max(0, (nowMs - myStartMs) / (myEndMs - myStartMs)))
+    : 0;
+  const myRemaining = myShift && myShift.isCurrent ? formatRemainingHours(nowMs, myShift.end) : null;
+  const mateCount = myShift ? Math.max(0, myShift.people.length - 1) : 0;
+
+  const lastSyncLabel = board?.sourceStatus.lastSyncedAt
+    ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+
   return (
     <WorkbenchCard className="p-5">
-      <SectionTitle title="今日班表" eyebrow="Shift" showAction={false} />
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-[16px] font-black text-[#10233f]">今日班表</h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8b9aae]">SHIFT</span>
+          </div>
+          {headerSubtitle ? (
+            <p className="mt-1 text-[12px] font-bold text-[#8b9aae]" data-testid="text-shift-board-subtitle">{headerSubtitle}</p>
+          ) : null}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">本日</p>
+          <p className="text-[18px] font-black leading-none text-[#10233f]" data-testid="text-shift-board-total">
+            {board?.totalCount ?? 0} <span className="text-[12px] font-bold text-[#637185]">人</span>
+          </p>
+        </div>
+      </div>
+
       {!board ? (
         <NotConnectedCard title="今日班表" reason="external_pending" />
       ) : !board.sourceStatus.connected ? (
         <DegradedCard title="今日班表" />
-      ) : previewRows.length ? (
+      ) : shifts.length === 0 ? (
+        <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
+      ) : (
         <div className="space-y-3">
-          {previewRows.slice(0, 6).map(({ shift, person, status }) => (
-            <div
-              key={`${shift.shiftId}-${person.userId}-${person.name}`}
-              className={cn(
-                "flex min-h-[64px] items-center gap-3 rounded-[8px] border px-3 py-2",
-                shift.isCurrent ? "border-[#9dd84f] bg-[#f1fbec]" : "border-[#e6edf4] bg-[#fbfcfd]",
-              )}
-            >
-              <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-[12px] font-black text-white", shift.isCurrent ? "bg-[#15935d]" : "bg-[#6c7a8e]")}>
-                {person.name.slice(0, 1)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black text-[#10233f]">
-                  {person.name}{person.isCurrentUser ? "（你）" : ""} · {person.role}
-                </p>
-                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">
-                  {formatShiftTimeLong(shift.start)} - {formatShiftTimeLong(shift.end)}
-                </p>
-              </div>
-              <span className={cn(
-                "shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-black",
-                shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
-              )}>
-                {status}
-              </span>
+          {onDutyPeople.length > 0 ? (
+            <div className="flex items-center gap-2 rounded-full bg-[#eaf7df] px-3 py-2 text-[12px] font-bold text-[#12854d]" data-testid="banner-shift-on-duty">
+              <span className="h-2 w-2 rounded-full bg-[#15935d]" />
+              <span className="font-black">目前 {onDutyPeople.length} 人在班</span>
+              <span className="text-[#637185]">·</span>
+              <span className="truncate text-[#3f6c12]">{onDutyNames}{onDutyPeople.length > 3 ? ` 等 ${onDutyPeople.length} 人` : ""}</span>
             </div>
-          ))}
-          <div className="flex items-center justify-between pt-1 text-[13px]">
-            <span className="font-bold text-[#637185]">本日出勤</span>
-            <span className="font-black text-[#10233f]">{board.totalCount} 人</span>
+          ) : null}
+
+          {myShift && me ? (
+            <div className="rounded-[12px] border border-[#9dd84f] bg-gradient-to-br from-[#f1fbec] to-[#e7f7dc] p-4" data-testid="card-my-shift">
+              <div className="flex items-start gap-3">
+                <div className="relative shrink-0">
+                  <div className={cn("grid h-12 w-12 place-items-center rounded-full text-[15px] font-black ring-2 ring-[#15935d] ring-offset-2 ring-offset-[#f1fbec]", avatarToneClass(me.name))}>
+                    {me.name.slice(0, 1)}
+                  </div>
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#15935d] px-1.5 py-0.5 text-[9px] font-black text-white">我</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[13px] font-black text-[#10233f]">我的班</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#637185]">/ MY SHIFT</span>
+                    {myShift.isCurrent ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#12854d]">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />進行中
+                      </span>
+                    ) : myShift.isFuture ? (
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#637185]">未開始</span>
+                    ) : (
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#8b9aae]">已結束</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-[26px] font-black leading-none tracking-tight text-[#10233f]" data-testid="text-my-shift-time">
+                      {formatShiftClock(myShift.start)}
+                    </span>
+                    <span className="text-[16px] font-bold text-[#637185]">→</span>
+                    <span className="text-[26px] font-black leading-none tracking-tight text-[#10233f]">
+                      {formatShiftClock(myShift.end)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[12px] font-bold text-[#536175]">
+                    {getShiftPeriodLabel(myShift.start)}
+                    {mateCount > 0 ? <> · 與 <span className="font-black text-[#10233f]">{mateCount}</span> 人同班</> : " · 獨班"}
+                  </p>
+                </div>
+                {myRemaining ? (
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#637185]">剩餘</p>
+                    <p className="text-[20px] font-black leading-none text-[#15935d]" data-testid="text-my-shift-remaining">
+                      {myRemaining}<span className="ml-0.5 text-[12px] font-bold text-[#536175]">{/m$/.test(myRemaining) ? "" : "時"}</span>
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+              {myShift.isCurrent ? (
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
+                  <div
+                    className="h-full rounded-full bg-[#15935d] transition-all"
+                    style={{ width: `${Math.round(myProgress * 100)}%` }}
+                    data-testid="bar-my-shift-progress"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {shifts.map((shift) => {
+            const status = shift.isCurrent ? "進行中" : shift.isFuture ? "未開始" : "已結束";
+            const periodLabel = getShiftPeriodLabel(shift.start);
+            const isMine = shift === myShift;
+            const others = isMine ? shift.people.filter((p) => !p.isCurrentUser) : shift.people;
+            if (others.length === 0) return null;
+            return (
+              <div
+                key={shift.shiftId}
+                className={cn(
+                  "rounded-[10px] border bg-white p-3",
+                  shift.isCurrent ? "border-l-[3px] border-[#e6edf4] border-l-[#15935d]" : "border-[#e6edf4] opacity-95",
+                )}
+                data-testid={`group-shift-${shift.shiftId}`}
+              >
+                <div className="mb-2 flex items-center gap-2 text-[12px]">
+                  <span className="font-black text-[#10233f]">{periodLabel}</span>
+                  <span className="font-mono font-bold text-[#536175]">
+                    {formatShiftClock(shift.start)}-{formatShiftClock(shift.end)}
+                  </span>
+                  <span className="text-[#8b9aae]">·</span>
+                  <span className="font-bold text-[#637185]">{shift.people.length} 人</span>
+                  <span className={cn(
+                    "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
+                    shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
+                  )}>
+                    {shift.isCurrent ? <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" /> : <span className="h-1.5 w-1.5 rounded-full bg-[#8b9aae]" />}
+                    {status}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {others.map((person) => (
+                    <div key={`${shift.shiftId}-${person.userId}`} className="flex items-center gap-2.5" data-testid={`row-shift-person-${person.userId}`}>
+                      <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black", avatarToneClass(person.name))}>
+                        {person.name.slice(0, 1)}
+                      </div>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#10233f]">{person.name}</span>
+                      {person.role && person.role !== "regular" && person.role !== "當班" ? (
+                        <span className={cn("shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black", roleTagClass(person.role))}>
+                          {person.role}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="flex items-center justify-between pt-1 text-[11px]">
+            <span className="font-bold text-[#8b9aae]">
+              {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
+            </span>
+            <Link href="/employee/shift" className="font-black text-[#007166] hover:underline" data-testid="link-shift-view-all">
+              查看全部 →
+            </Link>
           </div>
         </div>
-      ) : (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       )}
     </WorkbenchCard>
   );

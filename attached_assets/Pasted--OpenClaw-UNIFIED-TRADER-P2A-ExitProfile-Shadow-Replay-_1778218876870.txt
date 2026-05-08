@@ -1,0 +1,112 @@
+你現在是 OpenClaw / UNIFIED_TRADER 的 P2A ExitProfile Shadow Replay Readiness Audit 工程師。
+
+本任務目標：
+
+判斷目前是否可以進入 P2B ExitProfile Shadow Replay。
+
+本任務不是：
+- 不是改 TP/SL
+- 不是改 exit profile runtime
+- 不是改 entry
+- 不是改 leverage / margin / position cap
+- 不是 live
+- 不是 promotion
+- 不是 restart runner
+- 不是下單 / cancel / amend / flatten / close
+
+只讀取本地 artifacts，產生 readiness report。
+
+必讀：
+1. docs/system/TRADING_AI_GOD_VIEW_ROUTE_MAP.md
+2. reports/RUNNER_CARETAKER_RECOVERY_P13B_REPORT.md
+3. reports/FORWARD_RISK_BASIS_CAPTURE_P13_ENABLE_REPORT.md
+4. reports/FORWARD_RISK_BASIS_CAPTURE_P13_IMPLEMENTATION_REPORT.md
+5. reports/ATTRIBUTION_REPAIR_RISK_BASIS_P11_REPORT.md
+6. projects/UNIFIED_TRADER/exports/canonical_trade_events.jsonl
+7. projects/UNIFIED_TRADER/exports/exchange_closed_trade_truth.jsonl
+8. projects/UNIFIED_TRADER/exports/risk_basis_recovered_closed_trades.jsonl
+9. projects/UNIFIED_TRADER/exports/exit_replay_eligibility_repaired.jsonl
+10. projects/UNIFIED_TRADER/config/exit_profiles.yaml
+11. runtime/dashboard/runner_caretaker_recovery_p13b_status.json
+12. runtime/dashboard/forward_risk_basis_capture_p13_status.json
+
+檢查項目：
+
+1. Runner health:
+   - runtime_status
+   - pause_mode
+   - api_status
+   - position_manager_status
+   - caretaker status
+   - duplicate writer
+   - standalone BathOverflow harness
+
+2. Ledger health:
+   - total event rows
+   - ENTRY_REJECTED count
+   - ENTRY_APPROVED count
+   - ENTRY_SUBMITTED count
+   - ENTRY_FILLED count
+   - PROTECTION_ATTACHED count
+   - LEDGER_CAPTURE_ERROR count
+   - LEDGER_CONFLICT_DETECTED count
+
+3. Forward capture quality:
+   - ENTRY_APPROVED with planned_entry
+   - ENTRY_APPROVED with planned_sl
+   - ENTRY_APPROVED with planned_tp ladder
+   - ENTRY_APPROVED with expected_exit_profile
+   - ENTRY_APPROVED with BathOverflow state / permission
+   - ENTRY_APPROVED with config_sha
+
+4. Replay eligibility:
+   - closed trades total
+   - risk_basis_complete
+   - exit_replay_eligible
+   - promotion_stats_eligible
+   - demo_slippage_outlier excluded
+   - low-confidence links excluded
+
+5. Safety blockers:
+   - OKX 51068 duplicate algoClOrdId recurrence
+   - missing protection attached
+   - active open position lacking ledger
+   - stale observer mismatch
+   - exchange truth mismatch
+
+輸出：
+- reports/EXITPROFILE_SHADOW_REPLAY_READINESS_P2A_REPORT.md
+- dashboard/data/exitprofile_shadow_replay_readiness_p2a.json
+- runtime/dashboard/exitprofile_shadow_replay_readiness_p2a.json
+
+verdict 只能是：
+- P2B_SHADOW_REPLAY_READY
+- P2B_PARTIAL_READY_REPORT_ONLY
+- BLOCKED_BY_INSUFFICIENT_APPROVED_EVENTS
+- BLOCKED_BY_MISSING_PLANNED_RISK
+- BLOCKED_BY_LEDGER_CAPTURE_ERRORS
+- BLOCKED_BY_RUNTIME_HEALTH
+- BLOCKED_BY_OPEN_POSITION_INCOMPLETE_PROTECTION
+- BLOCKED_BY_SAMPLE_SIZE
+
+明確禁止：
+- 不下單
+- 不 cancel/amend/flatten/close/reduce
+- 不改 TP/SL
+- 不改 leverage/margin/position cap
+- 不改 strategy threshold
+- 不改 BathOverflow gate
+- 不 restart runner
+- 不切 live
+- 不 promotion
+
+完成後回報：
+1. verdict
+2. ENTRY_APPROVED count
+3. ENTRY_APPROVED with planned_entry/planned_sl count
+4. ENTRY_FILLED count
+5. PROTECTION_ATTACHED count
+6. exit_replay_eligible count
+7. promotion_stats_eligible count
+8. P2B allowed? yes/no
+9. runtime promotion allowed? must be no
