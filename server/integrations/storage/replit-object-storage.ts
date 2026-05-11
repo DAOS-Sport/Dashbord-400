@@ -17,11 +17,16 @@ const writeLocalFallback = async (buffer: Buffer, key: string): Promise<{ url: s
   return { key, url: `/uploads/${key}` };
 };
 
-const canUseReplitObjectStorage = () =>
-  Boolean(process.env.REPL_ID || process.env.REPL_SLUG || process.env.REPLIT_OBJECT_STORAGE_BUCKET_ID);
+const getBucketId = () =>
+  process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID ||
+  process.env.REPLIT_OBJECT_STORAGE_BUCKET_ID ||
+  "";
+
+const canUseReplitObjectStorage = () => Boolean(getBucketId());
 
 export const createReplitPhotoStorage = (): PhotoStorage => {
-  const client = canUseReplitObjectStorage() ? new Client() : null;
+  const bucketId = getBucketId();
+  const client = bucketId ? new Client({ bucketId }) : null;
 
   return {
     async upload(buffer, key, contentType) {
