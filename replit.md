@@ -49,6 +49,17 @@ The system is designed with a modular project structure, separating client-side 
 - **模組拓撲圖** (`/system/topology`): React Flow diagram driven by data-only `client/src/config/topology-config.ts`. Add nodes/edges in the config to surface them on the diagram — no UI code change required. Route is registered inside `WorkbenchRouter` (must be placed BEFORE the catch-all `/system` route).
 - New table `lane_rentals` (drizzle); IStorage methods `listLaneRentals/getLaneRentalById/findLaneRentalConflicts/createLaneRental/updateLaneRental/deleteLaneRental`.
 
+## 公告 Overlay（2026-05）
+- 員工/主管端 `/employee/announcements` 直接顯示原文（不再有 detail page，detail route 已移除）。
+- 任何登入者可：📌 置頂到指定時間（PIN_PRESETS 1h/4h/1d/3d/7d 或自訂 datetime）、📝 加備註（重複公告辨識）、🗑️ 隱藏。
+- 只有主管（`grantedRoles` 含 supervisor 或 system）可：恢復顯示已隱藏公告（清單入口在公告頁右上「已隱藏公告」按鈕，呼叫 `GET /api/announcement-overlays/hidden`）。
+- 後端模組：`server/modules/announcement-overlays/routes.ts`，5 endpoints（hide/unhide/pin/unpin/note）+ 1 supervisor-only listing。
+- Schema：`announcement_overlays`（PK = BFF announcement id，例如 `line-{messageId}`、`portal-ann-{id}`、`employee-ann-{id}`），欄位 `is_hidden`、`pinned_until`、`note`、`last_modified_*`，2 個 index。
+- BFF 整合：`applyAnnouncementOverlays()` helper 在 BFF 兩個 announcement assembly 處（live + degraded）合併 overlay；hidden 過濾、pinnedUntil > now 排序至最頂，並把 overlay 欄位掛到 `AnnouncementSummary` 上（`overlayPinnedUntil` / `overlayNote` / `overlayHidden` / `overlayLastModifiedByName` / `overlayLastModifiedAt`）。
+- 稽核：所有 overlay 動作寫入 `audit` (`announcement-overlay.{action}`)；hide 在前端有 `confirm()` 二次確認。
+- ID 驗證：route param 走正規式 `^[a-zA-Z0-9._:\-]+$`、長度 1–200。
+- 員工首頁 AnnouncementCard 已移除 detail Link，改顯示 `overlayNote`（如有）。
+
 ## Phase-2 停車場電子簽約 (2026-05)
 - New table cols on `parking_contracts`: `terms_version`, `sign_token_hash`, `sign_token_expires_at`, `signed_from_ip`, `signed_user_agent`, `signer_name`, `signer_id_last4`, `vehicle_reg_photo_url`, `driver_license_photo_url`, `id_card_photo_url`. All Phase-2 fields are omitted from `insertParkingContractSchema` so they can only be written via the dedicated sign endpoints.
 - Backend (server/modules/parking/routes.ts):

@@ -11,6 +11,7 @@ import {
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type AnnouncementAcknowledgement, type InsertAnnouncementAcknowledgement,
   type FacilityAnnouncementGroup, type InsertFacilityAnnouncementGroup,
+  announcementOverlays, type AnnouncementOverlay, type InsertAnnouncementOverlay,
   type PortalEvent, type InsertPortalEvent,
   type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
   type WatchdogEvent, type InsertWatchdogEvent,
@@ -130,6 +131,11 @@ export interface IStorage {
   createAnnouncementGroup(input: InsertFacilityAnnouncementGroup): Promise<FacilityAnnouncementGroup>;
   updateAnnouncementGroup(id: number, patch: Partial<InsertFacilityAnnouncementGroup>): Promise<FacilityAnnouncementGroup | undefined>;
   deleteAnnouncementGroup(id: number): Promise<boolean>;
+
+  // Announcement overlays (hide / pin-with-expiry / note)
+  getAnnouncementOverlays(announcementIds: string[]): Promise<Map<string, AnnouncementOverlay>>;
+  listHiddenAnnouncementOverlays(): Promise<AnnouncementOverlay[]>;
+  upsertAnnouncementOverlay(input: InsertAnnouncementOverlay): Promise<AnnouncementOverlay>;
 
   // Portal Events (analytics)
   recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent>;
@@ -686,6 +692,39 @@ export class DatabaseStorage implements IStorage {
   async deleteAnnouncementGroup(id: number): Promise<boolean> {
     const rows = await db.delete(facilityAnnouncementGroups).where(eq(facilityAnnouncementGroups.id, id)).returning();
     return rows.length > 0;
+  }
+
+  async getAnnouncementOverlays(announcementIds: string[]): Promise<Map<string, AnnouncementOverlay>> {
+    const map = new Map<string, AnnouncementOverlay>();
+    if (announcementIds.length === 0) return map;
+    const rows = await db.select().from(announcementOverlays).where(inArray(announcementOverlays.announcementId, announcementIds));
+    for (const row of rows) map.set(row.announcementId, row);
+    return map;
+  }
+
+  async listHiddenAnnouncementOverlays(): Promise<AnnouncementOverlay[]> {
+    return db.select().from(announcementOverlays).where(eq(announcementOverlays.isHidden, true)).orderBy(desc(announcementOverlays.updatedAt));
+  }
+
+  async upsertAnnouncementOverlay(input: InsertAnnouncementOverlay): Promise<AnnouncementOverlay> {
+    const now = new Date();
+    const [row] = await db
+      .insert(announcementOverlays)
+      .values({ ...input, updatedAt: now })
+      .onConflictDoUpdate({
+        target: announcementOverlays.announcementId,
+        set: {
+          ...(input.isHidden !== undefined ? { isHidden: input.isHidden } : {}),
+          ...(input.pinnedUntil !== undefined ? { pinnedUntil: input.pinnedUntil } : {}),
+          ...(input.note !== undefined ? { note: input.note } : {}),
+          lastModifiedBy: input.lastModifiedBy,
+          lastModifiedByName: input.lastModifiedByName ?? null,
+          lastModifiedRole: input.lastModifiedRole,
+          updatedAt: now,
+        },
+      })
+      .returning();
+    return row;
   }
 
   async recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent> {

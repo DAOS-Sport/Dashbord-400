@@ -282,3 +282,33 @@ export const acknowledgeEmployeeAnnouncement = (id: string, facilityKey: string)
     `/api/announcements/${encodeURIComponent(id)}/ack`,
     { facilityKey },
   );
+
+export interface AnnouncementOverlayDTO {
+  announcementId: string;
+  isHidden: boolean;
+  pinnedUntil: string | null;
+  note: string | null;
+  lastModifiedBy: string;
+  lastModifiedByName: string | null;
+  lastModifiedRole: "employee" | "supervisor" | "system";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const hideAnnouncementOverlay = (id: string) =>
+  apiPost<AnnouncementOverlayDTO>(`/api/announcement-overlays/${encodeURIComponent(id)}/hide`, {});
+
+export const unhideAnnouncementOverlay = (id: string) =>
+  apiPost<AnnouncementOverlayDTO>(`/api/announcement-overlays/${encodeURIComponent(id)}/unhide`, {});
+
+export const pinAnnouncementOverlay = (id: string, until: string) =>
+  apiPost<AnnouncementOverlayDTO>(`/api/announcement-overlays/${encodeURIComponent(id)}/pin`, { until });
+
+export const unpinAnnouncementOverlay = (id: string) =>
+  apiPost<AnnouncementOverlayDTO>(`/api/announcement-overlays/${encodeURIComponent(id)}/unpin`, {});
+
+export const updateAnnouncementOverlayNote = (id: string, note: string | null) =>
+  apiPost<AnnouncementOverlayDTO>(`/api/announcement-overlays/${encodeURIComponent(id)}/note`, { note });
+
+export const listHiddenAnnouncementOverlays = () =>
+  apiGet<AnnouncementOverlayDTO[]>(`/api/announcement-overlays/hidden`);

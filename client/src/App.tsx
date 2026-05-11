@@ -379,9 +379,6 @@ function WorkbenchRouter() {
       <Route path="/employee/tasks">
         <EmployeeTasksPage />
       </Route>
-      <Route path="/employee/announcements/:id">
-        {(params) => <EmployeeAnnouncementsPage announcementId={params.id} />}
-      </Route>
       <Route path="/employee/announcements">
         <EmployeeAnnouncementsPage />
       </Route>

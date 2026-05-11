@@ -415,6 +415,50 @@ const announcementSortTime = (item: AnnouncementSummary) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+/**
+ * Merge announcement overlay state (hide / pin-with-expiry / note) into items.
+ * Hidden items are removed. Pinned items (pinnedUntil > now) bubble to the top.
+ * Manual isPinned flag remains as a fallback secondary sort.
+ */
+const applyAnnouncementOverlays = async (items: AnnouncementSummary[]): Promise<AnnouncementSummary[]> => {
+  if (items.length === 0) return items;
+  const overlays = await storage.getAnnouncementOverlays(items.map((item) => item.id)).catch(() => new Map());
+  if (overlays.size === 0) return items;
+  const nowMs = Date.now();
+  const augmented: AnnouncementSummary[] = [];
+  for (const item of items) {
+    const overlay = overlays.get(item.id);
+    if (overlay?.isHidden) continue;
+    if (!overlay) {
+      augmented.push(item);
+      continue;
+    }
+    const pinnedUntilMs = overlay.pinnedUntil ? overlay.pinnedUntil.getTime() : 0;
+    const isCurrentlyPinned = pinnedUntilMs > nowMs;
+    augmented.push({
+      ...item,
+      isPinned: isCurrentlyPinned || item.isPinned,
+      overlayPinnedUntil: overlay.pinnedUntil ? overlay.pinnedUntil.toISOString() : null,
+      overlayNote: overlay.note ?? null,
+      overlayHidden: false,
+      overlayLastModifiedByName: overlay.lastModifiedByName,
+      overlayLastModifiedAt: overlay.updatedAt ? overlay.updatedAt.toISOString() : null,
+    });
+  }
+  augmented.sort((a, b) => {
+    const aPinUntil = a.overlayPinnedUntil ? Date.parse(a.overlayPinnedUntil) : 0;
+    const bPinUntil = b.overlayPinnedUntil ? Date.parse(b.overlayPinnedUntil) : 0;
+    const aActive = aPinUntil > nowMs ? 1 : 0;
+    const bActive = bPinUntil > nowMs ? 1 : 0;
+    if (aActive !== bActive) return bActive - aActive;
+    if (aActive && bActive && bPinUntil !== aPinUntil) return bPinUntil - aPinUntil;
+    const pinned = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+    if (pinned !== 0) return pinned;
+    return announcementSortTime(b) - announcementSortTime(a);
+  });
+  return augmented;
+};
+
 const announcementSectionFromSources = (
   items: AnnouncementSummary[],
   lineSource: { connected: boolean; errorMessage: string | null; fetchedAt?: string },
@@ -623,9 +667,9 @@ const buildEmployeeHomeFallback = async (
       return Date.parse(b.createdAt) - Date.parse(a.createdAt);
     });
 
-  const announcements = uniqueAnnouncements([...lineAnnouncements, ...resourceAnnouncements, ...portalAnnouncements])
-    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
-    .slice(0, 10);
+  const announcementsBeforeOverlay = uniqueAnnouncements([...lineAnnouncements, ...resourceAnnouncements, ...portalAnnouncements])
+    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a));
+  const announcements = (await applyAnnouncementOverlays(announcementsBeforeOverlay)).slice(0, 10);
 
   return {
     facility: {
@@ -957,9 +1001,9 @@ const enrichEmployeeHome = async (
   const systemAnnouncements = await storage.listSystemAnnouncements(normalizedFacilityKey, true).catch(() => []);
   const portalAnnouncements = systemAnnouncements.slice(0, 8).map((item) => mapSystemAnnouncementSummary(item, now));
   const localTasks = await storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }).catch(() => []);
-  const announcements = uniqueAnnouncements([...lineAnnouncementsResult.announcements, ...employeeResources.announcements, ...portalAnnouncements])
-    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a))
-    .slice(0, 10);
+  const announcementsBeforeOverlay = uniqueAnnouncements([...lineAnnouncementsResult.announcements, ...employeeResources.announcements, ...portalAnnouncements])
+    .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) || announcementSortTime(b) - announcementSortTime(a));
+  const announcements = (await applyAnnouncementOverlays(announcementsBeforeOverlay)).slice(0, 10);
   nextDto = {
     ...nextDto,
     tasks: ok(localTasks.map(mapTaskSummary), now),

@@ -61,6 +61,11 @@ export interface AnnouncementSummary {
   sourceType?: "line-group" | "system" | "employee-resource" | "candidate" | string;
   sourceRefId?: string | null;
   publisher?: string | null;
+  overlayPinnedUntil?: string | null;
+  overlayNote?: string | null;
+  overlayHidden?: boolean;
+  overlayLastModifiedByName?: string | null;
+  overlayLastModifiedAt?: string | null;
 }
 
 export interface HandoverSummary {

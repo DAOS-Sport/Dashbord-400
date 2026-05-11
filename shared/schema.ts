@@ -498,6 +498,40 @@ export const insertFacilityAnnouncementGroupSchema = createInsertSchema(facility
 export type InsertFacilityAnnouncementGroup = z.infer<typeof insertFacilityAnnouncementGroupSchema>;
 export type FacilityAnnouncementGroup = typeof facilityAnnouncementGroups.$inferSelect;
 
+// Overlay state for announcements (hide / pin-with-expiry / note).
+// PK = announcement.id as emitted by BFF (e.g. "line-{messageId}", "system-{id}", "employee-resource-{id}").
+// Anyone logged in can hide / pin / note. Only supervisors can unhide.
+export const announcementOverlays = pgTable("announcement_overlays", {
+  announcementId: text("announcement_id").primaryKey(),
+  isHidden: boolean("is_hidden").default(false).notNull(),
+  pinnedUntil: timestamp("pinned_until"),
+  note: text("note"),
+  lastModifiedBy: text("last_modified_by").notNull(),
+  lastModifiedByName: text("last_modified_by_name"),
+  lastModifiedRole: text("last_modified_role").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  byHidden: index("idx_announcement_overlays_hidden").on(t.isHidden),
+  byPinnedUntil: index("idx_announcement_overlays_pinned").on(t.pinnedUntil),
+}));
+
+export const insertAnnouncementOverlaySchema = createInsertSchema(announcementOverlays).omit({
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  announcementId: z.string().min(1).max(200),
+  isHidden: z.boolean().optional(),
+  pinnedUntil: z.coerce.date().nullable().optional(),
+  note: z.string().max(1000).nullable().optional(),
+  lastModifiedBy: z.string().min(1).max(120),
+  lastModifiedByName: z.string().max(120).nullable().optional(),
+  lastModifiedRole: z.enum(["employee", "supervisor", "system"]),
+});
+
+export type InsertAnnouncementOverlay = z.infer<typeof insertAnnouncementOverlaySchema>;
+export type AnnouncementOverlay = typeof announcementOverlays.$inferSelect;
+
 export const portalEvents = pgTable("portal_events", {
   id: serial("id").primaryKey(),
   employeeNumber: text("employee_number"),

@@ -855,6 +855,13 @@ export async function registerRoutes(
     recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
   });
 
+  const { registerAnnouncementOverlayRoutes } = await import("./modules/announcement-overlays/routes");
+  registerAnnouncementOverlayRoutes(app, {
+    requireEmployee,
+    requireSupervisor,
+    recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
+  });
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

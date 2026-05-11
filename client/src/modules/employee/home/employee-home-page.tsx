@@ -745,12 +745,15 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
       <SectionTitle title="群組重要公告" eyebrow="Pinned" action="全部公告" actionHref="/employee/announcements" />
       <div className="space-y-3">
         {announcements.length ? announcements.slice(0, 3).map((item) => (
-          <Link key={item.id} href={`/employee/announcements/${encodeURIComponent(item.id)}`} className="flex min-h-[68px] w-full items-center gap-3 rounded-[8px] border border-[#f6dfaa] bg-white/90 p-3 text-left text-[#10233f] transition hover:bg-white">
+          <div key={item.id} className="flex min-h-[68px] w-full items-start gap-3 rounded-[8px] border border-[#f6dfaa] bg-white/90 p-3 text-left text-[#10233f]">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-[#fff0d4] text-[#b45309]">
               <Bell className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-black">{item.title}</span>
+              {item.overlayNote ? (
+                <span className="mt-1 block truncate text-[11px] font-bold text-[#b45309]">📝 {item.overlayNote}</span>
+              ) : null}
               <span className="mt-1 block truncate text-[11px] font-medium text-[#64748b]">
                 {item.sourceLabel ? `${item.sourceLabel} · ` : ""}{item.effectiveRange}
               </span>
@@ -758,7 +761,7 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
             <span className={cn("shrink-0 rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", item.priority === "required" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#fff1e7] text-[#b45309]")}>
               {item.priority === "required" ? "重要" : "提醒"}
             </span>
-          </Link>
+          </div>
         )) : (
           <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
             {sourceMessage}
