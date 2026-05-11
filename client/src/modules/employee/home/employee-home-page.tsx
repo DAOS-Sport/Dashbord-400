@@ -56,6 +56,7 @@ import {
   readEmployeeFrontDeskHandover,
   replyEmployeeFrontDeskHandover,
   searchEmployeeWorkbench,
+  type EmployeeCourtReservationPreview,
   type EmployeeSearchResultDTO,
 } from "./api";
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
@@ -1268,7 +1269,9 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
   );
 }
 
-function CourtsPreviewCard({ schools }: { schools: SchoolId[] }) {
+// ── CourtsScrollCard ─────────────────────────────────────────────────────────
+
+function CourtsScrollCard({ schools, onOpenDrawer }: { schools: SchoolId[]; onOpenDrawer: () => void }) {
   const workDate = todayDateString();
   const xinbeiQuery = useQuery({
     queryKey: ["/api/courts/xinbei/reservations", workDate, "employee-home"],
@@ -1285,96 +1288,217 @@ function CourtsPreviewCard({ schools }: { schools: SchoolId[] }) {
     enabled: schools.includes("sanchong"),
   });
 
-  const renderSchoolPanel = (
-    school: SchoolId,
-    query: typeof xinbeiQuery,
-    tone: "blue" | "green",
-  ) => {
-    const reservations = query.data ?? [];
-    const nextReservations = reservations
-      .slice()
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-      .slice(0, 2);
-    const schoolName = getSchoolName(school);
-    const courtsCount = getCourtsBySchool(school).length;
-    const toneClass =
-      tone === "blue"
-        ? "border-[#cfe0f7] bg-[#f3f8ff] text-[#1f5ca8]"
-        : "border-[#cce9df] bg-[#f2fbf7] text-[#007166]";
-    const buttonClass =
-      tone === "blue"
-        ? "bg-[#0d2a50] text-white hover:bg-[#173c69]"
-        : "bg-[#0f8b69] text-white hover:bg-[#0b7559]";
-
-    return (
-      <div key={school} className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[14px] font-black text-[#10233f]">{schoolName}場租</p>
-            <p className="mt-0.5 text-[11px] font-bold text-[#637185]">{courtsCount} 個場地 · 今日場租查看</p>
-          </div>
-          <div className={cn("shrink-0 rounded-[8px] border px-2 py-1 text-right", toneClass)}>
-            <p className="text-[22px] font-black leading-none tabular-nums">{reservations.length}</p>
-            <p className="mt-0.5 text-[10px] font-black">今日</p>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {query.isLoading ? (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">場租資料載入中...</div>
-          ) : query.isError ? (
-            <div className="rounded-[8px] border border-[#ffd7dd] bg-[#fff5f6] p-3 text-[12px] font-bold text-[#d7334f]">場租資料暫時無法載入。</div>
-          ) : nextReservations.length ? (
-            nextReservations.map((reservation) => (
-              <Link
-                key={`${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
-                href={`/employee/courts/${school}?date=${reservation.date}`}
-                className="workbench-focus flex items-center justify-between gap-3 rounded-[8px] bg-[#fbfcfd] px-3 py-2 text-left transition hover:bg-[#eef8f3]"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-black text-[#10233f]">{reservation.customerName || "未命名場租"}</p>
-                  <p className="mt-0.5 truncate text-[11px] font-bold text-[#637185]">{getCourtName(reservation.court)} · {reservation.serviceName || "一般場租"}</p>
-                </div>
-                <span className="shrink-0 text-[12px] font-black tabular-nums text-[#007166]">{reservation.startTime}</span>
-              </Link>
-            ))
-          ) : (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">今日尚無場租紀錄。</div>
-          )}
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Link href={`/employee/courts/${school}`} className={cn("workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] px-3 text-[12px] font-black", buttonClass)}>
-            完整查看
-          </Link>
-          <Link href={`/employee/courts/${school}/search`} className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#edf7f4] px-3 text-[12px] font-black text-[#007166]">
-            搜尋場租
-          </Link>
-        </div>
-      </div>
-    );
-  };
-
   const selectedSchools = schools.filter((school, index, list) => list.indexOf(school) === index);
   const queryBySchool = {
     xinbei: xinbeiQuery,
     sanchong: sanchongQuery,
   } satisfies Record<SchoolId, typeof xinbeiQuery>;
-  const toneBySchool = {
-    xinbei: "blue",
-    sanchong: "green",
-  } satisfies Record<SchoolId, "blue" | "green">;
+
+  const allReservations: Array<{ school: SchoolId; reservation: EmployeeCourtReservationPreview }> = [];
+  for (const school of selectedSchools) {
+    const rsvs = (queryBySchool[school].data ?? [])
+      .slice()
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (const r of rsvs) {
+      allReservations.push({ school, reservation: r });
+    }
+  }
+
+  const isLoading = selectedSchools.some((s) => queryBySchool[s].isLoading);
   const primarySchool = selectedSchools[0] ?? "xinbei";
+
+  const schoolBadgeClass: Record<SchoolId, string> = {
+    xinbei: "bg-[#dbeafe] text-[#1d4ed8]",
+    sanchong: "bg-[#dcfce7] text-[#15803d]",
+  };
 
   if (!selectedSchools.length) return null;
 
   return (
     <WorkbenchCard className="h-full p-5">
-      <SectionTitle title="場租查看" eyebrow="Courts" action={`${getSchoolName(primarySchool)}完整頁`} actionHref={`/employee/courts/${primarySchool}`} />
-      <div className={cn("grid gap-3", selectedSchools.length > 1 ? "lg:grid-cols-2" : "grid-cols-1")}>
-        {selectedSchools.map((school) => renderSchoolPanel(school, queryBySchool[school], toneBySchool[school]))}
+      <SectionTitle
+        title="今日場租"
+        eyebrow="Courts"
+        action="完整查看"
+        actionHref={`/employee/courts/${primarySchool}`}
+      />
+      {isLoading ? (
+        <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
+          場租資料載入中…
+        </div>
+      ) : allReservations.length === 0 ? (
+        <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
+          今日尚無場租紀錄。
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-[#d4dde8]">
+          <div className="flex gap-3" style={{ minWidth: "max-content" }}>
+            {allReservations.map(({ school, reservation }) => (
+              <Link
+                key={`${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
+                href={`/employee/courts/${school}?date=${reservation.date}`}
+                className="workbench-focus flex w-[148px] shrink-0 flex-col justify-between rounded-[10px] border border-[#e3eaf2] bg-white p-3 shadow-[0_1px_4px_rgba(15,34,58,0.07)] transition hover:border-[#b6d0f5] hover:bg-[#f3f8ff]"
+                data-testid={`card-court-rsv-${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
+              >
+                <span className={cn("mb-2 self-start rounded-full px-2 py-0.5 text-[10px] font-black", schoolBadgeClass[school])}>
+                  {getSchoolName(school)}
+                </span>
+                <p className="line-clamp-2 text-[13px] font-black leading-snug text-[#10233f]">
+                  {reservation.customerName || "未命名場租"}
+                </p>
+                <p className="mt-1 truncate text-[11px] font-bold text-[#637185]">
+                  {getCourtName(reservation.court)}
+                </p>
+                <p className="mt-0.5 truncate text-[10px] font-bold text-[#8b9aae]">
+                  {reservation.serviceName || "一般場租"}
+                </p>
+                <span className="mt-2 font-mono text-[12px] font-black tabular-nums text-[#007166]">
+                  {reservation.startTime}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onOpenDrawer}
+          className="text-[12px] font-black text-[#007166] hover:underline"
+          data-testid="button-courts-open-drawer"
+        >
+          依學校分類查看 →
+        </button>
+        <span className="text-[11px] font-bold text-[#8b9aae]">{allReservations.length} 筆今日場租</span>
       </div>
     </WorkbenchCard>
+  );
+}
+
+// ── CourtsDetailDrawer ────────────────────────────────────────────────────────
+
+function CourtsDetailDrawer({
+  open,
+  schools,
+  onClose,
+}: {
+  open: boolean;
+  schools: SchoolId[];
+  onClose: () => void;
+}) {
+  const workDate = todayDateString();
+  const xinbeiQuery = useQuery({
+    queryKey: ["/api/courts/xinbei/reservations", workDate, "courts-drawer"],
+    queryFn: () => fetchEmployeeCourtsToday("xinbei", workDate),
+    staleTime: 60_000,
+    retry: false,
+    enabled: open && schools.includes("xinbei"),
+  });
+  const sanchongQuery = useQuery({
+    queryKey: ["/api/courts/sanchong/reservations", workDate, "courts-drawer"],
+    queryFn: () => fetchEmployeeCourtsToday("sanchong", workDate),
+    staleTime: 60_000,
+    retry: false,
+    enabled: open && schools.includes("sanchong"),
+  });
+
+  if (!open) return null;
+
+  const todayDay = new Date().getDate();
+  const queryBySchool = {
+    xinbei: xinbeiQuery,
+    sanchong: sanchongQuery,
+  } satisfies Record<SchoolId, typeof xinbeiQuery>;
+
+  const schoolHeaderClass: Record<SchoolId, string> = {
+    xinbei: "bg-[#1d4ed8] text-white",
+    sanchong: "bg-[#15803d] text-white",
+  };
+
+  const selectedSchools = schools.filter((school, index, list) => list.indexOf(school) === index);
+  const primarySchool = selectedSchools[0] ?? "xinbei";
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="場租查看">
+      <button type="button" aria-label="關閉場租" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <aside className="relative flex h-full w-full max-w-[400px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
+        <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
+          <div>
+            <h2 className="text-[18px] font-black text-[#10233f]">今日場租</h2>
+            <p className="mt-0.5 text-[12px] font-bold text-[#637185]">依學校場地分類</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[20px] text-[#536175]"
+            aria-label="關閉"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          {selectedSchools.map((school) => {
+            const q = queryBySchool[school];
+            const rsvs = (q.data ?? []).slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
+            return (
+              <div key={school}>
+                <div className={cn("mb-3 flex items-center justify-between rounded-[8px] px-3 py-2", schoolHeaderClass[school])}>
+                  <span className="text-[14px] font-black">{getSchoolName(school)}場租</span>
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-white/20 text-[18px] font-black">
+                    {todayDay}
+                  </span>
+                </div>
+                {q.isLoading ? (
+                  <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">載入中…</div>
+                ) : q.isError ? (
+                  <div className="rounded-[8px] border border-[#ffd7dd] bg-[#fff5f6] p-3 text-[12px] font-bold text-[#d7334f]">資料暫時無法載入。</div>
+                ) : rsvs.length === 0 ? (
+                  <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">今日尚無場租。</div>
+                ) : (
+                  <div className="space-y-2">
+                    {rsvs.map((r) => (
+                      <div
+                        key={`${r.id ?? r.court}-${r.startTime}`}
+                        className="flex items-center justify-between gap-3 rounded-[8px] border border-[#e3eaf2] bg-[#fbfcfd] px-3 py-2"
+                        data-testid={`drawer-court-rsv-${school}-${r.id ?? r.court}`}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-black text-[#10233f]">{r.customerName || "未命名場租"}</p>
+                          <p className="mt-0.5 truncate text-[11px] font-bold text-[#637185]">
+                            {getCourtName(r.court)} · {r.serviceName || "一般場租"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 font-mono text-[12px] font-black tabular-nums text-[#007166]">
+                          {r.startTime}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 border-t border-[#e6edf4] p-4">
+          <Link
+            href={`/employee/courts/${primarySchool}`}
+            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white"
+            data-testid="link-courts-full-page"
+          >
+            完整查看
+          </Link>
+          <Link
+            href={`/employee/courts/${primarySchool}/search`}
+            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#edf7f4] px-3 text-[12px] font-black text-[#007166]"
+            data-testid="link-courts-search"
+          >
+            搜尋場租
+          </Link>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -1438,6 +1562,60 @@ const getShiftPeriodLabel = (start?: string) => {
   if (hour < 16) return "午班";
   return "晚班";
 };
+
+const fmtShiftHHMM = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+const SHIFT_ROLE_PRIORITY = ["櫃台", "救生", "救生員", "守望", "教練", "PT", "pt", "主管"];
+
+type ShiftPersonWithTime = {
+  userId: string;
+  name: string;
+  role: string;
+  isCurrentUser: boolean;
+  startTime: string;
+  endTime: string;
+  isCurrent: boolean;
+  isFuture: boolean;
+};
+
+function buildShiftPeriodGroups(
+  shifts: ShiftBoardDto["shifts"],
+): Array<{ label: string; byRole: Map<string, ShiftPersonWithTime[]> }> {
+  const early = new Map<string, ShiftPersonWithTime[]>();
+  const late = new Map<string, ShiftPersonWithTime[]>();
+  const seen = new Set<string>();
+  const sorted = [...shifts].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  for (const shift of sorted) {
+    const hour = new Date(shift.start).getHours();
+    const bucket = hour < 14 ? early : late;
+    const st = fmtShiftHHMM(shift.start);
+    const et = fmtShiftHHMM(shift.end);
+    for (const p of shift.people) {
+      if (seen.has(p.userId)) continue;
+      seen.add(p.userId);
+      const person: ShiftPersonWithTime = { ...p, startTime: st, endTime: et, isCurrent: shift.isCurrent, isFuture: shift.isFuture };
+      const arr = bucket.get(p.role) ?? [];
+      arr.push(person);
+      bucket.set(p.role, arr);
+    }
+  }
+  const sortRoles = (m: Map<string, ShiftPersonWithTime[]>) =>
+    new Map(
+      [...m.entries()].sort(([a], [b]) => {
+        const ai = SHIFT_ROLE_PRIORITY.indexOf(a);
+        const bi = SHIFT_ROLE_PRIORITY.indexOf(b);
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      }),
+    );
+  const groups: Array<{ label: string; byRole: Map<string, ShiftPersonWithTime[]> }> = [];
+  if (early.size) groups.push({ label: "早班", byRole: sortRoles(early) });
+  if (late.size) groups.push({ label: "晚班", byRole: sortRoles(late) });
+  return groups;
+}
 
 const ROLE_TAG_STYLES: Record<string, string> = {
   救生員: "bg-[#e6f0ff] text-[#2a5fd1]",
@@ -1563,7 +1741,7 @@ function ShiftRoleBlock({
 
 // ── ShiftBoardCard ───────────────────────────────────────────────────────────
 
-function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
+function ShiftBoardCard({ board, onOpenDrawer }: { board?: ShiftBoardDto; onOpenDrawer: () => void }) {
   const shifts = board?.shifts ?? [];
   const nowMs = board?.now ? Date.parse(board.now) : Date.now();
   const dateLabel = formatBoardDateHeader(board?.date);
@@ -1650,9 +1828,14 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
             <span className="font-bold text-[#8b9aae]">
               {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
             </span>
-            <Link href="/employee/shift" className="font-black text-[#007166] hover:underline" data-testid="link-shift-view-all">
-              查看全部 →
-            </Link>
+            <button
+              type="button"
+              onClick={onOpenDrawer}
+              className="font-black text-[#007166] hover:underline"
+              data-testid="button-shift-open-drawer"
+            >
+              查看早晚班 →
+            </button>
           </div>
         </div>
       )}
@@ -1660,14 +1843,106 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   );
 }
 
-function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
-  const courtSchools = getEmployeeCourtSchoolsForFacility(home.facility.key, home.facility.name);
+// ── ShiftBoardDrawer ──────────────────────────────────────────────────────────
+
+function ShiftBoardDrawer({
+  open,
+  board,
+  onClose,
+}: {
+  open: boolean;
+  board?: ShiftBoardDto;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  const shifts = board?.shifts ?? [];
+  const facilityName = board?.facility?.name ?? "";
+  const totalCount = board?.totalCount ?? 0;
+  const nowLabel = board?.now
+    ? new Date(board.now).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
+    : null;
+  const periodGroups = buildShiftPeriodGroups(shifts);
+
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-      {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
-      {visibleKeys.has("documents") ? <CompactDocumentsCard documents={home.documents.data ?? []} /> : null}
-      {visibleKeys.has("stickyNotes") ? <CompactStickyNotesCard notes={home.stickyNotes.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
-      {visibleKeys.has("courts") && courtSchools.length ? <CourtsPreviewCard schools={courtSchools} /> : null}
+    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="即時班表">
+      <button type="button" aria-label="關閉班表" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <aside className="relative flex h-full w-full max-w-[380px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
+        <div className="flex items-start justify-between border-b border-[#e6edf4] px-5 py-4">
+          <div>
+            <h2 className="text-[18px] font-black text-[#10233f]">即時班表</h2>
+            {facilityName ? <p className="mt-0.5 text-[12px] font-bold text-[#637185]">{facilityName}</p> : null}
+          </div>
+          <div className="flex items-center gap-3">
+            {nowLabel ? <span className="text-[11px] font-bold text-[#8b9aae]">現在 {nowLabel}</span> : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[20px] text-[#536175]"
+              aria-label="關閉"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {periodGroups.length === 0 ? (
+            <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">
+              今日尚無班表
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {periodGroups.map((period) => (
+                <div key={period.label}>
+                  <p className="mb-4 text-[22px] font-black text-[#15935d]">{period.label}</p>
+                  <div className="space-y-5">
+                    {[...period.byRole.entries()].map(([role, people]) => (
+                      <div key={role}>
+                        <p className="mb-2 text-[12px] font-black tracking-wide text-[#8b9aae]">{role}</p>
+                        <div className="space-y-2">
+                          {people.map((person) => (
+                            <div
+                              key={person.userId}
+                              className="flex items-center justify-between gap-3"
+                              data-testid={`drawer-shift-person-${person.userId}`}
+                            >
+                              <span
+                                className={cn(
+                                  "text-[15px] font-bold",
+                                  person.isCurrent ? "text-[#10233f]" : person.isFuture ? "text-[#10233f]" : "text-[#a8b5c5]",
+                                )}
+                              >
+                                {person.name}
+                              </span>
+                              <span className="shrink-0 font-mono text-[12px] font-bold text-[#637185]">
+                                {person.startTime}–{person.endTime}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#e6edf4] px-5 py-3">
+          <Link
+            href="/employee/shift"
+            className="text-[12px] font-black text-[#007166] hover:underline"
+            data-testid="link-shift-full-page"
+          >
+            前往完整班表 →
+          </Link>
+          <span className="text-[12px] font-bold text-[#8b9aae]">
+            本日班表人數{" "}
+            <span className="font-black text-[#10233f]">{totalCount}</span> 人
+          </span>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -1718,6 +1993,8 @@ function LoadingState() {
 function EmployeeHomeContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [handoverDrawerOpen, setHandoverDrawerOpen] = useState(false);
+  const [shiftBoardDrawerOpen, setShiftBoardDrawerOpen] = useState(false);
+  const [courtsDrawerOpen, setCourtsDrawerOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/bff/employee/home"],
@@ -1791,7 +2068,7 @@ function EmployeeHomeContent() {
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("shifts") ? (
                   <div className="h-full lg:col-span-5">
-                    <ShiftBoardCard board={shiftBoard} />
+                    <ShiftBoardCard board={shiftBoard} onOpenDrawer={() => setShiftBoardDrawerOpen(true)} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("events") ? (
@@ -1812,7 +2089,7 @@ function EmployeeHomeContent() {
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("courts") && courtSchools.length ? (
                   <div className="h-full lg:col-span-8">
-                    <CourtsPreviewCard schools={courtSchools} />
+                    <CourtsScrollCard schools={courtSchools} onOpenDrawer={() => setCourtsDrawerOpen(true)} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("stickyNotes") ? (
@@ -1850,6 +2127,16 @@ function EmployeeHomeContent() {
           queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
           queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/handover/list"] });
         }}
+      />
+      <ShiftBoardDrawer
+        open={shiftBoardDrawerOpen}
+        board={shiftBoard}
+        onClose={() => setShiftBoardDrawerOpen(false)}
+      />
+      <CourtsDetailDrawer
+        open={courtsDrawerOpen}
+        schools={courtSchools}
+        onClose={() => setCourtsDrawerOpen(false)}
       />
     </div>
   );
