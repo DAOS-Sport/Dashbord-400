@@ -12,7 +12,7 @@ export interface FacilityLineGroup {
 export const facilityLineGroups: readonly FacilityLineGroup[] = [
   {
     facilityKey: "xinbei_pool",
-    fullName: "新北高中游泳池&運動中心",
+    fullName: "新北高中",
     shortName: "新北",
     area: "三蘆區",
     lineGroupId: "C66a4b3bb3fbc3dcf52d42626ec512484",
@@ -22,7 +22,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
   },
   {
     facilityKey: "salu_counter",
-    fullName: "三重商工 / 三蘆區櫃台",
+    fullName: "三重商工",
     shortName: "商工",
     area: "三蘆區",
     lineGroupId: "Cc2100498c7c5627c1e86e93f7c4eb817",
@@ -32,7 +32,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
   },
   {
     facilityKey: "songshan_pool",
-    fullName: "松山國小室內溫水游泳池",
+    fullName: "松山國小",
     shortName: "松山",
     area: "台北",
     lineGroupId: "C9b3c5dfe2e005adafd2ed914714a1930",
@@ -42,7 +42,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
   },
   {
     facilityKey: "sanmin_pool",
-    fullName: "三民高中游泳池",
+    fullName: "三民高中",
     shortName: "三民",
     area: "三蘆區",
     lineGroupId: "C2dc6991e51074dd47d5d275d568318f7",
@@ -52,7 +52,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
   },
   {
     facilityKey: "zhuke_pool",
-    fullName: "新竹科學園區游泳池",
+    fullName: "新竹科學園區",
     shortName: "竹科",
     area: "新竹",
     lineGroupId: "UNKNOWN_ZHUKE_LINE_GROUP",
