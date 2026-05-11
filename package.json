@@ -10,6 +10,7 @@
     "type-check": "node scripts/run-toolchain.cjs tsc --pretty false --noEmit",
     "check": "node scripts/run-toolchain.cjs tsc --pretty false --noEmit",
     "check:modules": "node scripts/run-toolchain.cjs tsx scripts/module-registry-check.ts",
+    "check:workbench-governance": "node scripts/run-toolchain.cjs tsx scripts/workbench-governance-check.ts",
     "smoke:modules": "node scripts/run-toolchain.cjs tsx scripts/module-smoke.ts",
     "unit:modules": "node scripts/run-toolchain.cjs tsx scripts/module-unit-tests.ts",
     "dry-run": "node scripts/dry-run.cjs",

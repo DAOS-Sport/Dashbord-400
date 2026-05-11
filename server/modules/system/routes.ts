@@ -1,6 +1,8 @@
 import type { Express, Request } from "express";
 import { z } from "zod";
 import type { AppContainer } from "../../app/container";
+import type { ModuleHealthDto } from "@shared/modules";
+import { getModuleDescriptorsByRole, getModuleHealth } from "@shared/modules";
 import { getRawInspectorTarget, isRawInspectorPath } from "@shared/system/raw-inspector";
 import { healthOk } from "../../shared/observability/health";
 import { storage } from "../../storage";
@@ -31,7 +33,121 @@ const rawInspectorQuerySchema = z.object({
 const hasPermission = (permissions: string[] | undefined, permission: string) =>
   Boolean(permissions?.includes(permission) || permissions?.some((item) => item.startsWith("system:")));
 
+type ControlCenterSeverity = "normal" | "warning" | "critical";
+
+interface ControlCenterCache {
+  expiresAt: number;
+  data: unknown;
+}
+
+let controlCenterCache: ControlCenterCache | null = null;
+
+const isRecent = (value: unknown, windowMs: number) => {
+  if (!value) return false;
+  const time = new Date(String(value)).getTime();
+  return Number.isFinite(time) && Date.now() - time <= windowMs;
+};
+
+const sortHealth = (items: ModuleHealthDto[]) => {
+  const rank: Record<ModuleHealthDto["status"], number> = {
+    error: 0,
+    degraded: 1,
+    not_connected: 2,
+    telemetry_pending: 3,
+    ready: 4,
+  };
+  return [...items].sort((a, b) => rank[a.status] - rank[b.status] || a.moduleId.localeCompare(b.moduleId));
+};
+
+const safeRead = async <T>(reader: () => Promise<T>, fallback: T): Promise<T> => {
+  try {
+    return await reader();
+  } catch {
+    return fallback;
+  }
+};
+
+const eventCreatedAt = (event: { observedAt?: Date | string; createdAt?: Date | string }) =>
+  (event.observedAt ?? event.createdAt ?? new Date()).toString();
+
+const severityFromWatchdogs = (events: Array<{ severity: string }>): ControlCenterSeverity => {
+  if (events.some((event) => event.severity === "critical")) return "critical";
+  if (events.some((event) => event.severity === "warning")) return "warning";
+  return "normal";
+};
+
 export const registerSystemRoutes = (app: Express, container: AppContainer) => {
+  app.get("/api/bff/system/control-center", requireSession, requireRole("system"), async (_req, res) => {
+    if (controlCenterCache && controlCenterCache.expiresAt > Date.now()) {
+      return res.json(controlCenterCache.data);
+    }
+
+    const health = sortHealth(getModuleHealth("system"));
+    const descriptors = getModuleDescriptorsByRole("system");
+    const watchdogEvents = await safeRead(() => storage.listWatchdogEvents(200), []);
+    const auditLogs = await safeRead(() => container.repositories.telemetry.listAuditLogs(200), []);
+    const last24h = 24 * 60 * 60 * 1000;
+    const recentWatchdogs = watchdogEvents.filter((event) => isRecent(eventCreatedAt(event), last24h));
+    const criticalWatchdogs = recentWatchdogs.filter((event) => event.severity === "critical");
+    const warningOrCriticalWatchdogs = recentWatchdogs.filter((event) => event.severity === "critical" || event.severity === "warning");
+    const orphanHealth = health.filter((item) =>
+      item.issues.some((issue) => /no routePath|no BFF endpoint/i.test(issue)),
+    );
+    const recentCriticalEvents = warningOrCriticalWatchdogs
+      .slice(0, 5)
+      .map((event) => {
+        const payload = event.payload && typeof event.payload === "object" ? event.payload as Record<string, unknown> : {};
+        return {
+          id: String(event.id),
+          title: event.message || event.serviceName || "Watchdog event",
+          severity: event.severity,
+          source: event.source,
+          moduleId: typeof payload.moduleId === "string" ? payload.moduleId : undefined,
+          role: typeof payload.role === "string" ? payload.role : undefined,
+          createdAt: new Date(eventCreatedAt(event)).toISOString(),
+        };
+      });
+    const latestWatchdog = warningOrCriticalWatchdogs[0] ?? watchdogEvents[0];
+
+    const data = {
+      kpi: {
+        readyModules: health.filter((item) => item.status === "ready").length,
+        degradedModules: health.filter((item) => item.status === "degraded" || item.status === "telemetry_pending").length,
+        notConnectedModules: health.filter((item) => item.status === "not_connected").length,
+        errorModules: health.filter((item) => item.status === "error").length,
+        audit24h: auditLogs.filter((item) => isRecent(item.timestamp, last24h)).length,
+        watchdogCritical24h: criticalWatchdogs.length,
+      },
+      tiles: {
+        watchdog: {
+          severity: severityFromWatchdogs(recentWatchdogs),
+          criticalCount: criticalWatchdogs.length,
+          lastEventTitle: latestWatchdog?.message || latestWatchdog?.serviceName || null,
+          lastEventAt: latestWatchdog ? new Date(eventCreatedAt(latestWatchdog)).toISOString() : null,
+        },
+        operations: {
+          severity: "normal" as const,
+          pendingCount: 0,
+          todayHandledCount: 0,
+        },
+        insights: {
+          severity: "normal" as const,
+          anomalyHint: null,
+        },
+        governance: {
+          severity: orphanHealth.length > 0 ? "warning" as const : "normal" as const,
+          moduleCount: descriptors.length,
+          orphanCount: orphanHealth.length,
+        },
+      },
+      recentCriticalEvents,
+      generatedAt: new Date().toISOString(),
+    };
+
+    controlCenterCache = { expiresAt: Date.now() + 5_000, data };
+    return res.json(data);
+  });
+
   app.get("/api/bff/system/health-overview", (_req, res) => {
     return res.json({
       status: "ok",

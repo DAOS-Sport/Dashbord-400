@@ -862,6 +862,13 @@ export async function registerRoutes(
     recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
   });
 
+  const { registerLifeguardOperationRoutes } = await import("./modules/lifeguard/routes");
+  registerLifeguardOperationRoutes(app, {
+    requireEmployee,
+    requireSupervisor,
+    recordAudit: (event) => container.repositories.telemetry.recordAudit(event),
+  }, container);
+
   app.post("/api/auth/ragic-login", async (req, res) => {
     try {
       const { employeeNumber, phone } = (req.body || {}) as { employeeNumber?: string; phone?: string };

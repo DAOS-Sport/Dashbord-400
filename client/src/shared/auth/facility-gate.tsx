@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Building2, CheckCircle2 } from "lucide-react";
-import { facilityConfigs } from "@/config/facility-configs";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
+import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ export function FacilityGate({ role, title, subtitle, children, compact = false 
   const { data: session, isLoading } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
   const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
   const activeConfirmationKey = activeFacility ? confirmationKeyFor(role, activeFacility) : undefined;
@@ -35,8 +36,8 @@ export function FacilityGate({ role, title, subtitle, children, compact = false 
   }, [activeConfirmationKey]);
 
   const facilities = useMemo(
-    () => granted.map((key) => ({ key, name: facilityConfigs[key]?.facilityName ?? key })),
-    [granted],
+    () => granted.map((key) => ({ key, name: facilityLabels.getFacilityName(key) })),
+    [granted, facilityLabels.data?.items],
   );
 
   const confirmFacility = async (facilityKey: string) => {

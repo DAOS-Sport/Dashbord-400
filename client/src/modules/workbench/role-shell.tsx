@@ -19,6 +19,7 @@ import {
   Megaphone,
   MessageSquareWarning,
   Network,
+  PackageSearch,
   Car,
   Search,
   ShieldCheck,
@@ -30,9 +31,9 @@ import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "./role-switcher";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useAuthMe } from "@/shared/auth/session";
+import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
-import { facilityConfigs } from "@/config/facility-configs";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 
 // Rollout-scoped slots: hidden unless the caller has access to one of the
@@ -56,6 +57,7 @@ const iconByKey: Record<string, LucideIcon> = {
   "clipboard-list": ClipboardCheck,
   "message-square-text": FileText,
   "message-square-warning": MessageSquareWarning,
+  "package-search": PackageSearch,
   "file-text": FileText,
   "graduation-cap": GraduationCap,
   "calendar-days": CalendarDays,
@@ -161,13 +163,15 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
         grantedFacilities: session.data.grantedFacilities ?? [],
       }
     : null;
+  const grantedFacilities = session.data?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(grantedFacilities);
   const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
   const mobileItems = nav.slice(0, 5);
   const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
   const supervisorShell = role === "supervisor";
   const activeFacility = session.data?.activeFacility;
-  const activeFacilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "授權場館";
+  const activeFacilityName = activeFacility ? facilityLabels.getFacilityName(activeFacility) : "授權場館";
 
   return (
     <div className={cn("workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]", supervisorShell && "supervisor-workbench")}>

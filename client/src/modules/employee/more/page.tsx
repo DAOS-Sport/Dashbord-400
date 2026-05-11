@@ -5,7 +5,7 @@ import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 
 const pendingSurfaces: Record<string, { title: string; helper: string; helpLink?: string }> = {
   "/employee/checkins": {
-    title: "點名 / 打卡",
+    title: "點名 / 報到",
     helper: "正式點名資料源尚未接通；上線時維持清楚的 not_connected 狀態，不顯示假打卡紀錄。",
     helpLink: "/portal",
   },
@@ -17,6 +17,15 @@ const pendingSurfaces: Record<string, { title: string; helper: string; helpLink?
 
 export default function EmployeeMorePage() {
   const [location] = useLocation();
+
+  if (location === "/employee/checkins") {
+    return (
+      <EmployeeShell title="點名 / 報到" subtitle="">
+        <div className="min-h-[56vh]" aria-label="點名報到空白頁面" />
+      </EmployeeShell>
+    );
+  }
+
   const surface = pendingSurfaces[location] ?? {
     title: "更多功能",
     helper: "此入口正在收斂到正式模組，請先使用常用文件與首頁導航。",

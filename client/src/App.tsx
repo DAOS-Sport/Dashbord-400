@@ -51,7 +51,7 @@ import EmployeeTrainingPage from "@/modules/employee/training/page";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import LifeguardHomePage from "@/modules/lifeguard/home/page";
 import LifeguardLogPage from "@/modules/lifeguard/log/page";
-import { LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
+import { EmployeeLostAndFoundPage, LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
@@ -62,13 +62,21 @@ import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
 import SupervisorReportsPage from "@/modules/supervisor/reports/page";
 import SupervisorTasksPage from "@/modules/supervisor/tasks/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
+import SupervisorLifeguardOverviewPage from "@/modules/supervisor/lifeguard-overview/page";
 import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
 import SystemDashboardPage from "@/modules/system/dashboard-page";
 import SystemAlertsPage from "@/modules/system/alerts/page";
 import SystemAuditPage from "@/modules/system/audit/page";
+import SystemControlCenterPage from "@/modules/system/control-center/page";
+import SystemGovernancePage from "@/modules/system/governance/page";
+import SystemInsightsPage from "@/modules/system/insights/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
+import SystemOperationsPage from "@/modules/system/operations/page";
 import SystemRawInspectorPage from "@/modules/system/raw-inspector/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
+import SystemWatchdogPage from "@/modules/system/watchdog/page";
+import SystemLifeguardAuditPage from "@/modules/system/lifeguard-audit/page";
+import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe, useSwitchRole } from "@/shared/auth/session";
@@ -208,7 +216,7 @@ function WorkbenchRouter() {
       <Route path="/">
         <Redirect to="/system" />
       </Route>
-      <Route path="/SYSTEM" component={SystemDashboardPage} />
+      <Route path="/SYSTEM" component={SystemControlCenterPage} />
       <Route path="/SUPERVISOR" component={SupervisorDashboardPage} />
       <Route path="/EMPLOYEE" component={EmployeeHomePage} />
       <Route path="/LIFEGUARD" component={LifeguardHomePage} />
@@ -308,28 +316,56 @@ function WorkbenchRouter() {
       <Route path="/supervisor/qna-review">
         <SupervisorQnaReviewPage />
       </Route>
+      <Route path="/supervisor/lifeguard-overview">
+        <SupervisorLifeguardOverviewPage />
+      </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/lifeguard/log">
         <LifeguardLogPage />
       </Route>
+      <Route path="/lifeguard/water-quality">
+        <LifeguardOperationDetailPage moduleId="water-quality" />
+      </Route>
+      <Route path="/lifeguard/coach-dive">
+        <LifeguardOperationDetailPage moduleId="coach-dive" />
+      </Route>
+      <Route path="/lifeguard/cleanup">
+        <LifeguardOperationDetailPage moduleId="cleanup" />
+      </Route>
+      <Route path="/lifeguard/lane-issues">
+        <LifeguardOperationDetailPage moduleId="lane-issues" />
+      </Route>
+      <Route path="/lifeguard/lane-rentals">
+        <LifeguardOperationDetailPage moduleId="lane-rentals" />
+      </Route>
       <Route path="/lifeguard/water-quality-photo">
-        <LifeguardOperationDetailPage moduleId="water-quality-photo" />
+        <Redirect to="/lifeguard/water-quality" />
       </Route>
       <Route path="/lifeguard/coach-water-photo">
-        <LifeguardOperationDetailPage moduleId="coach-water-photo" />
+        <Redirect to="/lifeguard/coach-dive" />
       </Route>
       <Route path="/lifeguard/closing-cleanup-photo">
-        <LifeguardOperationDetailPage moduleId="closing-cleanup-photo" />
+        <Redirect to="/lifeguard/cleanup" />
       </Route>
       <Route path="/lifeguard/lane-notes">
-        <LifeguardOperationDetailPage moduleId="lane-notes" />
+        <Redirect to="/lifeguard/lane-issues" />
       </Route>
       <Route path="/lifeguard/lost-and-found">
         <LifeguardOperationDetailPage moduleId="lost-and-found" />
       </Route>
+      <Route path="/employee/lost-and-found">
+        <EmployeeLostAndFoundPage />
+      </Route>
       <Route path="/lifeguard/home" component={LifeguardHomePage} />
       <Route path="/lifeguard" component={LifeguardHomePage} />
+      <Route path="/system/watchdog" component={SystemWatchdogPage} />
+      <Route path="/system/operations" component={SystemOperationsPage} />
+      <Route path="/system/insights" component={SystemInsightsPage} />
+      <Route path="/system/governance" component={SystemGovernancePage} />
       <Route path="/system/health" component={SystemDashboardPage} />
+      <Route path="/system/function-relations">
+        <SystemFunctionRelationsPage />
+      </Route>
       <Route path="/system/alerts">
         <SystemAlertsPage />
       </Route>
@@ -345,9 +381,12 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
+      <Route path="/system/lifeguard-audit">
+        <SystemLifeguardAuditPage />
+      </Route>
       <Route path="/system/topology" component={SystemTopology} />
-      <Route path="/system/overview" component={SystemDashboardPage} />
-      <Route path="/system" component={SystemDashboardPage} />
+      <Route path="/system/overview" component={SystemControlCenterPage} />
+      <Route path="/system" component={SystemControlCenterPage} />
       <Route path="/employee/courts/:school/week">
         <EmployeeCourtsFrame>
           <CourtsWeekPage />
@@ -420,7 +459,7 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
-      <Route component={SystemDashboardPage} />
+      <Route component={SystemControlCenterPage} />
     </Switch>
   );
 }

@@ -17,6 +17,7 @@ build/
 coverage/
 .cache/
 .turbo/
+.playwright-mcp/
 
 # Python
 __pycache__/

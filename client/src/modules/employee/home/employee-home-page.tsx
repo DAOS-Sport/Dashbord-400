@@ -60,9 +60,9 @@ import {
 } from "./api";
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { cn } from "@/lib/utils";
-import { facilityConfigs } from "@/config/facility-configs";
 import { FacilityGate } from "@/shared/auth/facility-gate";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
+import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
@@ -245,7 +245,9 @@ function DesktopSidebar() {
     staleTime: 60_000,
   });
   const items = toEmployeeNavigationItems(navigation.data?.items);
-  const facilityName = session?.activeFacility ? facilityConfigs[session.activeFacility]?.facilityName ?? session.activeFacility : "尚未選擇場館";
+  const granted = session?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(granted);
+  const facilityName = facilityLabels.getFacilityName(session?.activeFacility);
   return (
     <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[18px] text-white" />
@@ -300,8 +302,9 @@ function TopBar() {
   const { data: session } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : "";
-  const activeFacilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "尚未選擇場館";
+  const activeFacilityName = facilityLabels.getFacilityName(activeFacility);
   return (
     <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/90 lg:text-[#10233f] lg:backdrop-blur-xl">
       <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
@@ -331,7 +334,7 @@ function TopBar() {
               aria-label="切換場館"
             >
               {granted.map((facilityKey) => (
-                <option key={facilityKey} value={facilityKey}>{facilityConfigs[facilityKey]?.facilityName ?? facilityKey}</option>
+                <option key={facilityKey} value={facilityKey}>{facilityLabels.getFacilityName(facilityKey)}</option>
               ))}
             </select>
           ) : null}
@@ -740,33 +743,52 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
     : source?.status === "degraded"
       ? source.meta.fallbackReason
       : "目前沒有需要優先閱讀的群組公告。";
+  const [primaryAnnouncement, ...secondaryAnnouncements] = announcements.slice(0, 3);
   return (
-    <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.55)]">
+    <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.45)]">
       <SectionTitle title="群組重要公告" eyebrow="Pinned" action="全部公告" actionHref="/employee/announcements" />
-      <div className="space-y-3">
-        {announcements.length ? announcements.slice(0, 3).map((item) => (
-          <div key={item.id} className="flex min-h-[68px] w-full items-start gap-3 rounded-[8px] border border-[#f6dfaa] bg-white/90 p-3 text-left text-[#10233f]">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-[#fff0d4] text-[#b45309]">
-              <Bell className="h-4 w-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-black">{item.title}</span>
-              {item.overlayNote ? (
-                <span className="mt-1 block truncate text-[11px] font-bold text-[#b45309]">📝 {item.overlayNote}</span>
-              ) : null}
-              <span className="mt-1 block truncate text-[11px] font-medium text-[#64748b]">
-                {item.sourceLabel ? `${item.sourceLabel} · ` : ""}{item.effectiveRange}
+      <div className="space-y-2.5">
+        {primaryAnnouncement ? (
+          <div className="rounded-[8px] border border-[#efc36f] bg-white p-3.5 text-[#10233f]">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#fff0d4] text-[#b45309]">
+                <Bell className="h-4 w-4" />
               </span>
-            </span>
-            <span className={cn("shrink-0 rounded-[4px] px-1.5 py-0.5 text-[10px] font-black", item.priority === "required" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#fff1e7] text-[#b45309]")}>
-              {item.priority === "required" ? "重要" : "提醒"}
-            </span>
+              <span className="rounded-[4px] bg-[#fff1e7] px-1.5 py-0.5 text-[10px] font-black text-[#b45309]">
+                {primaryAnnouncement.priority === "required" ? "重要" : "提醒"}
+              </span>
+              <span className="min-w-0 truncate text-[11px] font-bold text-[#8a6510]">
+                {primaryAnnouncement.sourceLabel ? `${primaryAnnouncement.sourceLabel} · ` : ""}{primaryAnnouncement.effectiveRange}
+              </span>
+            </div>
+            <p className="line-clamp-2 text-[14px] font-black leading-5">{primaryAnnouncement.title}</p>
+            {primaryAnnouncement.overlayNote ? (
+              <p className="mt-2 line-clamp-1 text-[11px] font-bold text-[#b45309]">{primaryAnnouncement.overlayNote}</p>
+            ) : null}
           </div>
-        )) : (
+        ) : (
           <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
             {sourceMessage}
           </div>
         )}
+        {secondaryAnnouncements.length ? (
+          <div className="divide-y divide-[#f3dfb4] overflow-hidden rounded-[8px] border border-[#f3dfb4] bg-white/70">
+            {secondaryAnnouncements.map((item) => (
+              <Link key={item.id} href="/employee/announcements" className="flex min-h-[54px] items-center gap-3 px-3 py-2.5 text-left transition hover:bg-white">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-[#d98216]" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-black text-[#10233f]">{item.title}</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-bold text-[#8b6b2a]">
+                    {item.sourceLabel ? `${item.sourceLabel} · ` : ""}{item.effectiveRange}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-[4px] bg-[#fff1e7] px-1.5 py-0.5 text-[10px] font-black text-[#b45309]">
+                  提醒
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
     </WorkbenchCard>
   );
@@ -855,7 +877,7 @@ function AddResourceForm({
 }
 
 function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onChanged: () => void }) {
-  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>;
+  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增活動檔期 / 課程快訊。</div>;
   return (
     <div className="space-y-3">
       {campaigns.map((campaign) => (
@@ -878,7 +900,7 @@ function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onC
 }
 
 function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; onChanged: () => void }) {
-  if (!documents.length) return <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>;
+  if (!documents.length) return <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增常用文件。</div>;
   return (
     <div className="space-y-2">
       {documents.map((doc) => (
@@ -926,7 +948,7 @@ function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteS
 function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: CampaignSummary[]; facilityKey: string; onChanged: () => void }) {
   const [showComposer, setShowComposer] = useState(false);
   return (
-    <WorkbenchCard className="p-5">
+    <WorkbenchCard className="h-full p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[15px] font-bold text-[#10233f]">活動檔期 / 課程快訊</h2>
@@ -971,7 +993,7 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
             <span className="shrink-0 rounded-full bg-[#edf8f2] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
           </Link>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">尚未新增活動檔期 / 課程快訊。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增活動檔期 / 課程快訊。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1016,7 +1038,7 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
             </a>
           );
         }) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">尚未新增常用文件。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增常用文件。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1225,7 +1247,7 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
             <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
           </button>
         )) : (
-          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185] hover:bg-[#f3f6f9]">
+          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae] hover:bg-[#f3f6f9]">
             尚未新增便利貼。
           </button>
         )}
@@ -1279,7 +1301,7 @@ function CourtsPreviewCard() {
         : "bg-[#0f8b69] text-white hover:bg-[#0b7559]";
 
     return (
-      <div key={school} className="rounded-[8px] border border-[#dfe7ef] bg-white p-3">
+      <div key={school} className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate text-[14px] font-black text-[#10233f]">{schoolName}場租</p>
@@ -1291,9 +1313,9 @@ function CourtsPreviewCard() {
           </div>
         </div>
 
-        <div className="mt-3 space-y-2">
+        <div className="mt-4 space-y-2">
           {query.isLoading ? (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#637185]">場租資料載入中...</div>
+            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">場租資料載入中...</div>
           ) : query.isError ? (
             <div className="rounded-[8px] border border-[#ffd7dd] bg-[#fff5f6] p-3 text-[12px] font-bold text-[#d7334f]">場租資料暫時無法載入。</div>
           ) : nextReservations.length ? (
@@ -1311,7 +1333,7 @@ function CourtsPreviewCard() {
               </Link>
             ))
           ) : (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#637185]">今日尚無場租紀錄。</div>
+            <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">今日尚無場租紀錄。</div>
           )}
         </div>
 
@@ -1340,27 +1362,38 @@ function CourtsPreviewCard() {
 
 function TodayTutoringCard() {
   return (
-    <WorkbenchCard className="h-full p-5">
+    <WorkbenchCard className="h-full border-[#e3eaf2] bg-[#fbfcfd] p-5 opacity-80">
       <SectionTitle title="今日家教預約" eyebrow="Tutoring" showAction={false} />
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-[8px] bg-[#f7f9fb] p-3">
-          <p className="text-[11px] font-black text-[#637185]">今日</p>
-          <p className="mt-1 text-[24px] font-black tabular-nums text-[#10233f]">0</p>
-          <p className="text-[11px] font-bold text-[#8b9aae]">筆預約</p>
+      <div className="rounded-[8px] border border-dashed border-[#d9e2ec] bg-white/55 p-3 text-[#9aa7b8]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black">今日</p>
+            <p className="mt-1 text-[24px] font-black tabular-nums">0</p>
+            <p className="text-[11px] font-bold">筆預約</p>
+          </div>
+          <span className="rounded-full border border-[#d9e2ec] bg-[#f7f9fb] px-2 py-1 text-[10px] font-black text-[#9aa7b8]">
+            尚未開放
+          </span>
         </div>
-        <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-3">
-          <p className="text-[11px] font-black text-[#7a5b12]">尚未接線</p>
-          <p className="mt-1 text-[13px] font-black text-[#10233f]">家教預約</p>
-          <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">待 Ragic / booking provider</p>
+
+        <div className="mt-3 space-y-2">
+          <div className="text-[10px] font-mono font-black text-[#b3bfcc]">10:00-11:00</div>
+          <div className="rounded-[8px] bg-[#f4f7fa] p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[14px] font-black text-[#a8b4c3]">教練課程</span>
+              <span className="text-[12px] font-bold text-[#b3bfcc]">一對多家教</span>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              {[0, 1, 2].map((item) => (
+                <span key={item} className="grid h-7 w-7 place-items-center rounded-full bg-[#e6ebf1] text-[#b3bfcc]">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-      <div className="mt-4 rounded-[8px] border border-dashed border-[#d8e1ec] bg-[#fbfcfd] p-4 text-center">
-        <div className="mx-auto grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff] text-[#1f6fd1]">
-          <GraduationCap className="h-5 w-5" />
-        </div>
-        <p className="mt-3 text-[13px] font-black text-[#10233f]">家教預約資料尚未接入</p>
-        <p className="mt-1 text-[11px] font-bold leading-5 text-[#637185]">此卡先保留今日工作台位置，不建立新入口、不顯示假資料。</p>
-      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約資料尚未接入；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
     </WorkbenchCard>
   );
 }
@@ -1451,7 +1484,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
     : null;
 
   return (
-    <WorkbenchCard className="h-full p-5">
+    <WorkbenchCard className="flex h-full max-h-[430px] min-h-[360px] flex-col overflow-hidden p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
@@ -1477,7 +1510,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
       ) : shifts.length === 0 ? (
         <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       ) : (
-        <div className="space-y-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
           {onDutyPeople.length > 0 ? (
             <div className="flex items-center gap-2 rounded-full bg-[#eaf7df] px-3 py-2 text-[12px] font-bold text-[#12854d]" data-testid="banner-shift-on-duty">
               <span className="h-2 w-2 rounded-full bg-[#15935d]" />
@@ -1488,113 +1521,89 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
           ) : null}
 
           {myShift && me ? (
-            <div className="rounded-[12px] border border-[#9dd84f] bg-gradient-to-br from-[#f1fbec] to-[#e7f7dc] p-4" data-testid="card-my-shift">
-              <div className="flex items-start gap-3">
-                <div className="relative shrink-0">
-                  <div className={cn("grid h-12 w-12 place-items-center rounded-full text-[15px] font-black ring-2 ring-[#15935d] ring-offset-2 ring-offset-[#f1fbec]", avatarToneClass(me.name))}>
-                    {me.name.slice(0, 1)}
-                  </div>
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#15935d] px-1.5 py-0.5 text-[9px] font-black text-white">我</span>
+            <div className="rounded-[10px] border border-[#9dd84f] bg-[#f1fbec] p-3" data-testid="card-my-shift">
+              <div className="flex items-center gap-3">
+                <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-black ring-2 ring-[#15935d] ring-offset-2 ring-offset-[#f1fbec]", avatarToneClass(me.name))}>
+                  {me.name.slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13px] font-black text-[#10233f]">我的班</span>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#637185]">/ MY SHIFT</span>
-                    {myShift.isCurrent ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#12854d]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />進行中
-                      </span>
-                    ) : myShift.isFuture ? (
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#637185]">未開始</span>
-                    ) : (
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-black text-[#8b9aae]">已結束</span>
-                    )}
-                  </div>
-                  <div className="mt-1 flex items-baseline gap-2">
-                    <span className="text-[26px] font-black leading-none tracking-tight text-[#10233f]" data-testid="text-my-shift-time">
-                      {formatShiftClock(myShift.start)}
-                    </span>
-                    <span className="text-[16px] font-bold text-[#637185]">→</span>
-                    <span className="text-[26px] font-black leading-none tracking-tight text-[#10233f]">
-                      {formatShiftClock(myShift.end)}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-black text-[#10233f]">我的班</span>
+                    <span className="truncate font-mono text-[13px] font-black text-[#10233f]" data-testid="text-my-shift-time">
+                      {formatShiftClock(myShift.start)}-{formatShiftClock(myShift.end)}
                     </span>
                   </div>
-                  <p className="mt-2 text-[12px] font-bold text-[#536175]">
+                  <p className="mt-1 truncate text-[11px] font-bold text-[#536175]">
                     {getShiftPeriodLabel(myShift.start)}
-                    {mateCount > 0 ? <> · 與 <span className="font-black text-[#10233f]">{mateCount}</span> 人同班</> : " · 獨班"}
+                    {mateCount > 0 ? ` · 與 ${mateCount} 人同班` : " · 獨班"}
                   </p>
                 </div>
                 {myRemaining ? (
-                  <div className="shrink-0 text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#637185]">剩餘</p>
-                    <p className="text-[20px] font-black leading-none text-[#15935d]" data-testid="text-my-shift-remaining">
-                      {myRemaining}<span className="ml-0.5 text-[12px] font-bold text-[#536175]">{/m$/.test(myRemaining) ? "" : "時"}</span>
-                    </p>
-                  </div>
+                  <span className="shrink-0 rounded-full bg-white/75 px-2 py-1 text-[11px] font-black text-[#15935d]" data-testid="text-my-shift-remaining">
+                    剩 {myRemaining}{/m$/.test(myRemaining) ? "" : "時"}
+                  </span>
                 ) : null}
               </div>
               {myShift.isCurrent ? (
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
-                  <div
-                    className="h-full rounded-full bg-[#15935d] transition-all"
-                    style={{ width: `${Math.round(myProgress * 100)}%` }}
-                    data-testid="bar-my-shift-progress"
-                  />
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
+                  <div className="h-full rounded-full bg-[#15935d] transition-all" style={{ width: `${Math.round(myProgress * 100)}%` }} data-testid="bar-my-shift-progress" />
                 </div>
               ) : null}
             </div>
           ) : null}
 
-          {shifts.map((shift) => {
-            const status = shift.isCurrent ? "進行中" : shift.isFuture ? "未開始" : "已結束";
-            const periodLabel = getShiftPeriodLabel(shift.start);
-            const isMine = shift === myShift;
-            const others = isMine ? shift.people.filter((p) => !p.isCurrentUser) : shift.people;
-            if (others.length === 0) return null;
-            return (
-              <div
-                key={shift.shiftId}
-                className={cn(
-                  "rounded-[10px] border bg-white p-3",
-                  shift.isCurrent ? "border-l-[3px] border-[#e6edf4] border-l-[#15935d]" : "border-[#e6edf4] opacity-95",
-                )}
-                data-testid={`group-shift-${shift.shiftId}`}
-              >
-                <div className="mb-2 flex items-center gap-2 text-[12px]">
-                  <span className="font-black text-[#10233f]">{periodLabel}</span>
-                  <span className="font-mono font-bold text-[#536175]">
-                    {formatShiftClock(shift.start)}-{formatShiftClock(shift.end)}
-                  </span>
-                  <span className="text-[#8b9aae]">·</span>
-                  <span className="font-bold text-[#637185]">{shift.people.length} 人</span>
-                  <span className={cn(
-                    "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
-                    shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
-                  )}>
-                    {shift.isCurrent ? <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" /> : <span className="h-1.5 w-1.5 rounded-full bg-[#8b9aae]" />}
-                    {status}
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {others.map((person) => (
-                    <div key={`${shift.shiftId}-${person.userId}`} className="flex items-center gap-2.5" data-testid={`row-shift-person-${person.userId}`}>
-                      <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black", avatarToneClass(person.name))}>
-                        {person.name.slice(0, 1)}
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {shifts.map((shift) => {
+              const status = shift.isCurrent ? "進行中" : shift.isFuture ? "未開始" : "已結束";
+              const periodLabel = getShiftPeriodLabel(shift.start);
+              const isMine = shift === myShift;
+              const others = isMine ? shift.people.filter((p) => !p.isCurrentUser) : shift.people;
+              if (others.length === 0) return null;
+              return (
+                <div
+                  key={shift.shiftId}
+                  className={cn(
+                    "rounded-[10px] border bg-white p-3",
+                    shift.isCurrent ? "border-l-[3px] border-[#e6edf4] border-l-[#15935d]" : "border-[#e6edf4] opacity-95",
+                  )}
+                  data-testid={`group-shift-${shift.shiftId}`}
+                >
+                  <div className="mb-2 flex items-center gap-2 text-[12px]">
+                    <span className="font-black text-[#10233f]">{periodLabel}</span>
+                    <span className="font-mono font-bold text-[#536175]">
+                      {formatShiftClock(shift.start)}-{formatShiftClock(shift.end)}
+                    </span>
+                    <span className="text-[#8b9aae]">·</span>
+                    <span className="font-bold text-[#637185]">{shift.people.length} 人</span>
+                    <span className={cn(
+                      "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
+                      shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
+                    )}>
+                      {shift.isCurrent ? <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" /> : <span className="h-1.5 w-1.5 rounded-full bg-[#8b9aae]" />}
+                      {status}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {others.map((person) => (
+                      <div key={`${shift.shiftId}-${person.userId}`} className="flex items-center gap-2.5" data-testid={`row-shift-person-${person.userId}`}>
+                        <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black", avatarToneClass(person.name))}>
+                          {person.name.slice(0, 1)}
+                        </div>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#10233f]">{person.name}</span>
+                        {person.role && person.role !== "regular" && person.role !== "當班" ? (
+                          <span className={cn("shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black", roleTagClass(person.role))}>
+                            {person.role}
+                          </span>
+                        ) : null}
                       </div>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#10233f]">{person.name}</span>
-                      {person.role && person.role !== "regular" && person.role !== "當班" ? (
-                        <span className={cn("shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black", roleTagClass(person.role))}>
-                          {person.role}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          <div className="flex items-center justify-between pt-1 text-[11px]">
+          <div className="flex shrink-0 items-center justify-between pt-1 text-[11px]">
             <span className="font-bold text-[#8b9aae]">
               {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
             </span>
@@ -1713,9 +1722,9 @@ function EmployeeHomeContent() {
                   />
                 ) : null}
               </motion.div>
-              <motion.div variants={riseIn} className="grid items-start gap-4 lg:grid-cols-12">
+              <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("handover") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-4">
                     <HandoverCard
                       handovers={data.handover.data ?? []}
                       payload={handoverPayload}
@@ -1724,22 +1733,24 @@ function EmployeeHomeContent() {
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("tutoringToday") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-3">
                     <TodayTutoringCard />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("announcements") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-5">
                     <AnnouncementCard announcements={data.announcements.data ?? []} source={data.announcements} />
                   </div>
                 ) : null}
+              </motion.div>
+              <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("shifts") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-5">
                     <ShiftBoardCard board={shiftBoard} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("events") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-3">
                     <CompactEventsCard
                       campaigns={data.campaigns.data ?? []}
                       facilityKey={data.facility.key}
@@ -1748,17 +1759,19 @@ function EmployeeHomeContent() {
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("documents") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-4">
                     <CompactDocumentsCard documents={data.documents.data ?? []} />
                   </div>
                 ) : null}
+              </motion.div>
+              <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("courts") ? (
-                  <div className="lg:col-span-8">
+                  <div className="h-full lg:col-span-8">
                     <CourtsPreviewCard />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("stickyNotes") ? (
-                  <div className="lg:col-span-4">
+                  <div className="h-full lg:col-span-4">
                     <CompactStickyNotesCard
                       notes={data.stickyNotes.data ?? []}
                       facilityKey={data.facility.key}

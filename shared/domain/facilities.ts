@@ -27,7 +27,7 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
     area: "三蘆區",
     lineGroupId: "Cc2100498c7c5627c1e86e93f7c4eb817",
     scheduleRegionKey: "A",
-    ragicDepartmentAliases: ["三蘆", "三蘆區", "三重商工", "駿斯-三蘆區櫃台"],
+    ragicDepartmentAliases: ["三重商工", "三蘆", "三蘆區", "三重商工 / 三蘆區櫃台", "駿斯-三蘆區櫃台"],
     isPrimary: true,
   },
   {
@@ -96,4 +96,6 @@ export const findScheduleRegionKey = (facilityKey: string): string => {
 };
 
 export const facilityLabel = (facilityKey: string): string =>
-  findFacilityLineGroup(facilityKey)?.fullName ?? facilityKey;
+  findFacilityLineGroup(facilityKey)?.ragicDepartmentAliases[0] ??
+  findFacilityLineGroup(facilityKey)?.fullName ??
+  facilityKey;

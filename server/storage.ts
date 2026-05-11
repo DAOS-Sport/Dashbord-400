@@ -25,6 +25,10 @@ import {
   type LifeguardHandoverNote, type InsertLifeguardHandoverNote,
   type DailyReportSubmission, type InsertDailyReportSubmission,
   type WorkLogReviewAction, type InsertWorkLogReviewAction,
+  type LifeguardWaterQualityLog, type InsertLifeguardWaterQualityLog,
+  type LifeguardCoachDiveLog, type InsertLifeguardCoachDiveLog,
+  type LifeguardCleanupLog, type InsertLifeguardCleanupLog,
+  type LifeguardLostAndFound, type InsertLifeguardLostAndFound,
   type LaneRental, type InsertLaneRental,
   type ParkingPlan, type InsertParkingPlan,
   type ParkingVehicle, type InsertParkingVehicle,
@@ -37,6 +41,7 @@ import {
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
   waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions, workLogReviewActions,
+  lifeguardWaterQualityLogs, lifeguardCoachDiveLogs, lifeguardCleanupLogs, lifeguardLostAndFound,
   laneRentals,
   parkingPlans, parkingVehicles, parkingContracts, parkingPayments, parkingEventDays,
 } from "@shared/schema";
@@ -210,6 +215,27 @@ export interface IStorage {
     reviewerName: string;
     note: string | null;
   }): Promise<{ submission: DailyReportSubmission; reviewAction: WorkLogReviewAction } | undefined>;
+
+  // Lifeguard operation modules
+  listLifeguardWaterQualityLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardWaterQualityLog[]>;
+  createLifeguardWaterQualityLog(input: InsertLifeguardWaterQualityLog): Promise<LifeguardWaterQualityLog>;
+  listLifeguardCoachDiveLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardCoachDiveLog[]>;
+  createLifeguardCoachDiveLog(input: InsertLifeguardCoachDiveLog): Promise<LifeguardCoachDiveLog>;
+  listLifeguardCleanupLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardCleanupLog[]>;
+  createLifeguardCleanupLog(input: InsertLifeguardCleanupLog): Promise<LifeguardCleanupLog>;
+  listLifeguardLostAndFound(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; claimStatus?: string; itemCategory?: string; limit?: number }): Promise<LifeguardLostAndFound[]>;
+  getLifeguardLostAndFoundById(id: number): Promise<LifeguardLostAndFound | undefined>;
+  createLifeguardLostAndFound(input: InsertLifeguardLostAndFound): Promise<LifeguardLostAndFound>;
+  updateLifeguardLostAndFoundClaim(id: number, data: {
+    claimStatus: "claimed" | "disposed";
+    updatedBy: string;
+    claimedByName?: string | null;
+    claimedByContact?: string | null;
+    claimedHandlerUserId?: string | null;
+    claimNote?: string | null;
+    disposedByUserId?: string | null;
+    disposedReason?: string | null;
+  }): Promise<LifeguardLostAndFound | undefined>;
 
   // Lane rentals (水道租借)
   listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]>;
@@ -1185,6 +1211,117 @@ export class DatabaseStorage implements IStorage {
       }).returning();
       return { submission, reviewAction };
     });
+  }
+
+  async listLifeguardWaterQualityLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardWaterQualityLog[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(lifeguardWaterQualityLogs.facilityKey, opts.facilityKey));
+    if (opts.facilityKeys?.length) conditions.push(inArray(lifeguardWaterQualityLogs.facilityKey, opts.facilityKeys));
+    if (opts.fromDate) conditions.push(gte(lifeguardWaterQualityLogs.createdAt, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(lifeguardWaterQualityLogs.createdAt, opts.toDate));
+    if (opts.createdBy) conditions.push(eq(lifeguardWaterQualityLogs.createdBy, opts.createdBy));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(lifeguardWaterQualityLogs);
+    return (where ? q.where(where) : q).orderBy(desc(lifeguardWaterQualityLogs.createdAt)).limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async createLifeguardWaterQualityLog(input: InsertLifeguardWaterQualityLog): Promise<LifeguardWaterQualityLog> {
+    const [row] = await db.insert(lifeguardWaterQualityLogs).values(input).returning();
+    return row;
+  }
+
+  async listLifeguardCoachDiveLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardCoachDiveLog[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(lifeguardCoachDiveLogs.facilityKey, opts.facilityKey));
+    if (opts.facilityKeys?.length) conditions.push(inArray(lifeguardCoachDiveLogs.facilityKey, opts.facilityKeys));
+    if (opts.fromDate) conditions.push(gte(lifeguardCoachDiveLogs.createdAt, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(lifeguardCoachDiveLogs.createdAt, opts.toDate));
+    if (opts.createdBy) conditions.push(eq(lifeguardCoachDiveLogs.createdBy, opts.createdBy));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(lifeguardCoachDiveLogs);
+    return (where ? q.where(where) : q).orderBy(desc(lifeguardCoachDiveLogs.createdAt)).limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async createLifeguardCoachDiveLog(input: InsertLifeguardCoachDiveLog): Promise<LifeguardCoachDiveLog> {
+    const [row] = await db.insert(lifeguardCoachDiveLogs).values(input).returning();
+    return row;
+  }
+
+  async listLifeguardCleanupLogs(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; limit?: number }): Promise<LifeguardCleanupLog[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(lifeguardCleanupLogs.facilityKey, opts.facilityKey));
+    if (opts.facilityKeys?.length) conditions.push(inArray(lifeguardCleanupLogs.facilityKey, opts.facilityKeys));
+    if (opts.fromDate) conditions.push(gte(lifeguardCleanupLogs.createdAt, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(lifeguardCleanupLogs.createdAt, opts.toDate));
+    if (opts.createdBy) conditions.push(eq(lifeguardCleanupLogs.createdBy, opts.createdBy));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(lifeguardCleanupLogs);
+    return (where ? q.where(where) : q).orderBy(desc(lifeguardCleanupLogs.createdAt)).limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async createLifeguardCleanupLog(input: InsertLifeguardCleanupLog): Promise<LifeguardCleanupLog> {
+    const [row] = await db.insert(lifeguardCleanupLogs).values(input).returning();
+    return row;
+  }
+
+  async listLifeguardLostAndFound(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; claimStatus?: string; itemCategory?: string; limit?: number }): Promise<LifeguardLostAndFound[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(lifeguardLostAndFound.facilityKey, opts.facilityKey));
+    if (opts.facilityKeys?.length) conditions.push(inArray(lifeguardLostAndFound.facilityKey, opts.facilityKeys));
+    if (opts.fromDate) conditions.push(gte(lifeguardLostAndFound.createdAt, opts.fromDate));
+    if (opts.toDate) conditions.push(lte(lifeguardLostAndFound.createdAt, opts.toDate));
+    if (opts.createdBy) conditions.push(eq(lifeguardLostAndFound.createdBy, opts.createdBy));
+    if (opts.claimStatus) conditions.push(eq(lifeguardLostAndFound.claimStatus, opts.claimStatus));
+    if (opts.itemCategory) conditions.push(eq(lifeguardLostAndFound.itemCategory, opts.itemCategory));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const q = db.select().from(lifeguardLostAndFound);
+    return (where ? q.where(where) : q).orderBy(desc(lifeguardLostAndFound.createdAt)).limit(Math.min(opts.limit ?? 100, 500));
+  }
+
+  async getLifeguardLostAndFoundById(id: number): Promise<LifeguardLostAndFound | undefined> {
+    const [row] = await db.select().from(lifeguardLostAndFound).where(eq(lifeguardLostAndFound.id, id)).limit(1);
+    return row;
+  }
+
+  async createLifeguardLostAndFound(input: InsertLifeguardLostAndFound): Promise<LifeguardLostAndFound> {
+    const [row] = await db.insert(lifeguardLostAndFound).values(input).returning();
+    return row;
+  }
+
+  async updateLifeguardLostAndFoundClaim(id: number, data: {
+    claimStatus: "claimed" | "disposed";
+    updatedBy: string;
+    claimedByName?: string | null;
+    claimedByContact?: string | null;
+    claimedHandlerUserId?: string | null;
+    claimNote?: string | null;
+    disposedByUserId?: string | null;
+    disposedReason?: string | null;
+  }): Promise<LifeguardLostAndFound | undefined> {
+    const existing = await this.getLifeguardLostAndFoundById(id);
+    if (!existing || existing.claimStatus !== "unclaimed") return undefined;
+    const now = new Date();
+    const patch = data.claimStatus === "claimed"
+      ? {
+          claimStatus: "claimed",
+          updatedBy: data.updatedBy,
+          updatedAt: now,
+          claimedByName: data.claimedByName ?? null,
+          claimedByContact: data.claimedByContact ?? null,
+          claimedHandlerUserId: data.claimedHandlerUserId ?? data.updatedBy,
+          claimNote: data.claimNote ?? null,
+          claimedAt: now,
+        }
+      : {
+          claimStatus: "disposed",
+          updatedBy: data.updatedBy,
+          updatedAt: now,
+          disposedByUserId: data.disposedByUserId ?? data.updatedBy,
+          disposedReason: data.disposedReason ?? null,
+          disposedAt: now,
+        };
+    const [row] = await db.update(lifeguardLostAndFound).set(patch).where(eq(lifeguardLostAndFound.id, id)).returning();
+    return row;
   }
 
   // ==================== Parking (停車場會員與租約) ====================

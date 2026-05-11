@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, timestamp, boolean, jsonb, index, uniqueIndex, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { facilityLineGroups } from "./domain/facilities";
@@ -1147,6 +1147,131 @@ export const insertWorkLogReviewActionSchema = createInsertSchema(workLogReviewA
 
 export type InsertWorkLogReviewAction = z.infer<typeof insertWorkLogReviewActionSchema>;
 export type WorkLogReviewAction = typeof workLogReviewActions.$inferSelect;
+
+// =====================================================================
+// Lifeguard operation modules — mobile photo/GPS evidence workflows
+// =====================================================================
+
+const lifeguardPhotoBaseColumns = () => ({
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  createdBy: text("created_by").notNull(),
+  createdByRole: text("created_by_role").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at"),
+  source: text("source").default("manual").notNull(),
+  photoUrl: text("photo_url").notNull(),
+  photoKey: text("photo_key").notNull(),
+  description: text("description"),
+  latitude: doublePrecision("latitude").notNull(),
+  longitude: doublePrecision("longitude").notNull(),
+  clientAddress: text("client_address"),
+  serverAddress: text("server_address"),
+  clientCaptureTime: timestamp("client_capture_time").notNull(),
+  structuredFields: jsonb("structured_fields").$type<Record<string, unknown>>().default({}).notNull(),
+  correlationId: text("correlation_id"),
+});
+
+const lifeguardPhotoInsertBase = {
+  facilityKey: z.string().min(1),
+  createdBy: z.string().min(1),
+  createdByRole: workbenchRoleSchema,
+  photoUrl: z.string().min(1),
+  photoKey: z.string().min(1),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  clientCaptureTime: z.coerce.date(),
+  structuredFields: z.record(z.unknown()).optional(),
+};
+
+export const lifeguardWaterQualityLogs = pgTable("lifeguard_water_quality_logs", {
+  ...lifeguardPhotoBaseColumns(),
+}, (table) => ({
+  idxFacilityDate: index("idx_lifeguard_water_quality_facility_date").on(table.facilityKey, table.createdAt),
+}));
+
+export const insertLifeguardWaterQualityLogSchema = createInsertSchema(lifeguardWaterQualityLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend(lifeguardPhotoInsertBase);
+
+export type InsertLifeguardWaterQualityLog = z.infer<typeof insertLifeguardWaterQualityLogSchema>;
+export type LifeguardWaterQualityLog = typeof lifeguardWaterQualityLogs.$inferSelect;
+
+export const lifeguardCoachDiveLogs = pgTable("lifeguard_coach_dive_logs", {
+  ...lifeguardPhotoBaseColumns(),
+  coachName: text("coach_name"),
+}, (table) => ({
+  idxFacilityDate: index("idx_lifeguard_coach_dive_facility_date").on(table.facilityKey, table.createdAt),
+}));
+
+export const insertLifeguardCoachDiveLogSchema = createInsertSchema(lifeguardCoachDiveLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  ...lifeguardPhotoInsertBase,
+  coachName: z.string().max(100).optional().nullable(),
+});
+
+export type InsertLifeguardCoachDiveLog = z.infer<typeof insertLifeguardCoachDiveLogSchema>;
+export type LifeguardCoachDiveLog = typeof lifeguardCoachDiveLogs.$inferSelect;
+
+export const lifeguardCleanupLogs = pgTable("lifeguard_cleanup_logs", {
+  ...lifeguardPhotoBaseColumns(),
+}, (table) => ({
+  idxFacilityDate: index("idx_lifeguard_cleanup_facility_date").on(table.facilityKey, table.createdAt),
+}));
+
+export const insertLifeguardCleanupLogSchema = createInsertSchema(lifeguardCleanupLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend(lifeguardPhotoInsertBase);
+
+export type InsertLifeguardCleanupLog = z.infer<typeof insertLifeguardCleanupLogSchema>;
+export type LifeguardCleanupLog = typeof lifeguardCleanupLogs.$inferSelect;
+
+export const lifeguardLostAndFound = pgTable("lifeguard_lost_and_found", {
+  ...lifeguardPhotoBaseColumns(),
+  itemCategory: text("item_category"),
+  itemDescription: text("item_description").notNull(),
+  foundLocationNote: text("found_location_note"),
+  claimStatus: text("claim_status").default("unclaimed").notNull(),
+  claimedByName: text("claimed_by_name"),
+  claimedByContact: text("claimed_by_contact"),
+  claimedAt: timestamp("claimed_at"),
+  claimedHandlerUserId: text("claimed_handler_user_id"),
+  claimNote: text("claim_note"),
+  disposedAt: timestamp("disposed_at"),
+  disposedByUserId: text("disposed_by_user_id"),
+  disposedReason: text("disposed_reason"),
+}, (table) => ({
+  idxFacilityDate: index("idx_lifeguard_lost_found_facility_date").on(table.facilityKey, table.createdAt),
+  idxStatus: index("idx_lifeguard_lost_found_status").on(table.claimStatus, table.createdAt),
+}));
+
+export const lifeguardLostItemCategorySchema = z.enum(["clothing", "electronics", "valuable", "other"]);
+export const lifeguardLostItemStatusSchema = z.enum(["unclaimed", "claimed", "disposed"]);
+
+export const insertLifeguardLostAndFoundSchema = createInsertSchema(lifeguardLostAndFound).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  claimedAt: true,
+  disposedAt: true,
+}).extend({
+  ...lifeguardPhotoInsertBase,
+  itemCategory: lifeguardLostItemCategorySchema.optional().nullable(),
+  itemDescription: z.string().min(1).max(1000),
+  foundLocationNote: z.string().max(1000).optional().nullable(),
+  claimStatus: lifeguardLostItemStatusSchema.optional(),
+});
+
+export type InsertLifeguardLostAndFound = z.infer<typeof insertLifeguardLostAndFoundSchema>;
+export type LifeguardLostAndFound = typeof lifeguardLostAndFound.$inferSelect;
 
 // 水道租借 (Lane rentals — currently used by 松山國小 only)
 export const laneRentals = pgTable("lane_rentals", {

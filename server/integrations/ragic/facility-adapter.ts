@@ -35,6 +35,11 @@ const resolveFacilityKey = (departmentName: string) => {
   return matched?.facilityKey;
 };
 
+const displayNameForFacility = (facilityKey: string, departmentName: string) => {
+  if (facilityKey === "salu_counter") return "三重商工";
+  return departmentName;
+};
+
 const toCandidate = (
   row: Record<string, unknown>,
   source: FacilityCandidateDto["source"],
@@ -47,10 +52,11 @@ const toCandidate = (
   const facilityKey = resolveFacilityKey(departmentName);
   if (!facilityKey) return null;
   const facility = findFacilityLineGroup(facilityKey);
+  const displayName = displayNameForFacility(facilityKey, departmentName);
   return {
     facilityKey,
-    departmentName,
-    displayName: departmentName,
+    departmentName: displayName,
+    displayName,
     regionGroup: facility?.area ?? "未分區",
     operationType,
     statusLabel,

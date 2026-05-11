@@ -30,11 +30,11 @@ const checkRate = (actorId: string): boolean => {
   rateBuckets.set(actorId, bucket);
   // Opportunistic GC: prune empty/stale buckets every ~200 calls.
   if (rateBuckets.size > 200) {
-    for (const [key, value] of rateBuckets) {
-      const fresh = value.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+    rateBuckets.forEach((value, key) => {
+      const fresh = value.filter((t: number) => now - t < RATE_LIMIT_WINDOW_MS);
       if (fresh.length === 0) rateBuckets.delete(key);
       else rateBuckets.set(key, fresh);
-    }
+    });
   }
   return true;
 };

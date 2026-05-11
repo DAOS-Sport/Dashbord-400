@@ -65,6 +65,8 @@ const acceptedBackgroundPending = new Set([
   "ragic-integration",
   "schedule-integration",
   "system-announcements",
+  "system-insights",
+  "system-operations",
   "tasks",
   "session-governance",
   "user-role-snapshots",
@@ -75,11 +77,11 @@ const runEmployeeModuleTests = () => {
   const navigation = getNavigationModules("employee", rolePermissions.employee);
   const cards = getHomeLayoutCards("employee", rolePermissions.employee);
   assert(
-    navigation.map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,checkins",
+    navigation.map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,checkins",
     `employee navigation mismatch: ${navigation.map((item) => item.id).join(",")}`,
   );
   assert(
-    cards.map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+    cards.map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
     `employee home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   navigation.forEach((item) => assert(cards.some((card) => card.moduleId === item.id), `employee nav module missing home card: ${item.id}`));
@@ -134,7 +136,7 @@ const runEmployeeModuleTests = () => {
 const runSupervisorModuleTests = () => {
   const navigation = getNavigationModules("supervisor", rolePermissions.supervisor);
   const cards = getHomeLayoutCards("supervisor", rolePermissions.supervisor);
-  const expected = ["supervisor-dashboard", "facilities", "parking", "counter-log", "lane-rentals", "courts", "tasks", "announcements", "announcement-groups", "handover", "employee-training", "anomalies", "analytics"];
+  const expected = ["supervisor-dashboard", "facilities", "parking", "counter-log", "lane-rentals", "courts", "tasks", "announcements", "announcement-groups", "supervisor-lifeguard-overview", "handover", "employee-training", "anomalies", "analytics"];
   assert(navigation.map((item) => item.id).join(",") === expected.join(","), `supervisor navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
   expected.forEach((id) => assert(cards.some((item) => item.moduleId === id), `supervisor home card missing ${id}`));
   navigation.forEach((item) => {
@@ -181,9 +183,9 @@ const runSupervisorModuleTests = () => {
 const runLifeguardModuleTests = () => {
   const navigation = getNavigationModules("lifeguard", rolePermissions.lifeguard);
   const cards = getHomeLayoutCards("lifeguard", rolePermissions.lifeguard);
-  const expected = ["lifeguard-home", "water-quality-photo", "coach-water-photo", "closing-cleanup-photo", "lane-notes", "lost-and-found", "lifeguard-log", "announcements", "employee-training", "knowledge-base-qna"];
+  const expected = ["lifeguard-home", "lifeguard-water-quality", "lifeguard-coach-dive", "lifeguard-cleanup", "lifeguard-lane-issues", "lifeguard-lost-and-found", "lifeguard-lane-rentals", "lifeguard-log", "announcements", "employee-training", "knowledge-base-qna"];
   assert(navigation.map((item) => item.id).join(",") === expected.join(","), `lifeguard navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
-  assert(cards.map((item) => item.moduleId).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna,search", `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
+  assert(cards.map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna,search", `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
   expected.forEach((id) => assert(cards.some((card) => card.moduleId === id), `lifeguard home card missing ${id}`));
   expected.slice(1, 6).forEach((id) => assert(getPrimaryRoute(id, "lifeguard")?.startsWith("/lifeguard/"), `lifeguard operation primary route must be under /lifeguard: ${id}`));
   sourceIncludes("server/modules/auth/session-store.ts", '"lifeguard" as const', "lifeguard role must be added to grantedRoles");
@@ -191,14 +193,14 @@ const runLifeguardModuleTests = () => {
   sourceIncludes("server/integrations/ragic/real-auth-adapter.ts", "isLifeguardTitle", "Ragic auth adapter must infer lifeguard role from title");
   sourceMatches("server/modules/bff/routes.ts", /app\.get\("\/api\/bff\/lifeguard\/home",\s*requireRole\("lifeguard",\s*"system"\)/, "lifeguard home BFF must require lifeguard or system role");
   sourceIncludes("client/src/App.tsx", "/lifeguard/log", "lifeguard log page must be routed");
-  ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"].forEach((path) =>
+  ["/lifeguard/water-quality", "/lifeguard/coach-dive", "/lifeguard/cleanup", "/lifeguard/lane-issues", "/lifeguard/lost-and-found", "/lifeguard/lane-rentals"].forEach((path) =>
     sourceIncludes("client/src/App.tsx", path, `lifeguard operation detail route missing: ${path}`),
   );
   sourceIncludes("client/src/modules/lifeguard/operation-detail-page.tsx", "LifeguardShell", "lifeguard operation detail pages must use LifeguardShell");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "/api/work-logs/handover", "lifeguard log page must write via work-log endpoint");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "currentShiftInTaipei", "lifeguard log must derive shift from Taipei time");
   sourceIncludes("client/src/modules/lifeguard/log/page.tsx", "無可用場館", "lifeguard log must not fallback to a hardcoded facility");
-  sourceIncludes("client/src/modules/lifeguard/operation-modules.ts", "水質檢測照片回傳", "lifeguard operation config must expose mobile-first work-log task categories");
+  sourceIncludes("client/src/modules/lifeguard/operation-modules.ts", "水質檢測", "lifeguard operation config must expose mobile-first work-log task categories");
   sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "LifeguardOperationDrawer", "lifeguard home must expose module preview drawers");
   sourceIncludes("client/src/modules/lifeguard/home/page.tsx", "setSelectedModuleId(module.id)", "lifeguard home operation cards must open a drawer preview");
   sourceIncludes("client/src/modules/lifeguard/operation-modules.ts", "LifeguardOperationModuleId", "lifeguard operation config must expose module id type");
@@ -206,7 +208,7 @@ const runLifeguardModuleTests = () => {
   sourceIncludes("client/src/modules/lifeguard/lifeguard-shell.tsx", "secondaryNav", "lifeguard sidebar must move shared links to a secondary section");
   const lifeguardHomeSource = read("client/src/modules/lifeguard/home/page.tsx");
   const lifeguardOperationSource = read("client/src/modules/lifeguard/operation-modules.ts");
-  ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"].forEach((path) =>
+  ["/lifeguard/water-quality", "/lifeguard/coach-dive", "/lifeguard/cleanup", "/lifeguard/lane-issues", "/lifeguard/lost-and-found", "/lifeguard/lane-rentals"].forEach((path) =>
     assert(lifeguardOperationSource.includes(path), `floating quick actions must link to operation detail page: ${path}`),
   );
   ["POST", "PATCH", "DELETE", "apiPost", "apiPatch", "apiDelete", "/submit"].forEach((needle) =>
@@ -220,7 +222,7 @@ const runLifeguardModuleTests = () => {
 
 const runCanonicalModuleRegistrationTests = () => {
   const supervisorIds = getModuleDescriptorsByRole("supervisor").map((item) => item.id);
-  ["parking", "parking-vehicles", "parking-plans", "parking-contracts", "parking-payments", "parking-event-days", "lane-rentals", "courts", "lifeguard-log", "counter-log"].forEach((id) =>
+  ["parking", "parking-vehicles", "parking-plans", "parking-contracts", "parking-payments", "parking-event-days", "lane-rentals", "courts", "lifeguard-log", "counter-log", "lifeguard-water-quality", "lifeguard-coach-dive", "lifeguard-cleanup", "lifeguard-lane-issues", "lifeguard-lost-and-found", "lifeguard-lane-rentals", "supervisor-lifeguard-overview", "system-lifeguard-audit"].forEach((id) =>
     sourceIncludes("shared/modules/ids.ts", `"${id}"`, `${id} must be declared as a canonical module id`),
   );
   ["parking", "counter-log", "lane-rentals", "courts"].forEach((id) =>
@@ -254,18 +256,35 @@ const runCanonicalModuleRegistrationTests = () => {
 
 const runSystemModuleTests = () => {
   const navigation = getNavigationModules("system", rolePermissions.system);
-  const expected = ["system-dashboard", "system-health", "system-observability", "integration-sync-jobs", "telemetry-audit", "raw-inspector", "employee-training"];
+  const expected = ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance"];
   assert(navigation.map((item) => item.id).join(",") === expected.join(","), `system navigation mismatch: ${navigation.map((item) => item.id).join(",")}`);
   const cards = getHomeLayoutCards("system", rolePermissions.system);
-  expected.forEach((id) => assert(cards.some((card) => card.moduleId === id), `system home card missing ${id}`));
-  assert(cards.some((card) => card.moduleId === "watchdog-events"), "system home cards must include watchdog events");
+  assert(cards.map((item) => item.moduleId).join(",") === expected.join(","), `system home card mismatch: ${cards.map((item) => item.moduleId).join(",")}`);
+  assert(getWorkbenchRoutes("system").map((item) => item.moduleId).join(",") === expected.join(","), "system route manifest must expose the five-entry architecture only");
+  assert(cards.some((card) => card.moduleId === "system-control-center" && card.routePath === "/system"), "system control center card must route to /system");
+  assert(cards.some((card) => card.moduleId === "system-watchdog" && card.routePath === "/system/watchdog"), "system watchdog card must route to /system/watchdog");
+  assert(cards.some((card) => card.moduleId === "system-governance" && card.routePath === "/system/governance"), "system governance card must route to /system/governance");
   const health = getModuleHealth("system", rolePermissions.system);
+  expected.forEach((id) => assert(health.some((item) => item.moduleId === id), `system health must include ${id}`));
+  assert(health.some((item) => item.moduleId === "system-function-relations"), "system health must include function relations");
   assert(health.some((item) => item.moduleId === "raw-inspector"), "system health must include raw inspector");
   assert(health.some((item) => item.moduleId === "watchdog-events"), "system health must include watchdog events");
   sourceIncludes("shared/modules/types.ts", '"telemetry_pending"', "ModuleHealthDto must expose telemetry_pending");
-  sourceIncludes("client/src/modules/system/dashboard-page.tsx", "Telemetry Pending", "system dashboard must show telemetry_pending separately");
-  sourceIncludes("client/src/modules/system/dashboard-page.tsx", "FloatingQuickActionsPanel", "system desktop quick tools must use a floating panel layout");
-  assert(!read("client/src/modules/system/dashboard-page.tsx").includes('xl:pr-[280px]'), "system desktop content must keep the original page width");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/control-center",\s*requireSession,\s*requireRole\("system"\)/, "system control-center endpoint must require system role");
+  sourceIncludes("client/src/App.tsx", 'path="/system/watchdog"', "system watchdog route must be registered");
+  sourceIncludes("client/src/App.tsx", 'path="/system/operations"', "system operations route must be registered");
+  sourceIncludes("client/src/App.tsx", 'path="/system/insights"', "system insights route must be registered");
+  sourceIncludes("client/src/App.tsx", 'path="/system/governance"', "system governance route must be registered");
+  sourceIncludes("client/src/modules/system/control-center/page.tsx", "WATCHDOG", "system control center must render the watchdog entry tile");
+  sourceIncludes("client/src/modules/system/control-center/page.tsx", "OPERATIONS", "system control center must render the operations entry tile");
+  sourceIncludes("client/src/modules/system/control-center/page.tsx", "INSIGHTS", "system control center must render the insights entry tile");
+  sourceIncludes("client/src/modules/system/control-center/page.tsx", "GOVERNANCE", "system control center must render the governance entry tile");
+  sourceIncludes("client/src/modules/system/watchdog/page.tsx", "Health", "watchdog page must include Health tab");
+  sourceIncludes("client/src/modules/system/watchdog/page.tsx", "Alerts", "watchdog page must include Alerts tab");
+  sourceIncludes("client/src/modules/system/watchdog/page.tsx", "Integrations", "watchdog page must include Integrations tab");
+  sourceIncludes("client/src/modules/system/governance/page.tsx", "Module Registry", "governance page must include Module Registry tab");
+  sourceIncludes("client/src/modules/system/governance/page.tsx", "Function Relations", "governance page must include Function Relations tab");
+  sourceIncludes("client/src/modules/system/governance/page.tsx", "Audit Raw", "governance page must include Audit Raw tab");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", 'w-[80px]', "floating quick actions must use the fixed compact rail width");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", "defaultActionSlot", "floating quick actions must keep the same top control format across roles");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", "onPointerDown={beginDrag}", "floating quick actions must support drag repositioning");

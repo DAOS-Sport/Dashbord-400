@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Database, FileSearch, Gauge, Server, Settings, ShieldAlert, Users } from "lucide-react";
+import { AlertTriangle, Database, FileSearch, Gauge, GitBranch, Server, Settings, ShieldAlert, Users } from "lucide-react";
 import type { SystemOverviewDto } from "@shared/domain/workbench";
 import type { ModuleHealthDto } from "@shared/modules";
 import { apiGet } from "@/shared/api/client";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 const fetchSystemOverview = () => apiGet<SystemOverviewDto>("/api/bff/system/overview");
 const metricIcons: readonly LucideIcon[] = [Gauge, Server, Database, ShieldAlert, Users];
 const quickTools: readonly FloatingQuickActionItem[] = [
+  { label: "當前功能關係", helper: "資料表與流程圖", href: "/system/function-relations", Icon: GitBranch },
   { label: "Raw Inspector", helper: "受控 API 探查", href: "/system/raw-inspector", Icon: FileSearch },
   { label: "操作稽核查詢", helper: "Audit log 檢視", href: "/system/audit", Icon: ShieldAlert },
   { label: "整合監控", helper: "外部串接狀態", href: "/system/integrations", Icon: Server },

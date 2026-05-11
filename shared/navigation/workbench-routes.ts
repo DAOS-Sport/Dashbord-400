@@ -20,15 +20,18 @@ export const workbenchRoutes = [
   { moduleId: "employee-resources", label: "常用文件", iconKey: "file-text", role: "employee", primaryPath: "/employee/documents", shell: "employee" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "employee", primaryPath: "/employee/training", shell: "employee" },
   { moduleId: "personal-note", label: "個人工作記事", iconKey: "file-text", role: "employee", primaryPath: "/employee/personal-note", shell: "employee" },
+  { moduleId: "lifeguard-lost-and-found", label: "失物招領", iconKey: "package-search", role: "employee", primaryPath: "/employee/lost-and-found", shell: "employee" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/courts/xinbei", shell: "employee" },
   { moduleId: "knowledge-base-qna", label: "相關問題詢問", iconKey: "book-open", role: "employee", primaryPath: "/employee/qna", shell: "employee" },
+  { moduleId: "checkins", label: "點名/報到", iconKey: "shield-check", role: "employee", primaryPath: "/employee/checkins", shell: "employee" },
 
   { moduleId: "lifeguard-home", label: "首頁", iconKey: "home", role: "lifeguard", primaryPath: "/lifeguard", shell: "lifeguard" },
-  { moduleId: "water-quality-photo", label: "水質檢測照片回傳", iconKey: "droplets", role: "lifeguard", primaryPath: "/lifeguard/water-quality-photo", shell: "lifeguard" },
-  { moduleId: "coach-water-photo", label: "教練下水拍照記錄", iconKey: "camera", role: "lifeguard", primaryPath: "/lifeguard/coach-water-photo", shell: "lifeguard" },
-  { moduleId: "closing-cleanup-photo", label: "下班打掃照片傳送", iconKey: "clipboard-list", role: "lifeguard", primaryPath: "/lifeguard/closing-cleanup-photo", shell: "lifeguard" },
-  { moduleId: "lane-notes", label: "水道事項", iconKey: "waves", role: "lifeguard", primaryPath: "/lifeguard/lane-notes", shell: "lifeguard" },
-  { moduleId: "lost-and-found", label: "失物招領登記", iconKey: "package-search", role: "lifeguard", primaryPath: "/lifeguard/lost-and-found", shell: "lifeguard" },
+  { moduleId: "lifeguard-water-quality", label: "水質檢測", iconKey: "droplets", role: "lifeguard", primaryPath: "/lifeguard/water-quality", shell: "lifeguard" },
+  { moduleId: "lifeguard-coach-dive", label: "教練下水", iconKey: "camera", role: "lifeguard", primaryPath: "/lifeguard/coach-dive", shell: "lifeguard" },
+  { moduleId: "lifeguard-cleanup", label: "下班打掃", iconKey: "clipboard-list", role: "lifeguard", primaryPath: "/lifeguard/cleanup", shell: "lifeguard" },
+  { moduleId: "lifeguard-lane-issues", label: "水道事項", iconKey: "waves", role: "lifeguard", primaryPath: "/lifeguard/lane-issues", shell: "lifeguard" },
+  { moduleId: "lifeguard-lost-and-found", label: "失物招領登記", iconKey: "package-search", role: "lifeguard", primaryPath: "/lifeguard/lost-and-found", shell: "lifeguard" },
+  { moduleId: "lifeguard-lane-rentals", label: "水道租借狀態", iconKey: "calendar-days", role: "lifeguard", primaryPath: "/lifeguard/lane-rentals", shell: "lifeguard" },
   { moduleId: "lifeguard-log", label: "救生員日誌", iconKey: "lifebuoy", role: "lifeguard", primaryPath: "/lifeguard/log", shell: "lifeguard" },
   { moduleId: "announcements", label: "群組公告", iconKey: "bell", role: "lifeguard", primaryPath: "/employee/announcements", shell: "lifeguard" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "lifeguard", primaryPath: "/employee/training", shell: "lifeguard" },
@@ -43,18 +46,17 @@ export const workbenchRoutes = [
   { moduleId: "tasks", label: "任務管理", iconKey: "clipboard-check", role: "supervisor", primaryPath: "/supervisor/tasks", shell: "supervisor" },
   { moduleId: "announcements", label: "公告管理", iconKey: "megaphone", role: "supervisor", primaryPath: "/supervisor/announcements", legacyPath: "/announcements", shell: "supervisor" },
   { moduleId: "announcement-groups", label: "公告群組綁定", iconKey: "message-square-warning", role: "supervisor", primaryPath: "/supervisor/announcement-groups", legacyPath: "/admin/announcement-groups", shell: "supervisor" },
+  { moduleId: "supervisor-lifeguard-overview", label: "救生紀錄總覽", iconKey: "lifebuoy", role: "supervisor", primaryPath: "/supervisor/lifeguard-overview", shell: "supervisor" },
   { moduleId: "handover", label: "櫃台交接", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/training", shell: "supervisor" },
   { moduleId: "anomalies", label: "異常審核", iconKey: "shield-check", role: "supervisor", primaryPath: "/supervisor/anomalies", legacyPath: "/anomaly-reports", shell: "supervisor" },
   { moduleId: "analytics", label: "報表", iconKey: "gauge", role: "supervisor", primaryPath: "/supervisor/reports", legacyPath: "/analytics", shell: "supervisor" },
 
-  { moduleId: "system-dashboard", label: "系統總覽", iconKey: "gauge", role: "system", primaryPath: "/system", shell: "system" },
-  { moduleId: "system-health", label: "系統健康", iconKey: "gauge", role: "system", primaryPath: "/system/health", legacyPath: "/system-health", shell: "system" },
-  { moduleId: "system-observability", label: "告警中心", iconKey: "bell", role: "system", primaryPath: "/system/alerts", shell: "system" },
-  { moduleId: "integration-sync-jobs", label: "整合狀態", iconKey: "link", role: "system", primaryPath: "/system/integrations", shell: "system" },
-  { moduleId: "telemetry-audit", label: "Audit / Telemetry", iconKey: "shield-check", role: "system", primaryPath: "/system/audit", shell: "system" },
-  { moduleId: "raw-inspector", label: "Raw Inspector", iconKey: "shield-check", role: "system", primaryPath: "/system/raw-inspector", shell: "system" },
-  { moduleId: "employee-training", label: "教材觀看紀錄", iconKey: "graduation-cap", role: "system", primaryPath: "/system/training-views", shell: "system" },
+  { moduleId: "system-control-center", label: "控制中心", iconKey: "gauge", role: "system", primaryPath: "/system", shell: "system" },
+  { moduleId: "system-watchdog", label: "Watchdog", iconKey: "shield-check", role: "system", primaryPath: "/system/watchdog", shell: "system" },
+  { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
+  { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
+  { moduleId: "system-governance", label: "治理面", iconKey: "network", role: "system", primaryPath: "/system/governance", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
 
 export const getWorkbenchRoutes = (role: WorkbenchRole): WorkbenchRouteDescriptor[] =>
@@ -71,6 +73,8 @@ export const getRedirectForLegacyPath = (pathname: string): string | undefined =
   if (normalized === "/operations") return "/supervisor";
   if (normalized === "/anomaly-reports") return "/supervisor/anomalies";
   if (normalized === "/announcements" || normalized === "/announcements/summary") return "/supervisor/announcements";
+  if (normalized === "/system-health" || normalized === "/system/health" || normalized === "/system/alerts" || normalized === "/system/integrations") return "/system/watchdog";
+  if (normalized === "/system/function-relations" || normalized === "/system/topology" || normalized === "/system/audit" || normalized === "/system/raw-inspector" || normalized === "/system/lifeguard-audit" || normalized === "/system/training-views") return "/system/governance";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";
   if (normalized === "/admin/parking") return "/supervisor/parking";
   if (normalized === "/admin/parking/dashboard") return "/supervisor/parking";

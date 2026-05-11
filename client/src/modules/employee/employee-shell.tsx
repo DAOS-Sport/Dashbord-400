@@ -22,8 +22,8 @@ import {
 import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
-import { facilityConfigs } from "@/config/facility-configs";
 import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
+import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
@@ -142,6 +142,7 @@ function FacilitySwitcher() {
   const { data: session } = useAuthMe();
   const switchFacility = useSwitchFacility();
   const granted = session?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(granted);
   if (!granted.length) return null;
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : granted[0];
 
@@ -154,7 +155,7 @@ function FacilitySwitcher() {
     >
       {granted.map((facilityKey) => (
         <option key={facilityKey} value={facilityKey}>
-          {facilityConfigs[facilityKey]?.facilityName ?? facilityKey}
+          {facilityLabels.getFacilityName(facilityKey)}
         </option>
       ))}
     </select>
@@ -173,8 +174,9 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
   const nav = toEmployeeNavItems(navigation.data?.items);
   const mobileItems = nav.slice(0, 5);
   const granted = session?.grantedFacilities ?? [];
+  const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
-  const facilityName = activeFacility ? facilityConfigs[activeFacility]?.facilityName ?? activeFacility : "尚未選擇場館";
+  const facilityName = facilityLabels.getFacilityName(activeFacility);
 
   return (
     <div className="workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]">

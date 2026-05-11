@@ -1,5 +1,13 @@
 import type { AppRole, ModuleDefinition, ModuleImplementationStatus } from "../shared/modules";
-import { MODULE_REGISTRY, assertModuleRegistryValid, getHomepageModules, getModulesByRole } from "../shared/modules";
+import {
+  MODULE_REGISTRY,
+  assertModuleRegistryValid,
+  getHomepageModules,
+  getModuleArchitectureCoverage,
+  getModuleArchitectureGroups,
+  getModulesByRole,
+  getSuspiciousUnboundModules,
+} from "../shared/modules";
 
 const roles: AppRole[] = ["employee", "lifeguard", "supervisor", "system", "SYSTEM_ADMIN"];
 const statuses: ModuleImplementationStatus[] = ["implemented", "partial", "planned", "legacy", "external", "mock", "deprecated"];
@@ -43,9 +51,30 @@ for (const role of roles) {
 }
 
 console.log("");
-console.log("Modules without BFF binding");
-console.log("---------------------------");
-console.log(formatModules(MODULE_REGISTRY.filter((module) => !hasBffBinding(module))));
+console.log("Architecture groups");
+console.log("-------------------");
+for (const group of getModuleArchitectureGroups()) {
+  console.log(`${group.title}: ${group.modules.map((module) => module.id).join(", ") || "(none)"}`);
+}
+
+const architectureCoverage = getModuleArchitectureCoverage();
+if (architectureCoverage.ungroupedModuleIds.length > 0) {
+  throw new Error(`Architecture groups missed modules: ${architectureCoverage.ungroupedModuleIds.join(", ")}`);
+}
+
+console.log("");
+console.log("Modules without BFF binding (accepted background / legacy / integration)");
+console.log("------------------------------------------------------------------------");
+console.log(formatModules(MODULE_REGISTRY.filter((module) => !hasBffBinding(module) && !getSuspiciousUnboundModules().some((item) => item.id === module.id))));
+
+console.log("");
+console.log("Suspicious user-facing modules without BFF binding");
+console.log("--------------------------------------------------");
+const suspiciousUnboundModules = getSuspiciousUnboundModules();
+if (suspiciousUnboundModules.length > 0) {
+  throw new Error(`Suspicious user-facing modules without BFF binding: ${formatModules(suspiciousUnboundModules)}`);
+}
+console.log("(none)");
 
 console.log("");
 console.log("Modules with legacy routes");

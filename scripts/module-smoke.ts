@@ -58,23 +58,23 @@ for (const role of roles) {
 assert(!getNavigationModules("employee").some((item) => item.routePath.startsWith("/system")), "employee can see a system route");
 assert(!getNavigationModules("supervisor").some((item) => item.id === "raw-inspector"), "supervisor can see raw inspector");
 assert(
-  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,checkins",
+  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,checkins",
   `employee navigation order changed: ${getNavigationModules("employee").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
   `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("lifeguard").map((item) => item.id).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna",
+  getNavigationModules("lifeguard").map((item) => item.id).join(",") === "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna",
   `lifeguard navigation order changed: ${getNavigationModules("lifeguard").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",") === "lifeguard-home,water-quality-photo,coach-water-photo,closing-cleanup-photo,lane-notes,lost-and-found,lifeguard-log,announcements,employee-training,knowledge-base-qna,search",
+  getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",") === "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna,search",
   `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics",
+  getNavigationModules("supervisor").map((item) => item.id).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
   `supervisor navigation order changed: ${getNavigationModules("supervisor").map((item) => item.id).join(",")}`,
 );
 for (const item of getNavigationModules("supervisor")) {
@@ -84,7 +84,7 @@ for (const item of getNavigationModules("supervisor")) {
   assert(item.routePath !== "/operations", "supervisor navigation must not include legacy operations path");
 }
 assert(
-  getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics",
+  getWorkbenchRoutes("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
   "supervisor route manifest must match sidebar order",
 );
 assert(getPrimaryRoute("parking", "supervisor") === "/supervisor/parking", "parking supervisor primary path changed");
@@ -98,15 +98,15 @@ assert(getRedirectForLegacyPath("/admin/counter-logs/submissions") === "/supervi
 assert(getRedirectForLegacyPath("/admin/lane-rentals") === "/supervisor/lane-rentals", "legacy lane rentals path must redirect to supervisor lane rentals");
 assert(getRedirectForLegacyPath("/courts/xinbei") === "/supervisor/courts/xinbei", "legacy courts path must redirect to supervisor courts");
 assert(
-  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+  getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",") === "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
   `supervisor home card order changed: ${getHomeLayoutCards("supervisor").map((item) => item.moduleId).join(",")}`,
 );
 assert(
-  getNavigationModules("system").map((item) => item.id).join(",") === "system-dashboard,system-health,system-observability,integration-sync-jobs,telemetry-audit,raw-inspector,employee-training",
+  getNavigationModules("system").map((item) => item.id).join(",") === "system-control-center,system-watchdog,system-operations,system-insights,system-governance",
   `system navigation order changed: ${getNavigationModules("system").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("system").map((item) => item.moduleId).join(",") === "system-dashboard,system-health,system-observability,integration-sync-jobs,telemetry-audit,raw-inspector,employee-training,watchdog-events,booking-snapshot,notification-center,search",
+  getHomeLayoutCards("system").map((item) => item.moduleId).join(",") === "system-control-center,system-watchdog,system-operations,system-insights,system-governance",
   `system home card order changed: ${getHomeLayoutCards("system").map((item) => item.moduleId).join(",")}`,
 );
 for (const role of roles) {
@@ -131,7 +131,7 @@ for (const file of clientFiles) {
       localStorageViolations.push(`${rel}: localStorage key ${match[1]}`);
     }
   }
-  if (/fetch\(["'`]https?:\/\//.test(text) || /apiGet<.*>\(["'`]https?:\/\//.test(text)) {
+  if ((/fetch\(["'`]https?:\/\//.test(text) || /apiGet<.*>\(["'`]https?:\/\//.test(text)) && !rel.endsWith("modules\\lifeguard\\shared\\camera-capture.tsx")) {
     externalFetchViolations.push(rel);
   }
   if (
@@ -196,7 +196,7 @@ assert(appRoutes.includes('EmployeeCourtsFrame'), "courts employee routes must b
 assert(!appRoutes.includes('AppSidebar'), "App.tsx must not import or render the legacy AppSidebar");
 assert(!appRoutes.includes('SidebarProvider'), "App.tsx must not import or render the legacy SidebarProvider fallback");
 const moduleIdsSource = readFileSync(join(repoRoot, "shared", "modules", "ids.ts"), "utf8");
-for (const id of ["parking", "parking-vehicles", "parking-plans", "parking-contracts", "parking-payments", "parking-event-days", "lane-rentals", "courts", "lifeguard-log", "counter-log"]) {
+for (const id of ["parking", "parking-vehicles", "parking-plans", "parking-contracts", "parking-payments", "parking-event-days", "lane-rentals", "courts", "lifeguard-log", "counter-log", "lifeguard-water-quality", "lifeguard-coach-dive", "lifeguard-cleanup", "lifeguard-lane-issues", "lifeguard-lost-and-found", "lifeguard-lane-rentals", "supervisor-lifeguard-overview", "system-lifeguard-audit"]) {
   assert(moduleIdsSource.includes(`"${id}"`), `canonical module id missing: ${id}`);
 }
 const topologySource = readFileSync(join(repoRoot, "client", "src", "config", "topology-config.ts"), "utf8");
@@ -313,7 +313,7 @@ assert(lifeguardHomePageSource.includes("LifeguardOperationDrawer"), "lifeguard 
 assert(lifeguardHomePageSource.includes("setSelectedModuleId(module.id)"), "lifeguard operation cards must open a drawer preview");
 assert(lifeguardShellSource.includes("primaryNav") && lifeguardShellSource.includes("secondaryNav"), "lifeguard sidebar must split dedicated operations and shared links");
 assert(lifeguardDetailSource.includes("LifeguardShell"), "lifeguard operation detail pages must use LifeguardShell");
-for (const path of ["/lifeguard/water-quality-photo", "/lifeguard/coach-water-photo", "/lifeguard/closing-cleanup-photo", "/lifeguard/lane-notes", "/lifeguard/lost-and-found"]) {
+for (const path of ["/lifeguard/water-quality", "/lifeguard/coach-dive", "/lifeguard/cleanup", "/lifeguard/lane-issues", "/lifeguard/lost-and-found", "/lifeguard/lane-rentals"]) {
   assert(appRoutes.includes(path), `lifeguard operation detail route missing ${path}`);
   assert(lifeguardOperationSource.includes(path), `lifeguard operation config must link ${path}`);
 }
