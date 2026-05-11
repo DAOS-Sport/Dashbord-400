@@ -1294,15 +1294,29 @@ function CourtsScrollCard({ schools, onOpenDrawer }: { schools: SchoolId[]; onOp
     sanchong: sanchongQuery,
   } satisfies Record<SchoolId, typeof xinbeiQuery>;
 
+  const nowMs = Date.now();
+  const parseRsvMs = (timeStr: string): number => {
+    const [hStr, mStr] = timeStr.split(":");
+    const h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d.getTime();
+  };
+
   const allReservations: Array<{ school: SchoolId; reservation: EmployeeCourtReservationPreview }> = [];
   for (const school of selectedSchools) {
-    const rsvs = (queryBySchool[school].data ?? [])
-      .slice()
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-    for (const r of rsvs) {
+    for (const r of (queryBySchool[school].data ?? [])) {
       allReservations.push({ school, reservation: r });
     }
   }
+  allReservations.sort((a, b) => {
+    const aDiff = Math.abs(parseRsvMs(a.reservation.startTime) - nowMs);
+    const bDiff = Math.abs(parseRsvMs(b.reservation.startTime) - nowMs);
+    if (aDiff !== bDiff) return aDiff - bDiff;
+    return a.reservation.court - b.reservation.court;
+  });
 
   const isLoading = selectedSchools.some((s) => queryBySchool[s].isLoading);
   const primarySchool = selectedSchools[0] ?? "xinbei";
@@ -1440,7 +1454,19 @@ function CourtsDetailDrawer({
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
           {selectedSchools.map((school) => {
             const q = queryBySchool[school];
-            const rsvs = (q.data ?? []).slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
+            const nowMsD = Date.now();
+            const parseRsvMsD = (timeStr: string): number => {
+              const [hStr, mStr] = timeStr.split(":");
+              const h = parseInt(hStr, 10); const m = parseInt(mStr, 10);
+              if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+              const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime();
+            };
+            const rsvs = (q.data ?? []).slice().sort((a, b) => {
+              const aDiff = Math.abs(parseRsvMsD(a.startTime) - nowMsD);
+              const bDiff = Math.abs(parseRsvMsD(b.startTime) - nowMsD);
+              if (aDiff !== bDiff) return aDiff - bDiff;
+              return a.court - b.court;
+            });
             return (
               <div key={school}>
                 <div className={cn("mb-3 flex items-center justify-between rounded-[8px] px-3 py-2", schoolHeaderClass[school])}>
@@ -1741,9 +1767,8 @@ function ShiftRoleBlock({
 
 // ── ShiftBoardCard ───────────────────────────────────────────────────────────
 
-function ShiftBoardCard({ board, onOpenDrawer }: { board?: ShiftBoardDto; onOpenDrawer: () => void }) {
+function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   const shifts = board?.shifts ?? [];
-  const nowMs = board?.now ? Date.parse(board.now) : Date.now();
   const dateLabel = formatBoardDateHeader(board?.date);
   const facilityName = board?.facility?.name ?? "";
   const headerSubtitle = [facilityName, dateLabel].filter(Boolean).join(" · ");
@@ -1751,23 +1776,54 @@ function ShiftBoardCard({ board, onOpenDrawer }: { board?: ShiftBoardDto; onOpen
     ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
     : null;
 
-  const allPeople = flattenShiftPeople(shifts);
-  const activePeriod = getBoardActivePeriod(shifts, nowMs);
+  const periodGroups = buildShiftPeriodGroups(shifts);
+  const earlyGroup = periodGroups.find((g) => g.label === "早班");
+  const lateGroup = periodGroups.find((g) => g.label === "晚班");
 
-  const withStatus = (people: FlatShiftPerson[]): PersonWithStatus[] =>
-    people.map((person) => ({
-      person,
-      status: person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished",
-    }));
-
-  const counterPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "counter"));
-  const lifeguardPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "lifeguard"));
-  const otherPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "other"));
+  const renderPeriodCol = (
+    group: ReturnType<typeof buildShiftPeriodGroups>[0] | undefined,
+    label: string,
+  ) => {
+    const allPeople = group ? [...group.byRole.values()].flat() : [];
+    return (
+      <div className="min-w-0 flex-1">
+        <p className="mb-3 text-[22px] font-black leading-none tracking-tight text-[#15935d]">{label}</p>
+        {allPeople.length === 0 ? (
+          <p className="text-[12px] font-bold text-[#8b9aae]">今日無{label}</p>
+        ) : (
+          <div className="space-y-2.5">
+            {allPeople.map((person) => (
+              <div
+                key={person.userId}
+                className="flex items-baseline justify-between gap-2"
+                data-testid={`row-shift-person-${person.userId}`}
+              >
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <span
+                    className={cn(
+                      "truncate text-[15px] font-bold leading-snug",
+                      person.isCurrent || person.isFuture ? "text-[#10233f]" : "text-[#a8b5c5]",
+                    )}
+                  >
+                    {person.name}
+                  </span>
+                  <span className="shrink-0 text-[13px] font-bold text-[#8b9aae]">{person.role}</span>
+                </div>
+                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[#637185]">
+                  {person.startTime}–{person.endTime}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <WorkbenchCard className="flex h-full max-h-[430px] min-h-[360px] flex-col overflow-hidden p-5">
+    <WorkbenchCard className="flex h-full flex-col overflow-hidden p-5">
       {/* Header */}
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
             <h2 className="text-[16px] font-black text-[#10233f]">今日班表</h2>
@@ -1793,157 +1849,29 @@ function ShiftBoardCard({ board, onOpenDrawer }: { board?: ShiftBoardDto; onOpen
       ) : shifts.length === 0 ? (
         <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {/* Active period label */}
-          <p
-            className="mb-3 text-[22px] font-black leading-none tracking-tight text-[#15935d]"
-            data-testid="text-shift-period"
-          >
-            {activePeriod}
-          </p>
-
-          {/* Role sections */}
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
-            <ShiftRoleBlock
-              label="櫃台"
-              labelClass="text-[12px] font-black tracking-wide text-[#8b9aae]"
-              people={counterPeople}
-            />
-            <ShiftRoleBlock
-              label="救生"
-              labelClass="text-[18px] font-black text-[#10233f]"
-              people={lifeguardPeople}
-            />
-            {otherPeople.length > 0 && (
-              <ShiftRoleBlock
-                label={otherPeople[0]?.person.role || "其他"}
-                labelClass="text-[14px] font-black text-[#536175]"
-                people={otherPeople}
-              />
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="mt-3 flex shrink-0 items-center justify-between border-t border-[#f0f4f8] pt-2 text-[11px]">
-            <span className="font-bold text-[#8b9aae]">
-              {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
-            </span>
-            <button
-              type="button"
-              onClick={onOpenDrawer}
-              className="font-black text-[#007166] hover:underline"
-              data-testid="button-shift-open-drawer"
-            >
-              查看早晚班 →
-            </button>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex gap-5">
+            {renderPeriodCol(earlyGroup, "早班")}
+            <div className="w-px shrink-0 self-stretch bg-[#f0f4f8]" />
+            {renderPeriodCol(lateGroup, "晚班")}
           </div>
         </div>
       )}
+
+      {/* Footer */}
+      <div className="mt-3 flex shrink-0 items-center justify-between border-t border-[#f0f4f8] pt-2 text-[11px]">
+        <span className="font-bold text-[#8b9aae]">
+          {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
+        </span>
+        <Link
+          href="/employee/shift"
+          className="font-black text-[#007166] hover:underline"
+          data-testid="link-shift-view-all"
+        >
+          前往完整班表 →
+        </Link>
+      </div>
     </WorkbenchCard>
-  );
-}
-
-// ── ShiftBoardDrawer ──────────────────────────────────────────────────────────
-
-function ShiftBoardDrawer({
-  open,
-  board,
-  onClose,
-}: {
-  open: boolean;
-  board?: ShiftBoardDto;
-  onClose: () => void;
-}) {
-  if (!open) return null;
-  const shifts = board?.shifts ?? [];
-  const facilityName = board?.facility?.name ?? "";
-  const totalCount = board?.totalCount ?? 0;
-  const nowLabel = board?.now
-    ? new Date(board.now).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
-    : null;
-  const periodGroups = buildShiftPeriodGroups(shifts);
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="即時班表">
-      <button type="button" aria-label="關閉班表" className="absolute inset-0 cursor-default" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-[380px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
-        <div className="flex items-start justify-between border-b border-[#e6edf4] px-5 py-4">
-          <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">即時班表</h2>
-            {facilityName ? <p className="mt-0.5 text-[12px] font-bold text-[#637185]">{facilityName}</p> : null}
-          </div>
-          <div className="flex items-center gap-3">
-            {nowLabel ? <span className="text-[11px] font-bold text-[#8b9aae]">現在 {nowLabel}</span> : null}
-            <button
-              type="button"
-              onClick={onClose}
-              className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[20px] text-[#536175]"
-              aria-label="關閉"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {periodGroups.length === 0 ? (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">
-              今日尚無班表
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {periodGroups.map((period) => (
-                <div key={period.label}>
-                  <p className="mb-4 text-[22px] font-black text-[#15935d]">{period.label}</p>
-                  <div className="space-y-5">
-                    {[...period.byRole.entries()].map(([role, people]) => (
-                      <div key={role}>
-                        <p className="mb-2 text-[12px] font-black tracking-wide text-[#8b9aae]">{role}</p>
-                        <div className="space-y-2">
-                          {people.map((person) => (
-                            <div
-                              key={person.userId}
-                              className="flex items-center justify-between gap-3"
-                              data-testid={`drawer-shift-person-${person.userId}`}
-                            >
-                              <span
-                                className={cn(
-                                  "text-[15px] font-bold",
-                                  person.isCurrent ? "text-[#10233f]" : person.isFuture ? "text-[#10233f]" : "text-[#a8b5c5]",
-                                )}
-                              >
-                                {person.name}
-                              </span>
-                              <span className="shrink-0 font-mono text-[12px] font-bold text-[#637185]">
-                                {person.startTime}–{person.endTime}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-[#e6edf4] px-5 py-3">
-          <Link
-            href="/employee/shift"
-            className="text-[12px] font-black text-[#007166] hover:underline"
-            data-testid="link-shift-full-page"
-          >
-            前往完整班表 →
-          </Link>
-          <span className="text-[12px] font-bold text-[#8b9aae]">
-            本日班表人數{" "}
-            <span className="font-black text-[#10233f]">{totalCount}</span> 人
-          </span>
-        </div>
-      </aside>
-    </div>
   );
 }
 
@@ -1993,7 +1921,6 @@ function LoadingState() {
 function EmployeeHomeContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [handoverDrawerOpen, setHandoverDrawerOpen] = useState(false);
-  const [shiftBoardDrawerOpen, setShiftBoardDrawerOpen] = useState(false);
   const [courtsDrawerOpen, setCourtsDrawerOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
@@ -2068,7 +1995,7 @@ function EmployeeHomeContent() {
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("shifts") ? (
                   <div className="h-full lg:col-span-5">
-                    <ShiftBoardCard board={shiftBoard} onOpenDrawer={() => setShiftBoardDrawerOpen(true)} />
+                    <ShiftBoardCard board={shiftBoard} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("events") ? (
@@ -2127,11 +2054,6 @@ function EmployeeHomeContent() {
           queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
           queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/handover/list"] });
         }}
-      />
-      <ShiftBoardDrawer
-        open={shiftBoardDrawerOpen}
-        board={shiftBoard}
-        onClose={() => setShiftBoardDrawerOpen(false)}
       />
       <CourtsDetailDrawer
         open={courtsDrawerOpen}
