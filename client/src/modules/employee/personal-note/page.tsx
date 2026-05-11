@@ -61,19 +61,19 @@ export default function EmployeePersonalNotePage() {
   });
 
   return (
-    <EmployeeShell title="個人工作記事" subtitle="便利貼由員工自建，顯示在員工首頁摘要卡">
+    <EmployeeShell title="個人工作貼" subtitle="員工自建的個人提醒，會同步顯示在員工首頁摘要卡">
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <WorkbenchCard className="p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-[18px] font-black text-[#10233f]">便利貼</h2>
-              <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">個人工作記事對應首頁的便利貼模組。</p>
+              <h2 className="text-[18px] font-black text-[#10233f]">個人工作貼</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">這裡新增的內容會同步到首頁的個人工作貼。</p>
             </div>
             <span className="rounded-full bg-[#fff4c8] px-3 py-1 text-[12px] font-black text-[#9a7a1d]">{notes.length} 則</span>
           </div>
 
           {homeQuery.isLoading || notesQuery.isLoading ? (
-            <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-[13px] font-bold text-[#637185]">載入便利貼中...</div>
+            <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-[13px] font-bold text-[#637185]">載入個人工作貼中...</div>
           ) : notes.length ? (
             <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {notes.map((note) => (
@@ -107,8 +107,8 @@ export default function EmployeePersonalNotePage() {
             <div className="grid min-h-[320px] place-items-center rounded-[8px] bg-[#fbfcfd] p-6 text-center">
               <div>
                 <NotebookPen className="mx-auto h-10 w-10 text-[#9aa8ba]" />
-                <p className="mt-3 text-[16px] font-black text-[#10233f]">尚未新增便利貼</p>
-                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">請在右側新增個人工作記事。</p>
+                <p className="mt-3 text-[16px] font-black text-[#10233f]">尚未新增個人工作貼</p>
+                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">請在右側新增個人提醒或待辦。</p>
               </div>
             </div>
           )}
@@ -116,12 +116,12 @@ export default function EmployeePersonalNotePage() {
 
         <WorkbenchCard className="h-fit p-5">
           <div className="border-l-4 border-[#16b6b1] pl-3">
-            <h2 className="text-[18px] font-black text-[#10233f]">新增便利貼</h2>
+            <h2 className="text-[18px] font-black text-[#10233f]">新增個人工作貼</h2>
             <p className="mt-1 text-[12px] font-bold text-[#637185]">場館：{facilityKey}</p>
           </div>
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1 text-[12px] font-black text-[#536175]">
-              便利貼標題
+              個人工作貼標題
               <input name="note-title" value={title} onChange={(event) => setTitle(event.target.value)} className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none" />
             </label>
             <label className="grid gap-1 text-[12px] font-black text-[#536175]">

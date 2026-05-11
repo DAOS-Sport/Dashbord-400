@@ -67,6 +67,7 @@ import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@/lib/court-utils";
+import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
 
 const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
 
@@ -248,8 +249,11 @@ function DesktopSidebar() {
   const granted = session?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(granted);
   const facilityName = facilityLabels.getFacilityName(session?.activeFacility);
+  const visibleItems = getEmployeeCourtSchoolsForFacility(session?.activeFacility, facilityName).length
+    ? items
+    : items.filter((item) => item.id !== "courts");
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
+    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] p-5 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] md:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[18px] text-white" />
 
       <div className="mt-6 rounded-[8px] bg-white/8 p-3">
@@ -264,7 +268,7 @@ function DesktopSidebar() {
         {!items.length && navigation.isLoading ? (
           <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
         ) : null}
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const active = item.href === "/employee" ? location === "/employee" || location === "/EMPLOYEE" : location.startsWith(item.href);
           return (
@@ -306,16 +310,16 @@ function TopBar() {
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : "";
   const activeFacilityName = facilityLabels.getFacilityName(activeFacility);
   return (
-    <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/90 lg:text-[#10233f] lg:backdrop-blur-xl">
-      <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
-        <div className="flex items-center gap-3 lg:hidden">
+    <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white md:bg-white/90 md:text-[#10233f] md:backdrop-blur-xl">
+      <div className="flex h-14 w-full items-center justify-between px-4 md:h-14 md:px-6">
+        <div className="flex items-center gap-3 md:hidden">
           <button aria-label="開啟選單" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10">
             <Menu className="h-5 w-5" />
           </button>
           <BrandMark className="h-8 w-8 rounded-[8px]" />
           <p className="text-[15px] font-black">駿斯 CMS</p>
         </div>
-        <label className="relative hidden min-w-0 cursor-pointer items-center gap-3 rounded-[8px] px-1 py-1 transition hover:bg-[#f5f8fb] lg:flex">
+        <label className="relative hidden min-w-0 cursor-pointer items-center gap-3 rounded-[8px] px-1 py-1 transition hover:bg-[#f5f8fb] md:flex">
           <div className="grid h-8 w-8 place-items-center rounded-[7px] border border-[#e2e9f2] bg-white text-[#9aa8ba]">
             <Building2 className="h-4 w-4" />
           </div>
@@ -340,20 +344,20 @@ function TopBar() {
           ) : null}
         </label>
         <div className="flex items-center gap-2">
-          <div className="hidden lg:block">
+          <div className="hidden md:block">
             <RoleSwitcher visualActiveRole="employee" />
           </div>
-          <button className="workbench-focus hidden min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:inline-flex">
+          <button className="workbench-focus hidden min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] md:inline-flex">
             員工
           </button>
-          <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 lg:bg-[#f0f4f8] lg:text-[#10233f]">
+          <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 md:bg-[#f0f4f8] md:text-[#10233f]">
             <Bell className="h-4 w-4" />
             <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#ff4964] text-[9px] font-black text-white">4</span>
           </button>
           <button aria-label="員工帳號" className="workbench-focus grid h-9 w-9 place-items-center rounded-full bg-[#32d17c] text-[13px] font-black text-white">{session?.displayName?.slice(0, 1) || "陳"}</button>
         </div>
       </div>
-      <div className="border-t border-white/10 px-4 py-2 lg:hidden">
+      <div className="border-t border-white/10 px-4 py-2 md:hidden">
         <RoleSwitcher compact visualActiveRole="employee" />
       </div>
     </header>
@@ -922,12 +926,12 @@ function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; 
 function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteSummary[]; facilityKey: string; onCreated: () => void }) {
   return (
     <WorkbenchCard className="h-full p-5">
-      <SectionTitle title="便利貼" eyebrow="Notes" action="員工自建" />
+      <SectionTitle title="個人工作貼" eyebrow="Personal" action="員工自建" />
       <div className="space-y-3">
         <AddResourceForm
           category="sticky_note"
           facilityKey={facilityKey}
-          titlePlaceholder="便利貼標題"
+          titlePlaceholder="個人工作貼標題"
           contentPlaceholder="提醒內容"
           onCreated={onCreated}
         />
@@ -1070,7 +1074,7 @@ function StickyNoteComposer({
   const mutation = useMutation({
     mutationFn: () => {
       const content = draft.trim();
-      const firstLine = content.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "便利貼";
+      const firstLine = content.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "個人工作貼";
       return createEmployeeResource({
         facilityKey,
         category: "sticky_note",
@@ -1128,12 +1132,12 @@ function StickyNoteComposer({
   }, [portalTarget]);
 
   const composer = (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="快速新增便利貼">
-      <button type="button" aria-label="關閉便利貼新增視窗" className="absolute inset-0 cursor-default" onClick={onClose} />
+    <div className="fixed inset-0 z-50 overflow-hidden bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="快速新增個人工作貼">
+      <button type="button" aria-label="關閉個人工作貼新增視窗" className="absolute inset-0 cursor-default" onClick={onClose} />
       <aside className="fixed bottom-0 right-0 top-0 z-[51] flex h-dvh w-full max-w-[420px] shrink-0 flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
         <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">快速便利貼</h2>
+            <h2 className="text-[18px] font-black text-[#10233f]">快速個人工作貼</h2>
             <p className="text-[12px] font-bold text-[#8b9aae]">先記下來，稍後再整理。</p>
           </div>
           <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[#637185]" aria-label="關閉">
@@ -1188,7 +1192,7 @@ function StickyNoteComposer({
                 onClick={() => mutation.mutate()}
                 className="min-h-10 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50"
               >
-                {mutation.isPending ? "新增中…" : "新增便利貼"}
+                {mutation.isPending ? "新增中…" : "新增個人工作貼"}
               </button>
             </div>
             {savedMessage ? <p className="mt-2 text-[12px] font-black text-[#15935d]" role="status">{savedMessage}</p> : null}
@@ -1196,7 +1200,7 @@ function StickyNoteComposer({
           </div>
 
           <div className="mt-7 flex items-center justify-between gap-3">
-            <h3 className="text-[15px] font-black text-[#10233f]">最近便利貼</h3>
+            <h3 className="text-[15px] font-black text-[#10233f]">最近個人工作貼</h3>
             <Link href="/employee/personal-note" className="text-[12px] font-black text-[#007166]" onClick={onClose}>查看全部</Link>
           </div>
           <div className="mt-3 space-y-2">
@@ -1207,7 +1211,7 @@ function StickyNoteComposer({
                 {note.scheduledAt ? <p className="mt-2 text-[11px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
               </article>
             )) : (
-              <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增便利貼。</div>
+              <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增個人工作貼。</div>
             )}
           </div>
         </div>
@@ -1224,8 +1228,8 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
     <WorkbenchCard className="h-full p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-bold text-[#10233f]">便利貼</h2>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Notes</p>
+          <h2 className="text-[15px] font-bold text-[#10233f]">個人工作貼</h2>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Personal</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
@@ -1248,7 +1252,7 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
           </button>
         )) : (
           <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae] hover:bg-[#f3f6f9]">
-            尚未新增便利貼。
+            尚未新增個人工作貼。
           </button>
         )}
       </div>
@@ -1264,19 +1268,21 @@ function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: Stic
   );
 }
 
-function CourtsPreviewCard() {
+function CourtsPreviewCard({ schools }: { schools: SchoolId[] }) {
   const workDate = todayDateString();
   const xinbeiQuery = useQuery({
     queryKey: ["/api/courts/xinbei/reservations", workDate, "employee-home"],
     queryFn: () => fetchEmployeeCourtsToday("xinbei", workDate),
     staleTime: 60_000,
     retry: false,
+    enabled: schools.includes("xinbei"),
   });
   const sanchongQuery = useQuery({
     queryKey: ["/api/courts/sanchong/reservations", workDate, "employee-home"],
     queryFn: () => fetchEmployeeCourtsToday("sanchong", workDate),
     staleTime: 60_000,
     retry: false,
+    enabled: schools.includes("sanchong"),
   });
 
   const renderSchoolPanel = (
@@ -1349,12 +1355,24 @@ function CourtsPreviewCard() {
     );
   };
 
+  const selectedSchools = schools.filter((school, index, list) => list.indexOf(school) === index);
+  const queryBySchool = {
+    xinbei: xinbeiQuery,
+    sanchong: sanchongQuery,
+  } satisfies Record<SchoolId, typeof xinbeiQuery>;
+  const toneBySchool = {
+    xinbei: "blue",
+    sanchong: "green",
+  } satisfies Record<SchoolId, "blue" | "green">;
+  const primarySchool = selectedSchools[0] ?? "xinbei";
+
+  if (!selectedSchools.length) return null;
+
   return (
     <WorkbenchCard className="h-full p-5">
-      <SectionTitle title="場租查看" eyebrow="Courts" action="新北完整頁" actionHref="/employee/courts/xinbei" />
-      <div className="grid gap-3 md:grid-cols-2">
-        {renderSchoolPanel("xinbei", xinbeiQuery, "blue")}
-        {renderSchoolPanel("sanchong", sanchongQuery, "green")}
+      <SectionTitle title="場租查看" eyebrow="Courts" action={`${getSchoolName(primarySchool)}完整頁`} actionHref={`/employee/courts/${primarySchool}`} />
+      <div className={cn("grid gap-3", selectedSchools.length > 1 ? "lg:grid-cols-2" : "grid-cols-1")}>
+        {selectedSchools.map((school) => renderSchoolPanel(school, queryBySchool[school], toneBySchool[school]))}
       </div>
     </WorkbenchCard>
   );
@@ -1618,12 +1636,13 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
 }
 
 function LowerGrid({ home, visibleKeys, onResourceCreated }: { home: EmployeeHomeDto; visibleKeys: Set<string>; onResourceCreated: () => void }) {
+  const courtSchools = getEmployeeCourtSchoolsForFacility(home.facility.key, home.facility.name);
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-4">
       {visibleKeys.has("events") ? <CompactEventsCard campaigns={home.campaigns.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
       {visibleKeys.has("documents") ? <CompactDocumentsCard documents={home.documents.data ?? []} /> : null}
       {visibleKeys.has("stickyNotes") ? <CompactStickyNotesCard notes={home.stickyNotes.data ?? []} facilityKey={home.facility.key} onChanged={onResourceCreated} /> : null}
-      {visibleKeys.has("courts") ? <CourtsPreviewCard /> : null}
+      {visibleKeys.has("courts") && courtSchools.length ? <CourtsPreviewCard schools={courtSchools} /> : null}
     </div>
   );
 }
@@ -1638,7 +1657,7 @@ function BottomNav() {
   });
   const items = toEmployeeNavigationItems(navigation.data?.items).slice(0, 5);
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
       {!items.length && navigation.isLoading ? (
         <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中…</div>
       ) : null}
@@ -1681,6 +1700,7 @@ function EmployeeHomeContent() {
   });
   const layoutItems = useMemo(() => normalizeWidgetLayout(data?.layout?.data, defaultEmployeeHomeWidgets), [data?.layout?.data]);
   const homeSlots = useMemo(() => resolveEmployeeHomeSlots(layoutItems), [layoutItems]);
+  const courtSchools = useMemo(() => getEmployeeCourtSchoolsForFacility(data?.facility.key, data?.facility.name), [data?.facility.key, data?.facility.name]);
   const handoverPayload = isHandoverHomePayload(data?.homeCards?.handover.payload) ? data?.homeCards?.handover.payload : undefined;
   const shiftBoard = isShiftBoardPayload(data?.homeCards?.shiftReminder.payload) ? data?.homeCards?.shiftReminder.payload : undefined;
   const searchQueryResult = useQuery({
@@ -1709,7 +1729,7 @@ function EmployeeHomeContent() {
         <DesktopSidebar />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <TopBar />
-          <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-6 lg:px-6 lg:py-7">
+          <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-6 md:px-6 md:py-7">
             <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="mx-auto max-w-[1760px] space-y-4">
               <motion.div variants={riseIn}>
                 {homeSlots.isEnabled("search") ? (
@@ -1765,9 +1785,9 @@ function EmployeeHomeContent() {
                 ) : null}
               </motion.div>
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
-                {homeSlots.isEnabled("courts") ? (
+                {homeSlots.isEnabled("courts") && courtSchools.length ? (
                   <div className="h-full lg:col-span-8">
-                    <CourtsPreviewCard />
+                    <CourtsPreviewCard schools={courtSchools} />
                   </div>
                 ) : null}
                 {homeSlots.isEnabled("stickyNotes") ? (

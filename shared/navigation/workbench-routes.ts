@@ -19,11 +19,10 @@ export const workbenchRoutes = [
   { moduleId: "activity-periods", label: "活動檔期/課程快訊", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/activity-periods", shell: "employee" },
   { moduleId: "employee-resources", label: "常用文件", iconKey: "file-text", role: "employee", primaryPath: "/employee/documents", shell: "employee" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "employee", primaryPath: "/employee/training", shell: "employee" },
-  { moduleId: "personal-note", label: "個人工作記事", iconKey: "file-text", role: "employee", primaryPath: "/employee/personal-note", shell: "employee" },
+  { moduleId: "personal-note", label: "個人工作貼", iconKey: "file-text", role: "employee", primaryPath: "/employee/personal-note", shell: "employee" },
   { moduleId: "lifeguard-lost-and-found", label: "失物招領", iconKey: "package-search", role: "employee", primaryPath: "/employee/lost-and-found", shell: "employee" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/courts/xinbei", shell: "employee" },
   { moduleId: "knowledge-base-qna", label: "相關問題詢問", iconKey: "book-open", role: "employee", primaryPath: "/employee/qna", shell: "employee" },
-  { moduleId: "checkins", label: "點名/報到", iconKey: "shield-check", role: "employee", primaryPath: "/employee/checkins", shell: "employee" },
 
   { moduleId: "lifeguard-home", label: "首頁", iconKey: "home", role: "lifeguard", primaryPath: "/lifeguard", shell: "lifeguard" },
   { moduleId: "lifeguard-water-quality", label: "水質檢測", iconKey: "droplets", role: "lifeguard", primaryPath: "/lifeguard/water-quality", shell: "lifeguard" },

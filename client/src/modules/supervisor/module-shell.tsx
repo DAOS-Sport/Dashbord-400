@@ -57,7 +57,7 @@ export function SupervisorModuleShell({
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2f9e5b]">{eyebrow}</p>
               <p className="mt-1 text-[13px] font-semibold leading-5 text-[#536175]">{description}</p>
             </div>
-            {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+            {actions ? <div className="flex w-full items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:thin] xl:max-w-[72%] xl:pb-0">{actions}</div> : null}
           </div>
           {tabs.length ? <SupervisorModuleTabs tabs={tabs} className="mt-3" /> : null}
         </div>

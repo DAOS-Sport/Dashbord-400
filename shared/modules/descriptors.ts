@@ -68,7 +68,7 @@ const chineseKeywords: Record<string, string[]> = {
   "quick-links": ["快速操作", "入口", "捷徑"],
   "knowledge-base-qna": ["知識庫", "問答", "Q&A"],
   "employee-training": ["員工教材", "教學", "訓練", "影片"],
-  "personal-note": ["個人工作記事", "便利貼"],
+  "personal-note": ["個人工作貼", "個人提醒", "工作貼"],
   "counter-log": ["櫃台日誌", "櫃台工作", "每日固定事項"],
   "lane-rentals": ["水道租借", "松山", "水道事項"],
   courts: ["場地預約", "新北高中", "三重商工"],
@@ -106,7 +106,6 @@ const employeeNavigationOrder = [
   "lifeguard-lost-and-found",
   "courts",
   "knowledge-base-qna",
-  "checkins",
 ];
 
 const lifeguardNavigationOrder = [
@@ -163,7 +162,6 @@ const employeeHomeOrder = [
   "notification-center",
   "weather-widget",
   "registration-courses",
-  "checkins",
   "search",
 ];
 
@@ -230,11 +228,11 @@ const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
   "activity-periods": { shortName: "活動檔期/課程快訊", routePath: getPrimaryRoute("activity-periods", "employee"), iconKey: "calendar-days", menuOrder: 3, navVisible: true },
   "employee-resources": { shortName: "常用文件", routePath: getPrimaryRoute("employee-resources", "employee"), iconKey: "file-text", menuOrder: 4, navVisible: true },
   "employee-training": { name: "員工教材", shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "employee"), iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
-  "personal-note": { shortName: "個人工作記事", routePath: getPrimaryRoute("personal-note", "employee"), iconKey: "file-text", menuOrder: 6, navVisible: true },
+  "personal-note": { shortName: "個人工作貼", routePath: getPrimaryRoute("personal-note", "employee"), iconKey: "file-text", menuOrder: 6, navVisible: true },
   "lifeguard-lost-and-found": { shortName: "失物招領", routePath: "/employee/lost-and-found", iconKey: "package-search", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
   courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "employee"), iconKey: "calendar-days", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true, requiredPermissions: ["employee:booking:read"] },
   "knowledge-base-qna": { shortName: "相關問題詢問", routePath: getPrimaryRoute("knowledge-base-qna", "employee"), iconKey: "book-open", menuOrder: 9, navVisible: true, requiredPermissions: ["employee:qna:read"] },
-  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 9, cardOrder: 14, navVisible: true, cardVisible: true },
+  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 9, cardOrder: 14, navVisible: false, cardVisible: false },
   parking: { navVisible: false, cardVisible: false },
   "counter-log": { navVisible: false, cardVisible: false },
   "lane-rentals": { navVisible: false, cardVisible: false },
@@ -275,8 +273,8 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
   system: {
     "system-control-center": { shortName: "控制中心", routePath: "/system", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "SYSTEM_CONTROL_CENTER_VIEW"] },
     "system-watchdog": { shortName: "Watchdog", routePath: "/system/watchdog", iconKey: "shield-check", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW", "WATCHDOG_EVENT_VIEW", "INTEGRATION_STATUS_VIEW"] },
-    "system-operations": { shortName: "運維協助", routePath: "/system/operations", iconKey: "link", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW"] },
-    "system-insights": { shortName: "行為洞察", routePath: "/system/insights", iconKey: "gauge", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW"] },
+    "system-operations": { shortName: "運維協助", routePath: "/system/operations", iconKey: "link", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/operations/recent-assists", telemetryEvents: ["PAGE_VIEW", "OPS_RESET_SESSION", "OPS_REFRESH_CACHE", "OPS_RESEND_NOTIFICATION"] },
+    "system-insights": { shortName: "行為洞察", routePath: "/system/insights", iconKey: "gauge", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/insights/overview", telemetryEvents: ["PAGE_VIEW", "INSIGHTS_VIEW", "INSIGHTS_DRILL_DOWN"] },
     "system-governance": { shortName: "治理面", routePath: "/system/governance", iconKey: "network", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true, bffEndpoint: "/api/modules/registry", telemetryEvents: ["PAGE_VIEW", "ARCHITECTURE_RELATION_VIEW", "TOPOLOGY_VIEW", "AUDIT_LOG_VIEW", "RAW_INSPECTOR_QUERY"] },
     "system-dashboard": { shortName: "系統總覽", routePath: "/system", iconKey: "gauge", menuOrder: 50, cardOrder: 50, navVisible: false, cardVisible: false },
     "system-function-relations": { shortName: "當前功能關係", routePath: "/system/function-relations", iconKey: "link", menuOrder: 51, cardOrder: 51, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "ARCHITECTURE_RELATION_VIEW"] },

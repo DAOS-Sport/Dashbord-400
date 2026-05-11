@@ -4,10 +4,11 @@ import { Link } from "wouter";
 import { Clock3, MapPin, RefreshCw, Search, UserCheck, Users } from "lucide-react";
 import type { SupervisorDashboardDto, StaffMemberSummary } from "@shared/domain/workbench";
 import { RoleShell } from "@/modules/workbench/role-shell";
+import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { apiGet } from "@/shared/api/client";
 import { cn } from "@/lib/utils";
-import { SupervisorKpiCard, SupervisorPill } from "../supervisor-ui";
+import { SupervisorPill } from "../supervisor-ui";
 
 const fetchSupervisorDashboard = () => apiGet<SupervisorDashboardDto>("/api/bff/supervisor/dashboard");
 const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`;
@@ -138,11 +139,18 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
           </WorkbenchCard>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <SupervisorKpiCard label={detailMode ? "本館現職" : "現職人員"} value={detailMode ? filteredEmployees.length : staffing?.active ?? 0} helper={detailMode ? "依目前場館過濾" : "Ragic 授權人員"} icon={Users} tone="navy" />
-          <SupervisorKpiCard label={detailMode ? "本館當班" : "目前當班"} value={detailMode ? filteredCurrentOnDuty.length : staffing?.onShift ?? 0} helper="依班表與館別 scope" icon={Clock3} tone="green" />
-          <SupervisorKpiCard label={detailMode ? "本館下一班" : "下一班"} value={filteredNextOnDuty.length} helper="即將交接人力" icon={UserCheck} tone="blue" />
-        </div>
+        <WorkbenchMetricCluster
+          eyebrow="Facility"
+          title={detailMode ? "本館人力摘要" : "場館人力摘要"}
+          helper="橫向集中顯示，減少手機高度。"
+          columnsClassName="grid-cols-3"
+          spanLastOnMobile={false}
+          items={[
+            { label: detailMode ? "本館現職" : "現職人員", value: detailMode ? filteredEmployees.length : staffing?.active ?? 0, helper: detailMode ? "依目前場館過濾" : "Ragic 授權人員", icon: Users, tone: "navy" },
+            { label: detailMode ? "本館當班" : "目前當班", value: detailMode ? filteredCurrentOnDuty.length : staffing?.onShift ?? 0, helper: "依班表與館別 scope", icon: Clock3, tone: "green" },
+            { label: detailMode ? "本館下一班" : "下一班", value: filteredNextOnDuty.length, helper: "即將交接人力", icon: UserCheck, tone: "blue" },
+          ]}
+        />
 
         {!detailMode ? (
           <section className="space-y-3">
@@ -162,12 +170,12 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                 顯示全部
               </button>
             </div>
-            <div className="grid gap-4 xl:grid-cols-2">
+            <div className="flex snap-x gap-3 overflow-x-auto pb-2 [scrollbar-width:thin]" aria-label="授權場館詳細資訊橫向列表">
               {facilities.map((facility) => (
                 <WorkbenchCard
                   key={facility.facilityKey}
                   className={cn(
-                    "overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-34px_rgba(13,42,80,0.75)]",
+                    "w-[86vw] min-w-[320px] max-w-[440px] shrink-0 snap-start overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_-34px_rgba(13,42,80,0.75)]",
                     selectedFacilityKey === facility.facilityKey && "ring-2 ring-[#16b6b1]/25",
                   )}
                 >
@@ -234,27 +242,6 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
           </section>
         ) : null}
 
-        <WorkbenchCard className="p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff] text-[#2f6fe8]">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-[15px] font-black">人員查詢</h2>
-                <p className="text-[12px] font-bold text-[#8b9aae]">以姓名、員工編號、部門或館別篩選。</p>
-              </div>
-            </div>
-            <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 lg:w-80">
-              <Search className="h-4 w-4 shrink-0 text-[#8b9aae]" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="搜尋人員" />
-              <button type="button" onClick={() => dashboardQuery.refetch()} aria-label="重新整理">
-                <RefreshCw className={cn("h-4 w-4 text-[#637185]", dashboardQuery.isFetching && "animate-spin")} />
-              </button>
-            </div>
-          </div>
-        </WorkbenchCard>
-
         <div className="grid gap-4 xl:grid-cols-3">
           <StaffList title="現職人員" items={filteredEmployees} empty="尚未取得 Ragic 現職資料。" />
           <StaffList title="目前當班" items={filteredCurrentOnDuty} empty="目前沒有當班資料。" />
@@ -274,6 +261,27 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                 </div>
               </div>
             ))}
+          </div>
+        </WorkbenchCard>
+
+        <WorkbenchCard className="p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eef5ff] text-[#2f6fe8]">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-black">人員查詢</h2>
+                <p className="text-[12px] font-bold text-[#8b9aae]">以姓名、員工編號、部門或館別篩選。</p>
+              </div>
+            </div>
+            <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 lg:w-80">
+              <Search className="h-4 w-4 shrink-0 text-[#8b9aae]" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="搜尋人員" />
+              <button type="button" onClick={() => dashboardQuery.refetch()} aria-label="重新整理">
+                <RefreshCw className={cn("h-4 w-4 text-[#637185]", dashboardQuery.isFetching && "animate-spin")} />
+              </button>
+            </div>
           </div>
         </WorkbenchCard>
       </div>

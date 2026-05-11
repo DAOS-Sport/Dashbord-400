@@ -7,5 +7,5 @@ export interface AuditEventInput {
   resourceId?: string;
   payload?: unknown;
   correlationId?: string;
-  resultStatus?: "success" | "failure";
+  resultStatus?: "success" | "failure" | "pending";
 }

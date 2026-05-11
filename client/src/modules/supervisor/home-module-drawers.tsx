@@ -106,18 +106,16 @@ function StatusContent({ config }: { config: SupervisorHomeDrawerConfig }) {
 
 export function SupervisorModulePreviewCard({
   preview,
-  onOpen,
 }: {
   preview: SupervisorModulePreview;
-  onOpen: (preview: SupervisorModulePreview) => void;
 }) {
   const Icon = preview.icon;
+  const href = preview.ctas[0]?.href ?? "/supervisor";
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       data-testid={`supervisor-module-preview-${preview.moduleId}`}
-      onClick={() => onOpen(preview)}
-      className="workbench-focus group min-h-[156px] rounded-[8px] border border-[#dfe7ef] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      className="workbench-focus group block min-h-[156px] rounded-[8px] border border-[#dfe7ef] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-[8px] bg-[#eaf8ef] text-[#15935d]">
@@ -143,10 +141,10 @@ export function SupervisorModulePreviewCard({
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between text-[12px] font-black text-[#007166]">
-        <span>打開預覽抽屜</span>
+        <span>查看詳細畫面</span>
         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
       </div>
-    </button>
+    </Link>
   );
 }
 

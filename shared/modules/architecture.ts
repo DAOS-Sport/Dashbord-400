@@ -48,7 +48,7 @@ export const moduleArchitectureGroupLabels: Record<ModuleArchitectureGroupId, { 
   },
   "employee-content": {
     title: "員工內容與日常工作",
-    description: "員工首頁、活動、文件、教材、便利貼、場租查看與日常資料卡。",
+    description: "員工首頁、活動、文件、教材、個人工作貼、場租查看與日常資料卡。",
   },
   "lifeguard-workflows": {
     title: "救生作業與稽核",

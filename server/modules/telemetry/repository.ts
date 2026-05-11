@@ -84,6 +84,8 @@ export interface TelemetryRepository {
   recordAudit(event: AuditEventInput): Promise<void>;
   getUiEventOverview(): Promise<TelemetryOverview>;
   getTrainingViewReport(): Promise<TrainingViewReport>;
+  listUiEvents(limit?: number): Promise<StoredUiEvent[]>;
+  listClientErrors(limit?: number): Promise<StoredClientError[]>;
   listAuditLogs(limit?: number): Promise<AuditLogRecord[]>;
 }
 
@@ -131,6 +133,18 @@ export const createMemoryTelemetryRepository = (): TelemetryRepository => ({
         correlationId: event.correlationId,
         resultStatus: event.resultStatus ?? "success",
       }));
+  },
+
+  async listUiEvents(limit = 500) {
+    return uiEventMemory
+      .slice(-Math.min(Math.max(limit, 1), 2000))
+      .reverse();
+  },
+
+  async listClientErrors(limit = 200) {
+    return clientErrorMemory
+      .slice(-Math.min(Math.max(limit, 1), 1000))
+      .reverse();
   },
 
   async getTrainingViewReport() {
@@ -241,6 +255,38 @@ const toTrainingViewReport = (events: TrainingViewRecord[], totalViews = events.
   };
 };
 
+const uiEventRowToStored = (event: typeof uiEvents.$inferSelect): StoredUiEvent => ({
+  eventType: event.actionType as StoredUiEvent["eventType"],
+  page: event.page,
+  componentId: event.componentId ?? undefined,
+  actionType: event.actionType,
+  payload: event.payload ?? {},
+  correlationId: event.correlationId ?? undefined,
+  occurredAt: iso(event.timestamp),
+  receivedAt: iso(event.timestamp),
+  userId: event.userId ?? undefined,
+  role: event.role ?? undefined,
+  facilityKey: event.facilityKey ?? undefined,
+  sessionIdHash: event.sessionIdHash ?? undefined,
+});
+
+const clientErrorRowToStored = (error: typeof clientErrors.$inferSelect): StoredClientError => {
+  const metadata = error.metadata ?? {};
+  return {
+    message: error.message,
+    page: error.routePath ?? undefined,
+    stack: error.stack ?? undefined,
+    componentId: typeof metadata.componentId === "string" ? metadata.componentId : undefined,
+    correlationId: typeof metadata.correlationId === "string" ? metadata.correlationId : undefined,
+    occurredAt: iso(error.occurredAt),
+    receivedAt: iso(error.createdAt),
+    userId: error.userId ?? undefined,
+    role: error.role ?? undefined,
+    facilityKey: error.facilityKey ?? undefined,
+    metadata,
+  };
+};
+
 type TelemetryDatabase = typeof db;
 
 export const createPostgresTelemetryRepository = (database: TelemetryDatabase): TelemetryRepository => ({
@@ -316,36 +362,8 @@ export const createPostgresTelemetryRepository = (database: TelemetryDatabase): 
     return {
       totalEvents: eventTotal?.count ?? 0,
       totalClientErrors: errorTotal?.count ?? 0,
-      latestEvents: latestEventRows.map((event) => ({
-        eventType: event.actionType as StoredUiEvent["eventType"],
-        page: event.page,
-        componentId: event.componentId ?? undefined,
-        actionType: event.actionType,
-        payload: event.payload ?? {},
-        correlationId: event.correlationId ?? undefined,
-        occurredAt: iso(event.timestamp),
-        receivedAt: iso(event.timestamp),
-        userId: event.userId ?? undefined,
-        role: event.role ?? undefined,
-        facilityKey: event.facilityKey ?? undefined,
-        sessionIdHash: event.sessionIdHash ?? undefined,
-      })),
-      latestErrors: latestErrorRows.map((error) => {
-        const metadata = error.metadata ?? {};
-        return {
-          message: error.message,
-          page: error.routePath ?? undefined,
-          stack: error.stack ?? undefined,
-          componentId: typeof metadata.componentId === "string" ? metadata.componentId : undefined,
-          correlationId: typeof metadata.correlationId === "string" ? metadata.correlationId : undefined,
-          occurredAt: iso(error.occurredAt),
-          receivedAt: iso(error.createdAt),
-          userId: error.userId ?? undefined,
-          role: error.role ?? undefined,
-          facilityKey: error.facilityKey ?? undefined,
-          metadata,
-        };
-      }),
+      latestEvents: latestEventRows.map(uiEventRowToStored),
+      latestErrors: latestErrorRows.map(clientErrorRowToStored),
     };
   },
 
@@ -399,6 +417,24 @@ export const createPostgresTelemetryRepository = (database: TelemetryDatabase): 
       correlationId: row.correlationId ?? undefined,
       resultStatus: row.resultStatus ?? undefined,
     }));
+  },
+
+  async listUiEvents(limit = 500) {
+    const rows = await database
+      .select()
+      .from(uiEvents)
+      .orderBy(desc(uiEvents.timestamp))
+      .limit(Math.min(Math.max(limit, 1), 2000));
+    return rows.map(uiEventRowToStored);
+  },
+
+  async listClientErrors(limit = 200) {
+    const rows = await database
+      .select()
+      .from(clientErrors)
+      .orderBy(desc(clientErrors.createdAt))
+      .limit(Math.min(Math.max(limit, 1), 1000));
+    return rows.map(clientErrorRowToStored);
   },
 });
 

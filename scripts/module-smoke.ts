@@ -58,11 +58,11 @@ for (const role of roles) {
 assert(!getNavigationModules("employee").some((item) => item.routePath.startsWith("/system")), "employee can see a system route");
 assert(!getNavigationModules("supervisor").some((item) => item.id === "raw-inspector"), "supervisor can see raw inspector");
 assert(
-  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,checkins",
+  getNavigationModules("employee").map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
   `employee navigation order changed: ${getNavigationModules("employee").map((item) => item.id).join(",")}`,
 );
 assert(
-  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+  getHomeLayoutCards("employee").map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
   `employee home card order changed: ${getHomeLayoutCards("employee").map((item) => item.moduleId).join(",")}`,
 );
 assert(
@@ -244,9 +244,12 @@ assert(
   "employee home slots must render in the requested dashboard order",
 );
 assert(
-  /homeSlots\.isEnabled\("courts"\)[\s\S]*lg:col-span-8[\s\S]*<CourtsPreviewCard \/>/.test(employeeHomePageSource),
-  "employee courts preview must span two desktop grid blocks",
+  /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-8[\s\S]*<CourtsPreviewCard schools=\{courtSchools\} \/>/.test(employeeHomePageSource),
+  "employee courts preview must render only for court-enabled facilities and span two desktop grid blocks",
 );
+const employeeCourtsVisibilitySource = readFileSync(join(repoRoot, "client", "src", "modules", "employee", "courts-visibility.ts"), "utf8");
+assert(employeeCourtsVisibilitySource.includes('return ["xinbei"]'), "employee courts visibility must map Xinbei facilities to Xinbei school");
+assert(employeeCourtsVisibilitySource.includes('return ["sanchong"]'), "employee courts visibility must map Sanchong/Sanlu facilities to Sanchong school");
 assert(employeeHomePageSource.includes('fetchEmployeeCourtsToday("xinbei"'), "employee courts preview must load Xinbei rent summary");
 assert(employeeHomePageSource.includes('fetchEmployeeCourtsToday("sanchong"'), "employee courts preview must load Sanchong rent summary");
 assert(employeeHomePageSource.includes("/employee/courts/${school}"), "employee courts preview must link school-specific rent pages");
@@ -254,7 +257,7 @@ const courtsHeaderSource = readFileSync(join(repoRoot, "client", "src", "pages",
 assert(courtsHeaderSource.includes("{schoolName}場租查看"), "courts page header must show school-specific rent view title");
 assert(courtsHeaderSource.includes("單日場租"), "courts page must expose a daily rent view tab");
 assert(courtsHeaderSource.includes("搜尋場租"), "courts page must expose a rent search tab");
-const tutoringCardSource = employeeHomePageSource.match(/function TodayTutoringCard\(\)[\s\S]*?\n}\n\nconst formatShiftClock/)?.[0] ?? "";
+const tutoringCardSource = employeeHomePageSource.match(/function TodayTutoringCard\(\)[\s\S]*?\r?\n}\r?\n\r?\nconst formatShiftClock/)?.[0] ?? "";
 assert(tutoringCardSource.includes("家教預約資料尚未接入"), "today tutoring card must render a not-connected placeholder");
 for (const forbidden of ["POST", "PATCH", "DELETE", "apiRequest(", "/employee/tutoring"]) {
   assert(!tutoringCardSource.includes(forbidden), `today tutoring placeholder must not call mutation or nonexistent route: ${forbidden}`);

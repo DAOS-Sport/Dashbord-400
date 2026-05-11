@@ -15,6 +15,7 @@ import {
   Menu,
   MessageSquareText,
   MoreHorizontal,
+  PackageSearch,
   Search,
   ShieldCheck,
   UserRound,
@@ -28,6 +29,7 @@ import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
+import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
 
 type EmployeeNavItem = {
   id: string;
@@ -48,6 +50,7 @@ const iconByKey: Record<string, LucideIcon> = {
   "file-text": FileText,
   "graduation-cap": GraduationCap,
   "shield-check": ShieldCheck,
+  "package-search": PackageSearch,
   search: Search,
 };
 
@@ -84,7 +87,7 @@ function EmployeeDesktopSidebar({
   facilityName: string;
 }) {
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-4 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] lg:flex">
+    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-4 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] md:flex">
       <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
 
       <div className="mt-4 shrink-0 rounded-[8px] bg-white/8 p-3">
@@ -172,49 +175,52 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
     staleTime: 60_000,
   });
   const nav = toEmployeeNavItems(navigation.data?.items);
-  const mobileItems = nav.slice(0, 5);
   const granted = session?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
   const facilityName = facilityLabels.getFacilityName(activeFacility);
+  const visibleNav = getEmployeeCourtSchoolsForFacility(activeFacility, facilityName).length
+    ? nav
+    : nav.filter((item) => item.id !== "courts");
+  const mobileItems = visibleNav.slice(0, 5);
 
   return (
     <div className="workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]">
       <div className="flex h-full min-w-0">
         <EmployeeDesktopSidebar
-          items={nav}
+          items={visibleNav}
           loading={navigation.isLoading}
           location={location}
           onNavigate={(item) => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
           facilityName={facilityName}
         />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white/[0.92] lg:text-[#10233f] lg:backdrop-blur-xl">
-            <div className="flex h-14 w-full items-center justify-between px-4 lg:h-14 lg:px-6">
+          <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] md:bg-white/[0.92] md:text-[#10233f] md:backdrop-blur-xl">
+            <div className="flex h-14 w-full items-center justify-between px-4 md:h-14 md:px-6">
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <button aria-label="開啟選單" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 lg:hidden">
+                <button aria-label="開啟選單" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 md:hidden">
                   <Menu className="h-5 w-5" />
                 </button>
-                <Link href="/employee" className="hidden h-8 w-8 place-items-center rounded-[8px] border border-[#e2e9f2] bg-white text-[#8b9aae] lg:grid" aria-label="回員工首頁">
+                <Link href="/employee" className="hidden h-8 w-8 place-items-center rounded-[8px] border border-[#e2e9f2] bg-white text-[#8b9aae] md:grid" aria-label="回員工首頁">
                   <Home className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0">
-                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] lg:text-[13px] lg:text-[#10233f]">{facilityName}</p>
-                  <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] lg:block">Dashboard</p>
+                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] md:text-[13px] md:text-[#10233f]">{facilityName}</p>
+                  <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] md:block">Dashboard</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="hidden lg:block">
+                <div className="hidden md:block">
                   <RoleSwitcher visualActiveRole="employee" />
                 </div>
                 <div className="hidden md:block">
                   <FacilitySwitcher />
                 </div>
-                <button className="workbench-focus hidden min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] lg:inline-flex">
+                <button className="workbench-focus hidden min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] md:inline-flex">
                   員工
                   <ChevronDown className="h-3.5 w-3.5 text-[#8b9aae]" />
                 </button>
-                <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 lg:bg-[#f0f4f8] lg:text-[#10233f]">
+                <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 md:bg-[#f0f4f8] md:text-[#10233f]">
                   <Bell className="h-4 w-4" />
                   <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#ff4964] text-[9px] font-black text-white">4</span>
                 </button>
@@ -223,15 +229,15 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
                 </div>
               </div>
             </div>
-            <div className="border-t border-white/10 px-4 py-2 lg:hidden">
+            <div className="border-t border-white/10 px-4 py-2 md:hidden">
               <RoleSwitcher compact visualActiveRole="employee" />
             </div>
           </header>
 
-          <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 lg:px-6 lg:py-7">
+          <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-5 pb-24 sm:px-6 md:px-6 md:py-7">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h1 className="text-[24px] font-black leading-tight text-[#10233f] lg:text-[30px]">{title}</h1>
+                <h1 className="text-[24px] font-black leading-tight text-[#10233f] md:text-[30px]">{title}</h1>
                 {subtitle ? <p className="mt-1 text-[13px] font-medium leading-5 text-[#637185]">{subtitle}</p> : null}
               </div>
               <Link href="/employee" className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
@@ -244,7 +250,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
         {!mobileItems.length && navigation.isLoading ? (
           <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中…</div>
         ) : null}

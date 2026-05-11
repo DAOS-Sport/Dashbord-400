@@ -41,7 +41,7 @@ const defaultEmployeeShortcuts: ShortcutSummary[] = [
   { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
   { id: "events", label: "活動檔期", href: "/employee/activity-periods", tone: "amber" },
   { id: "documents", label: "常用文件", href: "/employee/documents", tone: "cyan" },
-  { id: "sticky-notes", label: "個人工作記事", href: "/employee/personal-note", tone: "rose" },
+  { id: "sticky-notes", label: "個人工作貼", href: "/employee/personal-note", tone: "rose" },
 ];
 
 const defaultEmployeeDocumentLinks: DocumentSummary[] = [

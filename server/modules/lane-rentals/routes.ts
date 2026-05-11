@@ -2,6 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { z } from "zod";
 import { storage } from "../../storage";
 import { insertLaneRentalSchema, type LaneRental } from "@shared/schema";
+import { facilityLineGroups } from "@shared/domain/facilities";
 
 interface CallerProfile {
   employeeNumber: string;
@@ -23,11 +24,7 @@ function getCaller(req: import("express").Request): CallerProfile {
   };
 }
 
-// Rollout scope: lane rentals are only enabled for 松山國小 in this phase.
-// Adding new facilities should be a deliberate config change here, NOT just a
-// caller permissions question — keeping the allowlist server-side enforced
-// ensures other facilities can't be created/mutated even by privileged users.
-const LANE_RENTAL_ALLOWED_FACILITIES = new Set<string>(["songshan_pool"]);
+const LANE_RENTAL_ALLOWED_FACILITIES = new Set<string>(facilityLineGroups.map((facility) => facility.facilityKey));
 
 function canAccessFacility(req: import("express").Request, caller: CallerProfile, facilityKey: string): boolean {
   if (!LANE_RENTAL_ALLOWED_FACILITIES.has(facilityKey)) return false;

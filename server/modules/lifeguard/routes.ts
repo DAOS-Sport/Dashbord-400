@@ -63,6 +63,13 @@ const disposeSchema = z.object({
   disposedReason: z.string().min(1).max(1000),
 });
 
+const lostItemUpdateSchema = z.object({
+  itemCategory: z.enum(["clothing", "electronics", "valuable", "other"]).optional().nullable(),
+  itemDescription: z.string().min(1).max(1000).optional(),
+  foundLocationNote: z.string().max(1000).optional().nullable(),
+  description: z.string().max(2000).optional().nullable(),
+}).refine((value) => Object.keys(value).length > 0, { message: "至少需要一個更新欄位" });
+
 const todayTaipei = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
 const startOfDay = (date = new Date()) => new Date(`${date.toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" })}T00:00:00+08:00`);
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -220,7 +227,8 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
   app.post("/api/bff/lifeguard/water-quality", deps.requireEmployee(), createPhotoRecord("water_quality"));
   app.post("/api/bff/lifeguard/coach-dive", deps.requireEmployee(), createPhotoRecord("coach_dive"));
   app.post("/api/bff/lifeguard/cleanup", deps.requireEmployee(), createPhotoRecord("cleanup"));
-  app.post("/api/bff/lifeguard/lost-and-found", deps.requireEmployee(), createPhotoRecord("lost_and_found"));
+  const lostAndFoundBffPaths = ["/api/bff/lifeguard/lost-and-found", "/api/bff/employee/lost-and-found"];
+  app.post(lostAndFoundBffPaths, deps.requireEmployee(), createPhotoRecord("lost_and_found"));
 
   app.post("/api/bff/lifeguard/lane-issues", deps.requireEmployee(), async (req, res) => {
     try {
@@ -268,7 +276,7 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
       storage.listLifeguardWaterQualityLogs(common),
       storage.listLifeguardCoachDiveLogs(common),
       storage.listLifeguardCleanupLogs(common),
-      storage.listLifeguardLostAndFound({ ...common, fromDate: req.query.days ? fromDate : daysAgo(30) }),
+      storage.listLifeguardLostAndFound({ facilityKey: facility.facilityKey, fromDate: req.query.days ? fromDate : daysAgo(30), limit: 100 }),
       storage.listLifeguardHandoverNotes({ facilityKey: facility.facilityKey, workDate: todayTaipei(), limit: 50 }),
       storage.listLaneRentals({ facilityKey: facility.facilityKey, bookingDate: todayTaipei(), status: "active" }).catch(() => []),
     ]);
@@ -283,15 +291,12 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
     });
   });
 
-  app.get("/api/bff/lifeguard/lost-and-found", deps.requireEmployee(), async (req, res) => {
+  app.get(lostAndFoundBffPaths, deps.requireEmployee(), async (req, res) => {
     const facility = resolveFacility(req, typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined);
     if (!facility.ok) return res.status(facility.status).json({ message: facility.message });
-    const actor = getActor(req);
-    const ownerOnly = !hasRole(req, "lifeguard") && !hasRole(req, "supervisor") && !hasRole(req, "system");
     const items = await storage.listLifeguardLostAndFound({
       facilityKey: facility.facilityKey,
       fromDate: daysAgo(30),
-      createdBy: ownerOnly ? actor.id : undefined,
       claimStatus: typeof req.query.status === "string" && req.query.status !== "all" ? req.query.status : undefined,
       itemCategory: typeof req.query.category === "string" && req.query.category !== "all" ? req.query.category : undefined,
       limit: 200,
@@ -299,8 +304,28 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
     res.json({ items: items.map(serialize) });
   });
 
-  app.post("/api/bff/lifeguard/lost-and-found/:id/claim", deps.requireEmployee(), async (req, res) => {
-    if (!hasRole(req, "lifeguard") && !hasRole(req, "supervisor") && !hasRole(req, "system")) return res.status(403).json({ message: "需要救生員或主管權限" });
+  app.patch(["/api/bff/lifeguard/lost-and-found/:id", "/api/bff/employee/lost-and-found/:id"], deps.requireEmployee(), async (req, res) => {
+    const id = Number(req.params.id);
+    const parsed = lostItemUpdateSchema.safeParse(req.body);
+    if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const existing = await storage.getLifeguardLostAndFoundById(id);
+    if (!existing) return res.status(404).json({ message: "找不到失物" });
+    const facility = resolveFacility(req, existing.facilityKey);
+    if (!facility.ok) return res.status(facility.status).json({ message: facility.message });
+    const actor = getActor(req);
+    const item = await storage.updateLifeguardLostAndFound(id, { ...parsed.data, updatedBy: actor.id });
+    if (!item) return res.status(404).json({ message: "找不到失物" });
+    await audit(deps, req, "LIFEGUARD_LOST_ITEM_UPDATED", existing.facilityKey, {
+      module: "lost_and_found",
+      itemId: id,
+      photo_url: existing.photoUrl,
+      updatedFields: Object.keys(parsed.data),
+    });
+    res.json({ item: serialize(item) });
+  });
+
+  app.post(["/api/bff/lifeguard/lost-and-found/:id/claim", "/api/bff/employee/lost-and-found/:id/claim"], deps.requireEmployee(), async (req, res) => {
     const id = Number(req.params.id);
     const parsed = claimSchema.safeParse(req.body);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });
@@ -316,8 +341,7 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
     res.json({ item: serialize(item) });
   });
 
-  app.post("/api/bff/lifeguard/lost-and-found/:id/dispose", deps.requireEmployee(), async (req, res) => {
-    if (!hasRole(req, "lifeguard") && !hasRole(req, "supervisor") && !hasRole(req, "system")) return res.status(403).json({ message: "需要救生員或主管權限" });
+  app.post(["/api/bff/lifeguard/lost-and-found/:id/dispose", "/api/bff/employee/lost-and-found/:id/dispose"], deps.requireEmployee(), async (req, res) => {
     const id = Number(req.params.id);
     const parsed = disposeSchema.safeParse(req.body);
     if (!Number.isFinite(id)) return res.status(400).json({ message: "id 錯誤" });

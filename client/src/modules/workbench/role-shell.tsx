@@ -36,11 +36,7 @@ import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 
-// Rollout-scoped slots: hidden unless the caller has access to one of the
-// listed facilities (system role bypasses). Mirrors server-side allowlist
-// in server/modules/lane-rentals/routes.ts.
 const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {
-  "lane-rentals": ["songshan_pool"],
 };
 
 type NavItem = {

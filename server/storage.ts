@@ -103,7 +103,7 @@ export interface IStorage {
   updateQuickLink(id: number, data: Partial<InsertQuickLink>): Promise<QuickLink | undefined>;
   deleteQuickLink(id: number): Promise<boolean>;
 
-  // Employee resources (員工自建入口 / 便利貼)
+  // Employee resources (員工自建入口 / 個人工作貼)
   listEmployeeResources(opts: { facilityKey?: string; category?: string; ownerEmployeeNumber?: string; limit?: number }): Promise<EmployeeResource[]>;
   createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource>;
   updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined>;
@@ -226,6 +226,7 @@ export interface IStorage {
   listLifeguardLostAndFound(opts: { facilityKeys?: string[]; facilityKey?: string; fromDate?: Date; toDate?: Date; createdBy?: string; claimStatus?: string; itemCategory?: string; limit?: number }): Promise<LifeguardLostAndFound[]>;
   getLifeguardLostAndFoundById(id: number): Promise<LifeguardLostAndFound | undefined>;
   createLifeguardLostAndFound(input: InsertLifeguardLostAndFound): Promise<LifeguardLostAndFound>;
+  updateLifeguardLostAndFound(id: number, data: Partial<Pick<InsertLifeguardLostAndFound, "itemCategory" | "itemDescription" | "foundLocationNote" | "description" | "updatedBy">>): Promise<LifeguardLostAndFound | undefined>;
   updateLifeguardLostAndFoundClaim(id: number, data: {
     claimStatus: "claimed" | "disposed";
     updatedBy: string;
@@ -1285,6 +1286,14 @@ export class DatabaseStorage implements IStorage {
 
   async createLifeguardLostAndFound(input: InsertLifeguardLostAndFound): Promise<LifeguardLostAndFound> {
     const [row] = await db.insert(lifeguardLostAndFound).values(input).returning();
+    return row;
+  }
+
+  async updateLifeguardLostAndFound(id: number, data: Partial<Pick<InsertLifeguardLostAndFound, "itemCategory" | "itemDescription" | "foundLocationNote" | "description" | "updatedBy">>): Promise<LifeguardLostAndFound | undefined> {
+    const [row] = await db.update(lifeguardLostAndFound)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(lifeguardLostAndFound.id, id))
+      .returning();
     return row;
   }
 

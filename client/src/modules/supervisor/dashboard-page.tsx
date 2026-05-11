@@ -8,10 +8,10 @@ import { useAuthMe } from "@/shared/auth/session";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
+import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { cn } from "@/lib/utils";
-import { SupervisorKpiCard, SupervisorPill } from "./supervisor-ui";
+import { SupervisorPill } from "./supervisor-ui";
 import {
-  SupervisorHomeDrawer,
   SupervisorModulePreviewCard,
   type SupervisorHomeDrawerStatus,
   type SupervisorModulePreview,
@@ -111,19 +111,6 @@ const fetchCourtsPreview = async (workDate: string) => {
   ]);
   return { xinbei, sanchong };
 };
-
-function Kpi({ title, value, helper, icon: Icon, tone }: { title: string; value: string; helper: string; icon: typeof Users; tone: string }) {
-  const uiTone: "green" | "blue" | "amber" | "red" | "navy" = tone.includes("ff4964")
-    ? "red"
-    : tone.includes("ef7d22")
-      ? "amber"
-      : tone.includes("2f6fe8")
-        ? "blue"
-        : tone.includes("15935d")
-          ? "green"
-          : "navy";
-  return <SupervisorKpiCard label={title} value={value} helper={helper} icon={Icon} tone={uiTone} />;
-}
 
 type FacilityDutyGroup = {
   facility: SupervisorFacilityOverview;
@@ -467,7 +454,6 @@ export default function SupervisorDashboardPage() {
     retry: false,
   });
   const [dutyDrawerOpen, setDutyDrawerOpen] = useState(false);
-  const [moduleDrawer, setModuleDrawer] = useState<SupervisorModulePreview | null>(null);
   const workDate = useMemo(() => todayYmd(), []);
   const facilities = data?.facilities?.data ?? [];
   const primaryFacilityKey = facilities[0]?.facilityKey ?? "";
@@ -735,34 +721,40 @@ export default function SupervisorDashboardPage() {
         <div className="rounded-[8px] bg-white p-6 text-[14px] font-bold text-[#637185]">載入主管控制台...</div>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-            <Kpi title="營運人力" value={`${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`} helper={`在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`} icon={Users} tone="text-[#15935d]" />
-            <Kpi title="待審核異常" value={`${data.pendingAnomalies.data?.length ?? 0}`} helper="需儘速處理" icon={AlertCircle} tone="text-[#ff4964]" />
-            <Kpi title="未完成交班" value={`${data.incompleteTasks.data?.length ?? 0}`} helper="待回報 / 待完成" icon={ClipboardList} tone="text-[#10233f]" />
-            <Kpi title="未確認公告人數" value={`${data.announcementAcks.data?.unconfirmed ?? 0}`} helper="需補強通知" icon={Megaphone} tone="text-[#ef7d22]" />
-            <Kpi title="今日剩餘交接" value={`${data.handoverOverview.data?.open ?? 0}`} helper="提醒 / 服務 / 櫃台" icon={CheckSquare} tone="text-[#2f6fe8]" />
-          </div>
+          <WorkbenchMetricCluster
+            eyebrow="Operations"
+            title="今日營運摘要"
+            helper="集中顯示，減少首頁高度。"
+            items={[
+              { label: "營運人力", value: `${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`, helper: `在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`, icon: Users, tone: "green" },
+              { label: "待審核異常", value: data.pendingAnomalies.data?.length ?? 0, helper: "需儘速處理", icon: AlertCircle, tone: "red", href: "/supervisor/anomalies" },
+              { label: "未完成交班", value: data.incompleteTasks.data?.length ?? 0, helper: "待回報 / 待完成", icon: ClipboardList, tone: "navy", href: "/supervisor/handover" },
+              { label: "未確認公告", value: data.announcementAcks.data?.unconfirmed ?? 0, helper: "需補強通知", icon: Megaphone, tone: "amber", href: "/supervisor/announcements" },
+              { label: "剩餘交接", value: data.handoverOverview.data?.open ?? 0, helper: "提醒 / 服務 / 櫃台", icon: CheckSquare, tone: "blue", href: "/supervisor/handover" },
+            ]}
+          />
 
           <FacilityOverviewGrid
             data={data}
             onOpenDutyDrawer={() => setDutyDrawerOpen(true)}
           />
-          <WorkbenchCard className="p-5">
+          <WorkbenchCard className="overflow-hidden p-0">
             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
+              <div className="px-5 pt-5">
                 <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#007166]">Module Drawers</p>
                 <h2 className="mt-1 text-[16px] font-black text-[#10233f]">主管模組抽屜</h2>
               </div>
-              <p className="text-[12px] font-bold text-[#8b9aae]">只顯示摘要、待辦與導流；完整操作回到各模組頁。</p>
+              <p className="px-5 text-[12px] font-bold text-[#8b9aae] sm:pb-1">摘要快速瀏覽；點卡片直接進詳細頁。</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+            <div className="flex snap-x gap-3 overflow-x-auto px-5 pb-5 [scrollbar-width:thin]" aria-label="主管模組水平導覽">
               {modulePreviews.map((preview) => (
-                <SupervisorModulePreviewCard key={preview.moduleId} preview={preview} onOpen={setModuleDrawer} />
+                <div key={preview.moduleId} className="w-[82vw] min-w-[292px] max-w-[340px] shrink-0 snap-start sm:w-[320px]">
+                  <SupervisorModulePreviewCard preview={preview} />
+                </div>
               ))}
             </div>
           </WorkbenchCard>
           <OnDutyDrawer data={data} open={dutyDrawerOpen} onClose={() => setDutyDrawerOpen(false)} />
-          {moduleDrawer ? <SupervisorHomeDrawer config={moduleDrawer} onClose={() => setModuleDrawer(null)} /> : null}
           <SupervisorQuickActionRail />
 
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">

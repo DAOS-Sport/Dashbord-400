@@ -19,7 +19,7 @@ export const defaultEmployeeHomeWidgets: WorkbenchWidgetLayoutItem[] = [
   { key: "events", label: "活動檔期 / 課程快訊", area: "lower", enabled: true, size: "card", sortOrder: 60 },
   { key: "documents", label: "常用文件", area: "lower", enabled: true, size: "card", sortOrder: 70 },
   { key: "courts", label: "場地預約", area: "lower", enabled: true, size: "wide", sortOrder: 80 },
-  { key: "stickyNotes", label: "便利貼", area: "lower", enabled: true, size: "card", sortOrder: 90 },
+  { key: "stickyNotes", label: "個人工作貼", area: "lower", enabled: true, size: "card", sortOrder: 90 },
 ];
 
 export const normalizeWidgetLayout = (

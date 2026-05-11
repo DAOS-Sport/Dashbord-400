@@ -1675,7 +1675,7 @@ export async function registerRoutes(
     }
   });
 
-  // -------- Portal: Employee Resources (員工自建活動 / 文件 / 便利貼) --------
+  // -------- Portal: Employee Resources (員工自建活動 / 文件 / 個人工作貼) --------
   const employeeResourceDatabaseUnavailable = () => ({
     message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用員工資源寫入功能。",
     code: "DATABASE_NOT_CONNECTED",

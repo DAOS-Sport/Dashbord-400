@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, LifeBuoy, PackageSearch } from "lucide-react";
+import { ArrowLeft, CalendarDays, LifeBuoy, PackageSearch, Pencil } from "lucide-react";
 import { Link } from "wouter";
-import { apiGet, apiPost } from "@/shared/api/client";
+import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import { FacilityGate } from "@/shared/auth/facility-gate";
 import { useAuthMe } from "@/shared/auth/session";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
+import { EmployeeShell } from "@/modules/employee/employee-shell";
 import { LifeguardShell } from "./lifeguard-shell";
 import { getLifeguardOperationModule, type LifeguardOperationModuleId } from "./operation-modules";
 import { LifeguardCameraCapture } from "./shared/camera-capture";
@@ -142,15 +143,26 @@ function LaneIssuesPage() {
   );
 }
 
-function LostAndFoundPage({ employeeOnly = false }: { employeeOnly?: boolean }) {
+type LostAndFoundRecord = Record<string, string | number | null>;
+
+function LostAndFoundPage({
+  context = "lifeguard",
+  apiBasePath = "/api/bff/lifeguard/lost-and-found",
+}: {
+  context?: "employee" | "lifeguard";
+  apiBasePath?: string;
+}) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<"new" | "list">("new");
   const [itemCategory, setItemCategory] = useState("other");
   const [itemDescription, setItemDescription] = useState("");
   const [foundLocationNote, setFoundLocationNote] = useState("");
-  const records = useQuery({ queryKey: ["/api/bff/lifeguard/lost-and-found"], queryFn: () => apiGet<{ items: Array<Record<string, string | number | null>> }>("/api/bff/lifeguard/lost-and-found") });
+  const records = useQuery({
+    queryKey: [apiBasePath],
+    queryFn: () => apiGet<{ items: LostAndFoundRecord[] }>(apiBasePath),
+  });
   const createMutation = useMutation({
-    mutationFn: (payload: PhotoRecordPayload) => apiPost("/api/bff/lifeguard/lost-and-found", {
+    mutationFn: (payload: PhotoRecordPayload) => apiPost(apiBasePath, {
       ...payload,
       itemCategory,
       itemDescription,
@@ -158,26 +170,68 @@ function LostAndFoundPage({ employeeOnly = false }: { employeeOnly?: boolean }) 
       description: itemDescription,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/bff/lifeguard/lost-and-found"] });
+      queryClient.invalidateQueries({ queryKey: [apiBasePath] });
       setTab("list");
       setItemDescription("");
       setFoundLocationNote("");
     },
   });
   const claimMutation = useMutation({
-    mutationFn: (id: number) => apiPost(`/api/bff/lifeguard/lost-and-found/${id}/claim`, { claimedByName: window.prompt("認領人姓名") || "", claimedByContact: window.prompt("聯絡方式") || "", claimNote: "" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/bff/lifeguard/lost-and-found"] }),
+    mutationFn: (id: number) => {
+      const claimedByName = window.prompt("認領人姓名");
+      if (!claimedByName?.trim()) return Promise.resolve(null);
+      const claimedByContact = window.prompt("聯絡方式") || "";
+      return apiPost(`${apiBasePath}/${id}/claim`, { claimedByName: claimedByName.trim(), claimedByContact, claimNote: "" });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [apiBasePath] }),
   });
   const disposeMutation = useMutation({
-    mutationFn: (id: number) => apiPost(`/api/bff/lifeguard/lost-and-found/${id}/dispose`, { disposedReason: window.prompt("廢棄原因") || "" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/bff/lifeguard/lost-and-found"] }),
+    mutationFn: (id: number) => {
+      const disposedReason = window.prompt("廢棄原因");
+      if (!disposedReason?.trim()) return Promise.resolve(null);
+      return apiPost(`${apiBasePath}/${id}/dispose`, { disposedReason: disposedReason.trim() });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [apiBasePath] }),
   });
+  const editMutation = useMutation({
+    mutationFn: (payload: { id: number; itemDescription: string; foundLocationNote: string; description: string }) =>
+      apiPatch(`${apiBasePath}/${payload.id}`, {
+        itemDescription: payload.itemDescription,
+        foundLocationNote: payload.foundLocationNote,
+        description: payload.description,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [apiBasePath] }),
+  });
+
+  const editItem = (item: LostAndFoundRecord) => {
+    const id = Number(item.id);
+    const currentDescription = String(item.itemDescription ?? "");
+    const nextDescription = window.prompt("物品描述", currentDescription);
+    if (nextDescription === null) return;
+    const nextLocation = window.prompt("撿到位置", String(item.foundLocationNote ?? "")) ?? "";
+    const nextNote = window.prompt("補充備註", String(item.description ?? "")) ?? "";
+    editMutation.mutate({
+      id,
+      itemDescription: nextDescription.trim() || currentDescription || "未命名失物",
+      foundLocationNote: nextLocation.trim(),
+      description: nextNote.trim(),
+    });
+  };
+  const tabLabels = context === "employee"
+    ? { new: "新增失物", list: "共用清單" }
+    : { new: "新增", list: "清單" };
 
   return (
     <WorkbenchCard className="p-5">
+      {context === "employee" ? (
+        <div className="mb-4 rounded-[12px] border border-[#dfe7ef] bg-[#f7fbff] p-3">
+          <p className="text-[13px] font-black text-[#10233f]">同場館共用失物資料</p>
+          <p className="mt-1 text-[12px] font-medium leading-5 text-[#637185]">員工端不切換到救生角色；新增、編輯與處理都會寫到同一份失物招領資料。</p>
+        </div>
+      ) : null}
       <div className="mb-4 grid grid-cols-2 gap-2">
-        <button onClick={() => setTab("new")} className={cn("min-h-11 rounded-[10px] text-[13px] font-black", tab === "new" ? "bg-[#0d2a50] text-white" : "bg-[#f2f5f8]")}>新增</button>
-        <button onClick={() => setTab("list")} className={cn("min-h-11 rounded-[10px] text-[13px] font-black", tab === "list" ? "bg-[#0d2a50] text-white" : "bg-[#f2f5f8]")}>清單</button>
+        <button onClick={() => setTab("new")} className={cn("min-h-11 rounded-[10px] text-[13px] font-black", tab === "new" ? "bg-[#0d2a50] text-white" : "bg-[#f2f5f8]")}>{tabLabels.new}</button>
+        <button onClick={() => setTab("list")} className={cn("min-h-11 rounded-[10px] text-[13px] font-black", tab === "list" ? "bg-[#0d2a50] text-white" : "bg-[#f2f5f8]")}>{tabLabels.list}</button>
       </div>
       {tab === "new" ? (
         <LifeguardCameraCapture
@@ -205,8 +259,13 @@ function LostAndFoundPage({ employeeOnly = false }: { employeeOnly?: boolean }) 
               <p className="text-[14px] font-black text-[#10233f]">{String(item.itemDescription ?? "未命名失物")}</p>
               <p className="mt-1 text-[12px] font-bold text-[#637185]">{String(item.foundLocationNote ?? "未填位置")}</p>
               <p className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[11px] font-black text-[#536175]">{String(item.claimStatus)}</p>
-              {!employeeOnly && item.claimStatus === "unclaimed" ? (
-                <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid gap-2">
+                <button onClick={() => editItem(item)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] border border-[#dfe7ef] bg-white text-[12px] font-black text-[#10233f]">
+                  <Pencil className="h-3.5 w-3.5" />編輯資料
+                </button>
+              </div>
+              {item.claimStatus === "unclaimed" ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   <button onClick={() => claimMutation.mutate(Number(item.id))} className="min-h-10 rounded-[10px] bg-[#15935d] text-[12px] font-black text-white">認領</button>
                   <button onClick={() => disposeMutation.mutate(Number(item.id))} className="min-h-10 rounded-[10px] bg-[#fff1f3] text-[12px] font-black text-[#9f2434]">廢棄</button>
                 </div>
@@ -279,7 +338,7 @@ function TodaySummaryCard() {
   );
 }
 
-function LifeguardOperationDetailContent({ moduleId, employeeOnly = false }: { moduleId: LifeguardOperationModuleId; employeeOnly?: boolean }) {
+function LifeguardOperationDetailContent({ moduleId }: { moduleId: LifeguardOperationModuleId }) {
   const { data: session } = useAuthMe();
   const module = getLifeguardOperationModule(moduleId);
   const activeFacility = session?.activeFacility && session.grantedFacilities.includes(session.activeFacility) ? session.activeFacility : "";
@@ -301,7 +360,7 @@ function LifeguardOperationDetailContent({ moduleId, employeeOnly = false }: { m
 
       {moduleId === "water-quality" || moduleId === "coach-dive" || moduleId === "cleanup" ? <PhotoModulePage moduleId={moduleId} /> : null}
       {moduleId === "lane-issues" ? <LaneIssuesPage /> : null}
-      {moduleId === "lost-and-found" ? <LostAndFoundPage employeeOnly={employeeOnly} /> : null}
+      {moduleId === "lost-and-found" ? <LostAndFoundPage /> : null}
       {moduleId === "lane-rentals" ? <LaneRentalsPage /> : null}
 
       <WorkbenchCard className="mt-4 p-5">
@@ -329,8 +388,25 @@ export function LifeguardOperationDetailPage({ moduleId }: { moduleId: Lifeguard
 
 export function EmployeeLostAndFoundPage() {
   return (
-    <FacilityGate role="employee" title="選擇今日場館" subtitle="員工可新增與查看自己的失物招領回報。" compact>
-      <LifeguardOperationDetailContent moduleId="lost-and-found" employeeOnly />
+    <FacilityGate role="employee" title="選擇今日場館" subtitle="員工端直接進入失物招領；不切換角色，並與救生端共用同一份資料。" compact>
+      <EmployeeShell title="失物招領" subtitle="新增、查看、編輯與處理同場館失物招領資料。">
+        <div className="grid gap-4 xl:grid-cols-[1fr_0.34fr]">
+          <LostAndFoundPage context="employee" apiBasePath="/api/bff/employee/lost-and-found" />
+          <WorkbenchCard className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-[12px] bg-[#ffe4e9] text-[#9f2434]">
+                <PackageSearch className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-[16px] font-black text-[#10233f]">共用處理規則</h2>
+                <p className="mt-2 text-[13px] font-medium leading-6 text-[#637185]">
+                  員工與救生端看到的是同一個場館的失物清單。任何新增、編輯、認領或廢棄，都會更新同一筆資料並留下稽核紀錄。
+                </p>
+              </div>
+            </div>
+          </WorkbenchCard>
+        </div>
+      </EmployeeShell>
     </FacilityGate>
   );
 }

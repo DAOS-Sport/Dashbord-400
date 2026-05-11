@@ -5,6 +5,8 @@ import {
   getModuleDescriptorsByRole,
   getModuleHealth,
   getNavigationModules,
+  calculateCompletionRate,
+  classifyInsightAnomaly,
 } from "../shared/modules";
 import type { WorkbenchRole } from "../shared/auth/me";
 import { getPrimaryRoute, getRedirectForLegacyPath, getWorkbenchRoutes } from "../shared/navigation/workbench-routes";
@@ -48,6 +50,7 @@ const acceptedBackgroundPending = new Set([
   "bff-projections",
   "booking-snapshot",
   "campaigns-events",
+  "checkins",
   "employee-resources",
   "file-upload-export",
   "facilities",
@@ -65,8 +68,6 @@ const acceptedBackgroundPending = new Set([
   "ragic-integration",
   "schedule-integration",
   "system-announcements",
-  "system-insights",
-  "system-operations",
   "tasks",
   "session-governance",
   "user-role-snapshots",
@@ -77,11 +78,11 @@ const runEmployeeModuleTests = () => {
   const navigation = getNavigationModules("employee", rolePermissions.employee);
   const cards = getHomeLayoutCards("employee", rolePermissions.employee);
   assert(
-    navigation.map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,checkins",
+    navigation.map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
     `employee navigation mismatch: ${navigation.map((item) => item.id).join(",")}`,
   );
   assert(
-    cards.map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,checkins,search",
+    cards.map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
     `employee home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   navigation.forEach((item) => assert(cards.some((card) => card.moduleId === item.id), `employee nav module missing home card: ${item.id}`));
@@ -107,16 +108,19 @@ const runEmployeeModuleTests = () => {
   );
   sourceMatches(
     "client/src/modules/employee/home/employee-home-page.tsx",
-    /homeSlots\.isEnabled\("courts"\)[\s\S]*lg:col-span-8[\s\S]*<CourtsPreviewCard \/>/,
-    "employee courts preview must span two desktop grid blocks",
+    /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-8[\s\S]*<CourtsPreviewCard schools=\{courtSchools\} \/>/,
+    "employee courts preview must render only for court-enabled facilities and span two desktop grid blocks",
   );
+  sourceIncludes("client/src/modules/employee/courts-visibility.ts", "getEmployeeCourtSchoolsForFacility", "employee courts visibility helper must exist");
+  sourceIncludes("client/src/modules/employee/courts-visibility.ts", 'return ["xinbei"]', "employee courts visibility must map Xinbei facilities to Xinbei school");
+  sourceIncludes("client/src/modules/employee/courts-visibility.ts", 'return ["sanchong"]', "employee courts visibility must map Sanchong/Sanlu facilities to Sanchong school");
   sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", 'fetchEmployeeCourtsToday("xinbei"', "employee courts preview must load Xinbei rent summary");
   sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", 'fetchEmployeeCourtsToday("sanchong"', "employee courts preview must load Sanchong rent summary");
   sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", "/employee/courts/${school}", "employee courts preview must link school-specific rent pages");
   sourceIncludes("client/src/pages/courts/_components/app-header.tsx", "{schoolName}場租查看", "courts page header must show school-specific rent view title");
   sourceIncludes("client/src/pages/courts/_components/app-header.tsx", "單日場租", "courts page must expose a daily rent view tab");
   sourceIncludes("client/src/pages/courts/_components/app-header.tsx", "搜尋場租", "courts page must expose a rent search tab");
-  const tutoringCardSource = employeeHomeSource.match(/function TodayTutoringCard\(\)[\s\S]*?\n}\n\nconst formatShiftClock/)?.[0] ?? "";
+  const tutoringCardSource = employeeHomeSource.match(/function TodayTutoringCard\(\)[\s\S]*?\r?\n}\r?\n\r?\nconst formatShiftClock/)?.[0] ?? "";
   assert(tutoringCardSource.includes("家教預約資料尚未接入"), "today tutoring card must render a not-connected placeholder");
   ["POST", "PATCH", "DELETE", "apiRequest(", "/employee/tutoring"].forEach((needle) =>
     assert(!tutoringCardSource.includes(needle), `today tutoring placeholder must not call mutation or nonexistent route: ${needle}`),
@@ -158,7 +162,8 @@ const runSupervisorModuleTests = () => {
   );
   sourceIncludes("client/src/modules/supervisor/home-module-drawers.tsx", "export function SupervisorHomeDrawer", "supervisor home drawer component must exist");
   sourceIncludes("client/src/modules/supervisor/home-module-drawers.tsx", "export function SupervisorModulePreviewCard", "supervisor module preview card component must exist");
-  sourceIncludes("client/src/modules/supervisor/dashboard-page.tsx", "SupervisorHomeDrawer", "supervisor dashboard must render module preview drawer");
+  sourceIncludes("client/src/modules/supervisor/home-module-drawers.tsx", "查看詳細畫面", "supervisor module preview card must route to detail pages instead of opening drawer");
+  assert(!read("client/src/modules/supervisor/dashboard-page.tsx").includes("setModuleDrawer"), "supervisor dashboard module previews must not open a small drawer");
   sourceIncludes("client/src/modules/supervisor/dashboard-page.tsx", "SupervisorQuickActionRail", "supervisor desktop quick actions must be lifted into a floating panel");
   sourceIncludes("client/src/modules/supervisor/dashboard-page.tsx", "navigate(getFacilityDetailHref(facility.facilityKey))", "supervisor facility CTA must deterministically navigate to facility detail pages");
   sourceIncludes("client/src/modules/supervisor/dashboard-page.tsx", "isInteractiveRailTarget", "supervisor facility rail drag must ignore interactive targets");
@@ -285,6 +290,30 @@ const runSystemModuleTests = () => {
   sourceIncludes("client/src/modules/system/governance/page.tsx", "Module Registry", "governance page must include Module Registry tab");
   sourceIncludes("client/src/modules/system/governance/page.tsx", "Function Relations", "governance page must include Function Relations tab");
   sourceIncludes("client/src/modules/system/governance/page.tsx", "Audit Raw", "governance page must include Audit Raw tab");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/operations\/user-search",\s*requireSession,\s*requireRole\("system"\)/, "operations user search endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/operations\/user\/:userId",\s*requireSession,\s*requireRole\("system"\)/, "operations user detail endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/reset-session",\s*requireSession,\s*requireRole\("system"\)/, "reset-session endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/refresh-cache",\s*requireSession,\s*requireRole\("system"\)/, "refresh-cache endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/resend-notification",\s*requireSession,\s*requireRole\("system"\)/, "resend-notification endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/operations\/recent-assists",\s*requireSession,\s*requireRole\("system"\)/, "recent assists endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/insights\/overview",\s*requireSession,\s*requireRole\("system"\)/, "insights overview endpoint must require system role");
+  sourceMatches("server/modules/system/routes.ts", /app\.get\("\/api\/bff\/system\/insights\/module\/:moduleId",\s*requireSession,\s*requireRole\("system"\)/, "insights module endpoint must require system role");
+  sourceIncludes("server/modules/system/routes.ts", "reason: z.string().trim().min(3)", "operations interventions must require reason >= 3 chars");
+  sourceIncludes("server/modules/system/routes.ts", "SYSTEM_USER_INTERVENTION_FORBIDDEN", "operations interventions must reject system-role targets");
+  sourceIncludes("server/modules/system/routes.ts", "OPS_RESET_SESSION", "reset-session must write audit action");
+  sourceIncludes("server/modules/system/routes.ts", "OPS_REFRESH_CACHE", "refresh-cache must write audit action");
+  sourceIncludes("server/modules/system/routes.ts", "OPS_RESEND_NOTIFICATION", "resend-notification must write audit action");
+  sourceIncludes("server/modules/system/routes.ts", "buildInsightsOverview(container, 7)", "control-center must calculate real insights severity");
+  sourceIncludes("server/modules/system/routes.ts", "pendingAssistsLast24h > 5", "control-center must calculate real operations severity");
+  sourceIncludes("client/src/modules/system/operations/page.tsx", "OpsActionDialog", "operations page must expose the intervention dialog");
+  sourceIncludes("client/src/modules/system/operations/page.tsx", "不可對系統管理員介入", "operations page must disable intervention for system users");
+  sourceIncludes("client/src/modules/system/insights/page.tsx", "ModuleDetailSheet", "insights page must expose module drill-down drawer");
+  sourceIncludes("client/src/modules/system/insights/page.tsx", "function Sparkline", "insights page must use local SVG sparkline instead of adding chart dependencies");
+  assert(classifyInsightAnomaly(10, 1) === "spike", "insight anomaly detection must classify >300% increase as spike");
+  assert(classifyInsightAnomaly(6, 10) === "drop", "insight anomaly detection must classify >30% decrease as drop");
+  assert(classifyInsightAnomaly(8, 10) === null, "insight anomaly detection must ignore normal changes");
+  assert(calculateCompletionRate(10, 7) === 70, "completion rate must calculate completion/start percentage");
+  assert(calculateCompletionRate(0, 7) === undefined, "completion rate must be undefined when there are no starts");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", 'w-[80px]', "floating quick actions must use the fixed compact rail width");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", "defaultActionSlot", "floating quick actions must keep the same top control format across roles");
   sourceIncludes("client/src/modules/workbench/floating-quick-actions.tsx", "onPointerDown={beginDrag}", "floating quick actions must support drag repositioning");
