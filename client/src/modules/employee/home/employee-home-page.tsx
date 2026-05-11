@@ -1476,34 +1476,120 @@ const formatRemainingHours = (now: number, endIso: string) => {
   return `${minutes}m`;
 };
 
+// ── Shift board helpers ──────────────────────────────────────────────────────
+
+type FlatShiftPerson = {
+  userId: string;
+  name: string;
+  role: string;
+  isCurrentUser: boolean;
+  start: string;
+  end: string;
+  isCurrent: boolean;
+  isFuture: boolean;
+};
+
+function flattenShiftPeople(shifts: ShiftBoardDto["shifts"]): FlatShiftPerson[] {
+  const byId = new Map<string, FlatShiftPerson>();
+  // Priority: active (isCurrent) > upcoming (isFuture) > finished
+  const priority = (p: Pick<FlatShiftPerson, "isCurrent" | "isFuture">) =>
+    p.isCurrent ? 2 : p.isFuture ? 1 : 0;
+  for (const s of shifts) {
+    for (const p of s.people) {
+      const existing = byId.get(p.userId);
+      const candidate: FlatShiftPerson = { ...p, start: s.start, end: s.end, isCurrent: s.isCurrent, isFuture: s.isFuture };
+      if (!existing || priority(candidate) > priority(existing)) {
+        byId.set(p.userId, candidate);
+      }
+    }
+  }
+  return Array.from(byId.values());
+}
+
+function getBoardActivePeriod(shifts: ShiftBoardDto["shifts"], nowMs: number): string {
+  const sorted = [...shifts].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const firstEvening = sorted.find((s) => new Date(s.start).getHours() >= 14);
+  if (!firstEvening) return "早班";
+  return nowMs >= Date.parse(firstEvening.start) ? "晚班" : "早班";
+}
+
+function classifyShiftRole(role: string): "counter" | "lifeguard" | "other" {
+  if (role === "櫃台") return "counter";
+  if (role.includes("救生")) return "lifeguard";
+  return "other";
+}
+
+type PersonWithStatus = { person: FlatShiftPerson; status: "active" | "upcoming" | "finished" };
+
+function ShiftRoleBlock({
+  label,
+  labelClass,
+  people,
+}: {
+  label: string;
+  labelClass: string;
+  people: PersonWithStatus[];
+}) {
+  if (!people.length) return null;
+  return (
+    <div>
+      <p className={cn("mb-2", labelClass)}>{label}</p>
+      <div className="space-y-1.5">
+        {people.map(({ person, status }) => (
+          <div key={person.userId} className="flex items-center gap-2" data-testid={`row-shift-person-${person.userId}`}>
+            <span
+              className={cn(
+                "text-[16px] font-bold leading-snug",
+                status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]",
+              )}
+            >
+              {person.name}
+            </span>
+            {status === "active" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+                上班中
+              </span>
+            )}
+            {status === "finished" && (
+              <span className="text-[10px] font-bold text-[#c8d3de]">已結束</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ShiftBoardCard ───────────────────────────────────────────────────────────
+
 function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   const shifts = board?.shifts ?? [];
   const nowMs = board?.now ? Date.parse(board.now) : Date.now();
   const dateLabel = formatBoardDateHeader(board?.date);
   const facilityName = board?.facility?.name ?? "";
   const headerSubtitle = [facilityName, dateLabel].filter(Boolean).join(" · ");
-
-  const onDutyShift = shifts.find((s) => s.isCurrent);
-  const onDutyPeople = onDutyShift?.people ?? [];
-  const onDutyNames = onDutyPeople.map((p) => p.name).slice(0, 3).join("、");
-
-  const myShift = shifts.find((s) => s.people.some((p) => p.isCurrentUser));
-  const me = myShift?.people.find((p) => p.isCurrentUser);
-  const myStartMs = myShift ? Date.parse(myShift.start) : NaN;
-  const myEndMs = myShift ? Date.parse(myShift.end) : NaN;
-  const myProgress = myShift && Number.isFinite(myStartMs) && Number.isFinite(myEndMs) && myEndMs > myStartMs
-    ? Math.min(1, Math.max(0, (nowMs - myStartMs) / (myEndMs - myStartMs)))
-    : 0;
-  const myRemaining = myShift && myShift.isCurrent ? formatRemainingHours(nowMs, myShift.end) : null;
-  const mateCount = myShift ? Math.max(0, myShift.people.length - 1) : 0;
-
   const lastSyncLabel = board?.sourceStatus.lastSyncedAt
     ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
     : null;
 
+  const allPeople = flattenShiftPeople(shifts);
+  const activePeriod = getBoardActivePeriod(shifts, nowMs);
+
+  const withStatus = (people: FlatShiftPerson[]): PersonWithStatus[] =>
+    people.map((person) => ({
+      person,
+      status: person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished",
+    }));
+
+  const counterPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "counter"));
+  const lifeguardPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "lifeguard"));
+  const otherPeople = withStatus(allPeople.filter((p) => classifyShiftRole(p.role) === "other"));
+
   return (
     <WorkbenchCard className="flex h-full max-h-[430px] min-h-[360px] flex-col overflow-hidden p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
+      {/* Header */}
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
             <h2 className="text-[16px] font-black text-[#10233f]">今日班表</h2>
@@ -1521,6 +1607,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
         </div>
       </div>
 
+      {/* Body */}
       {!board ? (
         <NotConnectedCard title="今日班表" reason="external_pending" />
       ) : !board.sourceStatus.connected ? (
@@ -1528,100 +1615,38 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
       ) : shifts.length === 0 ? (
         <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       ) : (
-        <div className="min-h-0 flex-1 space-y-3 overflow-hidden">
-          {onDutyPeople.length > 0 ? (
-            <div className="flex items-center gap-2 rounded-full bg-[#eaf7df] px-3 py-2 text-[12px] font-bold text-[#12854d]" data-testid="banner-shift-on-duty">
-              <span className="h-2 w-2 rounded-full bg-[#15935d]" />
-              <span className="font-black">目前 {onDutyPeople.length} 人在班</span>
-              <span className="text-[#637185]">·</span>
-              <span className="truncate text-[#3f6c12]">{onDutyNames}{onDutyPeople.length > 3 ? ` 等 ${onDutyPeople.length} 人` : ""}</span>
-            </div>
-          ) : null}
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Active period label */}
+          <p
+            className="mb-3 text-[22px] font-black leading-none tracking-tight text-[#15935d]"
+            data-testid="text-shift-period"
+          >
+            {activePeriod}
+          </p>
 
-          {myShift && me ? (
-            <div className="rounded-[10px] border border-[#9dd84f] bg-[#f1fbec] p-3" data-testid="card-my-shift">
-              <div className="flex items-center gap-3">
-                <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-black ring-2 ring-[#15935d] ring-offset-2 ring-offset-[#f1fbec]", avatarToneClass(me.name))}>
-                  {me.name.slice(0, 1)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-black text-[#10233f]">我的班</span>
-                    <span className="truncate font-mono text-[13px] font-black text-[#10233f]" data-testid="text-my-shift-time">
-                      {formatShiftClock(myShift.start)}-{formatShiftClock(myShift.end)}
-                    </span>
-                  </div>
-                  <p className="mt-1 truncate text-[11px] font-bold text-[#536175]">
-                    {getShiftPeriodLabel(myShift.start)}
-                    {mateCount > 0 ? ` · 與 ${mateCount} 人同班` : " · 獨班"}
-                  </p>
-                </div>
-                {myRemaining ? (
-                  <span className="shrink-0 rounded-full bg-white/75 px-2 py-1 text-[11px] font-black text-[#15935d]" data-testid="text-my-shift-remaining">
-                    剩 {myRemaining}{/m$/.test(myRemaining) ? "" : "時"}
-                  </span>
-                ) : null}
-              </div>
-              {myShift.isCurrent ? (
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/70">
-                  <div className="h-full rounded-full bg-[#15935d] transition-all" style={{ width: `${Math.round(myProgress * 100)}%` }} data-testid="bar-my-shift-progress" />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {shifts.map((shift) => {
-              const status = shift.isCurrent ? "進行中" : shift.isFuture ? "未開始" : "已結束";
-              const periodLabel = getShiftPeriodLabel(shift.start);
-              const isMine = shift === myShift;
-              const others = isMine ? shift.people.filter((p) => !p.isCurrentUser) : shift.people;
-              if (others.length === 0) return null;
-              return (
-                <div
-                  key={shift.shiftId}
-                  className={cn(
-                    "rounded-[10px] border bg-white p-3",
-                    shift.isCurrent ? "border-l-[3px] border-[#e6edf4] border-l-[#15935d]" : "border-[#e6edf4] opacity-95",
-                  )}
-                  data-testid={`group-shift-${shift.shiftId}`}
-                >
-                  <div className="mb-2 flex items-center gap-2 text-[12px]">
-                    <span className="font-black text-[#10233f]">{periodLabel}</span>
-                    <span className="font-mono font-bold text-[#536175]">
-                      {formatShiftClock(shift.start)}-{formatShiftClock(shift.end)}
-                    </span>
-                    <span className="text-[#8b9aae]">·</span>
-                    <span className="font-bold text-[#637185]">{shift.people.length} 人</span>
-                    <span className={cn(
-                      "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black",
-                      shift.isCurrent ? "bg-[#dff5d7] text-[#12854d]" : shift.isFuture ? "bg-[#eef2f6] text-[#637185]" : "bg-[#eef2f6] text-[#8b9aae]",
-                    )}>
-                      {shift.isCurrent ? <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" /> : <span className="h-1.5 w-1.5 rounded-full bg-[#8b9aae]" />}
-                      {status}
-                    </span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {others.map((person) => (
-                      <div key={`${shift.shiftId}-${person.userId}`} className="flex items-center gap-2.5" data-testid={`row-shift-person-${person.userId}`}>
-                        <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black", avatarToneClass(person.name))}>
-                          {person.name.slice(0, 1)}
-                        </div>
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#10233f]">{person.name}</span>
-                        {person.role && person.role !== "regular" && person.role !== "當班" ? (
-                          <span className={cn("shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black", roleTagClass(person.role))}>
-                            {person.role}
-                          </span>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          {/* Role sections */}
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
+            <ShiftRoleBlock
+              label="櫃台"
+              labelClass="text-[12px] font-black tracking-wide text-[#8b9aae]"
+              people={counterPeople}
+            />
+            <ShiftRoleBlock
+              label="救生"
+              labelClass="text-[18px] font-black text-[#10233f]"
+              people={lifeguardPeople}
+            />
+            {otherPeople.length > 0 && (
+              <ShiftRoleBlock
+                label={otherPeople[0]?.person.role || "其他"}
+                labelClass="text-[14px] font-black text-[#536175]"
+                people={otherPeople}
+              />
+            )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-between pt-1 text-[11px]">
+          {/* Footer */}
+          <div className="mt-3 flex shrink-0 items-center justify-between border-t border-[#f0f4f8] pt-2 text-[11px]">
             <span className="font-bold text-[#8b9aae]">
               {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
             </span>

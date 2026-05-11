@@ -45,7 +45,8 @@ export const topologyNodes: TopologyNodeDef[] = [
   { id: "parking-contracts", label: "停車場租約",        englishKey: "parking-contracts",  group: "admin",  description: "合約建立、簽約、終止、退款", path: "/supervisor/parking/contracts" },
   { id: "parking-payments",  label: "停車場付款審核",    englishKey: "parking-payments",   group: "admin",  description: "客戶回報付款的後台核准/拒絕", path: "/supervisor/parking/payments" },
   { id: "parking-event-days", label: "停車場活動日",      englishKey: "parking-event-days", group: "admin",  description: "活動日限制與提前通知內容", path: "/supervisor/parking/event-days" },
-  { id: "courts",            label: "場地預約",          englishKey: "courts",             group: "admin",  description: "新北高中與三重商工場地預約 + Google Calendar 同步", path: "/supervisor/courts/xinbei" },
+  { id: "courts-xinbei",     label: "場地預約 (新北高中)", englishKey: "courts-xinbei",     group: "admin",  description: "新北高中 14 個場地預約 + Google Calendar 同步", path: "/supervisor/courts/xinbei" },
+  { id: "courts-sanchong",   label: "場地預約 (三重商工)", englishKey: "courts-sanchong",   group: "admin",  description: "三重商工 3 個場地預約 + Google Calendar 同步",  path: "/supervisor/courts/sanchong" },
   { id: "topology",          label: "模組拓撲圖",        englishKey: "topology",           group: "admin",  description: "系統全景模組關係圖", path: "/system/topology" },
 
   // 員工入口 portal
@@ -93,8 +94,10 @@ export const topologyEdges: TopologyEdgeDef[] = [
   { source: "parking-payments",  target: "parking-contracts", label: "核准延約" },
   { source: "parking-contracts", target: "parking-vehicles",  label: "綁定車輛" },
   { source: "parking-contracts", target: "parking-plans",     label: "套用方案" },
-  { source: "courts",            target: "postgres",          label: "讀寫" },
-  { source: "courts",            target: "google-calendar",   label: "同步" },
+  { source: "courts-xinbei",     target: "postgres",          label: "讀寫" },
+  { source: "courts-xinbei",     target: "google-calendar",   label: "同步" },
+  { source: "courts-sanchong",   target: "postgres",          label: "讀寫" },
+  { source: "courts-sanchong",   target: "google-calendar",   label: "同步" },
 
   // external -> admin / infra
   { source: "linebot",         target: "linebot-api",  label: "Webhook" },

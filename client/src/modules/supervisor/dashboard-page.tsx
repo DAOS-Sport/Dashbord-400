@@ -371,47 +371,127 @@ function FacilityOverviewGrid({
         className="flex touch-pan-x snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] cursor-grab active:cursor-grabbing"
         aria-label="授權場館狀態橫向圖卡列表"
       >
-        {facilities.map((facility) => (
-          <article
-            key={facility.facilityKey}
-            onClickCapture={suppressFacilityClickAfterDrag}
-            className="w-[82vw] min-w-[300px] max-w-[360px] shrink-0 snap-start rounded-[8px] border border-[#dfe7ef] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 sm:w-[360px]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-[14px] font-black leading-tight text-[#10233f]">{facility.facilityName}</h2>
-                <p className="mt-1 truncate text-[11px] font-black uppercase tracking-[0.1em] text-[#8b9aae]">{facility.area} · {facility.facilityKey}</p>
+        {facilities.map((facility) => {
+          const dutyPeople = (data.staffing.data?.currentOnDuty ?? []).filter(
+            (m) => m.facilityKey === facility.facilityKey,
+          );
+          const classifyMember = (m: StaffMemberSummary): "counter" | "lifeguard" | "other" => {
+            const lbl = [m.title, m.department, m.shiftLabel].filter(Boolean).join(" ");
+            if (lbl.includes("救生")) return "lifeguard";
+            if (lbl.includes("櫃台")) return "counter";
+            return "other";
+          };
+          const counterMembers = dutyPeople.filter((m) => classifyMember(m) === "counter");
+          const lifeguardMembers = dutyPeople.filter((m) => classifyMember(m) === "lifeguard");
+
+          const hour = new Date().getHours();
+          const facilityPeriod = hour >= 14 ? "晚班" : "早班";
+
+          return (
+            <article
+              key={facility.facilityKey}
+              onClickCapture={suppressFacilityClickAfterDrag}
+              className="w-[82vw] min-w-[300px] max-w-[360px] shrink-0 snap-start rounded-[8px] border border-[#dfe7ef] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 sm:w-[360px]"
+            >
+              {/* Facility name + status */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-[14px] font-black leading-tight text-[#10233f]">{facility.facilityName}</h2>
+                  <p className="mt-1 truncate text-[11px] font-black uppercase tracking-[0.1em] text-[#8b9aae]">{facility.area} · {facility.facilityKey}</p>
+                </div>
+                <SupervisorPill tone={facility.onShift > 0 ? "green" : "amber"}>
+                  {facility.onShift > 0 ? "營運中" : "待排班"}
+                </SupervisorPill>
               </div>
-              <SupervisorPill tone={facility.onShift > 0 ? "green" : "amber"}>
-                {facility.onShift > 0 ? "營運中" : "待排班"}
-              </SupervisorPill>
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-2 text-center text-[12px] font-black">
-              <span className="rounded-[8px] bg-[#f7f9fb] p-2">現職<br />{facility.active}</span>
-              <span className="rounded-[8px] bg-[#f7f9fb] p-2">當班<br />{facility.onShift}</span>
-              <span className="rounded-[8px] bg-[#f7f9fb] p-2">交辦<br />{facility.openHandovers}</span>
-              <span className="rounded-[8px] bg-[#f7f9fb] p-2">任務<br />{facility.incompleteTasks}</span>
-            </div>
-            <div className="mt-4 flex items-center justify-between border-t border-[#edf1f6] pt-3">
-              <span className="text-[12px] font-bold text-[#536175]">篩選本館</span>
-              <button
-                type="button"
-                data-no-rail-drag="true"
-                aria-label={`進入 ${facility.facilityName} 詳細面板`}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  dragState.current.moved = false;
-                  navigate(getFacilityDetailHref(facility.facilityKey));
-                }}
-                className="workbench-focus inline-flex min-h-8 items-center rounded-[8px] px-2 text-[12px] font-black text-[#007166]"
-              >
-                進入詳細面板 →
-              </button>
-            </div>
-          </article>
-        ))}
+
+              {/* Stats row */}
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[12px] font-black">
+                <span className="rounded-[8px] bg-[#f7f9fb] p-2">當班<br />{facility.onShift}</span>
+                <span className="rounded-[8px] bg-[#f7f9fb] p-2">交辦<br />{facility.openHandovers ?? 0}</span>
+                <span className="rounded-[8px] bg-[#f7f9fb] p-2">任務<br />{facility.incompleteTasks ?? 0}</span>
+              </div>
+
+              {/* Shift breakdown */}
+              {dutyPeople.length > 0 ? (
+                <div className="mt-3 rounded-[8px] bg-[#f8fafc] p-3">
+                  <p className="mb-2.5 text-[22px] font-black leading-none tracking-tight text-[#15935d]">
+                    {facilityPeriod}
+                  </p>
+                  {counterMembers.length > 0 && (
+                    <div className="mb-2">
+                      <p className="mb-1 text-[12px] font-black tracking-wide text-[#8b9aae]">櫃台</p>
+                      <div className="space-y-1">
+                        {counterMembers.map((m, i) => (
+                          <div key={`${m.employeeNumber ?? m.name}-${i}`} className="flex items-center gap-2">
+                            <span className={cn("text-[16px] font-bold leading-snug", m.status === "off" ? "text-[#c8d3de]" : "text-[#10233f]")}>
+                              {m.name}
+                            </span>
+                            {m.status === "active" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+                                上班中
+                              </span>
+                            )}
+                            {m.status === "off" && (
+                              <span className="text-[10px] font-bold text-[#c8d3de]">已結束</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {lifeguardMembers.length > 0 && (
+                    <div>
+                      <p className="mb-1 text-[18px] font-black text-[#10233f]">救生</p>
+                      <div className="space-y-1">
+                        {lifeguardMembers.map((m, i) => (
+                          <div key={`${m.employeeNumber ?? m.name}-${i}`} className="flex items-center gap-2">
+                            <span className={cn("text-[16px] font-bold leading-snug", m.status === "off" ? "text-[#c8d3de]" : "text-[#10233f]")}>
+                              {m.name}
+                            </span>
+                            {m.status === "active" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+                                上班中
+                              </span>
+                            )}
+                            {m.status === "off" && (
+                              <span className="text-[10px] font-bold text-[#c8d3de]">已結束</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[8px] bg-[#f8fafc] p-3 text-center text-[12px] font-bold text-[#8b9aae]">
+                  目前無當班資料
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="mt-3 flex items-center justify-between border-t border-[#edf1f6] pt-3">
+                <span className="text-[12px] font-bold text-[#536175]">篩選本館</span>
+                <button
+                  type="button"
+                  data-no-rail-drag="true"
+                  aria-label={`進入 ${facility.facilityName} 詳細面板`}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dragState.current.moved = false;
+                    navigate(getFacilityDetailHref(facility.facilityKey));
+                  }}
+                  className="workbench-focus inline-flex min-h-8 items-center rounded-[8px] px-2 text-[12px] font-black text-[#007166]"
+                >
+                  進入詳細面板 →
+                </button>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </div>
   );
