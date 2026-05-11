@@ -97,7 +97,7 @@ export default function CourtsAdminPage() {
 
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [weekdays, setWeekdays] = useState<number[]>([3]);
+  const [weekdays, setWeekdays] = useState<number[]>(() => [new Date(today + "T00:00:00").getDay()]);
   const [startTime, setStartTime] = useState("18:00");
   const [endTime, setEndTime] = useState("20:00");
   const [court, setCourt] = useState<number>(schoolCourts[0]?.id ?? 0);

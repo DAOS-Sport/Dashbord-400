@@ -1,9 +1,5 @@
 import type { WeatherSummary } from "@shared/domain/workbench";
 
-const CWA_API_KEY = process.env.CWA_API_KEY ?? "";
-
-const STATION_ID = process.env.CWA_STATION_ID ?? "466920";
-
 interface CachedWeather {
   data: WeatherSummary;
   fetchedAt: number;
@@ -16,9 +12,12 @@ function mapWeatherLabel(raw: string): string {
   return raw;
 }
 
-export const isCwaEnabled = () => Boolean(CWA_API_KEY);
+export const isCwaEnabled = () => Boolean(process.env.CWA_API_KEY);
 
 export async function fetchCwaWeather(): Promise<WeatherSummary | null> {
+  const CWA_API_KEY = process.env.CWA_API_KEY ?? "";
+  const STATION_ID = process.env.CWA_STATION_ID ?? "466920";
+
   if (!CWA_API_KEY) return null;
 
   const now = Date.now();
@@ -32,9 +31,16 @@ export async function fetchCwaWeather(): Promise<WeatherSummary | null> {
     url.searchParams.set("StationId", STATION_ID);
     url.searchParams.set("format", "JSON");
 
-    const res = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(8000),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+
     if (!res.ok) {
       console.warn(`[cwa] HTTP ${res.status}`);
       return null;
@@ -43,7 +49,8 @@ export async function fetchCwaWeather(): Promise<WeatherSummary | null> {
     const json = await res.json();
     const stations: any[] =
       json?.records?.Station ?? json?.records?.Location ?? [];
-    const station = stations.find((s: any) => s.StationId === STATION_ID) ?? stations[0];
+    const station =
+      stations.find((s: any) => s.StationId === STATION_ID) ?? stations[0];
     if (!station) return null;
 
     const el = station.WeatherElement ?? station.weatherElement ?? {};

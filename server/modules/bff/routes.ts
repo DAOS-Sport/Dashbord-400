@@ -23,6 +23,7 @@ import type { BffSection } from "@shared/bff/envelope";
 import { getHomeLayoutCards, getModuleDescriptorsByRole, getNavigationModules, type HomeCardDto } from "@shared/modules";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
+import { fetchCwaWeather, isCwaEnabled } from "../../integrations/weather/cwa-adapter";
 import { requireRole, requireSession } from "../auth/context";
 import { degraded, ok, unavailable } from "../../shared/bff/section";
 import { sourceUnavailable } from "../../shared/integrations/source-status";
@@ -540,7 +541,7 @@ const buildEmployeeHomeFallback = async (
   const now = new Date().toISOString();
   const facility = findFacilityLineGroup(facilityKey);
   const normalizedFacilityKey = facility?.facilityKey ?? facilityKey;
-  const [handoversResult, operationalHandoversResult, tasksResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult, lineAnnouncementsResult] = await Promise.allSettled([
+  const [handoversResult, operationalHandoversResult, tasksResult, quickLinksResult, employeeResourcesResult, systemAnnouncementsResult, shiftsResult, candidateAnnouncementsResult, lineAnnouncementsResult, cwaWeatherResult] = await Promise.allSettled([
     storage.listHandovers(normalizedFacilityKey, 20),
     storage.listOperationalHandovers({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }),
@@ -552,11 +553,13 @@ const buildEmployeeHomeFallback = async (
       : container.integrations.schedule.listTodayShifts(normalizedFacilityKey),
     fetchAnnouncementCandidateFallback(normalizedFacilityKey),
     readFacilityLineAnnouncements({ facilityKey: normalizedFacilityKey, limit: 20 }),
+    fetchCwaWeather(),
   ]);
 
   const handovers = handoversResult.status === "fulfilled" ? handoversResult.value : [];
   const operationalHandovers = operationalHandoversResult.status === "fulfilled" ? operationalHandoversResult.value : [];
   const employeeTasks = tasksResult.status === "fulfilled" ? tasksResult.value : [];
+  const cwaWeather = cwaWeatherResult.status === "fulfilled" ? cwaWeatherResult.value : null;
   const quickLinks = quickLinksResult.status === "fulfilled" ? quickLinksResult.value : [];
   const employeeResources = employeeResourcesResult.status === "fulfilled" ? employeeResourcesResult.value : [];
   const systemAnnouncements = systemAnnouncementsResult.status === "fulfilled" ? systemAnnouncementsResult.value : [];
@@ -679,7 +682,7 @@ const buildEmployeeHomeFallback = async (
       statusLabel: "降級資料",
     },
     layout: ok(defaultEmployeeHomeWidgets, now),
-    weather: unavailable("天氣資料尚未接入員工 BFF", "WEATHER_NOT_CONNECTED"),
+    weather: cwaWeather ? ok(cwaWeather, now) : unavailable("天氣資料無法取得", "CWA_UNAVAILABLE"),
     tasks: ok(employeeTasks.map(mapTaskSummary), now),
     announcements: announcementSectionFromSources(announcements, lineSource, now),
     handover: handoversResult.status === "fulfilled"
@@ -978,14 +981,20 @@ const enrichEmployeeHome = async (
   const normalizedFacilityKey = findFacilityLineGroup(facilityKey)?.facilityKey ?? facilityKey;
   const now = new Date().toISOString();
   const currentShiftCount = dto.shifts.data?.length ?? 0;
-  const layoutSetting = await storage.getWidgetLayout({
-    facilityKey: normalizedFacilityKey,
-    role: "employee",
-    layoutKey: "employee-home",
-  }).catch(() => null);
+
+  // Fetch CWA weather in parallel with layout
+  const [layoutSetting, cwaWeather] = await Promise.all([
+    storage.getWidgetLayout({
+      facilityKey: normalizedFacilityKey,
+      role: "employee",
+      layoutKey: "employee-home",
+    }).catch(() => null),
+    fetchCwaWeather().catch(() => null),
+  ]);
   let nextDto: EmployeeHomeDto = {
     ...dto,
     layout: ok(normalizeWidgetLayout(layoutSetting?.widgets, defaultEmployeeHomeWidgets), now),
+    weather: cwaWeather ? ok(cwaWeather, now) : unavailable("天氣資料無法取得", "CWA_UNAVAILABLE"),
     stickyNotes: dto.stickyNotes ?? ok([], now),
     training: dto.training ?? ok([], now),
   };

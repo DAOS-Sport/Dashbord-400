@@ -14,7 +14,15 @@ const {
   GOOGLE_REDIRECT_URI,
   GOOGLE_REFRESH_TOKEN,
   CALENDAR_ID = "primary",
+  XINBEI_CALENDAR_ID,
+  SANCHONG_CALENDAR_ID,
 } = process.env;
+
+function getCalendarIdForSchool(school: SchoolId): string {
+  if (school === "xinbei" && XINBEI_CALENDAR_ID) return XINBEI_CALENDAR_ID;
+  if (school === "sanchong" && SANCHONG_CALENDAR_ID) return SANCHONG_CALENDAR_ID;
+  return CALENDAR_ID;
+}
 
 const oauth2Client = new OAuth2Client(
   GOOGLE_CLIENT_ID,
@@ -173,7 +181,7 @@ async function fetchAndConvert(
     const startIso = new Date(`${startDate}T00:00:00`);
     const endIso = new Date(`${endDate}T23:59:59`);
     const eventsResp = await calendar.events.list({
-      calendarId: CALENDAR_ID,
+      calendarId: getCalendarIdForSchool(school),
       timeMin: startIso.toISOString(),
       timeMax: endIso.toISOString(),
       singleEvents: true,
