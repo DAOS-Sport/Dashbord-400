@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import { tailwindDesignSystem } from "./client/src/design-system/tokens";
 
 export default {
   darkMode: ["class"],
@@ -9,6 +10,7 @@ export default {
         lg: "8px",
         md: "6px",
         sm: "4px",
+        ...tailwindDesignSystem.borderRadius,
       },
       colors: {
         background: "hsl(var(--background) / <alpha-value>)",
@@ -90,6 +92,7 @@ export default {
         "stitch-on-secondary-container": "#007166",
         "stitch-outline-variant": "#c4c6cf",
         "stitch-on-surface": "#191c1e",
+        ...tailwindDesignSystem.colors,
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
@@ -103,7 +106,11 @@ export default {
         ambient: "0 30px 40px -20px rgba(25,28,30,0.06)",
         "ambient-lg": "0 40px 60px -20px rgba(25,28,30,0.1)",
         "teal-glow": "0 4px 16px rgba(0,107,96,0.25)",
+        ...tailwindDesignSystem.boxShadow,
       },
+      spacing: tailwindDesignSystem.spacing,
+      fontSize: tailwindDesignSystem.fontSize,
+      fontWeight: tailwindDesignSystem.fontWeight,
       letterSpacing: {
         "display": "-0.04em",
         "heading": "-0.02em",

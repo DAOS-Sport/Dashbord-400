@@ -78,6 +78,7 @@ import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemLifeguardAuditPage from "@/modules/system/lifeguard-audit/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
+import DesignSystemShowcase from "@/design-system/__demo__/showcase";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe, useSwitchRole } from "@/shared/auth/session";
 import { roleHomePath, type AuthMeDto, type WorkbenchRole } from "@shared/auth/me";
@@ -633,6 +634,7 @@ function App() {
   const legacyRedirect = getRedirectForLegacyPath(location);
   const isPortal = location.startsWith("/portal");
   const isLogin = normalizedLocation === "/login";
+  const isDesignSystemShowcase = import.meta.env.DEV && normalizedLocation === "/design-system/showcase";
   const isParkingSign = normalizedLocation.startsWith("/parking/sign/");
   const isWorkbench =
     normalizedLocation === "/" ||
@@ -664,6 +666,18 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Redirect to={legacyRedirect} />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isDesignSystemShowcase) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <DesignSystemShowcase />
+          <DebugDreamLoaderOverlay />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
