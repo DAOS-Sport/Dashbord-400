@@ -18,7 +18,7 @@ export const getDatabaseRuntimeConfig = (): DatabaseRuntimeConfig => {
   }
 
   if (isRealDataMode || env.databaseProfile === "neon") {
-    throw new Error("DATABASE_URL must be set when DATA_SOURCE_MODE=real or DATABASE_PROFILE=neon");
+    throw new Error("NEON_DATABASE_URL or DATABASE_URL must be set when DATA_SOURCE_MODE=real or DATABASE_PROFILE=neon");
   }
 
   return {

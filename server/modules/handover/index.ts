@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { BackendModule } from "../_shared/module";
 import { requireSession } from "../auth/context";
 import { storage } from "../../storage";
+import { env } from "../../shared/config/env";
 import type { HandoverItemDto, HandoverListDto, HandoverSummaryDto } from "@shared/domain/workbench";
 import type { InsertOperationalHandover, OperationalHandover } from "@shared/schema";
 
@@ -18,11 +19,11 @@ const replyHandoverSchema = z.object({
   reportNote: z.string().min(1, "回覆不可為空").max(1200, "回覆過長"),
 });
 
-const isDatabaseUnavailable = () => !process.env.DATABASE_URL;
+const isDatabaseUnavailable = () => !env.databaseUrl;
 
 const sendDatabaseUnavailable = (res: import("express").Response) =>
   res.status(503).json({
-    message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用櫃台交接寫入功能。",
+    message: "資料庫尚未連線，請在部署環境設定 NEON_DATABASE_URL 或 DATABASE_URL 後使用櫃台交接寫入功能。",
     code: "DATABASE_NOT_CONNECTED",
   });
 

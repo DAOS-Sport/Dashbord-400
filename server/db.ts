@@ -6,7 +6,7 @@ import { getDatabaseRuntimeConfig } from "./shared/db/profile";
 const dbConfig = getDatabaseRuntimeConfig();
 
 if (dbConfig.isMockConnection) {
-  console.warn("[db] DATABASE_URL is not set. Using mock connection profile; DB-backed legacy routes will require a real database.");
+  console.warn("[db] NEON_DATABASE_URL/DATABASE_URL is not set. Using mock connection profile; DB-backed legacy routes will require a real database.");
 }
 
 export const db = drizzle({

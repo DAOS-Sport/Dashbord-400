@@ -1724,7 +1724,7 @@ export async function registerRoutes(
 
   // -------- Portal: Employee Resources (員工自建活動 / 文件 / 個人工作貼) --------
   const employeeResourceDatabaseUnavailable = () => ({
-    message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用員工資源寫入功能。",
+    message: "資料庫尚未連線，請在部署環境設定 NEON_DATABASE_URL 或 DATABASE_URL 後使用員工資源寫入功能。",
     code: "DATABASE_NOT_CONNECTED",
   });
 
@@ -1743,7 +1743,7 @@ export async function registerRoutes(
       });
       res.json({ items });
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源查詢失敗";
       res.status(500).json({ message: m });
     }
@@ -1789,7 +1789,7 @@ export async function registerRoutes(
       });
       res.status(201).json(created);
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源建立失敗";
       res.status(500).json({ message: m });
     }
@@ -1841,7 +1841,7 @@ export async function registerRoutes(
       }
       res.json(updated);
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源更新失敗";
       res.status(500).json({ message: m });
     }
@@ -1860,7 +1860,7 @@ export async function registerRoutes(
       const ok = await storage.deleteEmployeeResource(id);
       res.json({ ok });
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(employeeResourceDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(employeeResourceDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "員工資源刪除失敗";
       res.status(500).json({ message: m });
     }
@@ -1868,7 +1868,7 @@ export async function registerRoutes(
 
   // -------- Portal: Knowledge Base Q&A (相關問題詢問) --------
   const qnaDatabaseUnavailable = () => ({
-    message: "資料庫尚未連線，請在部署環境設定 DATABASE_URL 後使用相關問題詢問功能。",
+    message: "資料庫尚未連線，請在部署環境設定 NEON_DATABASE_URL 或 DATABASE_URL 後使用相關問題詢問功能。",
     code: "DATABASE_NOT_CONNECTED",
   });
 
@@ -1887,7 +1887,7 @@ export async function registerRoutes(
       });
       res.json({ items });
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "相關問題查詢失敗";
       res.status(500).json({ message: m });
     }
@@ -1929,7 +1929,7 @@ export async function registerRoutes(
       });
       res.status(201).json(created);
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "相關問題建立失敗";
       res.status(500).json({ message: m });
     }
@@ -1980,7 +1980,7 @@ export async function registerRoutes(
       });
       res.json(updated);
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "相關問題更新失敗";
       res.status(500).json({ message: m });
     }
@@ -2010,7 +2010,7 @@ export async function registerRoutes(
       });
       res.json({ ok });
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "相關問題刪除失敗";
       res.status(500).json({ message: m });
     }
@@ -2028,7 +2028,7 @@ export async function registerRoutes(
       });
       res.json({ items });
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "主管問答審核查詢失敗";
       res.status(500).json({ message: m });
     }
@@ -2081,7 +2081,7 @@ export async function registerRoutes(
       });
       return res.json(updated);
     } catch (err) {
-      if (!process.env.DATABASE_URL) return res.status(503).json(qnaDatabaseUnavailable());
+      if (!env.databaseUrl) return res.status(503).json(qnaDatabaseUnavailable());
       const m = err instanceof Error ? err.message : "主管問答審核失敗";
       return res.status(500).json({ message: m });
     }

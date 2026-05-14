@@ -594,7 +594,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
           checkedAt: new Date().toISOString(),
           detail: container.config.databaseUrl
             ? `DATABASE_PROFILE=${container.config.databaseProfile}`
-            : "DATABASE_URL is not configured; mock profile only",
+            : "NEON_DATABASE_URL/DATABASE_URL is not configured; mock profile only",
         },
       ],
     });
