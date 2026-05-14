@@ -21,7 +21,7 @@ export const env = {
   port: Number(read("PORT") || 5000),
   dataSourceMode: pick(read("DATA_SOURCE_MODE"), ["mock", "test", "real"] as const, "mock"),
   databaseProfile: pick(read("DATABASE_PROFILE"), ["mock", "local", "test", "neon"] as const, "mock"),
-  databaseUrl: read("DATABASE_URL"),
+  databaseUrl: read("NEON_DATABASE_URL") || read("DATABASE_URL"),
   redisUrl: read("REDIS_URL"),
   allowedOrigins: parseList(read("ALLOWED_ORIGINS")),
   scheduleAdapterMode: pick(read("SCHEDULE_ADAPTER_MODE"), ["mock", "real"] as const, "mock"),
