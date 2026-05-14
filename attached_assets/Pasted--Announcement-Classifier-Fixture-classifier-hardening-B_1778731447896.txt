@@ -1,0 +1,141 @@
+# 任務：Announcement Classifier 上線前驗證 + Fixture 建置
+
+## 背景
+前一次 classifier hardening 已完成共享核心 + BFF/proxy 雙層過濾 + migration + prompt 規範，但：
+- prod replay 回 `total: 0`，新規則沒實際數據佐證
+- 源頭 LINE webhook 鏈路未確認
+- 兩個既有 test 失敗未釐清是否 pre-existing
+
+進前端模組重構前必須先把驗證閉環。
+
+---
+
+## 一、Replay 失敗 root cause（PRIORITY 1）
+
+### 問題
+`外部 5/14 09:10-10:02 candidates API 可連，但回 total: 0`，導致無法回放驗證。
+
+### 要做的事
+1. 印出實際請求：URL、query params、headers（mask 掉 token）、response status、response body 前 500 字
+2. 確認 env var：用的是 prod / staging / sandbox 哪個 endpoint？對照 `.env.example` 與 Replit Secrets 實際值（mask 敏感資訊）
+3. 拉長時間窗：試 5/13 00:00 ~ 5/14 23:59，確認是「該區間真的沒資料」還是「整個 API 都拿不到」
+4. 如果 API 結構需要 `groupId` / `tier` 之類的 filter，盤點清楚並補進回放腳本
+
+### 驗收
+- [ ] 在 `scripts/replay-classifier.ts` 或同等位置印出完整 request + response 結構
+- [ ] 明確結論：API 是「沒資料」「權限不對」「endpoint 錯」哪一種
+- [ ] 如果是 endpoint / 權限問題，修正後能拉到至少 100 筆歷史 candidates
+
+---
+
+## 二、建立 Fixture 做 unit-level 回放（PRIORITY 1）
+
+### 為什麼
+源頭 API 可能短期內仍拿不到資料；classifier 規則改動需要可重複的測試基準，否則每次調規則都靠運氣。
+
+### 要做的事
+1. 新增 `test/fixtures/classifier-replay/` 目錄
+2. 從以下三個來源各撈 30~50 則訊息建 fixture（共 ~100 則）：
+   - 應該被排除但現況進來的（從 5/14 那批截圖收集到的就是好的種子）
+   - 應該 must_read 但只標 normal 的
+   - 真正普通的 normal 公告（控制組）
+3. Fixture schema：
+```ts
+   {
+     id: string,
+     rawContent: string,
+     senderId: string,
+     groupId: string,
+     groupTier: 'A' | 'B' | 'C',
+     senderRole: 'supervisor' | 'vip' | 'member',
+     timestamp: string,
+     expected: {
+       finalDecision: 'drop' | 'rule_matched' | 'needs_ai_review',
+       expectedPriority?: 'must_read' | 'high' | 'normal' | 'low',
+       expectedExcludeReason?: string,
+       notes?: string  // 為什麼預期是這樣
+     }
+   }
+```
+4. 寫 `test/classifier-replay.test.ts`：餵 fixture 進 Layer 0/0.5/1/2（不打 Gemini，AI 層先 mock），assert 結果符合 `expected`
+5. 加 `npm run test:classifier-replay` script
+
+### 驗收
+- [ ] Fixture 至少 100 則，三類別都有覆蓋
+- [ ] `npm run test:classifier-replay` 執行 < 5 秒（純規則層，不打 AI）
+- [ ] 5/14 那批已知問題訊息全在 fixture 內：
+  - 「在跟他家洽後續」→ expected.exclude = `work_status_complaint`
+  - 「就通知球有八」→ expected.exclude = `personal_task_dispatch`
+  - 「2.」→ expected.exclude = `fragment_continuation`
+  - 「@All 小台高壓槍在新北嗎」→ expected.exclude = `group_query_not_announcement`
+  - 「5/18 四樓球場暫停 30 天油漆 45 天地板」→ expected.priority = `must_read`
+- [ ] 通過率 ≥ 90%，未通過的逐筆說明為什麼（規則需再調 / 或預期本身要修）
+
+---
+
+## 三、釐清 modules test 失敗（PRIORITY 2）
+
+### 問題
+- `smoke:modules` 卡 `topology must not keep school-specific courts module id`
+- `unit:modules` 卡 employee courts preview 斷言
+
+### 要做的事
+1. 在 main 或前一個 commit 跑同樣 test，確認是不是 pre-existing
+2. 如果 pre-existing：開 issue / TODO 記下，不擋本次合併，但要寫進 known issues
+3. 如果是本次引入：定位是哪個改動觸發的，修正
+4. 特別注意：下一步要做「群組公告模組註冊」，會動到 module topology，必須先確認這兩個 test 的失敗原因，避免我們改完之後分不清是新舊問題
+
+### 驗收
+- [ ] 明確結論：pre-existing 還是本次引入
+- [ ] 如果 pre-existing，在 `KNOWN_ISSUES.md` 或同等位置記錄
+- [ ] 如果本次引入，修正後 `smoke:modules` + `unit:modules` 通過
+
+---
+
+## 四、盤點 LINE Bot webhook 真入口鏈路（PRIORITY 2）
+
+### 問題
+目前 classifier 只在 BFF/proxy 後過濾。真正 webhook 入口若沒套新 buffer + 新規則，DB 還在累積髒資料。之後做審核管理、歷史搜尋、人工分類覆蓋都會看到 false positive。
+
+### 要做的事
+1. 確認 LINE webhook 接收方在本 repo 還是另一個 repo
+   - 若本 repo：列出檔案路徑 + 目前的處理鏈
+   - 若另一個 repo：標出 repo 名稱、給出需要改動的清單（不需在本次實作）
+2. 畫出當前 vs 期望的鏈路：
+當前：LINE webhook → ??? → 原 classifier → DB（髒）→ proxy 過濾 → UI（乾淨）
+期望：LINE webhook → AnnouncementMessageBuffer → 新 classifier → DB（乾淨）→ UI
+3. 如果是本 repo，直接接上 `AnnouncementMessageBuffer`；如果跨 repo，產出待辦清單給跨 repo 處理
+
+### 驗收
+- [ ] 鏈路圖 / 文字盤點清楚輸出（可放 `docs/announcement-classifier-pipeline.md`）
+- [ ] 若本 repo：webhook 入口已使用 `AnnouncementMessageBuffer`，新進訊息 DB 寫入前就過濾
+- [ ] 若跨 repo：待辦清單明確，含目標 repo、需改檔案、預期改動描述
+
+---
+
+## 五、保留不動
+- shared/announcement-classifier.ts 核心邏輯（除非 fixture replay 顯示規則需調）
+- migration 0010 schema
+- BFF/proxy 過濾層
+- Supervisor BFF timeout guard
+
+---
+
+## 六、不在本次 scope
+- 前端模組註冊
+- 公告編輯能力
+- 列表分頁 / 無限載入
+- 人工分類覆蓋 UI
+（這些等驗證閉環後另一個 prompt 處理）
+
+---
+
+## 七、實作順序
+1. 先做 (三) 釐清 modules test（最快，影響後續判斷）
+2. 再做 (二) Fixture + replay test（建立可重複驗證基準）
+3. 接著 (一) Root cause prod API replay 問題
+4. 最後 (四) 鏈路盤點（如果是本 repo 就一起接，跨 repo 就只盤點）
+
+## 八、Suggested next command
+跑完先：
+`npm run test:classifier-replay && npm run check && npm run smoke:modules
