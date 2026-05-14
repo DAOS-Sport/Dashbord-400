@@ -14,6 +14,10 @@ import { findFacilityLineGroup, findScheduleRegionKey } from "@shared/domain/fac
 import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domain/layout";
 import { canMutateEmployeeResource } from "@shared/employee-resources/privacy";
 import { withCreateMetadata, withEmployeeCreateMetadata, withUpdateMetadata } from "./shared/data/write-metadata";
+import {
+  sanitizeAnnouncementCandidate,
+  validateCandidateTitleSummary,
+} from "@shared/announcement-classifier";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "anomaly-reports");
 
@@ -949,7 +953,47 @@ export async function registerRoutes(
     return `${LINE_BOT_BASE}${prefix}/${encodeURIComponent(groupId)}${path}`;
   }
 
-  async function proxyGet(upstreamUrl: string, res: any, label: string) {
+  const recordClassifierAnomaly = (candidate: Record<string, unknown>, anomaly: NonNullable<ReturnType<typeof validateCandidateTitleSummary>["anomaly"]>, fallback: { title: string; summary: string }) => {
+    if (!env.databaseUrl) return;
+    storage.recordClassifierAnomaly({
+      sourceMessageId: typeof candidate.sourceMessageId === "string" ? candidate.sourceMessageId : null,
+      sourceMessageIds: Array.isArray(candidate.sourceMessageIds) ? candidate.sourceMessageIds.map(String) : undefined,
+      anomalyType: anomaly.reason,
+      originalTitle: anomaly.originalTitle,
+      originalSummary: anomaly.originalSummary,
+      fallbackTitle: fallback.title,
+      fallbackSummary: fallback.summary,
+      originalText: typeof candidate.originalText === "string" ? candidate.originalText : null,
+      payload: candidate,
+    }).catch((error) => console.warn("[classifier_anomalies:record_failed]", error));
+  };
+
+  const postProcessAnnouncementCandidate = (candidate: Record<string, unknown>) => {
+    const text = String(candidate.originalText ?? candidate.sourceMessageText ?? candidate.text ?? candidate.summary ?? candidate.title ?? "");
+    const validation = validateCandidateTitleSummary(String(candidate.title ?? ""), String(candidate.summary ?? ""), text);
+    if (validation.anomaly) recordClassifierAnomaly(candidate, validation.anomaly, validation);
+    return sanitizeAnnouncementCandidate(candidate);
+  };
+
+  const postProcessAnnouncementPayload = (payload: unknown) => {
+    if (!payload || typeof payload !== "object") return payload;
+    const source = payload as Record<string, unknown>;
+    const itemsKey = Array.isArray(source.candidates) ? "candidates" : Array.isArray(source.items) ? "items" : null;
+    if (!itemsKey) return payload;
+    const originalItems = source[itemsKey] as Record<string, unknown>[];
+    const sanitized = originalItems
+      .map((item) => postProcessAnnouncementCandidate(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item));
+    return {
+      ...source,
+      [itemsKey]: sanitized,
+      ...(itemsKey === "candidates" ? { items: sanitized } : { candidates: sanitized }),
+      total: typeof source.total === "number" ? Math.min(source.total, sanitized.length) : sanitized.length,
+      filteredByLocalClassifier: originalItems.length - sanitized.length,
+    };
+  };
+
+  async function proxyGet(upstreamUrl: string, res: any, label: string, transform?: (payload: unknown) => unknown) {
     try {
       const upstream = await fetch(upstreamUrl, {
         headers: proxyHeaders(upstreamUrl),
@@ -962,7 +1006,7 @@ export async function registerRoutes(
       if (!ct.includes("application/json")) {
         return res.status(502).json({ message: `${label} 未回傳 JSON` });
       }
-      const data = await upstream.json();
+      const data = transform ? transform(await upstream.json()) : await upstream.json();
       res.json(data);
     } catch (err: any) {
       res.status(502).json({ message: err.message || `無法連線至${label}` });
@@ -1002,11 +1046,14 @@ export async function registerRoutes(
       if (v != null && v !== "") qs.set(k, String(v));
     }
     const qsStr = qs.toString();
-    proxyGet(`${LINE_BOT_BASE}/api/announcement-candidates${qsStr ? "?" + qsStr : ""}`, res, "公告候選列表");
+    proxyGet(`${LINE_BOT_BASE}/api/announcement-candidates${qsStr ? "?" + qsStr : ""}`, res, "公告候選列表", postProcessAnnouncementPayload);
   });
 
   app.get("/api/announcement-candidates/:id", (req, res) =>
-    proxyGet(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}`, res, "公告詳情")
+    proxyGet(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}`, res, "公告詳情", (payload) => {
+      if (!payload || typeof payload !== "object") return payload;
+      return postProcessAnnouncementCandidate(payload as Record<string, unknown>) ?? { message: "Local classifier excluded this non-announcement candidate" };
+    })
   );
 
   app.post("/api/announcement-candidates/:id/approve", (req, res) =>

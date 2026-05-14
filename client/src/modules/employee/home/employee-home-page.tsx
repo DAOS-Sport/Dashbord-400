@@ -1630,8 +1630,8 @@ function buildShiftPeriodGroups(
     }
   }
   const sortRoles = (m: Map<string, ShiftPersonWithTime[]>) =>
-    new Map(
-      [...m.entries()].sort(([a], [b]) => {
+    new Map<string, ShiftPersonWithTime[]>(
+      Array.from(m.entries()).sort(([a], [b]) => {
         const ai = SHIFT_ROLE_PRIORITY.indexOf(a);
         const bi = SHIFT_ROLE_PRIORITY.indexOf(b);
         return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
@@ -1784,7 +1784,7 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
     group: ReturnType<typeof buildShiftPeriodGroups>[0] | undefined,
     label: string,
   ) => {
-    const allPeople = group ? [...group.byRole.values()].flat() : [];
+    const allPeople = group ? Array.from(group.byRole.values()).flat() : [];
     return (
       <div className="min-w-0 flex-1">
         <p className="mb-3 text-[22px] font-black leading-none tracking-tight text-[#15935d]">{label}</p>

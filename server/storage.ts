@@ -10,6 +10,7 @@ import {
   type KnowledgeBaseQna, type InsertKnowledgeBaseQna,
   type SystemAnnouncement, type InsertSystemAnnouncement,
   type AnnouncementAcknowledgement, type InsertAnnouncementAcknowledgement,
+  type ClassifierAnomaly, type InsertClassifierAnomaly,
   type FacilityAnnouncementGroup, type InsertFacilityAnnouncementGroup,
   announcementOverlays, type AnnouncementOverlay, type InsertAnnouncementOverlay,
   type PortalEvent, type InsertPortalEvent,
@@ -37,6 +38,7 @@ import {
   type ParkingEventDay, type InsertParkingEventDay,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
+  classifierAnomalies,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
@@ -131,6 +133,7 @@ export interface IStorage {
   deleteSystemAnnouncement(id: number): Promise<boolean>;
   listAnnouncementAcknowledgements(opts: { facilityKey?: string; userId?: string; announcementId?: string }): Promise<AnnouncementAcknowledgement[]>;
   acknowledgeAnnouncement(input: InsertAnnouncementAcknowledgement): Promise<AnnouncementAcknowledgement>;
+  recordClassifierAnomaly(input: InsertClassifierAnomaly): Promise<ClassifierAnomaly>;
   listAnnouncementGroups(filters?: { facilityKey?: string; isActive?: boolean }): Promise<FacilityAnnouncementGroup[]>;
   getAnnouncementGroupById(id: number): Promise<FacilityAnnouncementGroup | undefined>;
   createAnnouncementGroup(input: InsertFacilityAnnouncementGroup): Promise<FacilityAnnouncementGroup>;
@@ -685,6 +688,11 @@ export class DatabaseStorage implements IStorage {
     });
     if (existing) return existing;
     const [created] = await db.insert(announcementAcknowledgements).values(input).returning();
+    return created;
+  }
+
+  async recordClassifierAnomaly(input: InsertClassifierAnomaly): Promise<ClassifierAnomaly> {
+    const [created] = await db.insert(classifierAnomalies).values(input as typeof classifierAnomalies.$inferInsert).returning();
     return created;
   }
 

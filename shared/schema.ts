@@ -463,6 +463,62 @@ export const insertAnnouncementAcknowledgementSchema = createInsertSchema(announ
 export type InsertAnnouncementAcknowledgement = z.infer<typeof insertAnnouncementAcknowledgementSchema>;
 export type AnnouncementAcknowledgement = typeof announcementAcknowledgements.$inferSelect;
 
+export const announcementCandidates = pgTable("announcement_candidates", {
+  id: serial("id").primaryKey(),
+  sourceMessageId: text("source_message_id").notNull(),
+  sourceMessageIds: jsonb("source_message_ids").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  groupId: text("group_id").notNull(),
+  senderId: text("sender_id"),
+  contentHash: text("content_hash").notNull(),
+  originalText: text("original_text").notNull(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull(),
+  candidateType: text("candidate_type").default("notice").notNull(),
+  priority: text("priority").default("normal").notNull(),
+  status: text("status").default("pending_review").notNull(),
+  confidence: doublePrecision("confidence").default(0).notNull(),
+  ruleMatched: boolean("rule_matched").default(false).notNull(),
+  reasoningTags: text("reasoning_tags").array().default(sql`ARRAY[]::text[]`).notNull(),
+  extractedJson: jsonb("extracted_json").$type<Record<string, unknown>>(),
+  detectedAt: timestamp("detected_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  contentHashIdx: uniqueIndex("announcement_candidates_content_hash_idx").on(table.contentHash),
+  groupDetectedIdx: index("announcement_candidates_group_detected_idx").on(table.groupId, table.detectedAt),
+}));
+
+export const insertAnnouncementCandidateSchema = createInsertSchema(announcementCandidates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAnnouncementCandidate = z.infer<typeof insertAnnouncementCandidateSchema>;
+export type AnnouncementCandidate = typeof announcementCandidates.$inferSelect;
+
+export const classifierAnomalies = pgTable("classifier_anomalies", {
+  id: serial("id").primaryKey(),
+  sourceMessageId: text("source_message_id"),
+  sourceMessageIds: jsonb("source_message_ids").$type<string[]>(),
+  anomalyType: text("anomaly_type").notNull(),
+  originalTitle: text("original_title"),
+  originalSummary: text("original_summary"),
+  fallbackTitle: text("fallback_title"),
+  fallbackSummary: text("fallback_summary"),
+  originalText: text("original_text"),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClassifierAnomalySchema = createInsertSchema(classifierAnomalies).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertClassifierAnomaly = z.infer<typeof insertClassifierAnomalySchema>;
+export type ClassifierAnomaly = typeof classifierAnomalies.$inferSelect;
+
 const facilityKeySet = new Set(facilityLineGroups.map((facility) => facility.facilityKey));
 
 export const facilityAnnouncementGroups = pgTable("facility_announcement_groups", {

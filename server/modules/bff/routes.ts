@@ -34,6 +34,7 @@ import {
   getSystemOverviewMock,
 } from "./employee-home";
 import { readFacilityLineAnnouncements } from "../announcement-groups/service";
+import { classifyAnnouncementMessage, sanitizeAnnouncementCandidate } from "@shared/announcement-classifier";
 
 const shortcutTones: ShortcutSummary["tone"][] = ["blue", "green", "amber", "violet", "rose", "cyan"];
 
@@ -508,6 +509,8 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
   if (facility?.lineGroupId) url.searchParams.set("groupId", facility.lineGroupId);
   const payload = await fetchJsonIfAvailable<unknown>(url);
   return asArray<Record<string, unknown>>(payload)
+    .map((item) => sanitizeAnnouncementCandidate(item))
+    .filter((item): item is Record<string, unknown> & { localClassifier: ReturnType<typeof classifyAnnouncementMessage> } => Boolean(item))
     .filter((item) => !facility?.lineGroupId || !readText(item.groupId) || item.groupId === facility.lineGroupId)
     .filter((item) => {
       const candidateType = readText(item.candidateType).toLowerCase();
@@ -523,9 +526,9 @@ const fetchAnnouncementCandidateFallback = async (facilityKey: string): Promise<
       title: readText(item.title, "未命名公告"),
       summary: readText(item.summary ?? item.originalText, ""),
       content: readText(item.body ?? item.content ?? item.originalText ?? item.summary, ""),
-      priority: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "normal",
-      type: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "notice",
-      isPinned: item.status === "pending" || Number(item.confidence ?? 0) >= 0.8,
+      priority: item.localClassifier.priority === "must_read" || item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "normal",
+      type: item.localClassifier.priority === "must_read" || item.status === "pending" || Number(item.confidence ?? 0) >= 0.8 ? "required" : "notice",
+      isPinned: item.localClassifier.priority === "must_read" || item.status === "pending" || Number(item.confidence ?? 0) >= 0.8,
       effectiveRange: readText(item.detectedAt ?? item.startAt, "即時"),
       publishedAt: readText(item.detectedAt ?? item.startAt, new Date().toISOString()),
       createdAt: readText(item.createdAt ?? item.detectedAt ?? item.startAt, new Date().toISOString()),
@@ -910,11 +913,35 @@ const toTimeRange = (startsAt?: string, endsAt?: string) => startsAt && endsAt
   ? `${new Date(startsAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })} - ${new Date(endsAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`
   : undefined;
 
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
+
 const buildStaffingSummary = async (container: AppContainer, facilityKeys: string[]) => {
   const now = Date.now();
+  const emptyEmployees = sourceUnavailable<NonNullable<Awaited<ReturnType<AppContainer["integrations"]["ragicAuth"]["listActiveEmployees"]>>["data"]>>(
+    "ragic-auth",
+    "Ragic employees timed out for supervisor dashboard.",
+    "RAGIC_TIMEOUT",
+  ) as Awaited<ReturnType<AppContainer["integrations"]["ragicAuth"]["listActiveEmployees"]>>;
+  const emptyShifts = sourceUnavailable<NonNullable<Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>["data"]>>(
+    "smart-schedule",
+    "Schedule shifts timed out for supervisor dashboard.",
+    "SCHEDULE_TIMEOUT",
+  ) as Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>;
   const [employeeResult, ...shiftResults] = await Promise.all([
-    container.integrations.ragicAuth.listActiveEmployees(),
-    ...facilityKeys.map((facilityKey) => container.integrations.schedule.listTodayShifts(facilityKey)),
+    withTimeout(container.integrations.ragicAuth.listActiveEmployees(), 1500, emptyEmployees),
+    ...facilityKeys.map((facilityKey) => withTimeout(container.integrations.schedule.listTodayShifts(facilityKey), 1500, emptyShifts)),
   ]);
   const employees = employeeResult.data ?? [];
   const activeEmployees: StaffMemberSummary[] = employees
@@ -1301,11 +1328,13 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
 
   app.get("/api/bff/supervisor/dashboard", requireRole("supervisor", "system"), async (req, res) => {
     const session = req.workbenchSession!;
-    const dashboard = env.dataSourceMode === "mock" ? getSupervisorDashboardMock() : await getSupervisorDashboardFromSources();
+    const dashboard = env.dataSourceMode === "mock"
+      ? getSupervisorDashboardMock()
+      : await withTimeout(getSupervisorDashboardFromSources(), 2500, getSupervisorDashboardMock());
     const grantedFacilityKeys = session.grantedFacilities.length
       ? session.grantedFacilities
       : facilityLineGroups.map((facility) => facility.facilityKey);
-    const ragicFacilities = await listRagicH05FacilityCandidates().catch(() => undefined);
+    const ragicFacilities = await withTimeout(listRagicH05FacilityCandidates().catch(() => undefined), 1200, undefined);
     const ragicOtFacilityKeys = new Set((ragicFacilities?.data ?? []).map((facility) => facility.facilityKey));
     const filteredFacilityKeys = ragicOtFacilityKeys.size
       ? grantedFacilityKeys.filter((facilityKey) => ragicOtFacilityKeys.has(facilityKey))
@@ -1317,7 +1346,16 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
       const [handovers, tasks, staffing] = await Promise.all([
         storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),
         storage.listTasks({ facilityKey, limit: 100 }).catch(() => []),
-        buildStaffingSummary(container, facilityKeys),
+        withTimeout(buildStaffingSummary(container, facilityKeys), 2500, {
+          active: 0,
+          total: 0,
+          onShift: 0,
+          absent: 0,
+          activeEmployees: [],
+          currentOnDuty: [],
+          nextOnDuty: [],
+          byFacility: facilityKeys.map((key) => ({ facilityKey: key, facilityName: facilityLabel(key), active: 0, onShift: 0, next: 0 })),
+        }),
       ]);
       const facilityWork = await Promise.all(facilityKeys.map(async (key) => {
         const [facilityHandovers, facilityTasks] = await Promise.all([
