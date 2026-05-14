@@ -78,11 +78,11 @@ const runEmployeeModuleTests = () => {
   const navigation = getNavigationModules("employee", rolePermissions.employee);
   const cards = getHomeLayoutCards("employee", rolePermissions.employee);
   assert(
-    navigation.map((item) => item.id).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
+    navigation.map((item) => item.id).join(",") === "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
     `employee navigation mismatch: ${navigation.map((item) => item.id).join(",")}`,
   );
   assert(
-    cards.map((item) => item.moduleId).join(",") === "employee-home,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
+    cards.map((item) => item.moduleId).join(",") === "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
     `employee home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   navigation.forEach((item) => assert(cards.some((card) => card.moduleId === item.id), `employee nav module missing home card: ${item.id}`));
@@ -92,7 +92,8 @@ const runEmployeeModuleTests = () => {
   sourceIncludes("server/modules/bff/routes.ts", "weatherCard", "employee home must expose a weather not_connected card");
   sourceIncludes("server/modules/bff/routes.ts", "bookingSnapshotCard", "employee home must expose a booking/course not_connected card");
   sourceIncludes("server/modules/bff/routes.ts", "storage.listKnowledgeBaseQna", "employee search must include Q&A rows");
-  assert(!read("client/src/modules/employee/home/employee-home-page.tsx").includes("FloatingQuickActionsPanel"), "employee home must not render the floating quick actions panel");
+  sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", "FloatingQuickActionsPanel", "employee home must render the floating quick actions panel");
+  sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", "employeeHomeQuickActions", "employee home quick actions must use employee-safe destinations");
   assert(!read("client/src/modules/employee/home/employee-home-page.tsx").includes("QuickEntryStrip"), "employee home must not render the quick entry strip");
   sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", "resolveEmployeeHomeSlots", "employee home must resolve canonical dashboard slots");
   sourceIncludes("client/src/modules/employee/home/employee-home-page.tsx", 'homeSlots.isEnabled("announcements")', "employee announcements must not depend on legacy notice area placement");

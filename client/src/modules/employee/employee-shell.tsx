@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertCircle,
   Bell,
   BookOpen,
   CalendarDays,
@@ -14,6 +15,7 @@ import {
   Home,
   Menu,
   MessageSquareText,
+  Megaphone,
   MoreHorizontal,
   PackageSearch,
   Search,
@@ -30,6 +32,7 @@ import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
+import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
 
 type EmployeeNavItem = {
   id: string;
@@ -53,6 +56,14 @@ const iconByKey: Record<string, LucideIcon> = {
   "package-search": PackageSearch,
   search: Search,
 };
+
+const employeeQuickActions: FloatingQuickActionItem[] = [
+  { label: "任務管理", helper: "新增或完成自己的任務", href: "/employee/tasks", Icon: ClipboardList },
+  { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Megaphone },
+  { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
+  { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: AlertCircle },
+  { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
+];
 
 const isActivePath = (location: string, href: string) =>
   href === "/employee" ? location === href || location === "/EMPLOYEE" : location === href || location.startsWith(`${href}/`);
@@ -273,6 +284,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
           );
         })}
       </nav>
+      <FloatingQuickActionsPanel eyebrow="Employee Actions" title="員工快捷操作" items={employeeQuickActions} tone="blue" />
     </div>
   );
 }

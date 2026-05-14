@@ -927,6 +927,12 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: 
   }
 };
 
+const openOperationalHandovers = (items: OperationalHandover[]) =>
+  items.filter((handover) => handover.status !== "done" && handover.status !== "cancelled");
+
+const openTasks = (items: Task[]) =>
+  items.filter((task) => task.status !== "done" && task.status !== "cancelled");
+
 const buildStaffingSummary = async (container: AppContainer, facilityKeys: string[]) => {
   const now = Date.now();
   const emptyEmployees = sourceUnavailable<NonNullable<Awaited<ReturnType<AppContainer["integrations"]["ragicAuth"]["listActiveEmployees"]>>["data"]>>(
@@ -1343,9 +1349,9 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
     const requestedActiveFacility = session.activeFacility || dashboard.facility.key || "xinbei_pool";
     const facilityKey = facilityKeys.includes(requestedActiveFacility) ? requestedActiveFacility : facilityKeys[0] ?? "xinbei_pool";
     try {
-      const [handovers, tasks, staffing] = await Promise.all([
-        storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),
-        storage.listTasks({ facilityKey, limit: 100 }).catch(() => []),
+      const [allHandovers, allTasks, staffing] = await Promise.all([
+        withTimeout(storage.listOperationalHandovers({ limit: 300 }).catch(() => []), 1500, []),
+        withTimeout(storage.listTasks({ includeCancelled: false, limit: 300 }).catch(() => []), 1500, []),
         withTimeout(buildStaffingSummary(container, facilityKeys), 2500, {
           active: 0,
           total: 0,
@@ -1357,11 +1363,13 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
           byFacility: facilityKeys.map((key) => ({ facilityKey: key, facilityName: facilityLabel(key), active: 0, onShift: 0, next: 0 })),
         }),
       ]);
-      const facilityWork = await Promise.all(facilityKeys.map(async (key) => {
-        const [facilityHandovers, facilityTasks] = await Promise.all([
-          storage.listOperationalHandovers({ facilityKey: key, limit: 50 }).catch(() => []),
-          storage.listTasks({ facilityKey: key, limit: 50 }).catch(() => []),
-        ]);
+      const scopedHandovers = allHandovers.filter((handover) => facilityKeys.includes(handover.facilityKey));
+      const scopedTasks = allTasks.filter((task) => facilityKeys.includes(task.facilityKey));
+      const selectedHandovers = scopedHandovers.filter((handover) => handover.facilityKey === facilityKey).slice(0, 100);
+      const selectedTasks = scopedTasks.filter((task) => task.facilityKey === facilityKey).slice(0, 100);
+      const facilityWork = facilityKeys.map((key) => {
+        const facilityHandovers = scopedHandovers.filter((handover) => handover.facilityKey === key);
+        const facilityTasks = scopedTasks.filter((task) => task.facilityKey === key);
         const staffingRow = staffing.byFacility?.find((row) => row.facilityKey === key);
         const currentLead = staffing.currentOnDuty?.find((member) => member.facilityKey === key);
         return {
@@ -1371,19 +1379,19 @@ export const registerBffRoutes = (app: Express, container: AppContainer) => {
           active: staffingRow?.active ?? 0,
           onShift: staffingRow?.onShift ?? 0,
           next: staffingRow?.next ?? 0,
-          openHandovers: facilityHandovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").length,
-          incompleteTasks: facilityTasks.filter((task) => task.status !== "done" && task.status !== "cancelled").length,
+          openHandovers: openOperationalHandovers(facilityHandovers).length,
+          incompleteTasks: openTasks(facilityTasks).length,
           currentLead,
         };
-      }));
+      });
       return res.json({
         ...dashboard,
         facilities: ok(facilityWork),
         staffing: ok(staffing),
-        incompleteTasks: ok(tasks.filter((task) => task.status !== "done" && task.status !== "cancelled").map(mapTaskSummary)),
+        incompleteTasks: ok(openTasks(selectedTasks).map(mapTaskSummary)),
         handoverOverview: ok({
-          open: handovers.filter((handover) => handover.status !== "done" && handover.status !== "cancelled").length,
-          confirmed: handovers.filter((handover) => handover.status === "done").length,
+          open: openOperationalHandovers(selectedHandovers).length,
+          confirmed: selectedHandovers.filter((handover) => handover.status === "done").length,
         }),
         shifts: ok([...staffing.currentOnDuty, ...staffing.nextOnDuty].slice(0, 12).map((member, index) => ({
           id: `${member.employeeNumber || member.name}-${index}`,

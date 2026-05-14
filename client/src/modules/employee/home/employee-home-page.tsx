@@ -46,6 +46,7 @@ import { DegradedCard, NotConnectedCard } from "@/components/shared/not-connecte
 import { BrandLockup, BrandMark } from "@/shared/brand";
 import { riseIn, staggerContainer } from "@/shared/motion/tokens";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
+import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
 import {
   createEmployeeResource,
   createEmployeeFrontDeskHandover,
@@ -71,6 +72,14 @@ import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
 
 const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
+
+const employeeHomeQuickActions: FloatingQuickActionItem[] = [
+  { label: "任務管理", helper: "查看與完成今日任務", href: "/employee/tasks", Icon: ListChecks },
+  { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Bell },
+  { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
+  { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: ShieldCheck },
+  { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
+];
 
 const toOptionalIso = (date: string, time: string) => {
   if (!date) return undefined;
@@ -2044,6 +2053,7 @@ function EmployeeHomeContent() {
           </main>
         </div>
       </div>
+      <FloatingQuickActionsPanel eyebrow="Employee Actions" title="員工快捷操作" items={employeeHomeQuickActions} tone="blue" />
       <BottomNav />
       <HandoverDrawer
         open={handoverDrawerOpen}

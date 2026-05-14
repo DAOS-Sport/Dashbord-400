@@ -15,6 +15,8 @@ export interface WorkbenchRouteDescriptor {
 
 export const workbenchRoutes = [
   { moduleId: "employee-home", label: "首頁", iconKey: "home", role: "employee", primaryPath: "/employee", shell: "employee" },
+  { moduleId: "tasks", label: "任務管理", iconKey: "clipboard-check", role: "employee", primaryPath: "/employee/tasks", shell: "employee" },
+  { moduleId: "announcements", label: "群組公告", iconKey: "bell", role: "employee", primaryPath: "/employee/announcements", shell: "employee" },
   { moduleId: "handover", label: "櫃台交接", iconKey: "message-square-text", role: "employee", primaryPath: "/employee/handover", shell: "employee" },
   { moduleId: "activity-periods", label: "活動檔期/課程快訊", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/activity-periods", shell: "employee" },
   { moduleId: "employee-resources", label: "常用文件", iconKey: "file-text", role: "employee", primaryPath: "/employee/documents", shell: "employee" },

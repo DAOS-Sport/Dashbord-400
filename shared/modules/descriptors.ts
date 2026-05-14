@@ -98,6 +98,8 @@ const chineseKeywords: Record<string, string[]> = {
 
 const employeeNavigationOrder = [
   "employee-home",
+  "tasks",
+  "announcements",
   "handover",
   "activity-periods",
   "employee-resources",
@@ -149,6 +151,8 @@ const systemNavigationOrder = [
 
 const employeeHomeOrder = [
   "employee-home",
+  "tasks",
+  "announcements",
   "handover",
   "activity-periods",
   "employee-resources",
@@ -224,15 +228,17 @@ const roleHomeOrder: Record<WorkbenchRole, string[]> = {
 
 const employeeNavigationOverrides: Record<string, Partial<ModuleDescriptor>> = {
   "employee-home": { shortName: "首頁", routePath: getPrimaryRoute("employee-home", "employee"), iconKey: "home", menuOrder: 1, navVisible: true },
-  handover: { name: "櫃台交接", shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "employee"), iconKey: "message-square-text", menuOrder: 2, navVisible: true },
-  "activity-periods": { shortName: "活動檔期/課程快訊", routePath: getPrimaryRoute("activity-periods", "employee"), iconKey: "calendar-days", menuOrder: 3, navVisible: true },
-  "employee-resources": { shortName: "常用文件", routePath: getPrimaryRoute("employee-resources", "employee"), iconKey: "file-text", menuOrder: 4, navVisible: true },
-  "employee-training": { name: "員工教材", shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "employee"), iconKey: "graduation-cap", menuOrder: 5, navVisible: true, requiredPermissions: ["employee:resources:read"] },
-  "personal-note": { shortName: "個人工作貼", routePath: getPrimaryRoute("personal-note", "employee"), iconKey: "file-text", menuOrder: 6, navVisible: true },
-  "lifeguard-lost-and-found": { shortName: "失物招領", routePath: "/employee/lost-and-found", iconKey: "package-search", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true },
-  courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "employee"), iconKey: "calendar-days", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true, requiredPermissions: ["employee:booking:read"] },
-  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: getPrimaryRoute("knowledge-base-qna", "employee"), iconKey: "book-open", menuOrder: 9, navVisible: true, requiredPermissions: ["employee:qna:read"] },
-  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 9, cardOrder: 14, navVisible: false, cardVisible: false },
+  tasks: { shortName: "任務管理", routePath: getPrimaryRoute("tasks", "employee"), iconKey: "clipboard-check", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true },
+  announcements: { shortName: "群組公告", routePath: getPrimaryRoute("announcements", "employee"), iconKey: "bell", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true },
+  handover: { name: "櫃台交接", shortName: "櫃台交接", routePath: getPrimaryRoute("handover", "employee"), iconKey: "message-square-text", menuOrder: 4, navVisible: true },
+  "activity-periods": { shortName: "活動檔期/課程快訊", routePath: getPrimaryRoute("activity-periods", "employee"), iconKey: "calendar-days", menuOrder: 5, navVisible: true },
+  "employee-resources": { shortName: "常用文件", routePath: getPrimaryRoute("employee-resources", "employee"), iconKey: "file-text", menuOrder: 6, navVisible: true },
+  "employee-training": { name: "員工教材", shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "employee"), iconKey: "graduation-cap", menuOrder: 7, navVisible: true, requiredPermissions: ["employee:resources:read"] },
+  "personal-note": { shortName: "個人工作貼", routePath: getPrimaryRoute("personal-note", "employee"), iconKey: "file-text", menuOrder: 8, navVisible: true },
+  "lifeguard-lost-and-found": { shortName: "失物招領", routePath: "/employee/lost-and-found", iconKey: "package-search", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
+  courts: { shortName: "場地預約", routePath: getPrimaryRoute("courts", "employee"), iconKey: "calendar-days", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true, requiredPermissions: ["employee:booking:read"] },
+  "knowledge-base-qna": { shortName: "相關問題詢問", routePath: getPrimaryRoute("knowledge-base-qna", "employee"), iconKey: "book-open", menuOrder: 11, navVisible: true, requiredPermissions: ["employee:qna:read"] },
+  checkins: { shortName: "點名/報到", routePath: "/employee/checkins", iconKey: "shield-check", menuOrder: 12, cardOrder: 14, navVisible: false, cardVisible: false },
   parking: { navVisible: false, cardVisible: false },
   "counter-log": { navVisible: false, cardVisible: false },
   "lane-rentals": { navVisible: false, cardVisible: false },
