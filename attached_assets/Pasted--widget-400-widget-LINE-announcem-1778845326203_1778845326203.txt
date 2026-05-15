@@ -1,0 +1,163 @@
+# 任務：實作「群組重要公告」與「優惠活動/課程快訊」兩個 widget 的資料分流
+
+## 背景
+
+400前端儀表板首頁有兩個 widget 共用 LINE 小幫手送來的 announcement_candidates 資料：
+
+- **Widget A — 群組重要公告**：只顯示真正的公告/規定/話術
+- **Widget B — 優惠活動/課程快訊**：只顯示活動報名/優惠/招生
+
+目前已有三層篩選（type=text / 去重 / 時間排序），但漏了「內容分流」，所以兩個 widget 會吃到同一批資料。
+
+## 資料來源
+
+LINE 小幫手側已為每筆訊息 tag 好欄位：
+
+- `candidateType`: `rule` | `notice` | `script` | `campaign` | `discount` | `ignore`
+- `priority`: `must_read` | `high` | `normal` | `low`
+- `scopeType`: `group` | `facility` | `multi_facility` | `global`
+- `appliesToRoles`: array of `frontdesk` | `lifeguard` | `admin` | `supervisor` | `new_staff`
+- `startAt` / `endAt`: ISO8601 或 null
+- `title` / `summary` / `originalQuote`
+
+請從既有 announcement_candidates 表撈。
+
+## 分流規則
+
+### Widget A — 群組重要公告
+
+```sql
+WHERE candidateType IN ('rule', 'notice', 'script')
+  AND status IN ('published', 'approved')
+  AND (endAt IS NULL OR endAt > NOW())
+  AND (
+    scopeType IN ('multi_facility', 'global')
+    OR facility = :current_facility
+  )
+  AND (
+    appliesToRoles IS NULL
+    OR :current_role = ANY(appliesToRoles)
+  )
+ORDER BY
+  CASE priority
+    WHEN 'must_read' THEN 1
+    WHEN 'high' THEN 2
+    WHEN 'normal' THEN 3
+    ELSE 4
+  END,
+  createdAt DESC
+LIMIT 5;
+```
+
+### Widget B — 優惠活動/課程快訊
+
+```sql
+WHERE candidateType IN ('campaign', 'discount')
+  AND status IN ('published', 'approved')
+  AND (endAt IS NULL OR endAt >= NOW())
+  AND (startAt IS NULL OR startAt <= NOW() + INTERVAL '14 days')
+  AND (
+    scopeType IN ('multi_facility', 'global')
+    OR facility = :current_facility
+  )
+ORDER BY
+  -- 進行中優先，即將開始次之
+  CASE
+    WHEN startAt <= NOW() AND (endAt IS NULL OR endAt >= NOW()) THEN 1
+    WHEN startAt > NOW() THEN 2
+    ELSE 3
+  END,
+  startAt ASC NULLS LAST,
+  createdAt DESC
+LIMIT 5;
+```
+
+## 內容品質過濾（在 SQL 後做的第四層 in-app filter）
+
+```ts
+function isDisplayable(item) {
+  // 標題/摘要過短 → drop
+  if (!item.title || item.title.length < 4) return false;
+  if (!item.summary || item.summary.length < 6) return false;
+
+  // 純符號/emoji（沒有任何中英文字）→ drop
+  const hasMeaningfulText = /[\u4e00-\u9fa5a-zA-Z]/.test(item.title + item.summary);
+  if (!hasMeaningfulText) return false;
+
+  // 內容黑名單關鍵字（跟值班員工無關）→ drop
+  const BLACKLIST = ['測試', 'test ', '忽略此則', '請刪除', '已撤回'];
+  if (BLACKLIST.some(kw => (item.title + item.summary).includes(kw))) return false;
+
+  return true;
+}
+```
+
+## 顯示邏輯特例
+
+1. **只有 1 筆訊息**：直接顯示原始 title + summary，不再呼叫 AI 或規則「重新整理標題」（浪費算力與時間）
+2. **空狀態**：顯示「目前沒有 XXX」+ 上次更新時間，**不要** loading skeleton
+3. **即將結束 chip**：endAt 在 24h 內 → 紅色 chip「即將結束」
+4. **未讀標示**：priority='must_read' 且使用者未點開過 → 藍點
+5. **進行中 chip**：Widget B 內，當前時間在 [startAt, endAt] 之間 → 綠色 chip「進行中」
+
+## 資料保留要求（重要）
+
+**分流邏輯只影響 widget 顯示，不影響 DB 留存。**
+
+所有 candidates 必須完整保留在後端資料庫（包含 candidateType='ignore' 的）—— 這是審計需求。前端只在查詢時 filter。
+
+**切勿做 DELETE、切勿在 ingest 階段過濾掉任何 row。**
+
+## API 設計
+
+```
+GET /api/widgets/announcements/important?facility=XXX&role=XXX&limit=5
+→ { items: ItemDto[], updatedAt: ISO8601 }
+
+GET /api/widgets/announcements/campaigns?facility=XXX&limit=5
+→ { items: ItemDto[], updatedAt: ISO8601 }
+```
+
+`ItemDto`:
+
+```ts
+{
+  id: string,
+  candidateType: string,
+  priority: string,
+  title: string,
+  summary: string,
+  scopeType: string,
+  facility: string | null,
+  startAt: string | null,
+  endAt: string | null,
+  isActive: boolean,         // 計算欄位: NOW in [startAt, endAt]
+  isExpiringSoon: boolean,   // 計算欄位: endAt 在 24h 內
+  createdAt: string,
+  originalQuote: string | null,  // hover 顯示原始訊息用
+}
+```
+
+## 快取策略
+
+- 後端 API: 30 秒 in-memory cache（key = `facility + role`）
+- 前端 widget: 每 60 秒 refresh
+- 後台公告 publish/edit/unpublish 時立即 invalidate cache
+
+## 驗收條件
+
+- [ ] 群組重要公告 widget 不會出現活動/優惠類訊息
+- [ ] 優惠活動 widget 不會出現規定/話術類訊息
+- [ ] 兩個 widget 都不會出現 candidateType='ignore' 或交辦事項
+- [ ] 只有 1 筆訊息時 title/summary 直接顯示，不重整
+- [ ] 過期訊息自動從 widget 隱藏（但 DB 留存）
+- [ ] 14 天內即將開始的活動會出現在 Widget B 並標「即將開始」
+- [ ] DB 沒有任何 row 被刪除
+- [ ] 後端 30s cache、前端 60s refresh
+- [ ] 空狀態顯示文字 + 上次更新時間，不是 skeleton
+
+---
+
+**注意事項**：
+- 「重新整理標題」的邏輯如果現在有跑，請改為「僅在當批 ≥ 2 筆同類訊息時才執行」
+- 若 announcement_candidates 表結構與上述欄位有出入，請先列出實際欄位給我看再動手
