@@ -76,6 +76,7 @@ import SystemOperationsPage from "@/modules/system/operations/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
+import SystemTopologyPage from "@/pages/system/topology";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
 import DesignSystemShowcase from "@/design-system/__demo__/showcase";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
@@ -381,6 +382,7 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
+      <Route path="/system/topology" component={SystemTopologyPage} />
       <Route path="/system/overview" component={SystemControlCenterPage} />
       <Route path="/system" component={SystemControlCenterPage} />
       <Route path="/employee/courts/:school/week">

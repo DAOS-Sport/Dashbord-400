@@ -10,12 +10,15 @@ import { cn } from "@/lib/utils";
 import { LINE_FEATURES } from "@shared/system/line-feature-whitelist";
 import {
   createCautionPermission,
+  createLineBotVipEntry,
   createLineWhitelistEntry,
+  deleteLineBotVipEntry,
   deleteLineWhitelistEntry,
   fetchCautionPermissionAudit,
   fetchCautionPermissions,
   fetchLineBotServiceStatus,
   fetchLineBotServiceStatusSnapshots,
+  fetchLineBotVipWhitelist,
   fetchLineWhitelist,
   searchCautionCandidates,
   searchLineWhitelistCandidates,
@@ -26,6 +29,7 @@ import {
   type CautionPermission,
   type LineWhitelistCandidate,
   type LineWhitelistEntry,
+  type VipWhitelistEntry,
 } from "./api";
 
 const whitelistQueryKey = ["/api/bff/system/line-whitelist"];
@@ -343,6 +347,9 @@ export default function SystemLineWhitelistPage() {
   const [note, setNote] = useState("");
   const [historyEntry, setHistoryEntry] = useState<CautionPermission | null>(null);
 
+  const [vipUserId, setVipUserId] = useState("");
+  const [vipDisplayName, setVipDisplayName] = useState("");
+
   const [ragicQuery, setRagicQuery] = useState("");
   const [ragicSelected, setRagicSelected] = useState<LineWhitelistCandidate | null>(null);
   const [manualLineUserId, setManualLineUserId] = useState("");
@@ -366,6 +373,29 @@ export default function SystemLineWhitelistPage() {
     queryKey: whitelistQueryKey,
     queryFn: fetchLineWhitelist,
     enabled: activeTab === "主管白名單",
+  });
+
+  const vipQueryKey = ["/api/bff/system/line-bot/vip-whitelist"];
+  const vipListQuery = useQuery({
+    queryKey: vipQueryKey,
+    queryFn: fetchLineBotVipWhitelist,
+    enabled: activeTab === "公告 VIP",
+    retry: 1,
+  });
+  const vipItems: VipWhitelistEntry[] = (() => {
+    const raw = vipListQuery.data;
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === "object" && "items" in raw) return (raw as { items: VipWhitelistEntry[] }).items;
+    return [];
+  })();
+
+  const createVipMutation = useMutation({
+    mutationFn: createLineBotVipEntry,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: vipQueryKey }); setVipUserId(""); setVipDisplayName(""); },
+  });
+  const deleteVipMutation = useMutation({
+    mutationFn: deleteLineBotVipEntry,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: vipQueryKey }),
   });
   const ragicCandidateQuery = useQuery({
     queryKey: ["/api/bff/system/line-whitelist/candidates", ragicQuery],
@@ -691,6 +721,87 @@ export default function SystemLineWhitelistPage() {
                       <Users className="mx-auto h-10 w-10 text-[#8b9aae]" />
                       <p className="mt-3 text-[14px] font-black text-[#10233f]">{wlSearch ? "無符合結果" : "尚未新增任何成員"}</p>
                       <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側搜尋 Ragic 員工並設定功能授權後新增。</p>
+                    </div>
+                  </WorkbenchCard>
+                )}
+              </div>
+            </div>
+          </>
+        ) : activeTab === "公告 VIP" ? (
+          <>
+            <div className="grid gap-3 xl:grid-cols-[400px_1fr]">
+              <WorkbenchCard className="p-4">
+                <h2 className="text-[16px] font-black text-[#10233f]">新增 VIP 公告成員</h2>
+                <p className="mt-1 text-[12px] font-bold text-[#637185]">直接寫入 LINE Bot 公告白名單，優先接收重要公告推播。亦可在「主管白名單」頁開啟 VIP 公告功能自動同步。</p>
+                <div className="mt-4 grid gap-3">
+                  <input
+                    value={vipUserId}
+                    onChange={(e) => setVipUserId(e.target.value)}
+                    placeholder="LINE userId（U 開頭）"
+                    data-testid="input-vip-user-id"
+                    className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[13px] outline-none focus:border-[#2dd4bf]"
+                  />
+                  <input
+                    value={vipDisplayName}
+                    onChange={(e) => setVipDisplayName(e.target.value)}
+                    placeholder="顯示名稱"
+                    data-testid="input-vip-display-name"
+                    className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
+                  />
+                  <button
+                    type="button"
+                    disabled={!vipUserId.trim() || !vipDisplayName.trim() || createVipMutation.isPending}
+                    data-testid="button-add-vip"
+                    onClick={() => createVipMutation.mutate({ userId: vipUserId.trim(), displayName: vipDisplayName.trim() })}
+                    className="min-h-10 rounded-[8px] bg-[#0f1b3d] px-4 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {createVipMutation.isPending ? "新增中…" : "新增至 VIP 白名單"}
+                  </button>
+                  {createVipMutation.isError ? (
+                    <p className="text-[11px] font-bold text-[#c2410c]">新增失敗，請確認 LINE_BOT_ADMIN_TOKEN 設定</p>
+                  ) : null}
+                </div>
+              </WorkbenchCard>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[13px] font-black text-[#10233f]">LINE Bot VIP 公告白名單 <span className="ml-2 text-[11px] font-bold text-[#8b9aae]">（即時從 LINE Bot 讀取）</span></p>
+                  <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: vipQueryKey })} className="rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]">重新整理</button>
+                </div>
+
+                {vipListQuery.isLoading ? (
+                  <WorkbenchCard className="p-6 text-center text-[12px] font-bold text-[#8b9aae]">從 LINE Bot 載入中…</WorkbenchCard>
+                ) : vipListQuery.isError || (vipListQuery.data as { message?: string } | undefined)?.message ? (
+                  <WorkbenchCard className="p-4">
+                    <p className="text-[13px] font-bold text-[#c2410c]">
+                      {(vipListQuery.data as { message?: string } | undefined)?.message ?? "無法連線至 LINE Bot，請確認 LINE_BOT_ADMIN_TOKEN 設定"}
+                    </p>
+                  </WorkbenchCard>
+                ) : vipItems.length > 0 ? (
+                  vipItems.map((entry) => (
+                    <WorkbenchCard key={String(entry.id)} className="p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-black text-[#10233f]">{entry.displayName}</p>
+                          <p className="mt-0.5 font-mono text-[11px] font-bold text-[#536175]">{entry.userId}</p>
+                          {entry.createdAt ? <p className="mt-0.5 text-[10px] font-bold text-[#8b9aae]">新增：{new Date(entry.createdAt).toLocaleString("zh-TW")}</p> : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { if (window.confirm(`確定要將 ${entry.displayName} 從 VIP 白名單移除？`)) deleteVipMutation.mutate(entry.id); }}
+                          className="shrink-0 rounded-[8px] border border-[#ffe8df] px-3 py-2 text-[12px] font-black text-[#c2410c] hover:bg-[#ffe8df]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </WorkbenchCard>
+                  ))
+                ) : (
+                  <WorkbenchCard className="grid min-h-[180px] place-items-center p-6 text-center">
+                    <div>
+                      <ShieldCheck className="mx-auto h-10 w-10 text-[#8b9aae]" />
+                      <p className="mt-3 text-[14px] font-black text-[#10233f]">VIP 白名單目前為空</p>
+                      <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側新增成員，或在「主管白名單」頁開啟「VIP 公告」功能自動同步。</p>
                     </div>
                   </WorkbenchCard>
                 )}

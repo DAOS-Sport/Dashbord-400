@@ -24,12 +24,17 @@ export const LINE_FEATURES = [
     label: "AI 智能客服",
     description: "允許使用 400 LINE 官方帳號安置AGENT智能客服功能。",
   },
+  {
+    key: "vip-announcement",
+    label: "VIP 公告",
+    description: "列入 LINE Bot 公告白名單，優先接收重要公告推播。",
+  },
 ] as const;
 
 export type LineFeatureKey = typeof LINE_FEATURES[number]["key"];
 
 export const defaultLineFeatureAccess = () =>
-  Object.fromEntries(LINE_FEATURES.map((feature) => [feature.key, feature.key === "interview"])) as Record<LineFeatureKey, boolean>;
+  Object.fromEntries(LINE_FEATURES.map((feature) => [feature.key, false])) as Record<LineFeatureKey, boolean>;
 
 export const normalizeLineFeatureAccess = (value: Record<string, boolean> | null | undefined) =>
   Object.fromEntries(LINE_FEATURES.map((feature) => [feature.key, Boolean(value?.[feature.key])])) as Record<LineFeatureKey, boolean>;

@@ -116,6 +116,41 @@ export const fetchLineBotServiceStatus = () =>
 export const fetchLineBotServiceStatusSnapshots = () =>
   apiGet<{ items: LineBotServiceSnapshot[] }>("/api/bff/system/line-bot/service-status/snapshots");
 
+export type VipWhitelistEntry = {
+  id: string | number;
+  userId: string;
+  displayName: string;
+  createdAt?: string;
+  [key: string]: unknown;
+};
+
+export type InterviewUserEntry = {
+  userId: string;
+  displayName: string;
+  employeeNumber?: string | null;
+  department?: string | null;
+  createdAt?: string;
+  [key: string]: unknown;
+};
+
+export const fetchLineBotVipWhitelist = () =>
+  apiGet<VipWhitelistEntry[] | { items: VipWhitelistEntry[] }>("/api/bff/system/line-bot/vip-whitelist");
+
+export const createLineBotVipEntry = (payload: { userId: string; displayName: string }) =>
+  apiPost<VipWhitelistEntry>("/api/bff/system/line-bot/vip-whitelist", payload);
+
+export const deleteLineBotVipEntry = (id: string | number) =>
+  apiDelete<{ ok: boolean }>(`/api/bff/system/line-bot/vip-whitelist/${encodeURIComponent(String(id))}`);
+
+export const fetchLineBotInterviewUsers = () =>
+  apiGet<InterviewUserEntry[] | { items: InterviewUserEntry[] }>("/api/bff/system/line-bot/interview-users");
+
+export const createLineBotInterviewUser = (payload: { userId: string; displayName: string; employeeNumber?: string; department?: string }) =>
+  apiPost<InterviewUserEntry>("/api/bff/system/line-bot/interview-users", payload);
+
+export const deleteLineBotInterviewUser = (userId: string) =>
+  apiDelete<{ ok: boolean }>(`/api/bff/system/line-bot/interview-users/${encodeURIComponent(userId)}`);
+
 export type CautionPermissionStatus = "active" | "expiring_soon" | "expired" | "disabled" | "not_yet_effective";
 
 export type CautionPermission = {

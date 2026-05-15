@@ -444,20 +444,50 @@ const lineBotAdminFetch = async (path: string, method: string, body?: unknown) =
 
 const pushLineBotInterviewUser = async (
   row: typeof lineFeatureWhitelist.$inferSelect,
-  mode: "upsert" | "delete",
+  mode: "create" | "update" | "delete",
 ) => {
   if (!env.lineBotAdminToken) return;
   const access = normalizeLineFeatureAccess(row.featureAccess);
-  const shouldActivate = mode === "upsert" && row.status === "active" && Boolean(access["interview"]);
+  const shouldActivate = mode !== "delete" && row.status === "active" && Boolean(access["interview"]);
   if (shouldActivate) {
-    await lineBotAdminFetch("/api/admin/interview-users", "POST", {
+    const endpoint = mode === "update"
+      ? [`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "PATCH"]
+      : ["/api/admin/interview-users", "POST"];
+    const resp = await lineBotAdminFetch(endpoint[0], endpoint[1], {
       userId: row.lineUserId,
       displayName: row.displayName,
       employeeNumber: row.employeeNumber ?? undefined,
       department: row.department ?? undefined,
     });
+    if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
   } else {
-    await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
+    const resp = await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
+    if (resp && !resp.ok && resp.status !== 404) throw new Error(`HTTP ${resp.status}`);
+  }
+};
+
+const pushLineBotVipEntry = async (
+  row: typeof lineFeatureWhitelist.$inferSelect,
+  mode: "create" | "update" | "delete",
+) => {
+  if (!env.lineBotAdminToken) return;
+  const access = normalizeLineFeatureAccess(row.featureAccess);
+  const shouldBeVip = mode !== "delete" && row.status === "active" && Boolean(access["vip-announcement"]);
+  if (shouldBeVip) {
+    const resp = await lineBotAdminFetch("/api/admin/whitelist", "POST", {
+      userId: row.lineUserId,
+      displayName: row.displayName,
+    });
+    if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
+  } else {
+    const listResp = await lineBotAdminFetch("/api/admin/whitelist", "GET");
+    if (!listResp?.ok) return;
+    const list = await listResp.json() as Array<{ id: string | number; userId?: string }>;
+    const entry = list.find((e) => e.userId === row.lineUserId);
+    if (entry?.id) {
+      const resp = await lineBotAdminFetch(`/api/admin/whitelist/${encodeURIComponent(String(entry.id))}`, "DELETE");
+      if (resp && !resp.ok && resp.status !== 404) throw new Error(`HTTP ${resp.status}`);
+    }
   }
 };
 
@@ -687,7 +717,15 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
         resultStatus: "success",
       });
-      pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
+      const pushMode = existing ? "update" : "create";
+      (async () => {
+        try { await pushLineBotInterviewUser(row, pushMode); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_INTERVIEW_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+        try { await pushLineBotVipEntry(row, pushMode); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_VIP_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+      })();
       return res.status(existing ? 200 : 201).json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -734,7 +772,14 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
         resultStatus: "success",
       });
-      pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
+      (async () => {
+        try { await pushLineBotInterviewUser(row, "update"); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_INTERVIEW_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+        try { await pushLineBotVipEntry(row, "update"); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_VIP_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+      })();
       return res.json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -759,7 +804,14 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         payload: { lineUserId: row.lineUserId, displayName: row.displayName },
         resultStatus: "success",
       });
-      pushLineBotInterviewUser(row, "delete").catch((err) => console.warn("[line-bot-push:interview-delete]", String(err)));
+      (async () => {
+        try { await pushLineBotInterviewUser(row, "delete"); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_INTERVIEW_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+        try { await pushLineBotVipEntry(row, "delete"); } catch (err) {
+          await container.repositories.telemetry.recordAudit({ actorId: req.workbenchSession?.userId, role: req.workbenchSession?.activeRole, facilityKey: req.workbenchSession?.activeFacility, action: "LINE_BOT_VIP_PUSH_FAILED", resource: "system.line-bot-push", payload: { lineUserId: row.lineUserId, error: String(err) }, resultStatus: "failure" }).catch(() => {});
+        }
+      })();
       return res.json({ ok: true });
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -799,6 +851,38 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
       return res.status(502).json({ message, items: [] });
     }
   });
+
+  const lineBotProxy = (upstreamPath: string) => async (req: express.Request, res: express.Response) => {
+    const token = env.lineBotAdminToken;
+    if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured" });
+    const paramId = (req.params as Record<string, string | undefined>).id ?? (req.params as Record<string, string | undefined>).userId;
+    const targetPath = paramId ? `${upstreamPath}/${encodeURIComponent(paramId)}` : upstreamPath;
+    const qs = new URLSearchParams(req.query as Record<string, string>).toString();
+    const url = `${env.lineBotBaseUrl}${targetPath}${qs ? `?${qs}` : ""}`;
+    const hasBody = ["POST", "PATCH", "PUT"].includes(req.method);
+    try {
+      const upstream = await fetch(url, {
+        method: req.method,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: hasBody ? JSON.stringify(req.body || {}) : undefined,
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await upstream.json().catch(() => null);
+      return res.status(upstream.status).json(data ?? { ok: upstream.ok });
+    } catch (err) {
+      return res.status(502).json({ message: err instanceof Error ? err.message : "無法連線" });
+    }
+  };
+
+  app.get("/api/bff/system/line-bot/interview-users", requireSession, requireRole("system"), lineBotProxy("/api/admin/interview-users"));
+  app.post("/api/bff/system/line-bot/interview-users", requireSession, requireRole("system"), lineBotProxy("/api/admin/interview-users"));
+  app.patch("/api/bff/system/line-bot/interview-users/:userId", requireSession, requireRole("system"), lineBotProxy("/api/admin/interview-users"));
+  app.delete("/api/bff/system/line-bot/interview-users/:userId", requireSession, requireRole("system"), lineBotProxy("/api/admin/interview-users"));
+
+  app.get("/api/bff/system/line-bot/vip-whitelist", requireSession, requireRole("system"), lineBotProxy("/api/admin/whitelist"));
+  app.post("/api/bff/system/line-bot/vip-whitelist", requireSession, requireRole("system"), lineBotProxy("/api/admin/whitelist"));
+  app.patch("/api/bff/system/line-bot/vip-whitelist/:id", requireSession, requireRole("system"), lineBotProxy("/api/admin/whitelist"));
+  app.delete("/api/bff/system/line-bot/vip-whitelist/:id", requireSession, requireRole("system"), lineBotProxy("/api/admin/whitelist"));
 
   app.get("/api/internal/line-whitelist/check", async (req, res) => {
     if (!container.config.internalApiToken) return res.status(503).json({ message: "INTERNAL_API_TOKEN is not configured" });
