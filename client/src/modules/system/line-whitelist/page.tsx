@@ -416,7 +416,7 @@ export default function SystemLineWhitelistPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: whitelistQueryKey });
       setRagicSelected(null); setManualLineUserId(""); setRagicQuery(""); setWlNotes("");
-      setWlFeatures(Object.fromEntries(LINE_FEATURES.map((f) => [f.key, f.key === "interview"])));
+      setWlFeatures(Object.fromEntries(LINE_FEATURES.map((f) => [f.key, false])));
     },
   });
 

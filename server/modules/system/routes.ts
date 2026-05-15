@@ -474,6 +474,18 @@ const pushLineBotVipEntry = async (
   const access = normalizeLineFeatureAccess(row.featureAccess);
   const shouldBeVip = mode !== "delete" && row.status === "active" && Boolean(access["vip-announcement"]);
   if (shouldBeVip) {
+    if (mode === "update") {
+      const listResp = await lineBotAdminFetch("/api/admin/whitelist", "GET");
+      if (listResp?.ok) {
+        const list = await listResp.json() as Array<{ id: string | number; userId?: string }>;
+        const existing = list.find((e) => e.userId === row.lineUserId);
+        if (existing?.id) {
+          const patchResp = await lineBotAdminFetch(`/api/admin/whitelist/${encodeURIComponent(String(existing.id))}`, "PATCH", { displayName: row.displayName });
+          if (patchResp && !patchResp.ok) throw new Error(`HTTP ${patchResp.status}`);
+          return;
+        }
+      }
+    }
     const resp = await lineBotAdminFetch("/api/admin/whitelist", "POST", {
       userId: row.lineUserId,
       displayName: row.displayName,
