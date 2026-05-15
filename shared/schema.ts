@@ -1841,3 +1841,19 @@ export const courtSyncErrors = pgTable(
 
 export type CourtSyncError = typeof courtSyncErrors.$inferSelect;
 export type InsertCourtSyncError = typeof courtSyncErrors.$inferInsert;
+
+export const announcementWhitelist = pgTable(
+  "announcement_whitelist",
+  {
+    userId: text("user_id").primaryKey(),
+    userName: text("user_name").notNull(),
+    role: text("role"),
+    note: text("note"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+);
+
+export type AnnouncementWhitelistEntry = typeof announcementWhitelist.$inferSelect;
+export type InsertAnnouncementWhitelistEntry = typeof announcementWhitelist.$inferInsert;

@@ -10,7 +10,7 @@ import {
 import type { WorkbenchRole } from "@shared/auth/me";
 import { LINE_FEATURES, normalizeLineFeatureAccess } from "@shared/system/line-feature-whitelist";
 import { helperEndpoints, helperEnvGroups, helperExternalServices, helperResilienceRules } from "@shared/system/helper-status";
-import { cautionQueryPermissionAudit, cautionQueryPermissions, lineFeatureWhitelist, sessionsIndex, userRoleSnapshots, users } from "@shared/schema";
+import { announcementWhitelist, cautionQueryPermissionAudit, cautionQueryPermissions, lineFeatureWhitelist, sessionsIndex, userRoleSnapshots, users } from "@shared/schema";
 import { and, desc, eq, gte, ilike, isNull, or } from "drizzle-orm";
 import type { AuditLogRecord, StoredClientError } from "../telemetry/repository";
 import { db } from "../../db";
@@ -1403,6 +1403,117 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     const result = await container.integrations.schedule.getScheduleSnapshot({ facilityKey, from, to });
     if (!result.data) return res.status(502).json({ message: result.meta.fallbackReason, meta: result.meta });
     return res.json(result.data);
+  });
+
+  const requireInternalToken = (req: Parameters<typeof readInternalToken>[0], res: import("express").Response): boolean => {
+    if (!container.config.internalApiToken) { res.status(503).json({ message: "INTERNAL_API_TOKEN not configured" }); return false; }
+    const tok = readInternalToken(req);
+    if (!tok) { res.status(401).json({ message: "MISSING_INTERNAL_TOKEN" }); return false; }
+    if (tok !== container.config.internalApiToken) { res.status(403).json({ message: "INVALID_INTERNAL_TOKEN" }); return false; }
+    return true;
+  };
+
+  const awSchema = z.object({
+    userId: z.string().min(1).max(200),
+    userName: z.string().min(1).max(200),
+    role: z.string().max(100).nullable().optional(),
+    note: z.string().max(1000).nullable().optional(),
+    isActive: z.boolean().optional(),
+  });
+  const awPatchSchema = awSchema.partial().required({ userId: true });
+
+  app.get("/api/internal/announcement-whitelist", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const rows = await db.select().from(announcementWhitelist).orderBy(desc(announcementWhitelist.createdAt));
+    return res.json({ items: rows, total: rows.length });
+  });
+
+  app.post("/api/internal/announcement-whitelist", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const parsed = awSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const { userId, userName, role, note, isActive } = parsed.data;
+    const [existing] = await db.select().from(announcementWhitelist).where(eq(announcementWhitelist.userId, userId)).limit(1);
+    if (existing) return res.status(409).json({ message: "USER_ALREADY_EXISTS", entry: existing });
+    const [row] = await db.insert(announcementWhitelist).values({
+      userId, userName, role: role ?? null, note: note ?? null, isActive: isActive ?? true,
+    }).returning();
+    return res.status(201).json(row);
+  });
+
+  app.patch("/api/internal/announcement-whitelist/:userId", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const userId = req.params.userId?.trim();
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+    const parsed = awPatchSchema.omit({ userId: true }).safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const [existing] = await db.select().from(announcementWhitelist).where(eq(announcementWhitelist.userId, userId)).limit(1);
+    if (!existing) return res.status(404).json({ message: "USER_NOT_FOUND" });
+    const updates: Partial<typeof announcementWhitelist.$inferInsert> = { updatedAt: new Date() };
+    if (parsed.data.userName !== undefined) updates.userName = parsed.data.userName;
+    if (parsed.data.role !== undefined) updates.role = parsed.data.role ?? null;
+    if (parsed.data.note !== undefined) updates.note = parsed.data.note ?? null;
+    if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive;
+    const [row] = await db.update(announcementWhitelist).set(updates).where(eq(announcementWhitelist.userId, userId)).returning();
+    return res.json(row);
+  });
+
+  app.delete("/api/internal/announcement-whitelist/:userId", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const userId = req.params.userId?.trim();
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+    const [existing] = await db.select().from(announcementWhitelist).where(eq(announcementWhitelist.userId, userId)).limit(1);
+    if (!existing) return res.status(404).json({ message: "USER_NOT_FOUND" });
+    await db.delete(announcementWhitelist).where(eq(announcementWhitelist.userId, userId));
+    return res.json({ ok: true, deleted: existing });
+  });
+
+  app.get("/api/internal/service-health", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const token = env.lineBotAdminToken;
+    if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured", services: [] });
+    try {
+      const upstream = await fetch(`${env.lineBotBaseUrl}/api/admin/service-status`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!upstream.ok) return res.status(upstream.status).json({ message: `LINE Bot 回傳 HTTP ${upstream.status}`, services: [] });
+      return res.json(await upstream.json());
+    } catch (err) {
+      return res.status(502).json({ message: err instanceof Error ? err.message : "無法連線", services: [] });
+    }
+  });
+
+  app.get("/api/internal/service-health/snapshots", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    const token = env.lineBotAdminToken;
+    if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured", items: [] });
+    const hours = Math.min(Number(req.query.hours) || 24, 168);
+    try {
+      const upstream = await fetch(`${env.lineBotBaseUrl}/api/admin/service-status/snapshots?hours=${hours}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!upstream.ok) return res.status(upstream.status).json({ message: `LINE Bot 回傳 HTTP ${upstream.status}`, items: [] });
+      const data = await upstream.json() as unknown;
+      return res.json(Array.isArray(data) ? { items: data } : data);
+    } catch (err) {
+      return res.status(502).json({ message: err instanceof Error ? err.message : "無法連線", items: [] });
+    }
+  });
+
+  app.get("/api/internal/interview-users", async (req, res) => {
+    if (!requireInternalToken(req, res)) return;
+    try {
+      const rows = await db.select().from(lineFeatureWhitelist).orderBy(desc(lineFeatureWhitelist.updatedAt));
+      const items = rows
+        .filter((row) => row.status === "active" && activeForFeature(row, "interview"))
+        .map((row) => lineWhitelistDto(row));
+      return res.json({ items, total: items.length });
+    } catch (error) {
+      if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
+      throw error;
+    }
   });
 
   app.post("/api/watchdog/events", async (req, res) => {
