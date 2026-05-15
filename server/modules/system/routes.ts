@@ -426,6 +426,56 @@ const cautionCheck = (row: typeof cautionQueryPermissions.$inferSelect | undefin
   return { allowed: true, permissionId: row.id, expiresAt: row.permissionEndAt ? row.permissionEndAt.toISOString() : null };
 };
 
+const lineBotAdminFetch = async (path: string, method: string, body?: unknown) => {
+  const token = env.lineBotAdminToken;
+  if (!token) return null;
+  const response = await fetch(`${env.lineBotBaseUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(8000),
+  });
+  return response;
+};
+
+const pushLineBotInterviewUser = async (
+  row: typeof lineFeatureWhitelist.$inferSelect,
+  mode: "upsert" | "delete",
+) => {
+  if (!env.lineBotAdminToken) return;
+  const access = normalizeLineFeatureAccess(row.featureAccess);
+  if (!access["interview"]) return;
+  if (mode === "delete" || row.status === "disabled") {
+    await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
+  } else {
+    await lineBotAdminFetch("/api/admin/interview-users", "POST", {
+      userId: row.lineUserId,
+      displayName: row.displayName,
+      employeeNumber: row.employeeNumber ?? undefined,
+      department: row.department ?? undefined,
+    });
+  }
+};
+
+const pushLineBotVipWhitelist = async (
+  row: typeof lineFeatureWhitelist.$inferSelect,
+  mode: "upsert" | "delete",
+) => {
+  if (!env.lineBotAdminToken) return;
+  if (mode === "delete" || row.status === "disabled") {
+    await lineBotAdminFetch(`/api/admin/whitelist/${encodeURIComponent(row.lineUserId)}`, "DELETE");
+  } else {
+    await lineBotAdminFetch("/api/admin/whitelist", "POST", {
+      userId: row.lineUserId,
+      displayName: row.displayName,
+    });
+  }
+};
+
 export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/system/control-center", requireSession, requireRole("system"), async (_req, res) => {
     if (controlCenterCache && controlCenterCache.expiresAt > Date.now()) {
@@ -645,6 +695,8 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
         resultStatus: "success",
       });
+      pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
+      pushLineBotVipWhitelist(row, "upsert").catch((err) => console.warn("[line-bot-push:vip]", String(err)));
       return res.status(existing ? 200 : 201).json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -691,10 +743,71 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
         resultStatus: "success",
       });
+      pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
+      pushLineBotVipWhitelist(row, "upsert").catch((err) => console.warn("[line-bot-push:vip]", String(err)));
       return res.json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
       throw error;
+    }
+  });
+
+  app.delete("/api/bff/system/line-whitelist/:id", requireSession, requireRole("system"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    try {
+      const [row] = await db.select().from(lineFeatureWhitelist).where(eq(lineFeatureWhitelist.id, id)).limit(1);
+      if (!row) return res.status(404).json({ message: "WHITELIST_ENTRY_NOT_FOUND" });
+      await db.delete(lineFeatureWhitelist).where(eq(lineFeatureWhitelist.id, id));
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: "LINE_WHITELIST_DELETED",
+        resource: "system.line-feature-whitelist",
+        resourceId: String(id),
+        payload: { lineUserId: row.lineUserId, displayName: row.displayName },
+        resultStatus: "success",
+      });
+      pushLineBotInterviewUser(row, "delete").catch((err) => console.warn("[line-bot-push:interview-delete]", String(err)));
+      pushLineBotVipWhitelist(row, "delete").catch((err) => console.warn("[line-bot-push:vip-delete]", String(err)));
+      return res.json({ ok: true });
+    } catch (error) {
+      if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.get("/api/bff/system/line-bot/service-status", requireSession, requireRole("system"), async (_req, res) => {
+    const token = env.lineBotAdminToken;
+    if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured", services: [] });
+    try {
+      const upstream = await fetch(`${env.lineBotBaseUrl}/api/admin/service-status`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!upstream.ok) return res.status(upstream.status).json({ message: `LINE Bot 回傳 HTTP ${upstream.status}`, services: [] });
+      return res.json(await upstream.json());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "無法連線";
+      return res.status(502).json({ message, services: [] });
+    }
+  });
+
+  app.get("/api/bff/system/line-bot/service-status/snapshots", requireSession, requireRole("system"), async (_req, res) => {
+    const token = env.lineBotAdminToken;
+    if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured", items: [] });
+    try {
+      const upstream = await fetch(`${env.lineBotBaseUrl}/api/admin/service-status/snapshots`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!upstream.ok) return res.status(upstream.status).json({ message: `LINE Bot 回傳 HTTP ${upstream.status}`, items: [] });
+      const data = await upstream.json() as unknown;
+      return res.json(Array.isArray(data) ? { items: data } : data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "無法連線";
+      return res.status(502).json({ message, items: [] });
     }
   });
 

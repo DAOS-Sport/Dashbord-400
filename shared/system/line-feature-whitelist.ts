@@ -19,6 +19,11 @@ export const LINE_FEATURES = [
     label: "小幫手管理",
     description: "允許操作 400 小幫手管理型指令與狀態查詢。",
   },
+  {
+    key: "ai-agent",
+    label: "AI 智能客服",
+    description: "允許使用 400 LINE 官方帳號安置AGENT智能客服功能。",
+  },
 ] as const;
 
 export type LineFeatureKey = typeof LINE_FEATURES[number]["key"];

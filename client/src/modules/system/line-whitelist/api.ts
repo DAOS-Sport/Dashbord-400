@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
 
 export type LineFeature = {
   key: string;
@@ -84,6 +84,37 @@ export const createLineWhitelistEntry = (payload: LineWhitelistPayload) =>
 
 export const updateLineWhitelistEntry = (id: number, payload: Partial<LineWhitelistPayload>) =>
   apiPatch<LineWhitelistEntry>(`/api/bff/system/line-whitelist/${id}`, payload);
+
+export const deleteLineWhitelistEntry = (id: number) =>
+  apiDelete<{ ok: boolean }>(`/api/bff/system/line-whitelist/${id}`);
+
+export type LineBotServiceItem = {
+  name: string;
+  status: "up" | "down" | "degraded" | "unknown";
+  latencyMs?: number;
+  message?: string;
+  checkedAt?: string;
+};
+
+export type LineBotServiceStatusDto = {
+  generatedAt?: string;
+  checkedAt?: string;
+  services?: LineBotServiceItem[];
+  [key: string]: unknown;
+};
+
+export type LineBotServiceSnapshot = {
+  id: string | number;
+  createdAt: string;
+  services?: LineBotServiceItem[];
+  [key: string]: unknown;
+};
+
+export const fetchLineBotServiceStatus = () =>
+  apiGet<LineBotServiceStatusDto>("/api/bff/system/line-bot/service-status");
+
+export const fetchLineBotServiceStatusSnapshots = () =>
+  apiGet<{ items: LineBotServiceSnapshot[] }>("/api/bff/system/line-bot/service-status/snapshots");
 
 export type CautionPermissionStatus = "active" | "expiring_soon" | "expired" | "disabled" | "not_yet_effective";
 

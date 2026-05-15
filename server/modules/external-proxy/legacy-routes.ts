@@ -328,7 +328,16 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
     )
   );
 
-  app.get("/api/admin/interview-users", (_req, res) =>
-    proxyGet(`${SMART_SCHEDULE_BASE}/api/admin/interview-users`, res, "面試授權用戶")
-  );
+  app.get("/api/admin/interview-users", async (_req, res) => {
+    try {
+      const token = env.lineBotAdminToken;
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const upstream = await fetch(`${LINE_BOT_BASE}/api/admin/interview-users`, { headers, signal: AbortSignal.timeout(10000) });
+      if (!upstream.ok) return res.status(upstream.status).json({ message: `面試授權用戶 回傳 HTTP ${upstream.status}` });
+      return res.json(await upstream.json());
+    } catch (err: any) {
+      return res.status(502).json({ message: err.message || "無法連線至面試授權用戶" });
+    }
+  });
 };
