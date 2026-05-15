@@ -4,6 +4,7 @@ import path from "path";
 import { sanitizeAnnouncementCandidate, validateCandidateTitleSummary } from "@shared/announcement-classifier";
 import { env } from "../../shared/config/env";
 import { storage } from "../../storage";
+import { invalidateCandidateCache } from "../announcements/widget-service";
 
 export const registerExternalProxyLegacyRoutes = (app: Express) => {
   const LINE_BOT_BASE = env.lineBotBaseUrl;
@@ -133,13 +134,15 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
     })
   );
 
-  app.post("/api/announcement-candidates/:id/approve", (req, res) =>
-    proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/approve`, req.body, res, "核准公告")
-  );
+  app.post("/api/announcement-candidates/:id/approve", (req, res) => {
+    invalidateCandidateCache();
+    return proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/approve`, req.body, res, "核准公告");
+  });
 
-  app.post("/api/announcement-candidates/:id/reject", (req, res) =>
-    proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/reject`, req.body, res, "退回公告")
-  );
+  app.post("/api/announcement-candidates/:id/reject", (req, res) => {
+    invalidateCandidateCache();
+    return proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/reject`, req.body, res, "退回公告");
+  });
 
   app.get("/api/announcement-reports/weekly", (req, res) =>
     proxyGet(`${LINE_BOT_BASE}/api/announcement-reports/weekly`, res, "週報")

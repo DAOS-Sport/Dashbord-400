@@ -3,19 +3,16 @@ import {
   defaultEmployeeHomeWidgets,
   normalizeWidgetLayout,
 } from "@shared/domain/layout";
-import type {
-  AnnouncementSummary,
-  EmployeeHomeDto,
-} from "@shared/domain/workbench";
+import type { EmployeeHomeDto } from "@shared/domain/workbench";
 import type { AppContainer } from "../../../app/container";
 import { fetchCwaWeather } from "../../../integrations/weather/cwa-adapter";
 import { degraded, ok, unavailable } from "../../../shared/bff/section";
 import { env } from "../../../shared/config/env";
 import { storage } from "../../../storage";
-import { readFacilityLineAnnouncements } from "../../announcement-groups/service";
 import {
   getCampaignAnnouncements,
   getImportantAnnouncements,
+  getLastSyncStatus,
 } from "../../announcements/widget-service";
 
 import {
@@ -44,19 +41,23 @@ export const enrichEmployeeHome = async (
   const now = new Date().toISOString();
   const currentShiftCount = dto.shifts.data?.length ?? 0;
 
-  // Fetch CWA weather in parallel with layout
-  const [layoutSetting, cwaWeather, candidateImportant, candidateCampaigns] = await Promise.all([
-    storage
-      .getWidgetLayout({
-        facilityKey: normalizedFacilityKey,
-        role: "employee",
-        layoutKey: "employee-home",
-      })
-      .catch(() => null),
-    fetchCwaWeather().catch(() => null),
-    getImportantAnnouncements(normalizedFacilityKey, 5).catch(() => []),
-    getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
-  ]);
+  // Fetch layout, weather, and candidate widgets in parallel
+  const [layoutSetting, cwaWeather, candidateImportant, candidateCampaigns] =
+    await Promise.all([
+      storage
+        .getWidgetLayout({
+          facilityKey: normalizedFacilityKey,
+          role: "employee",
+          layoutKey: "employee-home",
+        })
+        .catch(() => null),
+      fetchCwaWeather().catch(() => null),
+      getImportantAnnouncements(normalizedFacilityKey, undefined, 5).catch(
+        () => [],
+      ),
+      getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
+    ]);
+
   let nextDto: EmployeeHomeDto = {
     ...dto,
     layout: ok(
@@ -69,32 +70,24 @@ export const enrichEmployeeHome = async (
     stickyNotes: dto.stickyNotes ?? ok([], now),
     training: dto.training ?? ok([], now),
   };
-  const employeeResources = await getEmployeeResourceSections(
-    normalizedFacilityKey,
-  );
-  const lineAnnouncementsResult = await readFacilityLineAnnouncements({
-    facilityKey: normalizedFacilityKey,
-    limit: 20,
-  }).catch((error) => ({
-    announcements: [] as AnnouncementSummary[],
-    fetchedAt: now,
-    sourceStatus: {
-      connected: false,
-      errorMessage:
-        error instanceof Error ? error.message : "LINE 公告群組讀取失敗",
-    },
-  }));
-  const systemAnnouncements = await storage
-    .listSystemAnnouncements(normalizedFacilityKey, true)
-    .catch(() => []);
-  const portalAnnouncements = systemAnnouncements
+
+  const [employeeResources, systemAnnouncementRows, localTasks] =
+    await Promise.all([
+      getEmployeeResourceSections(normalizedFacilityKey),
+      storage.listSystemAnnouncements(normalizedFacilityKey, true).catch(() => []),
+      storage
+        .listTasks({ facilityKey: normalizedFacilityKey, limit: 50 })
+        .catch(() => []),
+    ]);
+
+  const portalAnnouncements = systemAnnouncementRows
     .slice(0, 8)
     .map((item) => mapSystemAnnouncementSummary(item, now));
-  const localTasks = await storage
-    .listTasks({ facilityKey: normalizedFacilityKey, limit: 50 })
-    .catch(() => []);
+
+  // Widget A (重要公告): DB-backed candidates + employee resources + portal announcements.
+  // Raw LINE group messages are no longer merged here; they remain available on
+  // the full /employee/announcements page via its own route.
   const announcementsBeforeOverlay = uniqueAnnouncements([
-    ...lineAnnouncementsResult.announcements,
     ...candidateImportant,
     ...employeeResources.announcements,
     ...portalAnnouncements,
@@ -103,9 +96,14 @@ export const enrichEmployeeHome = async (
       Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) ||
       announcementSortTime(b) - announcementSortTime(a),
   );
+
   const announcements = (
     await applyAnnouncementOverlays(announcementsBeforeOverlay)
   ).slice(0, 10);
+
+  // Derive source status from widget sync metadata instead of LINE group fetch
+  const widgetSyncStatus = getLastSyncStatus(normalizedFacilityKey);
+
   nextDto = {
     ...nextDto,
     tasks: ok(localTasks.map(mapTaskSummary), now),
@@ -113,16 +111,19 @@ export const enrichEmployeeHome = async (
     announcements: announcementSectionFromSources(
       announcements,
       {
-        ...lineAnnouncementsResult.sourceStatus,
-        fetchedAt: lineAnnouncementsResult.fetchedAt,
+        connected: widgetSyncStatus.connected,
+        errorMessage: widgetSyncStatus.errorMessage,
+        fetchedAt: widgetSyncStatus.fetchedAt,
       },
       now,
     ),
+    // Widget B (課程活動): candidate campaigns prepended to employee resource events
     campaigns: ok(
-      [...candidateCampaigns, ...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(
-        0,
-        10,
-      ),
+      [
+        ...candidateCampaigns,
+        ...employeeResources.campaigns,
+        ...(nextDto.campaigns.data ?? []),
+      ].slice(0, 10),
       now,
     ),
     documents: ok(
