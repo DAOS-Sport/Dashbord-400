@@ -448,31 +448,16 @@ const pushLineBotInterviewUser = async (
 ) => {
   if (!env.lineBotAdminToken) return;
   const access = normalizeLineFeatureAccess(row.featureAccess);
-  if (!access["interview"]) return;
-  if (mode === "delete" || row.status === "disabled") {
-    await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
-  } else {
+  const shouldActivate = mode === "upsert" && row.status === "active" && Boolean(access["interview"]);
+  if (shouldActivate) {
     await lineBotAdminFetch("/api/admin/interview-users", "POST", {
       userId: row.lineUserId,
       displayName: row.displayName,
       employeeNumber: row.employeeNumber ?? undefined,
       department: row.department ?? undefined,
     });
-  }
-};
-
-const pushLineBotVipWhitelist = async (
-  row: typeof lineFeatureWhitelist.$inferSelect,
-  mode: "upsert" | "delete",
-) => {
-  if (!env.lineBotAdminToken) return;
-  if (mode === "delete" || row.status === "disabled") {
-    await lineBotAdminFetch(`/api/admin/whitelist/${encodeURIComponent(row.lineUserId)}`, "DELETE");
   } else {
-    await lineBotAdminFetch("/api/admin/whitelist", "POST", {
-      userId: row.lineUserId,
-      displayName: row.displayName,
-    });
+    await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
   }
 };
 
@@ -627,7 +612,14 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
       () => container.integrations.ragicAuth.listActiveEmployees(),
       { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
     );
-    const employees = (result.data ?? [])
+    if (result.data === null) {
+      return res.status(503).json({
+        message: "Ragic 員工資料暫時無法存取，請稍後再試",
+        sourceStatus: result.meta,
+        items: [],
+      });
+    }
+    const employees = result.data
       .map((employee) => ({
         lineUserId: employee.lineUserId || employee.userId || employee.employeeNumber,
         employeeNumber: employee.employeeNumber,
@@ -696,7 +688,6 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         resultStatus: "success",
       });
       pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
-      pushLineBotVipWhitelist(row, "upsert").catch((err) => console.warn("[line-bot-push:vip]", String(err)));
       return res.status(existing ? 200 : 201).json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -744,7 +735,6 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         resultStatus: "success",
       });
       pushLineBotInterviewUser(row, "upsert").catch((err) => console.warn("[line-bot-push:interview]", String(err)));
-      pushLineBotVipWhitelist(row, "upsert").catch((err) => console.warn("[line-bot-push:vip]", String(err)));
       return res.json(lineWhitelistDto(row));
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
@@ -770,7 +760,6 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         resultStatus: "success",
       });
       pushLineBotInterviewUser(row, "delete").catch((err) => console.warn("[line-bot-push:interview-delete]", String(err)));
-      pushLineBotVipWhitelist(row, "delete").catch((err) => console.warn("[line-bot-push:vip-delete]", String(err)));
       return res.json({ ok: true });
     } catch (error) {
       if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });

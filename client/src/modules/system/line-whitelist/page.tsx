@@ -347,7 +347,7 @@ export default function SystemLineWhitelistPage() {
   const [ragicSelected, setRagicSelected] = useState<LineWhitelistCandidate | null>(null);
   const [manualLineUserId, setManualLineUserId] = useState("");
   const [wlFeatures, setWlFeatures] = useState<Record<string, boolean>>(
-    Object.fromEntries(LINE_FEATURES.map((f) => [f.key, f.key === "interview"])),
+    Object.fromEntries(LINE_FEATURES.map((f) => [f.key, false])),
   );
   const [wlNotes, setWlNotes] = useState("");
   const [wlSearch, setWlSearch] = useState("");
