@@ -688,6 +688,35 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     return res.json({ items: employees, sourceStatus: result.meta });
   });
 
+  // Alias matching task spec contract — same handler as /api/bff/system/line-whitelist/candidates
+  app.get("/api/system/whitelist/ragic-search", requireSession, requireRole("system"), async (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    const result = await safeRead(
+      () => container.integrations.ragicAuth.listActiveEmployees(),
+      { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
+    );
+    if (result.data === null) {
+      return res.status(503).json({ message: "Ragic 員工資料暫時無法存取，請稍後再試", sourceStatus: result.meta, items: [] });
+    }
+    const employees = result.data
+      .map((employee) => ({
+        lineUserId: employee.lineUserId || employee.userId || employee.employeeNumber,
+        employeeNumber: employee.employeeNumber,
+        displayName: employee.displayName,
+        phone: employee.phone ?? "",
+        department: employee.department ?? employee.departments?.join(", ") ?? "",
+        title: employee.title ?? "",
+        source: result.meta.source,
+      }))
+      .filter((employee) => {
+        if (!query) return true;
+        const haystack = `${employee.lineUserId} ${employee.employeeNumber} ${employee.displayName} ${employee.phone} ${employee.department}`.toLowerCase();
+        return haystack.includes(query);
+      })
+      .slice(0, 30);
+    return res.json({ items: employees, sourceStatus: result.meta });
+  });
+
   app.post("/api/bff/system/line-whitelist", requireSession, requireRole("system"), async (req, res) => {
     const parsed = lineWhitelistUpsertSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
