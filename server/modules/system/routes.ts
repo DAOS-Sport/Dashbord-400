@@ -449,17 +449,25 @@ const pushLineBotInterviewUser = async (
   if (!env.lineBotAdminToken) return;
   const access = normalizeLineFeatureAccess(row.featureAccess);
   const shouldActivate = mode !== "delete" && row.status === "active" && Boolean(access["interview"]);
+  const payload = {
+    userId: row.lineUserId,
+    displayName: row.displayName,
+    employeeNumber: row.employeeNumber ?? undefined,
+    department: row.department ?? undefined,
+  };
   if (shouldActivate) {
-    const endpoint = mode === "update"
-      ? [`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "PATCH"]
-      : ["/api/admin/interview-users", "POST"];
-    const resp = await lineBotAdminFetch(endpoint[0], endpoint[1], {
-      userId: row.lineUserId,
-      displayName: row.displayName,
-      employeeNumber: row.employeeNumber ?? undefined,
-      department: row.department ?? undefined,
-    });
-    if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (mode === "update") {
+      const patchResp = await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "PATCH", payload);
+      if (patchResp?.status === 404) {
+        const postResp = await lineBotAdminFetch("/api/admin/interview-users", "POST", payload);
+        if (postResp && !postResp.ok) throw new Error(`HTTP ${postResp.status}`);
+      } else if (patchResp && !patchResp.ok) {
+        throw new Error(`HTTP ${patchResp.status}`);
+      }
+    } else {
+      const resp = await lineBotAdminFetch("/api/admin/interview-users", "POST", payload);
+      if (resp && !resp.ok) throw new Error(`HTTP ${resp.status}`);
+    }
   } else {
     const resp = await lineBotAdminFetch(`/api/admin/interview-users/${encodeURIComponent(row.lineUserId)}`, "DELETE");
     if (resp && !resp.ok && resp.status !== 404) throw new Error(`HTTP ${resp.status}`);
