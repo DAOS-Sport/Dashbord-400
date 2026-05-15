@@ -135,6 +135,8 @@ const buildShiftBoardFromSummaries = (
         shiftId: key,
         start,
         end,
+        // Task #95: carry period from the first shift in this time bucket
+        period: (shift.period as ShiftBoardDto["shifts"][number]["period"]) ?? undefined,
         isCurrent: Number.isFinite(startTime) && Number.isFinite(endTime) && nowTime >= startTime && nowTime < endTime,
         isFuture: Number.isFinite(startTime) && startTime > nowTime,
         people: [],
@@ -143,7 +145,8 @@ const buildShiftBoardFromSummaries = (
       current.people.push({
         userId: personId,
         name: shift.employeeName || shift.label.split("/")[0]?.trim() || "未命名",
-        role: shift.kind || shift.label.split("/")[1]?.trim() || "當班",
+        // Task #95: prefer actual job role (救生員/教練…) over assignment kind
+        role: shift.role || shift.kind || shift.label.split("/")[1]?.trim() || "當班",
         isCurrentUser: Boolean(userId && (personId === userId || shift.employeeName === userId)),
       });
       grouped.set(key, current);

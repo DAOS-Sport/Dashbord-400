@@ -1616,8 +1616,17 @@ function buildShiftPeriodGroups(
   const seen = new Set<string>();
   const sorted = [...shifts].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   for (const shift of sorted) {
+    // Task #95: use explicit period from API first; early/mid → 早班, late → 晚班
+    // fallback to time-based heuristic when period is absent
     const hour = new Date(shift.start).getHours();
-    const bucket = hour < 14 ? early : late;
+    const bucket =
+      shift.period === "early" || shift.period === "mid"
+        ? early
+        : shift.period === "late"
+          ? late
+          : hour < 14
+            ? early
+            : late;
     const st = fmtShiftHHMM(shift.start);
     const et = fmtShiftHHMM(shift.end);
     for (const p of shift.people) {

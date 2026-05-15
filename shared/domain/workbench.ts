@@ -153,11 +153,14 @@ export interface ShiftBoardDto {
     shiftId: string;
     start: string;
     end: string;
+    /** Task #95: early / mid / late / custom from upstream API */
+    period?: "early" | "mid" | "late" | "custom";
     isCurrent: boolean;
     isFuture: boolean;
     people: Array<{
       userId: string;
       name: string;
+      /** Actual job role (救生員/教練/櫃台…), not assignment kind */
       role: string;
       isCurrentUser: boolean;
     }>;

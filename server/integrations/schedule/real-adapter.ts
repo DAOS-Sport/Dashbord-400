@@ -61,7 +61,8 @@ const mapExportSchedule = (facilityKey: string, row: Record<string, unknown>, in
   const assignment = isObject(row.assignment) ? row.assignment : {};
   const status = readText(assignment.status, "scheduled");
   const raw = isObject(row.raw) ? row.raw : {};
-  const rawRole = readText(raw.role);
+  // Task #95: prefer top-level convenience fields, fall back to nested paths
+  const rawRole = readText(row.role) || readText(raw.role);
   if (status && !["scheduled", "changed", "completed"].includes(status)) return null;
   if (/休假|取消|請假/.test(`${rawRole} ${status}`)) return null;
   if (!matchesFacility(facilityKey, row)) return null;
@@ -71,9 +72,12 @@ const mapExportSchedule = (facilityKey: string, row: Record<string, unknown>, in
   const venue = isObject(row.venue) ? row.venue : {};
   const startsAt = readText(shift.startAt);
   const endsAt = readText(shift.endAt);
-  const period = normalizePeriod(readText(shift.period), startsAt);
+  // Task #95: top-level period > nested shift.period > derive from time
+  const periodRaw = readText(row.period) || readText(shift.period);
+  const period = normalizePeriod(periodRaw, startsAt);
   const employeeName = readText(employee.name);
-  const venueName = readText(venue.name, readText(venue.shortName));
+  // Task #95: top-level venueName / venueShortName > nested venue.name > venue.shortName
+  const venueName = readText(row.venueName) || readText(row.venueShortName) || readText(venue.name, readText(venue.shortName));
   const kind = readText(assignment.kind, readText(row.kind, "regular"));
 
   return {
@@ -216,21 +220,34 @@ export const realScheduleAdapter: ScheduleAdapter = {
             const aliases = [facility.shortName, facility.fullName, ...facility.ragicDepartmentAliases];
             return aliases.some((alias) => venueName.includes(alias) || alias.includes(venueName));
           })
-          .map((row, index) => ({
-            id: String(row.shiftId ?? row.id ?? row._id ?? `smart-schedule-${index}`),
-            facilityKey: String(row.facilityKey ?? facilityKey),
-            employeeNumber: readNestedText(row.employee, ["employeeNumber", "employeeCode", "code"]),
-            employeeName: readNestedText(row.employee, ["name", "employeeName", "displayName"]),
-            venueName: readNestedText(row.venue, ["name", "venueName", "facilityName"]),
-            kind: readText(row.kind),
-            label: [
-              readNestedText(row.employee, ["name", "employeeName", "displayName"]),
-              readNestedText(row.venue, ["name", "venueName", "facilityName"]),
-              readText(row.kind),
-            ].filter(Boolean).join(" / ") || readText(row.label ?? row.shiftLabel ?? row.name, "班別"),
-            startsAt: normalizeDateTime(readText(row.startsAt ?? row.startAt ?? row.startTime), date),
-            endsAt: normalizeDateTime(readText(row.endsAt ?? row.endAt ?? row.endTime), date),
-          })),
+          .map((row, index) => {
+            const startsAtRaw = readText(row.startsAt ?? row.startAt ?? row.startTime);
+            const startsAt = normalizeDateTime(startsAtRaw, date);
+            // Task #95: /api/internal/schedules/today now includes period at top level
+            const periodRaw = readText(row.period);
+            const period = periodRaw
+              ? normalizePeriod(periodRaw, startsAt)
+              : normalizePeriod("", startsAt);
+            const employeeName = readNestedText(row.employee, ["name", "employeeName", "displayName"]);
+            const venueFromTop = readText(row.venueName ?? row.venueShortName);
+            const venueFromNested = readNestedText(row.venue, ["name", "venueName", "facilityName"]);
+            const venueName = venueFromTop || venueFromNested;
+            const kind = readText(row.kind);
+            return {
+              id: String(row.shiftId ?? row.id ?? row._id ?? `smart-schedule-${index}`),
+              facilityKey: String(row.facilityKey ?? facilityKey),
+              employeeNumber: readNestedText(row.employee, ["employeeNumber", "employeeCode", "code"]),
+              employeeName,
+              venueName,
+              // Task #95: actual job role (救生員/教練) at top level, fallback to nested
+              role: readText(row.role) || readNestedText(row.employee, ["role"]) || undefined,
+              kind,
+              period,
+              label: [employeeName, venueName, kind].filter(Boolean).join(" / ") || readText(row.label ?? row.shiftLabel ?? row.name, "班別"),
+              startsAt,
+              endsAt: normalizeDateTime(readText(row.endsAt ?? row.endAt ?? row.endTime), date),
+            };
+          }),
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown Smart Schedule error";
