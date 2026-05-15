@@ -145,6 +145,14 @@ function formatEffectiveRange(
   }
 }
 
+// ─── Date parsing helper ──────────────────────────────────────────────────────
+
+function parseDate(v: unknown): Date | null {
+  if (!v) return null;
+  const d = new Date(String(v));
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // ─── LINE Bot API fetch + DB sync ─────────────────────────────────────────────
 
 async function syncCandidatesFromLineBotApi(facilityKey: string): Promise<void> {
@@ -198,6 +206,17 @@ async function syncAllToDb(rows: Record<string, unknown>[], facilityKey: string)
       );
       const groupId = readText(item.groupId, "");
       if (!contentHash || !sourceMessageId || !groupId) return null;
+
+      // Map extended scope/schedule fields from upstream payload (camelCase and snake_case variants)
+      const scopeType = readText(item.scopeType ?? item.scope_type, "") || null;
+      const appliesToRoles: string[] | null = Array.isArray(item.appliesToRoles)
+        ? (item.appliesToRoles as string[])
+        : Array.isArray(item.applies_to_roles)
+          ? (item.applies_to_roles as string[])
+          : null;
+      const startAt = parseDate(item.startAt ?? item.start_at ?? item.startDate);
+      const endAt = parseDate(item.endAt ?? item.end_at ?? item.endDate);
+
       return {
         sourceMessageId,
         sourceMessageIds: [sourceMessageId],
@@ -214,6 +233,10 @@ async function syncAllToDb(rows: Record<string, unknown>[], facilityKey: string)
         reasoningTags: Array.isArray(item.reasoningTags)
           ? (item.reasoningTags as string[])
           : [],
+        scopeType,
+        appliesToRoles,
+        startAt,
+        endAt,
         facility: facilityKey,
       };
     })
@@ -231,7 +254,14 @@ async function syncAllToDb(rows: Record<string, unknown>[], facilityKey: string)
         summary: sql`EXCLUDED.summary`,
         status: sql`EXCLUDED.status`,
         confidence: sql`EXCLUDED.confidence`,
-        facility: sql`EXCLUDED.facility`,
+        scopeType: sql`EXCLUDED.scope_type`,
+        appliesToRoles: sql`EXCLUDED.applies_to_roles`,
+        startAt: sql`EXCLUDED.start_at`,
+        endAt: sql`EXCLUDED.end_at`,
+        // Cross-facility semantics: if the same content appears in multiple facilities,
+        // set facility to NULL (global) so both facilities can see it via the
+        // `facility IS NULL OR facility = facilityKey` query condition.
+        facility: sql`CASE WHEN announcement_candidates.facility IS DISTINCT FROM EXCLUDED.facility THEN NULL ELSE EXCLUDED.facility END`,
         updatedAt: now,
       },
     })

@@ -790,7 +790,10 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
           </div>
         ) : (
           <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
-            {sourceMessage}
+            <span>{sourceMessage}</span>
+            {source?.updatedAt ? (
+              <span className="mt-1.5 block text-[10px] font-bold text-[#b8975a]">上次更新：{formatShortDateTime(source.updatedAt)}</span>
+            ) : null}
           </div>
         )}
         {secondaryAnnouncements.length ? (
@@ -967,7 +970,7 @@ function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteS
   );
 }
 
-function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: CampaignSummary[]; facilityKey: string; onChanged: () => void }) {
+function CompactEventsCard({ campaigns, facilityKey, onChanged, source }: { campaigns: CampaignSummary[]; facilityKey: string; onChanged: () => void; source?: BffSection<CampaignSummary[]> }) {
   const [showComposer, setShowComposer] = useState(false);
   return (
     <WorkbenchCard className="h-full p-5">
@@ -1015,7 +1018,12 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
             <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-[#fef2f2] text-[#dc2626]" : campaign.statusLabel === "即將開始" ? "bg-[#eff6ff] text-[#2563eb]" : "bg-[#edf8f2] text-[#15935d]"}`}>{campaign.statusLabel}</span>
           </Link>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增活動檔期 / 課程快訊。</div>
+          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">
+            <span>目前沒有活動快訊</span>
+            {source?.updatedAt ? (
+              <span className="mt-1 block text-[10px] font-bold text-[#adb9c8]">上次更新：{formatShortDateTime(source.updatedAt)}</span>
+            ) : null}
+          </div>
         )}
       </div>
     </WorkbenchCard>
@@ -2031,6 +2039,7 @@ function EmployeeHomeContent() {
                       campaigns={data.campaigns.data ?? []}
                       facilityKey={data.facility.key}
                       onChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
+                      source={data.campaigns}
                     />
                   </div>
                 ) : null}

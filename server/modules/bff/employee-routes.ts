@@ -100,7 +100,7 @@ export const registerEmployeeBffRoutes = (
       return res.json(attachEmployeeHomeContract(home, req));
     }
 
-    const home = await enrichEmployeeHome(result.data, facilityKey, container);
+    const home = await enrichEmployeeHome(result.data, facilityKey, container, session.activeRole);
     const acknowledgedHome = await attachAnnouncementAcknowledgements(
       home,
       facilityKey,
@@ -173,7 +173,7 @@ export const registerEmployeeBffRoutes = (
           facilityKey,
         );
       const home = result.data
-        ? await enrichEmployeeHome(result.data, facilityKey, container)
+        ? await enrichEmployeeHome(result.data, facilityKey, container, session.activeRole)
         : await buildEmployeeHomeFallback(
             facilityKey,
             container,
@@ -231,7 +231,7 @@ export const registerEmployeeBffRoutes = (
           facilityKey,
         );
       const home = result.data
-        ? await enrichEmployeeHome(result.data, facilityKey, container)
+        ? await enrichEmployeeHome(result.data, facilityKey, container, session.activeRole)
         : await buildEmployeeHomeFallback(
             facilityKey,
             container,
@@ -269,7 +269,7 @@ export const registerEmployeeBffRoutes = (
         facilityKey,
       );
     const home = result.data
-      ? await enrichEmployeeHome(result.data, facilityKey, container)
+      ? await enrichEmployeeHome(result.data, facilityKey, container, session.activeRole)
       : await buildEmployeeHomeFallback(
           facilityKey,
           container,

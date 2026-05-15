@@ -35,6 +35,7 @@ export const enrichEmployeeHome = async (
   dto: EmployeeHomeDto,
   facilityKey: string,
   container: AppContainer,
+  role?: string,
 ): Promise<EmployeeHomeDto> => {
   const normalizedFacilityKey =
     findFacilityLineGroup(facilityKey)?.facilityKey ?? facilityKey;
@@ -52,7 +53,7 @@ export const enrichEmployeeHome = async (
         })
         .catch(() => null),
       fetchCwaWeather().catch(() => null),
-      getImportantAnnouncements(normalizedFacilityKey, undefined, 5).catch(
+      getImportantAnnouncements(normalizedFacilityKey, role, 5).catch(
         () => [],
       ),
       getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
