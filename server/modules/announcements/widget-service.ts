@@ -14,8 +14,10 @@ const IMPORTANT_TYPES = ["rule", "notice", "script"] as const;
 const CAMPAIGN_TYPES = ["campaign", "discount"] as const;
 const APPROVED_STATUSES = ["published", "approved"] as const;
 const SYNC_INTERVAL_MS = 30_000;
+const RESULT_CACHE_TTL_MS = 30_000;
+const EXPIRING_SOON_MS = 24 * 60 * 60 * 1000;
 
-// ─── Sync metadata cache ──────────────────────────────────────────────────────
+// ─── Sync metadata cache (throttles LINE Bot API calls) ───────────────────────
 
 interface SyncMeta {
   lastSyncAt: number;
@@ -26,25 +28,62 @@ interface SyncMeta {
 
 const syncMetaCache = new Map<string, SyncMeta>();
 
+// ─── Result caches (30s TTL keyed by facility + role + limit) ─────────────────
+
+interface ResultCacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const importantResultCache = new Map<string, ResultCacheEntry<AnnouncementSummary[]>>();
+const campaignResultCache = new Map<string, ResultCacheEntry<CampaignSummary[]>>();
+
+function makeImportantKey(facilityKey: string, role: string | undefined, limit: number): string {
+  return `${facilityKey}||${role ?? ""}||${limit}`;
+}
+
+function makeCampaignKey(facilityKey: string, limit: number): string {
+  return `${facilityKey}||${limit}`;
+}
+
 // ─── Quality filter ───────────────────────────────────────────────────────────
 
 const BLACKLIST_RE = /^(test|測試|ignore|admin\s*test|dev|system\s*test|系統測試)/i;
-const CJK_RE = /[\u4e00-\u9fff\u3040-\u30ff]/;
+// 中英文：accept CJK, Hiragana, Katakana, and Latin alphanumeric
+const READABLE_CHAR_RE = /[a-zA-Z\u4e00-\u9fff\u3040-\u30ff]/;
+const MIN_TITLE_LEN = 3;
+const MIN_SUMMARY_LEN = 6;
 
 function isDisplayableCandidate(row: AnnouncementCandidate): boolean {
-  if (!row.title || row.title.trim().length < 3) return false;
-  if (!row.summary && !row.originalText) return false;
-  if (BLACKLIST_RE.test(row.title.trim())) return false;
-  // At least one of title or summary must contain CJK characters
-  const hasCjk = CJK_RE.test(row.title) || CJK_RE.test(row.summary ?? "");
-  return hasCjk;
+  const title = row.title?.trim() ?? "";
+  const summary = (row.summary ?? row.originalText ?? "").trim();
+  if (title.length < MIN_TITLE_LEN) return false;
+  if (summary.length < MIN_SUMMARY_LEN) return false;
+  if (BLACKLIST_RE.test(title)) return false;
+  // Title must contain at least one 中文/英文 character
+  return READABLE_CHAR_RE.test(title);
 }
 
 // ─── Scope / role filter ──────────────────────────────────────────────────────
+// scopeType values: "all" | "global" | "group" | "facility" | "multi_facility" | "role"
 
-function matchesScopeAndRole(row: AnnouncementCandidate, role?: string): boolean {
-  if (!row.scopeType || row.scopeType === "all") return true;
-  if (row.scopeType === "role" && row.appliesToRoles?.length) {
+function matchesScopeAndRole(
+  row: AnnouncementCandidate,
+  role?: string,
+  facilityKey?: string,
+): boolean {
+  const scope = row.scopeType;
+  if (!scope || scope === "all" || scope === "global") return true;
+  // "group" and "facility" are already narrowed by the DB query on facility column
+  if (scope === "group" || scope === "facility") return true;
+  // "multi_facility": facility column holds a comma/JSON list; simple substring check
+  if (scope === "multi_facility") {
+    if (!facilityKey || !row.facility) return true;
+    return row.facility.includes(facilityKey);
+  }
+  // "role": restrict to rows whose appliesToRoles includes the caller's role
+  if (scope === "role") {
+    if (!row.appliesToRoles?.length) return true;
     return !!role && row.appliesToRoles.includes(role);
   }
   return true;
@@ -66,14 +105,24 @@ function priorityRank(p: string): number {
 
 // ─── Campaign status chip ─────────────────────────────────────────────────────
 
-function campaignStatusLabel(startAt?: Date | null, endAt?: Date | null): string {
+function campaignStatusChip(startAt?: Date | null, endAt?: Date | null): {
+  statusLabel: string;
+  isActive: boolean;
+} {
   const now = Date.now();
-  if (startAt && startAt.getTime() > now) return "即將開始";
+  if (startAt && startAt.getTime() > now) {
+    return { statusLabel: "即將開始", isActive: false };
+  }
   if (endAt) {
     const msLeft = endAt.getTime() - now;
-    if (msLeft > 0 && msLeft <= 24 * 60 * 60 * 1000) return "即將結束";
+    if (msLeft > 0 && msLeft <= EXPIRING_SOON_MS) {
+      return { statusLabel: "即將結束", isActive: true };
+    }
+    if (msLeft <= 0) {
+      return { statusLabel: "已結束", isActive: false };
+    }
   }
-  return "進行中";
+  return { statusLabel: "進行中", isActive: true };
 }
 
 // ─── Effective range label ────────────────────────────────────────────────────
@@ -198,6 +247,12 @@ export async function getImportantAnnouncements(
   role?: string,
   limit = 5,
 ): Promise<AnnouncementSummary[]> {
+  // Check result cache first (30s TTL)
+  const cacheKey = makeImportantKey(facilityKey, role, limit);
+  const cached = importantResultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  // Trigger sync (throttled internally)
   await syncCandidatesFromLineBotApi(facilityKey).catch(() => {});
   if (!env.databaseUrl) return [];
 
@@ -216,9 +271,9 @@ export async function getImportantAnnouncements(
     .orderBy(desc(announcementCandidates.detectedAt))
     .limit(limit * 5);
 
-  return rows
+  const result = rows
     .filter(isDisplayableCandidate)
-    .filter((r) => matchesScopeAndRole(r, role))
+    .filter((r) => matchesScopeAndRole(r, role, facilityKey))
     .sort(
       (a, b) =>
         priorityRank(a.priority) - priorityRank(b.priority) ||
@@ -227,6 +282,11 @@ export async function getImportantAnnouncements(
     .slice(0, limit)
     .map((r): AnnouncementSummary => {
       const rank = priorityRank(r.priority);
+      const nowMs = Date.now();
+      const isExpiringSoon =
+        r.endAt != null &&
+        r.endAt.getTime() > nowMs &&
+        r.endAt.getTime() - nowMs <= EXPIRING_SOON_MS;
       return {
         id: `candidate-${r.id}`,
         externalReferenceId: r.sourceMessageId,
@@ -244,14 +304,25 @@ export async function getImportantAnnouncements(
         sourceType: "candidate",
         sourceLabel: "AI分類",
         sourceRefId: r.sourceMessageId ?? null,
+        deadlineLabel: isExpiringSoon ? "即將結束" : undefined,
+        isExpiringSoon,
       };
     });
+
+  importantResultCache.set(cacheKey, { data: result, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
+  return result;
 }
 
 export async function getCampaignAnnouncements(
   facilityKey: string,
   limit = 5,
 ): Promise<CampaignSummary[]> {
+  // Check result cache first (30s TTL)
+  const cacheKey = makeCampaignKey(facilityKey, limit);
+  const cached = campaignResultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+  // Trigger sync (throttled internally)
   await syncCandidatesFromLineBotApi(facilityKey).catch(() => {});
   if (!env.databaseUrl) return [];
 
@@ -276,18 +347,25 @@ export async function getCampaignAnnouncements(
     .orderBy(asc(announcementCandidates.startAt), desc(announcementCandidates.detectedAt))
     .limit(limit * 3);
 
-  return rows
+  const result = rows
     .filter(isDisplayableCandidate)
     .slice(0, limit)
-    .map((r): CampaignSummary => ({
-      id: `candidate-campaign-${r.id}`,
-      title: r.title,
-      statusLabel: campaignStatusLabel(r.startAt, r.endAt),
-      effectiveRange: formatEffectiveRange(r.startAt, r.detectedAt, r.endAt),
-    }));
+    .map((r): CampaignSummary => {
+      const { statusLabel, isActive } = campaignStatusChip(r.startAt, r.endAt);
+      return {
+        id: `candidate-campaign-${r.id}`,
+        title: r.title,
+        statusLabel,
+        isActive,
+        effectiveRange: formatEffectiveRange(r.startAt, r.detectedAt, r.endAt),
+      };
+    });
+
+  campaignResultCache.set(cacheKey, { data: result, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
+  return result;
 }
 
-// ─── Source status & cache invalidation ──────────────────────────────────────
+// ─── Source status ────────────────────────────────────────────────────────────
 
 export function getLastSyncStatus(facilityKey: string): {
   connected: boolean;
@@ -302,10 +380,25 @@ export function getLastSyncStatus(facilityKey: string): {
   };
 }
 
+// ─── Cache invalidation ───────────────────────────────────────────────────────
+// Call this after any mutation that changes candidate status:
+// approve, reject, publish, edit, unpublish
+
 export function invalidateCandidateCache(facilityKey?: string): void {
   if (facilityKey) {
+    // Invalidate sync throttle
     syncMetaCache.delete(facilityKey);
+    // Invalidate result caches for this facility
+    for (const key of importantResultCache.keys()) {
+      if (key.startsWith(`${facilityKey}||`)) importantResultCache.delete(key);
+    }
+    for (const key of campaignResultCache.keys()) {
+      if (key.startsWith(`${facilityKey}||`)) campaignResultCache.delete(key);
+    }
   } else {
+    // Global invalidation (e.g., on bulk operations)
     syncMetaCache.clear();
+    importantResultCache.clear();
+    campaignResultCache.clear();
   }
 }

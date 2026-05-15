@@ -66,6 +66,7 @@ export interface AnnouncementSummary {
   overlayHidden?: boolean;
   overlayLastModifiedByName?: string | null;
   overlayLastModifiedAt?: string | null;
+  isExpiringSoon?: boolean;
 }
 
 export interface HandoverSummary {
@@ -181,6 +182,7 @@ export interface CampaignSummary {
   effectiveRange: string;
   linkUrl?: string;
   imageUrl?: string;
+  isActive?: boolean;
 }
 
 export interface DocumentSummary {
