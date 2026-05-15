@@ -84,12 +84,12 @@ export const enrichEmployeeHome = async (
     .slice(0, 8)
     .map((item) => mapSystemAnnouncementSummary(item, now));
 
-  // Widget A (重要公告): DB-backed candidates + employee resources + portal announcements.
-  // Raw LINE group messages are no longer merged here; they remain available on
-  // the full /employee/announcements page via its own route.
+  // Widget A (重要公告): Only DB-backed candidate announcements + portal (system) announcements.
+  // Employee resource announcements and raw LINE group messages are excluded here to keep
+  // Widget A as a clean, isolated candidate stream on the home widget.
+  // The full /employee/announcements page continues to show all sources.
   const announcementsBeforeOverlay = uniqueAnnouncements([
     ...candidateImportant,
-    ...employeeResources.announcements,
     ...portalAnnouncements,
   ]).sort(
     (a, b) =>

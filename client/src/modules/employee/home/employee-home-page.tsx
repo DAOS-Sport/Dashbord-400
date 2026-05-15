@@ -777,6 +777,13 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
               </span>
             </div>
             <p className="line-clamp-2 text-[14px] font-black leading-5">{primaryAnnouncement.title}</p>
+            {/* Single-item view: show summary so user can read content without navigating */}
+            {!secondaryAnnouncements.length && primaryAnnouncement.summary ? (
+              <p className="mt-1.5 line-clamp-3 text-[12px] font-bold leading-5 text-[#6b5b2e]">{primaryAnnouncement.summary}</p>
+            ) : null}
+            {primaryAnnouncement.isExpiringSoon ? (
+              <span className="mt-2 inline-flex rounded-[4px] bg-[#fef2f2] px-1.5 py-0.5 text-[10px] font-black text-[#dc2626]">即將結束</span>
+            ) : null}
             {primaryAnnouncement.overlayNote ? (
               <p className="mt-2 line-clamp-1 text-[11px] font-bold text-[#b45309]">{primaryAnnouncement.overlayNote}</p>
             ) : null}
@@ -905,7 +912,7 @@ function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onC
               <p className="truncate text-[13px] font-black text-[#10233f]">{campaign.title}</p>
               <p className="mt-1 truncate text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</p>
             </div>
-            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-[#fef2f2] text-[#dc2626]" : campaign.statusLabel === "即將開始" ? "bg-[#eff6ff] text-[#2563eb]" : "bg-white text-[#15935d]"}`}>{campaign.statusLabel}</span>
           </a>
           <EmployeeResourceActions resourceId={campaign.resourceId} title={campaign.title} content={campaign.effectiveRange} url={campaign.linkUrl} onChanged={onChanged} />
         </div>
@@ -1005,7 +1012,7 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged }: { campaigns: C
               <span className="block truncate text-[13px] font-black text-[#10233f]">{campaign.title}</span>
               <span className="block truncate text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</span>
             </span>
-            <span className="shrink-0 rounded-full bg-[#edf8f2] px-2 py-1 text-[10px] font-black text-[#15935d]">{campaign.statusLabel}</span>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-[#fef2f2] text-[#dc2626]" : campaign.statusLabel === "即將開始" ? "bg-[#eff6ff] text-[#2563eb]" : "bg-[#edf8f2] text-[#15935d]"}`}>{campaign.statusLabel}</span>
           </Link>
         )) : (
           <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增活動檔期 / 課程快訊。</div>
@@ -1945,6 +1952,7 @@ function EmployeeHomeContent() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["/api/bff/employee/home"],
     queryFn: fetchEmployeeHome,
+    refetchInterval: 60_000,
   });
   const layoutItems = useMemo(() => normalizeWidgetLayout(data?.layout?.data, defaultEmployeeHomeWidgets), [data?.layout?.data]);
   const homeSlots = useMemo(() => resolveEmployeeHomeSlots(layoutItems), [layoutItems]);

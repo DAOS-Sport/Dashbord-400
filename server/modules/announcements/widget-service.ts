@@ -51,7 +51,7 @@ function makeCampaignKey(facilityKey: string, limit: number): string {
 const BLACKLIST_RE = /^(test|測試|ignore|admin\s*test|dev|system\s*test|系統測試)/i;
 // 中英文：accept CJK, Hiragana, Katakana, and Latin alphanumeric
 const READABLE_CHAR_RE = /[a-zA-Z\u4e00-\u9fff\u3040-\u30ff]/;
-const MIN_TITLE_LEN = 3;
+const MIN_TITLE_LEN = 4;
 const MIN_SUMMARY_LEN = 6;
 
 function isDisplayableCandidate(row: AnnouncementCandidate): boolean {
@@ -262,7 +262,8 @@ export async function getImportantAnnouncements(
     .from(announcementCandidates)
     .where(
       and(
-        eq(announcementCandidates.facility, facilityKey),
+        // Include facility-specific rows AND global/null-scope rows
+        or(isNull(announcementCandidates.facility), eq(announcementCandidates.facility, facilityKey)),
         inArray(announcementCandidates.candidateType, [...IMPORTANT_TYPES]),
         inArray(announcementCandidates.status, [...APPROVED_STATUSES]),
         or(isNull(announcementCandidates.endAt), gte(announcementCandidates.endAt, now)),
@@ -334,7 +335,8 @@ export async function getCampaignAnnouncements(
     .from(announcementCandidates)
     .where(
       and(
-        eq(announcementCandidates.facility, facilityKey),
+        // Include facility-specific rows AND global/null-scope rows
+        or(isNull(announcementCandidates.facility), eq(announcementCandidates.facility, facilityKey)),
         inArray(announcementCandidates.candidateType, [...CAMPAIGN_TYPES]),
         inArray(announcementCandidates.status, [...APPROVED_STATUSES]),
         or(isNull(announcementCandidates.endAt), gte(announcementCandidates.endAt, now)),

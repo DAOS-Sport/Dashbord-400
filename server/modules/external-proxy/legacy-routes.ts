@@ -91,6 +91,29 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
     }
   }
 
+  async function proxyPatch(upstreamUrl: string, body: any, res: any, label: string) {
+    try {
+      const upstream = await fetch(upstreamUrl, {
+        method: "PATCH",
+        headers: proxyHeaders(upstreamUrl, true),
+        body: JSON.stringify(body || {}),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!upstream.ok) {
+        const errBody = await upstream.text().catch(() => "");
+        return res.status(upstream.status).json({ message: errBody || `${label} 回傳 HTTP ${upstream.status}` });
+      }
+      const ct = upstream.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        return res.status(502).json({ message: `${label} 未回傳 JSON` });
+      }
+      const data = await upstream.json();
+      res.json(data);
+    } catch (err: any) {
+      res.status(502).json({ message: err.message || `無法連線至${label}` });
+    }
+  }
+
   async function proxyPost(upstreamUrl: string, body: any, res: any, label: string) {
     try {
       const upstream = await fetch(upstreamUrl, {
@@ -142,6 +165,21 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
   app.post("/api/announcement-candidates/:id/reject", (req, res) => {
     invalidateCandidateCache();
     return proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/reject`, req.body, res, "退回公告");
+  });
+
+  app.post("/api/announcement-candidates/:id/publish", (req, res) => {
+    invalidateCandidateCache();
+    return proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/publish`, req.body, res, "發布公告候選");
+  });
+
+  app.post("/api/announcement-candidates/:id/unpublish", (req, res) => {
+    invalidateCandidateCache();
+    return proxyPost(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}/unpublish`, req.body, res, "取消發布公告候選");
+  });
+
+  app.patch("/api/announcement-candidates/:id", (req, res) => {
+    invalidateCandidateCache();
+    return proxyPatch(`${LINE_BOT_BASE}/api/announcement-candidates/${req.params.id}`, req.body, res, "更新公告候選");
   });
 
   app.get("/api/announcement-reports/weekly", (req, res) =>
