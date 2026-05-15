@@ -13,6 +13,10 @@ import { degraded, ok, unavailable } from "../../../shared/bff/section";
 import { env } from "../../../shared/config/env";
 import { storage } from "../../../storage";
 import { readFacilityLineAnnouncements } from "../../announcement-groups/service";
+import {
+  getCampaignAnnouncements,
+  getImportantAnnouncements,
+} from "../../announcements/widget-service";
 
 import {
   announcementSectionFromSources,
@@ -41,7 +45,7 @@ export const enrichEmployeeHome = async (
   const currentShiftCount = dto.shifts.data?.length ?? 0;
 
   // Fetch CWA weather in parallel with layout
-  const [layoutSetting, cwaWeather] = await Promise.all([
+  const [layoutSetting, cwaWeather, candidateImportant, candidateCampaigns] = await Promise.all([
     storage
       .getWidgetLayout({
         facilityKey: normalizedFacilityKey,
@@ -50,6 +54,8 @@ export const enrichEmployeeHome = async (
       })
       .catch(() => null),
     fetchCwaWeather().catch(() => null),
+    getImportantAnnouncements(normalizedFacilityKey, 5).catch(() => []),
+    getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
   ]);
   let nextDto: EmployeeHomeDto = {
     ...dto,
@@ -89,6 +95,7 @@ export const enrichEmployeeHome = async (
     .catch(() => []);
   const announcementsBeforeOverlay = uniqueAnnouncements([
     ...lineAnnouncementsResult.announcements,
+    ...candidateImportant,
     ...employeeResources.announcements,
     ...portalAnnouncements,
   ]).sort(
@@ -112,7 +119,7 @@ export const enrichEmployeeHome = async (
       now,
     ),
     campaigns: ok(
-      [...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(
+      [...candidateCampaigns, ...employeeResources.campaigns, ...(nextDto.campaigns.data ?? [])].slice(
         0,
         10,
       ),

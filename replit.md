@@ -75,6 +75,16 @@ The system is designed with a modular project structure, separating client-side 
   - Admin contracts page: 詳情 drawer now shows signed photos + signature, plus "開啟簽約（現場）" (in-person tablet flow inside a Dialog) and "產生簽約連結" (copy-to-clipboard sharing dialog).
 - Object Storage: Replit blueprint installed (bucket `repl-default-bucket-…`). `registerObjectStorageRoutes` mounted in `server/routes.ts`; `/objects/(.+)` route uses a regex (path-to-regexp v8 no longer accepts `:objectPath(*)`).
 
+## 公告 Widget 分流 + DB 留存（Task #19）
+
+- **Widget A（重要公告）**：從 LINE Bot API 拉取 `candidateType IN ('rule','notice','script')` 的候選公告，在員工首頁 `AnnouncementCard` 顯示，`sourceLabel` 標示「AI分類」。
+- **Widget B（課程活動）**：從 LINE Bot API 拉取 `candidateType IN ('campaign','discount')` 的候選公告，合併進員工首頁 `CompactEventsCard`（`campaigns` section），`statusLabel` 顯示「進行中」/「即將開始」。
+- **分流邏輯**：`server/modules/announcements/widget-service.ts`，30 秒 in-memory cache 每 facilityKey，背景 upsert 至本地 DB（fire-and-forget，`onConflictDoUpdate` by `content_hash`）。
+- **REST 端點**：`GET /api/widgets/announcements/important` 和 `/campaigns`，走 `requireSession` 認證，query params `facility`, `limit`（上限 20）。
+- **BFF 整合**：`employee-home-enrichment-service.ts` 並行抓取兩組候選，Widget A 合併進 `announcementsBeforeOverlay`，Widget B 合併進 `campaigns`。
+- **DB Schema**：`announcement_candidates` 新增 5 個 nullable 欄位：`scope_type`, `applies_to_roles`, `start_at`, `end_at`, `facility`。
+- **品質過濾**：`status IN (approved/published/active)` + `confidence >= 0.6` + 非 `ignore` 類型 + `end_at` 未過期；Widget B 額外過濾 14 天內開始的活動。
+
 ## 場地預約模組（courts）
 
 - 兩所學校：新北高中（`xinbei`，14 個場地）、三重商工（`sanchong`，3 個場地）。

@@ -44,6 +44,9 @@ export async function registerRoutes(
   const { registerParkingRoutes } = await import("./modules/parking/routes");
   registerParkingRoutes(app, { requireEmployee, requireSupervisor });
 
+  const { registerAnnouncementWidgetRoutes } = await import("./modules/announcements/widget-routes");
+  registerAnnouncementWidgetRoutes(app);
+
   const { registerCourtsRoutes } = await import("./modules/courts/routes");
   registerCourtsRoutes(app, {
     requireEmployee,
