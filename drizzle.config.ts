@@ -1,8 +1,9 @@
 import { defineConfig } from "drizzle-kit";
 
-const dbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
-if (!dbUrl) {
-  throw new Error("DATABASE_URL or NEON_DATABASE_URL must be set");
+const databaseUrl = process.env.NEON_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim();
+
+if (!databaseUrl) {
+  throw new Error("NEON_DATABASE_URL or DATABASE_URL must be set; ensure the database is provisioned");
 }
 
 export default defineConfig({
@@ -10,6 +11,6 @@ export default defineConfig({
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: dbUrl,
+    url: databaseUrl,
   },
 });

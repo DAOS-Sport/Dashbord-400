@@ -18,6 +18,7 @@ coverage/
 .cache/
 .turbo/
 .playwright-mcp/
+.tmp-codex/
 
 # Python
 __pycache__/

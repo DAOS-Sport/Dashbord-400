@@ -3,25 +3,22 @@ import { z } from "zod";
 import type { AppContainer } from "../../app/container";
 import type { ModuleHealthDto } from "@shared/modules";
 import {
-  calculateCompletionRate,
-  calculateDeltaPct,
-  classifyInsightAnomaly,
   getModuleDescriptorById,
-  getModuleDescriptors,
   getModuleDescriptorsByRole,
   getModuleHealth,
-  moduleCompletionEvents,
 } from "@shared/modules";
-import { getRawInspectorTarget, isRawInspectorPath } from "@shared/system/raw-inspector";
 import type { WorkbenchRole } from "@shared/auth/me";
-import { facilityLabel } from "@shared/domain/facilities";
-import { sessionsIndex, userRoleSnapshots, users } from "@shared/schema";
+import { LINE_FEATURES, normalizeLineFeatureAccess } from "@shared/system/line-feature-whitelist";
+import { helperEndpoints, helperEnvGroups, helperExternalServices, helperResilienceRules } from "@shared/system/helper-status";
+import { cautionQueryPermissionAudit, cautionQueryPermissions, lineFeatureWhitelist, sessionsIndex, userRoleSnapshots, users } from "@shared/schema";
 import { and, desc, eq, gte, ilike, isNull, or } from "drizzle-orm";
-import type { AuditLogRecord, StoredClientError, StoredUiEvent } from "../telemetry/repository";
+import type { AuditLogRecord, StoredClientError } from "../telemetry/repository";
 import { db } from "../../db";
 import { healthOk } from "../../shared/observability/health";
 import { storage } from "../../storage";
 import { requireRole, requireSession } from "../auth/context";
+import { buildInsightsOverview, buildModuleInsights } from "./insights-service";
+import { activeForFeature, isMissingCautionTable, isMissingWhitelistTable, lineWhitelistDto, listLineWhitelist, toNullableDate } from "./line-whitelist-service";
 
 const readInternalToken = (req: Request) => {
   const auth = Array.isArray(req.headers.authorization) ? req.headers.authorization[0] : req.headers.authorization;
@@ -41,12 +38,56 @@ const watchdogEventSchema = z.object({
   observedAt: z.string().optional(),
 });
 
-const rawInspectorQuerySchema = z.object({
-  path: z.string().min(1),
+const lineFeatureAccessSchema = z.record(z.boolean()).transform((value) => normalizeLineFeatureAccess(value));
+
+const lineWhitelistUpsertSchema = z.object({
+  lineUserId: z.string().trim().min(1, "LINE userId 不可為空").max(120),
+  employeeNumber: z.string().trim().max(80).optional().nullable(),
+  displayName: z.string().trim().min(1, "姓名不可為空").max(120),
+  phone: z.string().trim().max(40).optional().nullable(),
+  department: z.string().trim().max(160).optional().nullable(),
+  status: z.enum(["active", "disabled"]).default("active"),
+  featureAccess: lineFeatureAccessSchema.default({}),
+  startsAt: z.string().trim().optional().nullable(),
+  endsAt: z.string().trim().optional().nullable(),
+  unlimited: z.boolean().default(true),
+  notes: z.string().trim().max(1000).optional().nullable(),
 });
 
-const hasPermission = (permissions: string[] | undefined, permission: string) =>
-  Boolean(permissions?.includes(permission) || permissions?.some((item) => item.startsWith("system:")));
+const lineWhitelistPatchSchema = lineWhitelistUpsertSchema.partial().extend({
+  featureAccess: lineFeatureAccessSchema.optional(),
+});
+
+const cautionPeriodTypeSchema = z.enum(["unlimited", "range", "today_only"]);
+
+const cautionCreateSchema = z.object({
+  userId: z.string().trim().min(1).max(120),
+  displayName: z.string().trim().min(1).max(120),
+  phone: z.string().trim().max(40).optional().nullable(),
+  department: z.string().trim().max(160).optional().nullable(),
+  position: z.string().trim().max(120).optional().nullable(),
+  periodType: cautionPeriodTypeSchema.default("unlimited"),
+  periodStartAt: z.string().trim().optional().nullable(),
+  periodEndAt: z.string().trim().optional().nullable(),
+  note: z.string().trim().max(200).optional().nullable(),
+});
+
+const cautionPeriodPatchSchema = z.object({
+  periodType: cautionPeriodTypeSchema,
+  periodStartAt: z.string().trim().optional().nullable(),
+  periodEndAt: z.string().trim().optional().nullable(),
+  changeReason: z.string().trim().min(5).max(300),
+});
+
+const cautionStatusPatchSchema = z.object({
+  isActive: z.boolean(),
+});
+
+const cautionUsageSchema = z.object({
+  triggeredBy: z.string().trim().min(1),
+  queryTarget: z.string().trim().min(1).max(120),
+  success: z.boolean().default(true),
+});
 
 type ControlCenterSeverity = "normal" | "warning" | "critical";
 
@@ -105,58 +146,10 @@ const resendNotificationSchema = opsReasonSchema.extend({
 
 const periodSchema = z.enum(["7d", "30d"]).default("7d");
 
-type SystemOperationUser = {
-  userId: string;
-  employeeNumber: string;
-  name: string;
-  email: string | null;
-  role: WorkbenchRole;
-  activeFacility: string | null;
-  grantedRoles: WorkbenchRole[];
-  grantedFacilities: string[];
-  lastSeenAt: string | null;
-  hasActiveSession: boolean;
-};
-
-type InsightsOverview = {
-  period: { from: string; to: string; label: string };
-  totalEvents: number;
-  uniqueUsers: number;
-  topModules: Array<{ moduleId: string; label: string; eventCount: number; uniqueUserCount: number; deltaPct: number }>;
-  anomalies: Array<{ moduleId: string; label: string; type: "spike" | "drop"; deltaPct: number; currentCount: number; previousCount: number }>;
-  byRole: Array<{ role: string; eventCount: number; uniqueUserCount: number }>;
-  byFacility: Array<{ facilityKey: string; facilityName: string; eventCount: number }>;
-};
-
-type InsightsModuleDetail = {
-  moduleId: string;
-  label: string;
-  current: { eventCount: number; uniqueUserCount: number; completionRate?: number };
-  previous: { eventCount: number; uniqueUserCount: number; completionRate?: number };
-  delta: { eventCountPct: number; uniqueUserCountPct: number; completionRatePct?: number };
-  dailyBreakdown: Array<{ date: string; eventCount: number; uniqueUserCount: number }>;
-  topUsers: Array<{ userId: string; name: string; eventCount: number }>;
-  topFacilities: Array<{ facilityKey: string; facilityName: string; eventCount: number }>;
-};
-
-interface InsightsCacheEntry<T> {
-  expiresAt: number;
-  data: T;
-}
-
-const insightsCache = new Map<string, InsightsCacheEntry<unknown>>();
-
-const isoDate = (date: Date) => date.toISOString().slice(0, 10);
-
 const parsePeriodDays = (value: unknown) => {
   const parsed = periodSchema.safeParse(value);
   return parsed.success && parsed.data === "30d" ? 30 : 7;
 };
-
-const eventTime = (event: StoredUiEvent | AuditLogRecord) =>
-  new Date((event as StoredUiEvent).occurredAt ?? (event as AuditLogRecord).timestamp).getTime();
-
-const inRange = (time: number, from: number, to: number) => Number.isFinite(time) && time >= from && time < to;
 
 const payloadRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -170,202 +163,17 @@ const firstText = (...values: unknown[]) => {
   return undefined;
 };
 
-const moduleIdFromRoute = (path?: string) => {
-  if (!path) return undefined;
-  const clean = path.split("?")[0];
-  const exact = getModuleDescriptors().find((module) => module.routePath === clean);
-  if (exact) return exact.id;
-  const byPrefix = getModuleDescriptors()
-    .filter((module) => module.routePath && clean.startsWith(`${module.routePath}/`))
-    .sort((a, b) => (b.routePath?.length ?? 0) - (a.routePath?.length ?? 0))[0];
-  return byPrefix?.id;
-};
-
-const moduleIdFromUiEvent = (event: StoredUiEvent) => {
-  const payload = payloadRecord(event.payload);
-  const explicit = firstText(payload.moduleId, payload.module, payload.moduleKey);
-  if (explicit) return explicit;
-  const navEvent = firstText(event.actionType, event.eventType);
-  if (navEvent?.startsWith("NAV_CLICK:")) return navEvent.slice("NAV_CLICK:".length);
-  return moduleIdFromRoute(event.componentId) ?? moduleIdFromRoute(event.page);
-};
-
-const groupCount = <T>(items: T[], keyOf: (item: T) => string | undefined) => {
-  const map = new Map<string, { count: number; users: Set<string> }>();
-  items.forEach((item) => {
-    const key = keyOf(item);
-    if (!key) return;
-    const current = map.get(key) ?? { count: 0, users: new Set<string>() };
-    current.count += 1;
-    if ((item as { userId?: string }).userId) current.users.add((item as { userId?: string }).userId!);
-    map.set(key, current);
-  });
-  return map;
-};
-
-const moduleLabel = (moduleId: string) => getModuleDescriptorById(moduleId)?.shortName ?? getModuleDescriptorById(moduleId)?.name ?? moduleId;
-
-const isStartEventForModule = (event: StoredUiEvent, moduleId: string) => {
-  const binding = moduleCompletionEvents[moduleId];
-  if (!binding) return false;
-  const expected = binding.startEvent.split(":");
-  const action = firstText(event.actionType, event.eventType);
-  if (action === binding.startEvent) return true;
-  if (expected.length === 2 && action === expected[0] && moduleIdFromUiEvent(event) === expected[1]) return true;
-  return action === "CARD_CLICK" && moduleIdFromUiEvent(event) === moduleId;
-};
-
-const isCompletionAuditForModule = (audit: AuditLogRecord, moduleId: string) => {
-  const binding = moduleCompletionEvents[moduleId];
-  return Boolean(binding && audit.action === binding.completionEvent);
-};
-
-const buildInsightsOverview = async (container: AppContainer, periodDays: number): Promise<InsightsOverview> => {
-  const key = `overview:${periodDays}`;
-  const cached = insightsCache.get(key) as InsightsCacheEntry<InsightsOverview> | undefined;
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-
-  const now = Date.now();
-  const windowMs = periodDays * 24 * 60 * 60 * 1000;
-  const currentFrom = now - windowMs;
-  const previousFrom = currentFrom - windowMs;
-  const uiEvents = await safeRead(() => container.repositories.telemetry.listUiEvents(2000), []);
-
-  const currentEvents = uiEvents.filter((event) => inRange(eventTime(event), currentFrom, now));
-  const previousEvents = uiEvents.filter((event) => inRange(eventTime(event), previousFrom, currentFrom));
-  const currentByModule = groupCount(currentEvents, moduleIdFromUiEvent);
-  const previousByModule = groupCount(previousEvents, moduleIdFromUiEvent);
-
-  const topModules = Array.from(currentByModule.entries())
-    .map(([moduleId, value]) => {
-      const previous = previousByModule.get(moduleId)?.count ?? 0;
-      return {
-        moduleId,
-        label: moduleLabel(moduleId),
-        eventCount: value.count,
-        uniqueUserCount: value.users.size,
-        deltaPct: calculateDeltaPct(value.count, previous),
-      };
-    })
-    .sort((a, b) => b.eventCount - a.eventCount || a.moduleId.localeCompare(b.moduleId))
-    .slice(0, 10);
-
-  const anomalies = Array.from(new Set([...Array.from(currentByModule.keys()), ...Array.from(previousByModule.keys())]))
-    .map((moduleId) => {
-      const currentCount = currentByModule.get(moduleId)?.count ?? 0;
-      const previousCount = previousByModule.get(moduleId)?.count ?? 0;
-      const type = classifyInsightAnomaly(currentCount, previousCount);
-      if (!type) return null;
-      return {
-        moduleId,
-        label: moduleLabel(moduleId),
-        type,
-        deltaPct: calculateDeltaPct(currentCount, previousCount),
-        currentCount,
-        previousCount,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
-
-  const byRole = Array.from(groupCount(currentEvents, (event) => event.role ?? "unknown").entries())
-    .map(([role, value]) => ({ role, eventCount: value.count, uniqueUserCount: value.users.size }))
-    .sort((a, b) => b.eventCount - a.eventCount);
-
-  const byFacility = Array.from(groupCount(currentEvents, (event) => event.facilityKey ?? "unknown").entries())
-    .map(([facilityKey, value]) => ({ facilityKey, facilityName: facilityKey === "unknown" ? "未知場館" : facilityLabel(facilityKey), eventCount: value.count }))
-    .sort((a, b) => b.eventCount - a.eventCount);
-
-  const data = {
-    period: {
-      from: new Date(currentFrom).toISOString(),
-      to: new Date(now).toISOString(),
-      label: `近 ${periodDays} 天`,
-    },
-    totalEvents: currentEvents.length,
-    uniqueUsers: new Set(currentEvents.map((event) => event.userId).filter(Boolean)).size,
-    topModules,
-    anomalies,
-    byRole,
-    byFacility,
-  };
-  insightsCache.set(key, { expiresAt: Date.now() + 5 * 60_000, data });
-  return data;
-};
-
-const buildModuleInsights = async (
-  container: AppContainer,
-  moduleId: string,
-  periodDays: number,
-): Promise<InsightsModuleDetail> => {
-  const key = `module:${moduleId}:${periodDays}`;
-  const cached = insightsCache.get(key) as InsightsCacheEntry<InsightsModuleDetail> | undefined;
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-
-  const now = Date.now();
-  const windowMs = periodDays * 24 * 60 * 60 * 1000;
-  const currentFrom = now - windowMs;
-  const previousFrom = currentFrom - windowMs;
-  const [uiEvents, auditRows] = await Promise.all([
-    safeRead(() => container.repositories.telemetry.listUiEvents(2000), []),
-    safeRead(() => container.repositories.telemetry.listAuditLogs(1000), []),
-  ]);
-  const currentEvents = uiEvents.filter((event) => moduleIdFromUiEvent(event) === moduleId && inRange(eventTime(event), currentFrom, now));
-  const previousEvents = uiEvents.filter((event) => moduleIdFromUiEvent(event) === moduleId && inRange(eventTime(event), previousFrom, currentFrom));
-  const currentAudits = auditRows.filter((audit) => isCompletionAuditForModule(audit, moduleId) && inRange(eventTime(audit), currentFrom, now));
-  const previousAudits = auditRows.filter((audit) => isCompletionAuditForModule(audit, moduleId) && inRange(eventTime(audit), previousFrom, currentFrom));
-  const currentStarts = currentEvents.filter((event) => isStartEventForModule(event, moduleId)).length;
-  const previousStarts = previousEvents.filter((event) => isStartEventForModule(event, moduleId)).length;
-  const currentRate = calculateCompletionRate(currentStarts, currentAudits.length);
-  const previousRate = calculateCompletionRate(previousStarts, previousAudits.length);
-
-  const days = Array.from({ length: periodDays }, (_, index) => {
-    const start = new Date(currentFrom + index * 24 * 60 * 60 * 1000);
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-    const rows = currentEvents.filter((event) => inRange(eventTime(event), start.getTime(), end.getTime()));
-    return {
-      date: isoDate(start),
-      eventCount: rows.length,
-      uniqueUserCount: new Set(rows.map((event) => event.userId).filter(Boolean)).size,
-    };
-  });
-
-  const byUser = Array.from(groupCount(currentEvents, (event) => event.userId ?? undefined).entries())
-    .map(([userId, value]) => ({ userId, name: userId, eventCount: value.count }))
-    .sort((a, b) => b.eventCount - a.eventCount)
-    .slice(0, 5);
-  const byFacility = Array.from(groupCount(currentEvents, (event) => event.facilityKey ?? "unknown").entries())
-    .map(([facilityKey, value]) => ({ facilityKey, facilityName: facilityKey === "unknown" ? "未知場館" : facilityLabel(facilityKey), eventCount: value.count }))
-    .sort((a, b) => b.eventCount - a.eventCount)
-    .slice(0, 5);
-
-  const data = {
-    moduleId,
-    label: moduleLabel(moduleId),
-    current: {
-      eventCount: currentEvents.length,
-      uniqueUserCount: new Set(currentEvents.map((event) => event.userId).filter(Boolean)).size,
-      completionRate: currentRate,
-    },
-    previous: {
-      eventCount: previousEvents.length,
-      uniqueUserCount: new Set(previousEvents.map((event) => event.userId).filter(Boolean)).size,
-      completionRate: previousRate,
-    },
-    delta: {
-      eventCountPct: calculateDeltaPct(currentEvents.length, previousEvents.length),
-      uniqueUserCountPct: calculateDeltaPct(
-        new Set(currentEvents.map((event) => event.userId).filter(Boolean)).size,
-        new Set(previousEvents.map((event) => event.userId).filter(Boolean)).size,
-      ),
-      completionRatePct: currentRate !== undefined && previousRate !== undefined ? calculateDeltaPct(currentRate, previousRate) : undefined,
-    },
-    dailyBreakdown: days,
-    topUsers: byUser,
-    topFacilities: byFacility,
-  };
-  insightsCache.set(key, { expiresAt: Date.now() + 5 * 60_000, data });
-  return data;
+type SystemOperationUser = {
+  userId: string;
+  employeeNumber: string;
+  name: string;
+  email: string | null;
+  role: WorkbenchRole;
+  activeFacility: string | null;
+  grantedRoles: WorkbenchRole[];
+  grantedFacilities: string[];
+  lastSeenAt: string | null;
+  hasActiveSession: boolean;
 };
 
 const latestRoleSnapshot = async (userId: string) => {
@@ -494,6 +302,130 @@ const todayStart = () => {
 
 const operationActionSet = new Set(["OPS_RESET_SESSION", "OPS_REFRESH_CACHE", "OPS_RESEND_NOTIFICATION"]);
 
+const adapterOverview = (name: string, mode: string, configuredInMode: boolean) => {
+  const mockInRealMode = containerModeIsReal() && mode === "mock";
+  return {
+    name,
+    mode,
+    configured: mockInRealMode ? false : configuredInMode,
+    status: mockInRealMode ? "degraded" : configuredInMode ? "ready" : "not_connected",
+    reason: mockInRealMode ? "adapter_is_mock_in_real_mode" : undefined,
+  };
+};
+
+const containerModeIsReal = () => process.env.DATA_SOURCE_MODE === "real";
+
+const isEnvConfigured = (key: string) => Boolean(process.env[key]?.trim());
+
+const helperServiceStatus = () => {
+  const services = helperExternalServices.map((service) => {
+    const configuredKeys = service.credentialKeys.filter(isEnvConfigured);
+    const configured = service.credentialKeys.length === 0 || configuredKeys.length === service.credentialKeys.length;
+    return {
+      ...service,
+      configured,
+      status: configured ? "ready" as const : "not_connected" as const,
+      missingCredentialKeys: service.credentialKeys.filter((key) => !configuredKeys.includes(key)),
+    };
+  });
+  const envGroups = helperEnvGroups.map((group) => ({
+    ...group,
+    variables: group.variables.map((variable) => ({
+      ...variable,
+      configured: isEnvConfigured(variable.name),
+      status: isEnvConfigured(variable.name) || variable.defaultValue ? "ready" as const : variable.required ? "missing_required" as const : "not_connected" as const,
+    })),
+  }));
+  const missingRequiredEnv = envGroups
+    .flatMap((group) => group.variables)
+    .filter((variable) => variable.required && !variable.configured)
+    .map((variable) => variable.name);
+  return {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      externalServices: services.length,
+      readyServices: services.filter((service) => service.status === "ready").length,
+      exposedEndpoints: helperEndpoints.length,
+      missingRequiredEnv,
+    },
+    services,
+    endpoints: helperEndpoints,
+    envGroups,
+    resilience: helperResilienceRules,
+  };
+};
+
+const cautionPeriod = (periodType: z.infer<typeof cautionPeriodTypeSchema>, start?: string | null, end?: string | null) => {
+  const now = new Date();
+  if (periodType === "today_only") {
+    return { startAt: now, endAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) };
+  }
+  if (periodType === "range") {
+    return { startAt: toNullableDate(start) ?? now, endAt: toNullableDate(end) };
+  }
+  return { startAt: toNullableDate(start), endAt: null };
+};
+
+const cautionStatus = (row: typeof cautionQueryPermissions.$inferSelect, now = new Date()) => {
+  if (!row.isActive) return "disabled" as const;
+  if (row.permissionStartAt && row.permissionStartAt.getTime() > now.getTime()) return "not_yet_effective" as const;
+  if (row.permissionEndAt && row.permissionEndAt.getTime() < now.getTime()) return "expired" as const;
+  if (row.permissionEndAt && row.permissionEndAt.getTime() - now.getTime() <= 7 * 24 * 60 * 60 * 1000) return "expiring_soon" as const;
+  return "active" as const;
+};
+
+const cautionDto = (row: typeof cautionQueryPermissions.$inferSelect) => ({
+  id: row.id,
+  userId: row.userId,
+  displayName: row.displayName,
+  phone: row.phone,
+  department: row.department,
+  position: row.position,
+  isActive: row.isActive,
+  status: cautionStatus(row),
+  permissionStartAt: row.permissionStartAt ? row.permissionStartAt.toISOString() : null,
+  permissionEndAt: row.permissionEndAt ? row.permissionEndAt.toISOString() : null,
+  grantedBy: row.grantedBy,
+  grantedAt: row.grantedAt.toISOString(),
+  note: row.note,
+  updatedAt: row.updatedAt.toISOString(),
+});
+
+const cautionSnapshot = (row: typeof cautionQueryPermissions.$inferSelect) => cautionDto(row) as unknown as Record<string, unknown>;
+
+const recordCautionAudit = async (
+  input: {
+    permissionId: number;
+    action: "granted" | "enabled" | "disabled" | "period_changed" | "note_changed" | "used";
+    beforeState?: Record<string, unknown> | null;
+    afterState?: Record<string, unknown> | null;
+    actor: string;
+    metadata?: Record<string, unknown> | null;
+  },
+) => {
+  await db.insert(cautionQueryPermissionAudit).values({
+    permissionId: input.permissionId,
+    action: input.action,
+    beforeState: input.beforeState ?? null,
+    afterState: input.afterState ?? null,
+    actor: input.actor,
+    metadata: input.metadata ?? null,
+  });
+};
+
+const cautionCheck = (row: typeof cautionQueryPermissions.$inferSelect | undefined) => {
+  if (!row) return { allowed: false, reason: "no_permission" as const };
+  if (!row.isActive) return { allowed: false, reason: "disabled" as const, permissionId: row.id };
+  const now = new Date();
+  if (row.permissionStartAt && row.permissionStartAt > now) {
+    return { allowed: false, reason: "not_yet_effective" as const, permissionId: row.id, startAt: row.permissionStartAt.toISOString() };
+  }
+  if (row.permissionEndAt && row.permissionEndAt < now) {
+    return { allowed: false, reason: "expired" as const, permissionId: row.id, expiresAt: row.permissionEndAt.toISOString() };
+  }
+  return { allowed: true, permissionId: row.id, expiresAt: row.permissionEndAt ? row.permissionEndAt.toISOString() : null };
+};
+
 export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/system/control-center", requireSession, requireRole("system"), async (_req, res) => {
     if (controlCenterCache && controlCenterCache.expiresAt > Date.now()) {
@@ -580,7 +512,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     return res.json(data);
   });
 
-  app.get("/api/bff/system/health-overview", (_req, res) => {
+  app.get("/api/bff/system/health-overview", requireSession, requireRole("system"), (_req, res) => {
     return res.json({
       status: "ok",
       checkedAt: new Date().toISOString(),
@@ -594,32 +526,457 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
           checkedAt: new Date().toISOString(),
           detail: container.config.databaseUrl
             ? `DATABASE_PROFILE=${container.config.databaseProfile}`
-            : "DATABASE_URL is not configured; mock profile only",
+            : "NEON_DATABASE_URL/DATABASE_URL is not configured; mock profile only",
         },
       ],
     });
   });
 
-  app.get("/api/bff/system/integration-overview", (_req, res) => {
+  app.get("/api/bff/system/integration-overview", requireSession, requireRole("system"), (_req, res) => {
     return res.json({
       checkedAt: new Date().toISOString(),
       adapters: [
-        {
-          name: "replit-data",
-          mode: container.config.replitDataAdapterMode,
-          configured: container.config.replitDataAdapterMode === "mock" || Boolean(container.config.lineBotBaseUrl && container.config.lineBotInternalToken),
-        },
-        { name: "ragic-auth", mode: container.config.ragicAdapterMode, configured: container.config.ragicAdapterMode === "mock" || Boolean(container.config.ragicApiKey) },
-        { name: "schedule", mode: container.config.scheduleAdapterMode, configured: container.config.scheduleAdapterMode === "mock" || Boolean(container.config.smartScheduleBaseUrl && container.config.smartScheduleApiToken) },
-        { name: "booking", mode: container.config.bookingAdapterMode, configured: container.config.bookingAdapterMode === "mock" },
-        { name: "storage", mode: container.config.storageAdapterMode, configured: true },
-        { name: "redis", mode: container.config.redisUrl ? "real" : "mock", configured: Boolean(container.config.redisUrl) },
+        adapterOverview("replit-data", container.config.replitDataAdapterMode, container.config.replitDataAdapterMode === "mock" || Boolean(container.config.lineBotBaseUrl && container.config.lineBotInternalToken)),
+        adapterOverview("ragic-auth", container.config.ragicAdapterMode, container.config.ragicAdapterMode === "mock" || Boolean(container.config.ragicApiKey)),
+        adapterOverview("schedule", container.config.scheduleAdapterMode, container.config.scheduleAdapterMode === "mock" || Boolean(container.config.smartScheduleBaseUrl && container.config.smartScheduleApiToken)),
+        adapterOverview("booking", container.config.bookingAdapterMode, container.config.bookingAdapterMode === "mock"),
+        adapterOverview("storage", container.config.storageAdapterMode, true),
+        adapterOverview("redis", container.config.redisUrl ? "real" : "mock", Boolean(container.config.redisUrl)),
       ],
     });
   });
 
-  app.get("/api/bff/system/watchdog-events", async (_req, res) => {
+  app.get("/api/bff/system/watchdog-events", requireSession, requireRole("system"), async (_req, res) => {
     return res.json({ items: await storage.listWatchdogEvents(50) });
+  });
+
+  app.get("/api/bff/system/helper-status", requireSession, requireRole("system"), (_req, res) => {
+    return res.json(helperServiceStatus());
+  });
+
+  app.get("/api/bff/system/line-whitelist", requireSession, requireRole("system"), async (_req, res) => {
+    const result = await listLineWhitelist();
+    return res.json({
+      generatedAt: new Date().toISOString(),
+      storageStatus: result.storageStatus,
+      error: result.error,
+      features: LINE_FEATURES,
+      summary: {
+        total: result.items.length,
+        active: result.items.filter((item) => item.status === "active").length,
+        disabled: result.items.filter((item) => item.status === "disabled").length,
+        interviewEnabled: result.items.filter((item) => item.status === "active" && item.featureAccess.interview).length,
+      },
+      items: result.items,
+    });
+  });
+
+  app.get("/api/bff/system/line-whitelist/candidates", requireSession, requireRole("system"), async (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    const result = await safeRead(
+      () => container.integrations.ragicAuth.listActiveEmployees(),
+      { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
+    );
+    const employees = (result.data ?? [])
+      .map((employee) => ({
+        lineUserId: employee.lineUserId || employee.userId || employee.employeeNumber,
+        employeeNumber: employee.employeeNumber,
+        displayName: employee.displayName,
+        phone: employee.phone ?? "",
+        department: employee.department ?? employee.departments?.join(", ") ?? "",
+        title: employee.title ?? "",
+        source: result.meta.source,
+      }))
+      .filter((employee) => {
+        if (!query) return true;
+        const haystack = `${employee.lineUserId} ${employee.employeeNumber} ${employee.displayName} ${employee.phone} ${employee.department}`.toLowerCase();
+        return haystack.includes(query);
+      })
+      .slice(0, 30);
+    return res.json({ items: employees, sourceStatus: result.meta });
+  });
+
+  app.post("/api/bff/system/line-whitelist", requireSession, requireRole("system"), async (req, res) => {
+    const parsed = lineWhitelistUpsertSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const input = parsed.data;
+    const values = {
+      lineUserId: input.lineUserId,
+      employeeNumber: input.employeeNumber || null,
+      displayName: input.displayName,
+      phone: input.phone || null,
+      department: input.department || null,
+      status: input.status,
+      featureAccess: input.featureAccess,
+      startsAt: toNullableDate(input.startsAt),
+      endsAt: input.unlimited ? null : toNullableDate(input.endsAt),
+      unlimited: input.unlimited,
+      notes: input.notes || null,
+      source: "ragic",
+      createdBy: req.workbenchSession?.userId,
+      createdByName: req.workbenchSession?.displayName,
+      updatedBy: req.workbenchSession?.userId,
+      updatedByName: req.workbenchSession?.displayName,
+      updatedAt: new Date(),
+    };
+    try {
+      const [existing] = await db
+        .select()
+        .from(lineFeatureWhitelist)
+        .where(eq(lineFeatureWhitelist.lineUserId, input.lineUserId))
+        .limit(1);
+      const [row] = existing
+        ? await db
+            .update(lineFeatureWhitelist)
+            .set(values)
+            .where(eq(lineFeatureWhitelist.id, existing.id))
+            .returning()
+        : await db
+            .insert(lineFeatureWhitelist)
+            .values(values)
+            .returning();
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: existing ? "LINE_WHITELIST_UPDATED" : "LINE_WHITELIST_CREATED",
+        resource: "system.line-feature-whitelist",
+        resourceId: String(row.id),
+        payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
+        resultStatus: "success",
+      });
+      return res.status(existing ? 200 : 201).json(lineWhitelistDto(row));
+    } catch (error) {
+      if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.patch("/api/bff/system/line-whitelist/:id", requireSession, requireRole("system"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    const parsed = lineWhitelistPatchSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const input = parsed.data;
+    const updateValues: Partial<typeof lineFeatureWhitelist.$inferInsert> = {
+      updatedBy: req.workbenchSession?.userId,
+      updatedByName: req.workbenchSession?.displayName,
+      updatedAt: new Date(),
+    };
+    if (input.lineUserId !== undefined) updateValues.lineUserId = input.lineUserId;
+    if (input.employeeNumber !== undefined) updateValues.employeeNumber = input.employeeNumber || null;
+    if (input.displayName !== undefined) updateValues.displayName = input.displayName;
+    if (input.phone !== undefined) updateValues.phone = input.phone || null;
+    if (input.department !== undefined) updateValues.department = input.department || null;
+    if (input.status !== undefined) updateValues.status = input.status;
+    if (input.featureAccess !== undefined) updateValues.featureAccess = input.featureAccess;
+    if (input.startsAt !== undefined) updateValues.startsAt = toNullableDate(input.startsAt);
+    if (input.unlimited !== undefined) updateValues.unlimited = input.unlimited;
+    if (input.endsAt !== undefined || input.unlimited === true) updateValues.endsAt = input.unlimited ? null : toNullableDate(input.endsAt);
+    if (input.notes !== undefined) updateValues.notes = input.notes || null;
+    try {
+      const [row] = await db
+        .update(lineFeatureWhitelist)
+        .set(updateValues)
+        .where(eq(lineFeatureWhitelist.id, id))
+        .returning();
+      if (!row) return res.status(404).json({ message: "WHITELIST_ENTRY_NOT_FOUND" });
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: "LINE_WHITELIST_UPDATED",
+        resource: "system.line-feature-whitelist",
+        resourceId: String(row.id),
+        payload: { lineUserId: row.lineUserId, displayName: row.displayName, featureAccess: row.featureAccess, status: row.status },
+        resultStatus: "success",
+      });
+      return res.json(lineWhitelistDto(row));
+    } catch (error) {
+      if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.get("/api/internal/line-whitelist/check", async (req, res) => {
+    if (!container.config.internalApiToken) return res.status(503).json({ message: "INTERNAL_API_TOKEN is not configured" });
+    const token = readInternalToken(req);
+    if (!token) return res.status(401).json({ message: "MISSING_INTERNAL_TOKEN" });
+    if (token !== container.config.internalApiToken) return res.status(403).json({ message: "INVALID_INTERNAL_TOKEN" });
+    const lineUserId = typeof req.query.lineUserId === "string" ? req.query.lineUserId.trim() : "";
+    const feature = typeof req.query.feature === "string" ? req.query.feature.trim() : "";
+    if (!lineUserId || !feature) return res.status(400).json({ message: "lineUserId and feature are required" });
+    try {
+      const [row] = await db
+        .select()
+        .from(lineFeatureWhitelist)
+        .where(eq(lineFeatureWhitelist.lineUserId, lineUserId))
+        .limit(1);
+      return res.json({
+        allowed: row ? activeForFeature(row, feature) : false,
+        feature,
+        lineUserId,
+        entry: row ? lineWhitelistDto(row) : null,
+      });
+    } catch (error) {
+      if (isMissingWhitelistTable(error)) return res.status(503).json({ message: "LINE_WHITELIST_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.get("/api/cms/system/caution-permissions", requireSession, requireRole("system"), async (req, res) => {
+    const status = typeof req.query.status === "string" ? req.query.status : "all";
+    const dept = typeof req.query.dept === "string" ? req.query.dept.trim().toLowerCase() : "";
+    const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    try {
+      const rows = await db
+        .select()
+        .from(cautionQueryPermissions)
+        .orderBy(desc(cautionQueryPermissions.grantedAt), desc(cautionQueryPermissions.id));
+      const items = rows
+        .map(cautionDto)
+        .filter((item) => status === "all" || item.status === status || (status === "active" && item.status === "expiring_soon"))
+        .filter((item) => !dept || (item.department ?? "").toLowerCase() === dept)
+        .filter((item) => {
+          if (!query) return true;
+          return `${item.userId} ${item.displayName} ${item.phone ?? ""} ${item.department ?? ""} ${item.position ?? ""}`.toLowerCase().includes(query);
+        });
+      const departments = Array.from(new Set(rows.map((row) => row.department).filter((value): value is string => Boolean(value)))).sort();
+      return res.json({
+        generatedAt: new Date().toISOString(),
+        storageStatus: "ready",
+        departments,
+        summary: {
+          total: rows.length,
+          active: rows.filter((row) => cautionStatus(row) === "active" || cautionStatus(row) === "expiring_soon").length,
+          disabled: rows.filter((row) => cautionStatus(row) === "disabled").length,
+          expired: rows.filter((row) => cautionStatus(row) === "expired").length,
+          expiringSoon: rows.filter((row) => cautionStatus(row) === "expiring_soon").length,
+        },
+        items,
+      });
+    } catch (error) {
+      if (isMissingCautionTable(error)) {
+        return res.json({
+          generatedAt: new Date().toISOString(),
+          storageStatus: "schema_pending",
+          error: "caution_query_permissions tables are not created yet. Run migration 0012_caution_query_permissions.sql or npm run db:push.",
+          departments: [],
+          summary: { total: 0, active: 0, disabled: 0, expired: 0, expiringSoon: 0 },
+          items: [],
+        });
+      }
+      throw error;
+    }
+  });
+
+  app.get("/api/cms/system/caution-permissions/candidates", requireSession, requireRole("system"), async (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+    const result = await safeRead(
+      () => container.integrations.ragicAuth.listActiveEmployees(),
+      { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
+    );
+    let activeUserIds = new Set<string>();
+    try {
+      const rows = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.isActive, true));
+      activeUserIds = new Set(rows.map((row) => row.userId));
+    } catch (error) {
+      if (!isMissingCautionTable(error)) throw error;
+    }
+    const items = (result.data ?? [])
+      .map((employee) => ({
+        userId: employee.lineUserId || employee.userId || employee.employeeNumber,
+        employeeNumber: employee.employeeNumber,
+        displayName: employee.displayName,
+        phone: employee.phone ?? "",
+        department: employee.department ?? employee.departments?.join(", ") ?? "",
+        position: employee.title ?? "",
+        enabled: !activeUserIds.has(employee.lineUserId || employee.userId || employee.employeeNumber),
+        source: result.meta.source,
+      }))
+      .filter((employee) => employee.enabled)
+      .filter((employee) => {
+        if (!query) return true;
+        return `${employee.userId} ${employee.employeeNumber} ${employee.displayName} ${employee.phone} ${employee.department} ${employee.position}`.toLowerCase().includes(query);
+      })
+      .slice(0, 50);
+    return res.json({ items, sourceStatus: result.meta });
+  });
+
+  app.post("/api/cms/system/caution-permissions", requireSession, requireRole("system"), async (req, res) => {
+    const parsed = cautionCreateSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const input = parsed.data;
+    const period = cautionPeriod(input.periodType, input.periodStartAt, input.periodEndAt);
+    const actor = req.workbenchSession?.displayName || req.workbenchSession?.userId || "system";
+    try {
+      const [existing] = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.userId, input.userId)).limit(1);
+      const values = {
+        userId: input.userId,
+        displayName: input.displayName,
+        phone: input.phone || null,
+        department: input.department || null,
+        position: input.position || null,
+        isActive: true,
+        permissionStartAt: period.startAt,
+        permissionEndAt: period.endAt,
+        grantedBy: actor,
+        note: input.note || null,
+        updatedAt: new Date(),
+      };
+      const [row] = existing
+        ? await db.update(cautionQueryPermissions).set(values).where(eq(cautionQueryPermissions.id, existing.id)).returning()
+        : await db.insert(cautionQueryPermissions).values(values).returning();
+      await recordCautionAudit({
+        permissionId: row.id,
+        action: "granted",
+        beforeState: existing ? cautionSnapshot(existing) : null,
+        afterState: cautionSnapshot(row),
+        actor,
+        metadata: { periodType: input.periodType, note: input.note ?? null },
+      });
+      await container.repositories.telemetry.recordAudit({
+        actorId: req.workbenchSession?.userId,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        action: existing ? "CAUTION_PERMISSION_UPDATED" : "CAUTION_PERMISSION_GRANTED",
+        resource: "system.caution-query-permissions",
+        resourceId: String(row.id),
+        payload: { userId: row.userId, displayName: row.displayName, status: cautionStatus(row) },
+        resultStatus: "success",
+      });
+      return res.status(existing ? 200 : 201).json(cautionDto(row));
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.patch("/api/cms/system/caution-permissions/:id/period", requireSession, requireRole("system"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    const parsed = cautionPeriodPatchSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const input = parsed.data;
+    const period = cautionPeriod(input.periodType, input.periodStartAt, input.periodEndAt);
+    const actor = req.workbenchSession?.displayName || req.workbenchSession?.userId || "system";
+    try {
+      const [before] = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.id, id)).limit(1);
+      if (!before) return res.status(404).json({ message: "PERMISSION_NOT_FOUND" });
+      const [row] = await db
+        .update(cautionQueryPermissions)
+        .set({ permissionStartAt: period.startAt, permissionEndAt: period.endAt, updatedAt: new Date() })
+        .where(eq(cautionQueryPermissions.id, id))
+        .returning();
+      await recordCautionAudit({
+        permissionId: row.id,
+        action: "period_changed",
+        beforeState: cautionSnapshot(before),
+        afterState: cautionSnapshot(row),
+        actor,
+        metadata: { changeReason: input.changeReason, periodType: input.periodType },
+      });
+      return res.json(cautionDto(row));
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.patch("/api/cms/system/caution-permissions/:id/status", requireSession, requireRole("system"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    const parsed = cautionStatusPatchSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    const actor = req.workbenchSession?.displayName || req.workbenchSession?.userId || "system";
+    try {
+      const [before] = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.id, id)).limit(1);
+      if (!before) return res.status(404).json({ message: "PERMISSION_NOT_FOUND" });
+      const [row] = await db
+        .update(cautionQueryPermissions)
+        .set({ isActive: parsed.data.isActive, updatedAt: new Date() })
+        .where(eq(cautionQueryPermissions.id, id))
+        .returning();
+      await recordCautionAudit({
+        permissionId: row.id,
+        action: row.isActive ? "enabled" : "disabled",
+        beforeState: cautionSnapshot(before),
+        afterState: cautionSnapshot(row),
+        actor,
+      });
+      return res.json(cautionDto(row));
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.get("/api/cms/system/caution-permissions/check", async (req, res) => {
+    if (!container.config.internalApiToken) return res.status(503).json({ message: "INTERNAL_API_TOKEN is not configured" });
+    const token = readInternalToken(req);
+    if (!token) return res.status(401).json({ message: "MISSING_INTERNAL_TOKEN" });
+    if (token !== container.config.internalApiToken) return res.status(403).json({ message: "INVALID_INTERNAL_TOKEN" });
+    const userId = typeof req.query.userId === "string" ? req.query.userId.trim() : "";
+    if (!userId) return res.status(400).json({ message: "userId is required" });
+    try {
+      const [row] = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.userId, userId)).limit(1);
+      return res.json(cautionCheck(row));
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.get("/api/cms/system/caution-permissions/:id/audit", requireSession, requireRole("system"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    try {
+      const rows = await db
+        .select()
+        .from(cautionQueryPermissionAudit)
+        .where(eq(cautionQueryPermissionAudit.permissionId, id))
+        .orderBy(desc(cautionQueryPermissionAudit.createdAt));
+      return res.json({
+        items: rows.map((row) => ({
+          id: row.id,
+          permissionId: row.permissionId,
+          action: row.action,
+          beforeState: row.beforeState,
+          afterState: row.afterState,
+          actor: row.actor,
+          metadata: row.metadata,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
+  });
+
+  app.post("/api/cms/system/caution-permissions/:id/log-usage", async (req, res) => {
+    if (!container.config.internalApiToken) return res.status(503).json({ message: "INTERNAL_API_TOKEN is not configured" });
+    const token = readInternalToken(req);
+    if (!token) return res.status(401).json({ message: "MISSING_INTERNAL_TOKEN" });
+    if (token !== container.config.internalApiToken) return res.status(403).json({ message: "INVALID_INTERNAL_TOKEN" });
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: "INVALID_ID" });
+    const parsed = cautionUsageSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+    try {
+      const [row] = await db.select().from(cautionQueryPermissions).where(eq(cautionQueryPermissions.id, id)).limit(1);
+      if (!row) return res.status(404).json({ message: "PERMISSION_NOT_FOUND" });
+      await recordCautionAudit({
+        permissionId: row.id,
+        action: "used",
+        actor: parsed.data.triggeredBy,
+        metadata: { queryTarget: parsed.data.queryTarget, success: parsed.data.success },
+      });
+      return res.status(201).json({ ok: true });
+    } catch (error) {
+      if (isMissingCautionTable(error)) return res.status(503).json({ message: "CAUTION_PERMISSION_SCHEMA_PENDING" });
+      throw error;
+    }
   });
 
   app.get("/api/bff/system/operations/user-search", requireSession, requireRole("system"), async (req, res) => {
@@ -804,80 +1161,13 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     return res.json(await buildModuleInsights(container, moduleId, periodDays));
   });
 
-  app.get("/api/bff/system/schedule-snapshot", async (req, res) => {
+  app.get("/api/bff/system/schedule-snapshot", requireSession, requireRole("system"), async (req, res) => {
     const facilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : req.workbenchSession?.activeFacility || "xinbei_pool";
     const from = typeof req.query.from === "string" ? req.query.from : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
     const to = typeof req.query.to === "string" ? req.query.to : from;
     const result = await container.integrations.schedule.getScheduleSnapshot({ facilityKey, from, to });
     if (!result.data) return res.status(502).json({ message: result.meta.fallbackReason, meta: result.meta });
     return res.json(result.data);
-  });
-
-  app.post("/api/bff/system/raw-inspector", requireSession, requireRole("system"), async (req, res) => {
-    if (!hasPermission(req.workbenchSession?.permissionsSnapshot, "system:raw-inspector:query")) {
-      return res.status(403).json({ message: "SYSTEM_RAW_INSPECTOR_PERMISSION_REQUIRED" });
-    }
-
-    const parsed = rawInspectorQuerySchema.safeParse(req.body || {});
-    if (!parsed.success || !isRawInspectorPath(parsed.data.path)) {
-      await container.repositories.telemetry.recordAudit({
-        actorId: req.workbenchSession?.userId,
-        role: req.workbenchSession?.activeRole,
-        facilityKey: req.workbenchSession?.activeFacility,
-        action: "RAW_INSPECTOR_QUERY_BLOCKED",
-        resource: "system.raw-inspector",
-        payload: { path: parsed.success ? parsed.data.path : undefined, reason: "not_whitelisted" },
-        resultStatus: "failure",
-      });
-      return res.status(400).json({ message: "RAW_INSPECTOR_TARGET_NOT_ALLOWED" });
-    }
-
-    const target = getRawInspectorTarget(parsed.data.path)!;
-    const host = req.get("host");
-    if (!host) return res.status(400).json({ message: "HOST_REQUIRED" });
-
-    const url = new URL(target.path, `${req.protocol}://${host}`);
-    const queriedAt = new Date().toISOString();
-    try {
-      const upstream = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          Cookie: req.headers.cookie ?? "",
-          "x-correlation-id": `${req.workbenchSession?.userId ?? "system"}-${Date.now()}`,
-        },
-      });
-      const text = await upstream.text();
-      const data = text ? JSON.parse(text) : null;
-      await container.repositories.telemetry.recordAudit({
-        actorId: req.workbenchSession?.userId,
-        role: req.workbenchSession?.activeRole,
-        facilityKey: req.workbenchSession?.activeFacility,
-        action: "RAW_INSPECTOR_QUERY",
-        resource: "system.raw-inspector",
-        resourceId: target.path,
-        payload: { label: target.label, status: upstream.status },
-        resultStatus: upstream.ok ? "success" : "failure",
-      });
-      return res.status(upstream.ok ? 200 : 502).json({
-        path: target.path,
-        label: target.label,
-        queriedAt,
-        status: upstream.status,
-        data,
-      });
-    } catch (error) {
-      await container.repositories.telemetry.recordAudit({
-        actorId: req.workbenchSession?.userId,
-        role: req.workbenchSession?.activeRole,
-        facilityKey: req.workbenchSession?.activeFacility,
-        action: "RAW_INSPECTOR_QUERY",
-        resource: "system.raw-inspector",
-        resourceId: target.path,
-        payload: { label: target.label, error: error instanceof Error ? error.message : String(error) },
-        resultStatus: "failure",
-      });
-      return res.status(502).json({ message: "RAW_INSPECTOR_QUERY_FAILED" });
-    }
   });
 
   app.post("/api/watchdog/events", async (req, res) => {

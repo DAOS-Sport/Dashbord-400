@@ -208,7 +208,7 @@ export const featureFlows: FeatureFlow[] = [
     id: "lifeguard-photo-flow",
     title: "救生照片與 GPS 稽核流",
     owner: "lifeguard / system",
-    route: "/lifeguard/* -> /system/lifeguard-audit",
+    route: "/lifeguard/* -> /supervisor/lifeguard-overview",
     summary: "救生員先拿 GPS，再拍照疊浮水印，上傳 Object Storage，最後寫入各 lifeguard_* table 與 audit log。",
     steps: ["GPS permission", "camera capture", "canvas watermark", "photo-upload BFF", "Object Storage + geocoding", "lifeguard table", "audit"],
     tables: ["lifeguard_water_quality_logs", "lifeguard_coach_dive_logs", "lifeguard_cleanup_logs", "lifeguard_lost_and_found", "audit_logs"],
@@ -282,7 +282,7 @@ export const routeRelations: RouteRelation[] = [
     role: "system",
     title: "IT / 系統端",
     route: "/system",
-    modules: ["系統總覽", "當前功能關係", "系統健康", "告警中心", "整合狀態", "Audit / Telemetry", "救生稽核", "Raw Inspector"],
+    modules: ["系統總覽", "當前功能關係", "系統健康", "告警中心", "整合狀態", "Audit / Telemetry"],
     source: "Module registry + health + audit projections",
   },
 ];

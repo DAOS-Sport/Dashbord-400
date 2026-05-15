@@ -17,7 +17,6 @@ import AdminParkingPlans from "@/pages/admin/parking/plans";
 import AdminParkingContracts from "@/pages/admin/parking/contracts";
 import AdminParkingPayments from "@/pages/admin/parking/payments";
 import ParkingSignPage from "@/pages/parking/sign";
-import SystemTopology from "@/pages/system-topology";
 import CourtsCalendarPage from "@/pages/courts/calendar";
 import CourtsWeekPage from "@/pages/courts/week";
 import CourtsMonthPage from "@/pages/courts/month";
@@ -69,15 +68,16 @@ import SystemAlertsPage from "@/modules/system/alerts/page";
 import SystemAuditPage from "@/modules/system/audit/page";
 import SystemControlCenterPage from "@/modules/system/control-center/page";
 import SystemGovernancePage from "@/modules/system/governance/page";
+import SystemHelperStatusPage from "@/modules/system/helper-status/page";
+import SystemLineWhitelistPage from "@/modules/system/line-whitelist/page";
 import SystemInsightsPage from "@/modules/system/insights/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemOperationsPage from "@/modules/system/operations/page";
-import SystemRawInspectorPage from "@/modules/system/raw-inspector/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
-import SystemLifeguardAuditPage from "@/modules/system/lifeguard-audit/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
+import DesignSystemShowcase from "@/design-system/__demo__/showcase";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe, useSwitchRole } from "@/shared/auth/session";
 import { roleHomePath, type AuthMeDto, type WorkbenchRole } from "@shared/auth/me";
@@ -362,6 +362,9 @@ function WorkbenchRouter() {
       <Route path="/system/operations" component={SystemOperationsPage} />
       <Route path="/system/insights" component={SystemInsightsPage} />
       <Route path="/system/governance" component={SystemGovernancePage} />
+      <Route path="/system/helper-status" component={SystemHelperStatusPage} />
+      <Route path="/system/lineXBS-status" component={SystemHelperStatusPage} />
+      <Route path="/system/line-whitelist" component={SystemLineWhitelistPage} />
       <Route path="/system/health" component={SystemDashboardPage} />
       <Route path="/system/function-relations">
         <SystemFunctionRelationsPage />
@@ -375,16 +378,9 @@ function WorkbenchRouter() {
       <Route path="/system/audit">
         <SystemAuditPage />
       </Route>
-      <Route path="/system/raw-inspector">
-        <SystemRawInspectorPage />
-      </Route>
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
-      <Route path="/system/lifeguard-audit">
-        <SystemLifeguardAuditPage />
-      </Route>
-      <Route path="/system/topology" component={SystemTopology} />
       <Route path="/system/overview" component={SystemControlCenterPage} />
       <Route path="/system" component={SystemControlCenterPage} />
       <Route path="/employee/courts/:school/week">
@@ -633,6 +629,7 @@ function App() {
   const legacyRedirect = getRedirectForLegacyPath(location);
   const isPortal = location.startsWith("/portal");
   const isLogin = normalizedLocation === "/login";
+  const isDesignSystemShowcase = import.meta.env.DEV && normalizedLocation === "/design-system/showcase";
   const isParkingSign = normalizedLocation.startsWith("/parking/sign/");
   const isWorkbench =
     normalizedLocation === "/" ||
@@ -664,6 +661,18 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Redirect to={legacyRedirect} />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isDesignSystemShowcase) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <DesignSystemShowcase />
+          <DebugDreamLoaderOverlay />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

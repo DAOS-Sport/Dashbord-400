@@ -385,30 +385,4 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
     });
   });
 
-  app.get("/api/bff/system/lifeguard-audit", deps.requireEmployee(), async (req, res) => {
-    if (!hasRole(req, "system")) return res.status(403).json({ message: "需要 IT / system 權限" });
-    const facilityKey = typeof req.query.facilityKey === "string" && req.query.facilityKey !== "all" ? req.query.facilityKey : undefined;
-    const fromDate = typeof req.query.from === "string" ? new Date(req.query.from) : daysAgo(30);
-    const toDate = typeof req.query.to === "string" ? new Date(req.query.to) : undefined;
-    const common = { facilityKey, fromDate, toDate, limit: 500 };
-    const [waterQuality, coachDive, cleanup, lostItems] = await Promise.all([
-      storage.listLifeguardWaterQualityLogs(common),
-      storage.listLifeguardCoachDiveLogs(common),
-      storage.listLifeguardCleanupLogs(common),
-      storage.listLifeguardLostAndFound({ ...common, claimStatus: typeof req.query.claimStatus === "string" && req.query.claimStatus !== "all" ? req.query.claimStatus : undefined }),
-    ]);
-    const rows = [
-      ...waterQuality.map((item) => ({ module: "water_quality", item })),
-      ...coachDive.map((item) => ({ module: "coach_dive", item })),
-      ...cleanup.map((item) => ({ module: "cleanup", item })),
-      ...lostItems.map((item) => ({ module: "lost_and_found", item })),
-    ].sort((a, b) => +new Date(b.item.createdAt) - +new Date(a.item.createdAt));
-    if (req.path.endsWith(".csv") || req.query.format === "csv") {
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.send(["module,id,facilityKey,createdBy,createdAt,latitude,longitude,photoUrl", ...rows.map(({ module, item }) => [module, item.id, item.facilityKey, item.createdBy, item.createdAt.toISOString(), item.latitude, item.longitude, item.photoUrl].join(","))].join("\n"));
-      return;
-    }
-    res.json({ rows: rows.map(({ module, item }) => ({ module, item: serialize(item) })) });
-  });
-
 }

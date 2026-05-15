@@ -18,6 +18,7 @@ export interface RagicAuthUser {
 }
 
 export interface RagicEmployeeRecord extends RagicAuthUser {
+  lineUserId?: string;
   phone?: string;
   grantedFacilities: string[];
 }

@@ -64,7 +64,7 @@ export const moduleArchitectureGroupLabels: Record<ModuleArchitectureGroupId, { 
   },
   "system-governance": {
     title: "IT 治理與觀察面",
-    description: "功能關係、拓撲、健康檢查、稽核、Raw Inspector、Watchdog 與 BFF projections。",
+    description: "功能關係、拓撲摘要、健康檢查、稽核、Watchdog 與 BFF projections。",
   },
   integrations: {
     title: "外部整合",
@@ -135,6 +135,8 @@ export const getModuleArchitectureGroupId = (module: ModuleDefinition): ModuleAr
     module.id.includes("raw") ||
     module.id.includes("watchdog") ||
     module.id === "bff-projections" ||
+    module.id === "helper-status" ||
+    module.id === "line-whitelist" ||
     module.id === "hr-audit"
   ) {
     return "system-governance";

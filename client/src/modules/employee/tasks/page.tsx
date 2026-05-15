@@ -228,7 +228,7 @@ export default function EmployeeTasksPage() {
   const sortedTasks = useMemo(() => [...tasks].sort((a, b) => Number(a.status === "done") - Number(b.status === "done")), [tasks]);
 
   return (
-    <EmployeeShell title="交班��項" subtitle="員工可建立自己的任務；主管派發任務可直接完成，排班維持外部唯讀。">
+    <EmployeeShell title="任務管理" subtitle="員工可建立自己的任務；主管派發任務可直接完成，排班維持外部唯讀。">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <WorkbenchCard className="p-4">

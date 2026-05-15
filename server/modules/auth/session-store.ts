@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { AuthMeDto, WorkbenchRole } from "@shared/auth/me";
 import { facilityKeysFromRagicDepartments, facilityLineGroups } from "@shared/domain/facilities";
+import { DEFAULT_FACILITY_KEY, canonicalizeFacilityKeys } from "@shared/facility/canonical-keys";
 import { env } from "../../shared/config/env";
 import type { RagicAuthUser } from "../../integrations/ragic/auth-adapter";
 
@@ -76,7 +77,7 @@ export const createMockSession = (
   ],
   activeRole: isSupervisor ? "supervisor" : isLifeguard ? "lifeguard" : "employee",
   grantedFacilities: resolveGrantedFacilities(isSupervisor, departments),
-  activeFacility: resolveGrantedFacilities(isSupervisor, departments)[0] ?? "xinbei_pool",
+  activeFacility: resolveGrantedFacilities(isSupervisor, departments)[0] ?? DEFAULT_FACILITY_KEY,
   permissionsSnapshot: [
     "employee:home:read",
     "employee:resources:read",
@@ -87,7 +88,6 @@ export const createMockSession = (
     "supervisor:layout:update",
     "system:overview:read",
     "system:module-registry:read",
-    "system:raw-inspector:query",
     "system:audit:read",
     "system:integrations:read",
     "workbench:role:switch",
@@ -103,8 +103,8 @@ export const hasRole = (session: SessionRecord, role: WorkbenchRole) => session.
 
 const resolveGrantedFacilities = (isSupervisor: boolean, departments: string[]) => {
   if (isSupervisor) return facilityLineGroups.map((facility) => facility.facilityKey);
-  const granted = facilityKeysFromRagicDepartments(departments);
-  return granted.length > 0 ? granted : ["xinbei_pool"];
+  const granted = canonicalizeFacilityKeys(facilityKeysFromRagicDepartments(departments));
+  return granted.length > 0 ? granted : [DEFAULT_FACILITY_KEY];
 };
 
 export const createSessionFromAuthUser = (user: RagicAuthUser): Omit<SessionRecord, "issuedAt" | "lastActive"> =>

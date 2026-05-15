@@ -15,6 +15,8 @@ export interface WorkbenchRouteDescriptor {
 
 export const workbenchRoutes = [
   { moduleId: "employee-home", label: "首頁", iconKey: "home", role: "employee", primaryPath: "/employee", shell: "employee" },
+  { moduleId: "tasks", label: "任務管理", iconKey: "clipboard-check", role: "employee", primaryPath: "/employee/tasks", shell: "employee" },
+  { moduleId: "announcements", label: "群組公告", iconKey: "bell", role: "employee", primaryPath: "/employee/announcements", shell: "employee" },
   { moduleId: "handover", label: "櫃台交接", iconKey: "message-square-text", role: "employee", primaryPath: "/employee/handover", shell: "employee" },
   { moduleId: "activity-periods", label: "活動檔期/課程快訊", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/activity-periods", shell: "employee" },
   { moduleId: "employee-resources", label: "常用文件", iconKey: "file-text", role: "employee", primaryPath: "/employee/documents", shell: "employee" },
@@ -56,6 +58,8 @@ export const workbenchRoutes = [
   { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
   { moduleId: "system-governance", label: "治理面", iconKey: "network", role: "system", primaryPath: "/system/governance", shell: "system" },
+  { moduleId: "helper-status", label: "400小幫手", iconKey: "bot", role: "system", primaryPath: "/system/lineXBS-status", shell: "system" },
+  { moduleId: "line-whitelist", label: "白名單", iconKey: "users", role: "system", primaryPath: "/system/line-whitelist", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
 
 export const getWorkbenchRoutes = (role: WorkbenchRole): WorkbenchRouteDescriptor[] =>
@@ -73,7 +77,7 @@ export const getRedirectForLegacyPath = (pathname: string): string | undefined =
   if (normalized === "/anomaly-reports") return "/supervisor/anomalies";
   if (normalized === "/announcements" || normalized === "/announcements/summary") return "/supervisor/announcements";
   if (normalized === "/system-health" || normalized === "/system/health" || normalized === "/system/alerts" || normalized === "/system/integrations") return "/system/watchdog";
-  if (normalized === "/system/function-relations" || normalized === "/system/topology" || normalized === "/system/audit" || normalized === "/system/raw-inspector" || normalized === "/system/lifeguard-audit" || normalized === "/system/training-views") return "/system/governance";
+  if (normalized === "/system/function-relations" || normalized === "/system/audit" || normalized === "/system/training-views") return "/system/governance";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";
   if (normalized === "/admin/parking") return "/supervisor/parking";
   if (normalized === "/admin/parking/dashboard") return "/supervisor/parking";

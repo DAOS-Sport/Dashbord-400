@@ -55,11 +55,11 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
     return res.status(202).json({ accepted: true });
   });
 
-  app.get("/api/bff/system/ui-event-overview", async (_req, res) => {
+  app.get("/api/bff/system/ui-event-overview", requireSession, requireRole("system"), async (_req, res) => {
     return res.json(await container.repositories.telemetry.getUiEventOverview());
   });
 
-  app.get("/api/telemetry/module-events", async (_req, res) => {
+  app.get("/api/telemetry/module-events", requireSession, requireRole("system"), async (_req, res) => {
     const overview = await container.repositories.telemetry.getUiEventOverview();
     return res.json({
       items: overview.latestEvents.map((event) => ({

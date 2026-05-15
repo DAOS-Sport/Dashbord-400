@@ -46,6 +46,7 @@ import { DegradedCard, NotConnectedCard } from "@/components/shared/not-connecte
 import { BrandLockup, BrandMark } from "@/shared/brand";
 import { riseIn, staggerContainer } from "@/shared/motion/tokens";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
+import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
 import {
   createEmployeeResource,
   createEmployeeFrontDeskHandover,
@@ -71,6 +72,14 @@ import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
 
 const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
+
+const employeeHomeQuickActions: FloatingQuickActionItem[] = [
+  { label: "任務管理", helper: "查看與完成今日任務", href: "/employee/tasks", Icon: ListChecks },
+  { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Bell },
+  { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
+  { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: ShieldCheck },
+  { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
+];
 
 const toOptionalIso = (date: string, time: string) => {
   if (!date) return undefined;
@@ -743,11 +752,12 @@ function HandoverDrawer({
 }
 
 function AnnouncementCard({ announcements, source }: { announcements: AnnouncementSummary[]; source?: BffSection<AnnouncementSummary[]> }) {
-  const sourceMessage = source?.status === "unavailable"
-    ? source.meta.fallbackReason
-    : source?.status === "degraded"
-      ? source.meta.fallbackReason
-      : "目前沒有需要優先閱讀的群組公告。";
+  const sourceMessage = (() => {
+    if (source?.status !== "unavailable" && source?.status !== "degraded") return "目前沒有需要優先閱讀的群組公告。";
+    const reason = source.meta.fallbackReason ?? "";
+    if (/TOKEN|LINE_BOT|ADMIN|API/i.test(reason)) return "公告來源暫時無法同步，請先以主管公告頁確認最新資訊。";
+    return reason || "公告來源暫時無法同步，請稍後再試。";
+  })();
   const [primaryAnnouncement, ...secondaryAnnouncements] = announcements.slice(0, 3);
   return (
     <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.45)]">
@@ -1540,7 +1550,7 @@ function TodayTutoringCard() {
             <p className="text-[11px] font-bold">筆預約</p>
           </div>
           <span className="rounded-full border border-[#d9e2ec] bg-[#f7f9fb] px-2 py-1 text-[10px] font-black text-[#9aa7b8]">
-            尚未開放
+            即將加入
           </span>
         </div>
 
@@ -1561,7 +1571,7 @@ function TodayTutoringCard() {
           </div>
         </div>
       </div>
-      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約資料尚未接入；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約模組規劃中；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
     </WorkbenchCard>
   );
 }
@@ -2053,6 +2063,7 @@ function EmployeeHomeContent() {
           </main>
         </div>
       </div>
+      <FloatingQuickActionsPanel eyebrow="Employee Actions" title="員工快捷操作" items={employeeHomeQuickActions} tone="blue" />
       <BottomNav />
       <HandoverDrawer
         open={handoverDrawerOpen}

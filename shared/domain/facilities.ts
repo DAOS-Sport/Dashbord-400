@@ -1,5 +1,7 @@
+import { CANONICAL_FACILITY_KEYS, DEFAULT_FACILITY_KEY, type CanonicalFacilityKey } from "@shared/facility/canonical-keys";
+
 export interface FacilityLineGroup {
-  facilityKey: string;
+  facilityKey: CanonicalFacilityKey;
   fullName: string;
   shortName: string;
   area: string;
@@ -62,6 +64,13 @@ export const facilityLineGroups: readonly FacilityLineGroup[] = [
   },
 ] as const;
 
+const configuredFacilityKeys = new Set(facilityLineGroups.map((facility) => facility.facilityKey));
+for (const key of CANONICAL_FACILITY_KEYS) {
+  if (!configuredFacilityKeys.has(key)) {
+    throw new Error(`Missing facilityLineGroups config for canonical facility key: ${key}`);
+  }
+}
+
 export const findFacilityLineGroup = (facilityKeyOrGroupId: string): FacilityLineGroup | undefined =>
   facilityLineGroups.find(
     (facility) =>
@@ -98,4 +107,4 @@ export const findScheduleRegionKey = (facilityKey: string): string => {
 export const facilityLabel = (facilityKey: string): string =>
   findFacilityLineGroup(facilityKey)?.ragicDepartmentAliases[0] ??
   findFacilityLineGroup(facilityKey)?.fullName ??
-  facilityKey;
+  (facilityKey || DEFAULT_FACILITY_KEY);

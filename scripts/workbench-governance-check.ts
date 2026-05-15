@@ -27,11 +27,11 @@ const descriptorIds = new Set(moduleDescriptors.map((item) => item.id));
 const registryIds = new Set(MODULE_REGISTRY.map((item) => item.id));
 
 const requiredDocs = [
-  "docs/WORKBENCH_PERMISSION_MATRIX.md",
-  "docs/WORKBENCH_ROUTE_MAP.md",
-  "docs/MODULE_REGISTRY_PAGE_AUDIT.md",
-  "docs/REPLIT_ACCEPTANCE_CHECKLIST.md",
-  "docs/LEGACY_RUNTIME_CLEANUP.md",
+  "docs/governance/WORKBENCH_PERMISSION_MATRIX.md",
+  "docs/governance/WORKBENCH_ROUTE_MAP.md",
+  "docs/governance/MODULE_REGISTRY_PAGE_AUDIT.md",
+  "docs/integrations/REPLIT_ACCEPTANCE_CHECKLIST.md",
+  "docs/operations/LEGACY_RUNTIME_CLEANUP.md",
 ];
 
 for (const doc of requiredDocs) {
