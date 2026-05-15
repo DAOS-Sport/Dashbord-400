@@ -519,7 +519,7 @@ export const insertClassifierAnomalySchema = createInsertSchema(classifierAnomal
 export type InsertClassifierAnomaly = z.infer<typeof insertClassifierAnomalySchema>;
 export type ClassifierAnomaly = typeof classifierAnomalies.$inferSelect;
 
-const facilityKeySet = new Set(facilityLineGroups.map((facility) => facility.facilityKey));
+const facilityKeySet = new Set<string>(facilityLineGroups.map((facility) => facility.facilityKey));
 
 export const facilityAnnouncementGroups = pgTable("facility_announcement_groups", {
   id: serial("id").primaryKey(),
@@ -685,6 +685,112 @@ export const moduleFacilityOverrides = pgTable("module_facility_overrides", {
 export type ModuleSetting = typeof moduleSettings.$inferSelect;
 export type ModuleRolePermission = typeof moduleRolePermissions.$inferSelect;
 export type ModuleFacilityOverride = typeof moduleFacilityOverrides.$inferSelect;
+
+export const lineFeatureWhitelist = pgTable("line_feature_whitelist", {
+  id: serial("id").primaryKey(),
+  lineUserId: text("line_user_id").notNull().unique(),
+  employeeNumber: text("employee_number"),
+  displayName: text("display_name").notNull(),
+  phone: text("phone"),
+  department: text("department"),
+  status: text("status").default("active").notNull(),
+  featureAccess: jsonb("feature_access").$type<Record<string, boolean>>().default(sql`'{}'::jsonb`).notNull(),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  unlimited: boolean("unlimited").default(true).notNull(),
+  notes: text("notes"),
+  source: text("source").default("ragic").notNull(),
+  createdBy: text("created_by"),
+  createdByName: text("created_by_name"),
+  updatedBy: text("updated_by"),
+  updatedByName: text("updated_by_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  lineUserIdx: uniqueIndex("line_feature_whitelist_line_user_id_idx").on(table.lineUserId),
+  statusIdx: index("line_feature_whitelist_status_idx").on(table.status),
+}));
+
+export const insertLineFeatureWhitelistSchema = createInsertSchema(lineFeatureWhitelist).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  lineUserId: z.string().min(1, "LINE userId 不可為空").max(120),
+  employeeNumber: z.string().max(80).optional().nullable(),
+  displayName: z.string().min(1, "姓名不可為空").max(120),
+  phone: z.string().max(40).optional().nullable(),
+  department: z.string().max(160).optional().nullable(),
+  status: z.enum(["active", "disabled"]).default("active"),
+  featureAccess: z.record(z.boolean()).default({}),
+  startsAt: z.coerce.date().optional().nullable(),
+  endsAt: z.coerce.date().optional().nullable(),
+  unlimited: z.boolean().default(true),
+  notes: z.string().max(1000).optional().nullable(),
+  source: z.enum(["ragic", "manual", "migration", "system"]).default("ragic"),
+  createdBy: z.string().max(120).optional().nullable(),
+  createdByName: z.string().max(120).optional().nullable(),
+  updatedBy: z.string().max(120).optional().nullable(),
+  updatedByName: z.string().max(120).optional().nullable(),
+});
+
+export type InsertLineFeatureWhitelist = z.infer<typeof insertLineFeatureWhitelistSchema>;
+export type LineFeatureWhitelist = typeof lineFeatureWhitelist.$inferSelect;
+
+export const cautionQueryPermissions = pgTable("caution_query_permissions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  phone: text("phone"),
+  department: text("department"),
+  position: text("position"),
+  isActive: boolean("is_active").default(true).notNull(),
+  permissionStartAt: timestamp("permission_start_at"),
+  permissionEndAt: timestamp("permission_end_at"),
+  grantedBy: text("granted_by").notNull(),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  note: text("note"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("caution_query_permissions_user_id_idx").on(table.userId),
+  activeIdx: index("idx_caution_permissions_active").on(table.isActive, table.permissionEndAt),
+  deptIdx: index("idx_caution_permissions_dept").on(table.department),
+}));
+
+export const cautionQueryPermissionAudit = pgTable("caution_query_permission_audit", {
+  id: serial("id").primaryKey(),
+  permissionId: integer("permission_id").notNull(),
+  action: text("action").notNull(),
+  beforeState: jsonb("before_state").$type<Record<string, unknown>>(),
+  afterState: jsonb("after_state").$type<Record<string, unknown>>(),
+  actor: text("actor").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  permissionIdx: index("idx_caution_audit_permission").on(table.permissionId, table.createdAt),
+  createdIdx: index("idx_caution_audit_created").on(table.createdAt),
+}));
+
+export const insertCautionQueryPermissionSchema = createInsertSchema(cautionQueryPermissions).omit({
+  id: true,
+  grantedAt: true,
+  updatedAt: true,
+}).extend({
+  userId: z.string().min(1).max(120),
+  displayName: z.string().min(1).max(120),
+  phone: z.string().max(40).optional().nullable(),
+  department: z.string().max(160).optional().nullable(),
+  position: z.string().max(120).optional().nullable(),
+  isActive: z.boolean().optional(),
+  permissionStartAt: z.coerce.date().optional().nullable(),
+  permissionEndAt: z.coerce.date().optional().nullable(),
+  grantedBy: z.string().min(1).max(120),
+  note: z.string().max(200).optional().nullable(),
+});
+
+export type InsertCautionQueryPermission = z.infer<typeof insertCautionQueryPermissionSchema>;
+export type CautionQueryPermission = typeof cautionQueryPermissions.$inferSelect;
+export type CautionQueryPermissionAudit = typeof cautionQueryPermissionAudit.$inferSelect;
 
 export const watchdogEvents = pgTable("watchdog_events", {
   id: serial("id").primaryKey(),

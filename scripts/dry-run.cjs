@@ -3,6 +3,7 @@
 const { spawnSync } = require("node:child_process");
 
 const commands = [
+  ["check:encoding", ["node", "scripts/check-encoding-artifacts.cjs"]],
   ["type-check", ["node", "scripts/run-toolchain.cjs", "tsc", "--pretty", "false", "--noEmit"]],
   ["check:modules", ["node", "scripts/run-toolchain.cjs", "tsx", "scripts/module-registry-check.ts"]],
   ["smoke:modules", ["node", "scripts/run-toolchain.cjs", "tsx", "scripts/module-smoke.ts"]],

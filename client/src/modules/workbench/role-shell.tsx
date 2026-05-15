@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  Bot,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -38,6 +39,8 @@ import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navig
 
 const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {
 };
+const HELPER_MONITOR_MODULE_IDS = new Set(["helper-status", "line-whitelist"]);
+const helperSectionStartsAt = (items: NavItem[]) => items.findIndex((item) => HELPER_MONITOR_MODULE_IDS.has(item.id));
 
 type NavItem = {
   id: string;
@@ -49,6 +52,7 @@ type NavItem = {
 const iconByKey: Record<string, LucideIcon> = {
   home: Home,
   bell: Bell,
+  bot: Bot,
   "clipboard-check": ClipboardList,
   "clipboard-list": ClipboardCheck,
   "message-square-text": FileText,
@@ -162,9 +166,19 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const grantedFacilities = session.data?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(grantedFacilities);
   const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
+  const helperStartIndex = role === "system" ? helperSectionStartsAt(nav) : -1;
   const mobileItems = nav.slice(0, 5);
   const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
+  const shellStatusLabel = role === "system" ? "系統監控中" : "營運中";
+  const shellScopeLabel = role === "system" ? "IT 治理與監控工作台" : "授權場館工作台";
+  const shellConsoleLabel = role === "system" ? "System Console" : "Supervisor Console";
+  const roleEnglishLabel = role === "system" ? "System" : "Supervisor";
+  const todayLabel = new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const supervisorShell = role === "supervisor";
   const activeFacility = session.data?.activeFacility;
   const activeFacilityName = activeFacility ? facilityLabels.getFacilityName(activeFacility) : "授權場館";
@@ -177,10 +191,10 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
           <div className="rounded-[10px] border border-white/10 bg-white/[0.04] p-3 text-[12px] leading-5 text-[#b8c8da]">
             <div className="mb-2 flex items-center gap-2 font-black text-white">
               <span className="h-[7px] w-[7px] rounded-full bg-[#2f9e5b] shadow-[0_0_0_3px_rgba(47,158,91,0.18)]" />
-              營運中
+              {shellStatusLabel}
             </div>
-            <p className="truncate font-bold text-[#d9e4ef]">授權場館工作台</p>
-            <p className="truncate text-[11px] text-[#9eacbc]">Supervisor Console</p>
+            <p className="truncate font-bold text-[#d9e4ef]">{shellScopeLabel}</p>
+            <p className="truncate text-[11px] text-[#9eacbc]">{shellConsoleLabel}</p>
           </div>
           <div className="flex items-center gap-3 rounded-[10px] bg-white/[0.04] p-3">
             <div className="grid h-9 w-9 place-items-center rounded-full bg-[#2f9e5b] text-white">
@@ -201,23 +215,27 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
               const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
               const rootActive = index === 0 && role === "supervisor" && location === "/";
               return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
-                  className={cn(
-                    "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
-                    active || rootActive
-                      ? "bg-[#2f9e5b] text-white"
-                      : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
-                  )}
-                >
-                  <item.Icon className="h-4 w-4" />
-                  <span className="truncate">{item.label}</span>
-                  {item.label.includes("異常") || item.label.includes("告警") ? (
-                    <span className="ml-auto grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">5</span>
+                <div key={item.id} className="contents">
+                  {index === helperStartIndex ? (
+                    <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">400小幫手</div>
                   ) : null}
-                </Link>
+                  <Link
+                    href={item.href}
+                    onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
+                    className={cn(
+                      "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
+                      active || rootActive
+                        ? "bg-[#2f9e5b] text-white"
+                        : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
+                    )}
+                  >
+                    <item.Icon className="h-4 w-4" />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.label.includes("異常") || item.label.includes("告警") ? (
+                      <span className="ml-auto grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">5</span>
+                    ) : null}
+                  </Link>
+                </div>
               );
             })}
           </nav>
@@ -225,8 +243,8 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
             <div className="flex items-center gap-3 px-2 py-2">
               <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">駿</div>
               <div className="min-w-0 text-[12px] leading-4">
-                <p className="truncate font-black text-white">營運主管</p>
-                <p className="truncate text-[11px] text-[#9eacbc]">Supervisor</p>
+                <p className="truncate font-black text-white">{roleLabel}</p>
+                <p className="truncate text-[11px] text-[#9eacbc]">{roleEnglishLabel}</p>
               </div>
             </div>
           </div>
@@ -281,7 +299,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 <div className="lg:hidden">
                   <RoleSwitcher compact />
                 </div>
-                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">2026/04/23</button>
+                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">{todayLabel}</button>
                 <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">{activeFacilityName}</button>
               </div>
             </div>
@@ -290,7 +308,10 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-30 grid border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, mobileItems.length)}, minmax(0, 1fr))` }}
+      >
         {!mobileItems.length && navigation.isLoading ? (
           <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中...</div>
         ) : null}

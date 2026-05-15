@@ -3,11 +3,11 @@ import { sourceOk, sourceUnavailable } from "../../shared/integrations/source-st
 import { facilityKeysFromRagicDepartments } from "@shared/domain/facilities";
 
 const mockEmployees = [
-  { employeeNumber: "1111", displayName: "全端測試開發", departments: ["新北高中", "三重商工", "松山國小", "三民高中"], title: "系統管理員 / 救生員", phone: "1111" },
-  { employeeNumber: "A001", displayName: "新北值班人員", departments: ["新北高中"], title: "救生員", phone: "0912000001" },
-  { employeeNumber: "A002", displayName: "商工值班人員", departments: ["三重商工"], title: "櫃台", phone: "0912000002" },
-  { employeeNumber: "A003", displayName: "松山值班人員", departments: ["松山國小"], title: "櫃台", phone: "0912000003" },
-  { employeeNumber: "A004", displayName: "三民值班人員", departments: ["三民高中"], title: "櫃台", phone: "0912000004" },
+  { employeeNumber: "1111", lineUserId: "U400DEVFULLSTACK1111", displayName: "全端測試開發", departments: ["新北高中", "三重商工", "松山國小", "三民高中"], title: "系統管理員 / 救生員", phone: "1111" },
+  { employeeNumber: "A001", lineUserId: "U400XINBEI0001", displayName: "新北值班人員", departments: ["新北高中"], title: "救生員", phone: "0912000001" },
+  { employeeNumber: "A002", lineUserId: "U400SANCHONG0002", displayName: "商工值班人員", departments: ["三重商工"], title: "櫃台", phone: "0912000002" },
+  { employeeNumber: "A003", lineUserId: "U400SONGSHAN0003", displayName: "松山值班人員", departments: ["松山國小"], title: "櫃台", phone: "0912000003" },
+  { employeeNumber: "A004", lineUserId: "U400SANMIN0004", displayName: "三民值班人員", departments: ["三民高中"], title: "櫃台", phone: "0912000004" },
 ];
 
 export const mockRagicAuthAdapter: RagicAuthAdapter = {
@@ -30,6 +30,7 @@ export const mockRagicAuthAdapter: RagicAuthAdapter = {
   async listActiveEmployees() {
     return sourceOk("mock-ragic-employees", mockEmployees.map((employee) => ({
       userId: employee.employeeNumber,
+      lineUserId: employee.lineUserId,
       employeeNumber: employee.employeeNumber,
       displayName: employee.displayName,
       phone: employee.phone,

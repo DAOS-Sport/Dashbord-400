@@ -10,6 +10,8 @@ const RAGIC_QUERY_FID = {
 const RAGIC_KEY = {
   employeeNumber: "員工編號",
   name: "姓名",
+  userId: "userid",
+  lineUserId: "LINE User ID",
   mobile: "手機",
   department: "部門",
   title: "職稱",
@@ -26,6 +28,13 @@ const parseDepartments = (department: unknown) =>
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+const firstNonEmpty = (...values: unknown[]) => {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
 
 const employeeUrl = () => {
   const url = new URL(`https://${env.ragicHost}/${env.ragicAccountPath}${env.ragicEmployeeSheet}`);
@@ -138,7 +147,8 @@ export const realRagicAuthAdapter: RagicAuthAdapter = {
           const departments = parseDepartments(row[RAGIC_KEY.department]);
           const title = String(row[RAGIC_KEY.title] || "");
           return {
-            userId: String(row[RAGIC_KEY.employeeNumber] || ""),
+            userId: firstNonEmpty(row[RAGIC_KEY.userId], row[RAGIC_KEY.lineUserId], row[RAGIC_KEY.employeeNumber]),
+            lineUserId: firstNonEmpty(row[RAGIC_KEY.lineUserId], row[RAGIC_KEY.userId]),
             displayName: String(row[RAGIC_KEY.name] || row[RAGIC_KEY.employeeNumber] || ""),
             employeeNumber: String(row[RAGIC_KEY.employeeNumber] || ""),
             phone: normalizePhone(row[RAGIC_KEY.mobile]),

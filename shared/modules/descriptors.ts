@@ -84,10 +84,10 @@ const chineseKeywords: Record<string, string[]> = {
   "system-watchdog": ["Watchdog", "系統健康", "告警", "整合狀態"],
   "system-operations": ["運維協助", "IT 協助", "重發通知", "session"],
   "system-insights": ["行為洞察", "使用率", "流程完成率"],
-  "system-governance": ["治理面", "模組登記書", "拓撲", "audit", "raw inspector"],
+  "system-governance": ["治理面", "模組登記書", "拓撲", "audit"],
+  "helper-status": ["400小幫手狀態檢視", "外部服務", "Secrets", "服務清單"],
+  "line-whitelist": ["400 LINE 白名單管理", "面試模組", "慎用查詢", "功能開關"],
   "system-function-relations": ["當前功能關係", "功能關係", "資料表關係", "母表子表", "架構圖"],
-  "system-topology": ["模組拓撲圖", "拓撲", "topology"],
-  "raw-inspector": ["原始資料", "raw"],
   "lifeguard-water-quality": ["水質檢測", "水質", "照片"],
   "lifeguard-coach-dive": ["教練下水", "教練下水", "拍照"],
   "lifeguard-cleanup": ["下班打掃", "收班", "打掃照片"],
@@ -147,6 +147,8 @@ const systemNavigationOrder = [
   "system-operations",
   "system-insights",
   "system-governance",
+  "helper-status",
+  "line-whitelist",
 ];
 
 const employeeHomeOrder = [
@@ -210,6 +212,8 @@ const systemHomeOrder = [
   "system-operations",
   "system-insights",
   "system-governance",
+  "helper-status",
+  "line-whitelist",
 ];
 
 const roleNavigationOrder: Record<WorkbenchRole, string[]> = {
@@ -281,16 +285,15 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     "system-watchdog": { shortName: "Watchdog", routePath: "/system/watchdog", iconKey: "shield-check", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW", "WATCHDOG_EVENT_VIEW", "INTEGRATION_STATUS_VIEW"] },
     "system-operations": { shortName: "運維協助", routePath: "/system/operations", iconKey: "link", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/operations/recent-assists", telemetryEvents: ["PAGE_VIEW", "OPS_RESET_SESSION", "OPS_REFRESH_CACHE", "OPS_RESEND_NOTIFICATION"] },
     "system-insights": { shortName: "行為洞察", routePath: "/system/insights", iconKey: "gauge", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/insights/overview", telemetryEvents: ["PAGE_VIEW", "INSIGHTS_VIEW", "INSIGHTS_DRILL_DOWN"] },
-    "system-governance": { shortName: "治理面", routePath: "/system/governance", iconKey: "network", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true, bffEndpoint: "/api/modules/registry", telemetryEvents: ["PAGE_VIEW", "ARCHITECTURE_RELATION_VIEW", "TOPOLOGY_VIEW", "AUDIT_LOG_VIEW", "RAW_INSPECTOR_QUERY"] },
+    "system-governance": { shortName: "治理面", routePath: "/system/governance", iconKey: "network", menuOrder: 5, cardOrder: 5, navVisible: true, cardVisible: true, bffEndpoint: "/api/modules/registry", telemetryEvents: ["PAGE_VIEW", "ARCHITECTURE_RELATION_VIEW", "TOPOLOGY_VIEW", "AUDIT_LOG_VIEW"] },
+    "helper-status": { shortName: "400小幫手", routePath: "/system/lineXBS-status", iconKey: "bot", menuOrder: 6, cardOrder: 6, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/helper-status", telemetryEvents: ["PAGE_VIEW", "HELPER_STATUS_VIEW"] },
+    "line-whitelist": { shortName: "白名單", routePath: "/system/line-whitelist", iconKey: "users", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true, bffEndpoint: "/api/cms/system/caution-permissions", telemetryEvents: ["PAGE_VIEW", "LINE_WHITELIST_VIEW", "LINE_WHITELIST_UPDATED", "CAUTION_PERMISSION_GRANTED"] },
     "system-dashboard": { shortName: "系統總覽", routePath: "/system", iconKey: "gauge", menuOrder: 50, cardOrder: 50, navVisible: false, cardVisible: false },
     "system-function-relations": { shortName: "當前功能關係", routePath: "/system/function-relations", iconKey: "link", menuOrder: 51, cardOrder: 51, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "ARCHITECTURE_RELATION_VIEW"] },
-    "system-topology": { shortName: "模組拓撲圖", routePath: "/system/topology", iconKey: "link", menuOrder: 52, cardOrder: 52, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "TOPOLOGY_VIEW"] },
     "system-health": { shortName: "系統健康", routePath: "/system/health", iconKey: "gauge", menuOrder: 53, cardOrder: 53, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW"] },
     "system-observability": { shortName: "告警中心", routePath: "/system/alerts", iconKey: "bell", menuOrder: 54, cardOrder: 54, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "CLIENT_ERROR_VIEW"] },
     "integration-sync-jobs": { shortName: "整合狀態", routePath: "/system/integrations", iconKey: "link", menuOrder: 55, cardOrder: 55, navVisible: false, cardVisible: false, bffEndpoint: "/api/bff/system/integration-overview", telemetryEvents: ["PAGE_VIEW", "INTEGRATION_STATUS_VIEW"] },
     "telemetry-audit": { shortName: "Audit / Telemetry", routePath: "/system/audit", iconKey: "shield-check", menuOrder: 56, cardOrder: 56, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "AUDIT_LOG_VIEW"] },
-    "system-lifeguard-audit": { shortName: "救生稽核", routePath: "/system/lifeguard-audit", iconKey: "lifebuoy", menuOrder: 57, cardOrder: 57, navVisible: false, cardVisible: false },
-    "raw-inspector": { shortName: "Raw Inspector", routePath: "/system/raw-inspector", iconKey: "shield-check", menuOrder: 58, cardOrder: 58, navVisible: false, cardVisible: false, telemetryEvents: ["PAGE_VIEW", "RAW_INSPECTOR_QUERY"] },
     "employee-training": { shortName: "教材觀看紀錄", routePath: "/system/training-views", iconKey: "graduation-cap", menuOrder: 59, cardOrder: 59, navVisible: false, cardVisible: false },
     "watchdog-events": { shortName: "Watchdog Events", routePath: "/system/watchdog", iconKey: "gauge", menuOrder: 60, cardOrder: 60, navVisible: false, cardVisible: false, telemetryEvents: ["WATCHDOG_EVENT_VIEW"] },
     parking: { navVisible: false, cardVisible: false },

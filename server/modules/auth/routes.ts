@@ -4,6 +4,7 @@ import type { AppContainer } from "../../app/container";
 import { clearSessionCookie, getSessionIdFromCookie, setSessionCookie } from "./cookie";
 import { attachSession, requireSession } from "./context";
 import { createSessionFromAuthUser, createMemorySessionStore, hasRole } from "./session-store";
+import { toCanonicalFacilityKey } from "@shared/facility/canonical-keys";
 import { listRagicH05FacilityCandidates, localFacilityCandidates } from "../../integrations/ragic/facility-adapter";
 import { mockRagicAuthAdapter } from "../../integrations/ragic/mock-auth-adapter";
 
@@ -63,10 +64,12 @@ export const registerAuthRoutes = (app: Express, container: AppContainer) => {
   });
 
   app.post("/api/auth/active-facility", requireSession, async (req, res) => {
-    const nextFacility = String(req.body?.activeFacility || "");
+    const rawNextFacility = String(req.body?.activeFacility || "");
+    const nextFacility = toCanonicalFacilityKey(rawNextFacility);
     const session = req.workbenchSession;
 
     if (!session || !req.sessionId) return res.status(401).json({ message: "Authentication required" });
+    if (!nextFacility) return res.status(400).json({ message: "INVALID_FACILITY_KEY" });
     if (!session.grantedFacilities.includes(nextFacility)) {
       return res.status(403).json({ message: "Facility is not granted" });
     }

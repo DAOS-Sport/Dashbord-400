@@ -752,11 +752,12 @@ function HandoverDrawer({
 }
 
 function AnnouncementCard({ announcements, source }: { announcements: AnnouncementSummary[]; source?: BffSection<AnnouncementSummary[]> }) {
-  const sourceMessage = source?.status === "unavailable"
-    ? source.meta.fallbackReason
-    : source?.status === "degraded"
-      ? source.meta.fallbackReason
-      : "目前沒有需要優先閱讀的群組公告。";
+  const sourceMessage = (() => {
+    if (source?.status !== "unavailable" && source?.status !== "degraded") return "目前沒有需要優先閱讀的群組公告。";
+    const reason = source.meta.fallbackReason ?? "";
+    if (/TOKEN|LINE_BOT|ADMIN|API/i.test(reason)) return "公告來源暫時無法同步，請先以主管公告頁確認最新資訊。";
+    return reason || "公告來源暫時無法同步，請稍後再試。";
+  })();
   const [primaryAnnouncement, ...secondaryAnnouncements] = announcements.slice(0, 3);
   return (
     <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.45)]">
@@ -1549,7 +1550,7 @@ function TodayTutoringCard() {
             <p className="text-[11px] font-bold">筆預約</p>
           </div>
           <span className="rounded-full border border-[#d9e2ec] bg-[#f7f9fb] px-2 py-1 text-[10px] font-black text-[#9aa7b8]">
-            尚未開放
+            即將加入
           </span>
         </div>
 
@@ -1570,7 +1571,7 @@ function TodayTutoringCard() {
           </div>
         </div>
       </div>
-      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約資料尚未接入；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約模組規劃中；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
     </WorkbenchCard>
   );
 }
