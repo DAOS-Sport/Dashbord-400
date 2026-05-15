@@ -688,6 +688,103 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     return res.json({ items: employees, sourceStatus: result.meta });
   });
 
+  app.post("/api/bff/system/line-whitelist/import-interview-users", requireSession, requireRole("system"), async (req, res) => {
+    // 1. Fetch 8 interview users from LINE Bot
+    let lineBotUsers: Array<{ userId: string; userName: string }> = [];
+    try {
+      const token = env.lineBotAdminToken;
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const resp = await fetch(`${env.lineBotBaseUrl}/api/admin/interview-users`, {
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+      if (resp.ok) {
+        const json = await resp.json() as { users?: Array<{ userId: string; userName: string }> };
+        lineBotUsers = json.users ?? [];
+      }
+    } catch (_) { /* fallback to empty */ }
+    if (lineBotUsers.length === 0) {
+      return res.status(502).json({ message: "無法從 LINE Bot 取得面試名單，請確認 LINE Bot 服務狀態。" });
+    }
+
+    // 2. Fetch Ragic employees for enrichment
+    const ragicResult = await safeRead(
+      () => container.integrations.ragicAuth.listActiveEmployees(),
+      { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic unavailable" } },
+    );
+    const ragicEmployees = ragicResult.data ?? [];
+
+    // 3. Match by name, upsert each
+    const results: Array<{
+      lineUserId: string; userName: string;
+      ragicMatch: boolean; employeeNumber?: string; department?: string; phone?: string;
+      action: "created" | "updated" | "error"; error?: string;
+    }> = [];
+
+    for (const lu of lineBotUsers) {
+      const ragic = ragicEmployees.find((e) => e.displayName === lu.userName);
+      const values = {
+        lineUserId: lu.userId,
+        displayName: lu.userName,
+        employeeNumber: ragic?.employeeNumber || null,
+        phone: ragic?.phone || null,
+        department: ragic?.department || null,
+        status: "active" as const,
+        featureAccess: { interview: true } as Record<string, boolean>,
+        unlimited: true,
+        startsAt: null,
+        endsAt: null,
+        notes: null,
+        source: "ragic" as const,
+        createdBy: req.workbenchSession?.userId,
+        createdByName: req.workbenchSession?.displayName,
+        updatedBy: req.workbenchSession?.userId,
+        updatedByName: req.workbenchSession?.displayName,
+        updatedAt: new Date(),
+      };
+      try {
+        const [existing] = await db.select().from(lineFeatureWhitelist)
+          .where(eq(lineFeatureWhitelist.lineUserId, lu.userId)).limit(1);
+        let row: typeof lineFeatureWhitelist.$inferSelect;
+        if (existing) {
+          // Merge featureAccess: keep existing features, add interview=true
+          const merged = { ...(existing.featureAccess as Record<string, boolean> ?? {}), interview: true };
+          [row] = await db.update(lineFeatureWhitelist)
+            .set({ ...values, featureAccess: merged })
+            .where(eq(lineFeatureWhitelist.id, existing.id)).returning();
+        } else {
+          [row] = await db.insert(lineFeatureWhitelist).values(values).returning();
+        }
+        // Fire-and-forget push to LINE Bot
+        pushLineBotInterviewUser(row, existing ? "update" : "create").catch(() => {});
+        results.push({ lineUserId: lu.userId, userName: lu.userName, ragicMatch: Boolean(ragic), employeeNumber: ragic?.employeeNumber, department: ragic?.department, phone: ragic?.phone, action: existing ? "updated" : "created" });
+      } catch (err) {
+        results.push({ lineUserId: lu.userId, userName: lu.userName, ragicMatch: Boolean(ragic), action: "error", error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    await container.repositories.telemetry.recordAudit({
+      actorId: req.workbenchSession?.userId,
+      role: req.workbenchSession?.activeRole,
+      facilityKey: req.workbenchSession?.activeFacility,
+      action: "LINE_WHITELIST_IMPORT_INTERVIEW",
+      resource: "system.line-feature-whitelist",
+      payload: { total: results.length, matched: results.filter((r) => r.ragicMatch).length },
+      resultStatus: "success",
+    }).catch(() => {});
+
+    return res.json({
+      total: results.length,
+      matched: results.filter((r) => r.ragicMatch).length,
+      unmatched: results.filter((r) => !r.ragicMatch).length,
+      created: results.filter((r) => r.action === "created").length,
+      updated: results.filter((r) => r.action === "updated").length,
+      errors: results.filter((r) => r.action === "error").length,
+      results,
+    });
+  });
+
   // Alias matching task spec contract — same handler as /api/bff/system/line-whitelist/candidates
   app.get("/api/system/whitelist/ragic-search", requireSession, requireRole("system"), async (req, res) => {
     const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";

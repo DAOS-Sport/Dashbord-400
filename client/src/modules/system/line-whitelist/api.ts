@@ -250,3 +250,25 @@ export const updateCautionPermissionPeriod = (
 
 export const fetchCautionPermissionAudit = (id: number) =>
   apiGet<{ items: CautionAuditItem[] }>(`/api/cms/system/caution-permissions/${id}/audit`);
+
+export type ImportInterviewResult = {
+  total: number;
+  matched: number;
+  unmatched: number;
+  created: number;
+  updated: number;
+  errors: number;
+  results: Array<{
+    lineUserId: string;
+    userName: string;
+    ragicMatch: boolean;
+    employeeNumber?: string;
+    department?: string;
+    phone?: string;
+    action: "created" | "updated" | "error";
+    error?: string;
+  }>;
+};
+
+export const importInterviewUsers = () =>
+  apiPost<ImportInterviewResult>("/api/bff/system/line-whitelist/import-interview-users", {});
