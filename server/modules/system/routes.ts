@@ -685,7 +685,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         const haystack = `${employee.lineUserId} ${employee.employeeNumber} ${employee.displayName} ${employee.phone} ${employee.department}`.toLowerCase();
         return haystack.includes(query);
       })
-      .slice(0, 30);
+      .slice(0, 200);
     return res.json({ items: employees, sourceStatus: result.meta });
   });
 

@@ -402,10 +402,21 @@ export default function SystemLineWhitelistPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: vipQueryKey }),
   });
   const ragicCandidateQuery = useQuery({
-    queryKey: ["/api/bff/system/line-whitelist/candidates", ragicQuery],
-    queryFn: () => searchLineWhitelistCandidates(ragicQuery),
-    enabled: ragicQuery.trim().length >= 2,
+    queryKey: ["/api/bff/system/line-whitelist/candidates"],
+    queryFn: () => searchLineWhitelistCandidates(""),
+    enabled: activeTab === "主管白名單",
+    staleTime: 60_000,
   });
+
+  const filteredRagicCandidates = useMemo(() => {
+    const all = ragicCandidateQuery.data?.items ?? [];
+    const q = ragicQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((c) => {
+      const hay = `${c.displayName} ${c.employeeNumber} ${c.lineUserId} ${c.department} ${c.phone}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [ragicCandidateQuery.data, ragicQuery]);
 
   const createCautionMutation = useMutation({
     mutationFn: createCautionPermission,
@@ -615,7 +626,7 @@ export default function SystemLineWhitelistPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h2 className="text-[16px] font-black text-[#10233f]">新增成員</h2>
-                    <p className="mt-1 text-[12px] font-bold text-[#637185]">輸入 2 字以上觸發 Ragic 員工搜尋，點選後自動填入資料。</p>
+                    <p className="mt-1 text-[12px] font-bold text-[#637185]">從 Ragic 員工名單中選取，LINE userId 自動帶入後設定功能授權。</p>
                   </div>
                   <button
                     type="button"
@@ -632,36 +643,52 @@ export default function SystemLineWhitelistPage() {
                     {importInterviewMutation.isPending ? "匯入中…" : "從 LINE Bot 匯入"}
                   </button>
                 </div>
-                <input
-                  value={ragicQuery}
-                  onChange={(e) => setRagicQuery(e.target.value)}
-                  placeholder="輸入姓名搜尋員工（≥ 2 字）"
-                  data-testid="input-ragic-search"
-                  className="mt-4 h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                />
-                {ragicQuery.trim().length >= 2 ? (
-                  <div className="mt-2 max-h-[200px] overflow-y-auto rounded-[8px] border border-[#edf1f6]">
-                    {ragicCandidateQuery.isFetching ? (
-                      <div className="p-3 text-[12px] font-bold text-[#8b9aae]">搜尋中…</div>
-                    ) : (ragicCandidateQuery.data?.items ?? []).length > 0 ? (
-                      (ragicCandidateQuery.data?.items ?? []).map((c) => (
-                        <button
-                          key={c.lineUserId || c.employeeNumber}
-                          type="button"
-                          onClick={() => { setRagicSelected(c); setManualLineUserId(""); setRagicQuery(""); }}
-                          className={cn("block w-full border-b border-[#edf1f6] p-3 text-left last:border-b-0 hover:bg-[#fbfcfd]", ragicSelected?.employeeNumber === c.employeeNumber && "bg-[#ecfeff]")}
-                        >
-                          <p className="text-[13px] font-black text-[#10233f]">{c.displayName} <span className="text-[10px] text-[#8b9aae]">{c.title}</span></p>
-                          <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{c.department || "-"} · #{c.employeeNumber}</p>
-                          <p className="mt-0.5 font-mono text-[10px] text-[#536175]">
-                            {c.lineUserId && c.lineUserId !== c.employeeNumber ? c.lineUserId : "尚未綁定 LINE"}
-                          </p>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="p-3 text-[12px] font-bold text-[#8b9aae]">無符合員工</div>
+
+                {!ragicSelected ? (
+                  <>
+                    <div className="relative mt-4">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8b9aae]" />
+                      <input
+                        value={ragicQuery}
+                        onChange={(e) => setRagicQuery(e.target.value)}
+                        placeholder="篩選員工（姓名 / 部門 / 工號）"
+                        data-testid="input-ragic-search"
+                        className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white py-0 pl-8 pr-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
+                      />
+                    </div>
+                    <div className="mt-2 max-h-[260px] overflow-y-auto rounded-[8px] border border-[#edf1f6]">
+                      {ragicCandidateQuery.isLoading ? (
+                        <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">載入員工名單中…</div>
+                      ) : ragicCandidateQuery.isError ? (
+                        <div className="p-4 text-center text-[12px] font-bold text-[#c2410c]">Ragic 員工資料暫時無法存取</div>
+                      ) : filteredRagicCandidates.length > 0 ? (
+                        filteredRagicCandidates.map((c) => (
+                          <button
+                            key={c.lineUserId || c.employeeNumber}
+                            type="button"
+                            data-testid={`button-select-ragic-candidate-${c.employeeNumber}`}
+                            onClick={() => { setRagicSelected(c); setManualLineUserId(""); setRagicQuery(""); }}
+                            className="block w-full border-b border-[#edf1f6] p-3 text-left last:border-b-0 hover:bg-[#f5f8fb]"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[13px] font-black text-[#10233f]">{c.displayName} <span className="text-[10px] font-bold text-[#8b9aae]">{c.title}</span></p>
+                                <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{c.department || "-"} · #{c.employeeNumber}</p>
+                              </div>
+                              <p className="shrink-0 font-mono text-[10px] text-[#536175]">
+                                {c.lineUserId && c.lineUserId !== c.employeeNumber ? c.lineUserId.slice(0, 8) + "…" : <span className="text-[#f59e0b]">待綁定</span>}
+                              </p>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">無符合員工</div>
+                      )}
+                    </div>
+                    {ragicCandidateQuery.data && (
+                      <p className="mt-1 text-right text-[10px] font-bold text-[#8b9aae]">共 {ragicCandidateQuery.data.items.length} 位員工{ragicQuery ? `，篩選後 ${filteredRagicCandidates.length} 位` : ""}</p>
                     )}
-                  </div>
+                  </>
                 ) : null}
 
                 {ragicSelected ? (
