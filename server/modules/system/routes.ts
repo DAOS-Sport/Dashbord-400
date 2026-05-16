@@ -17,6 +17,7 @@ import { db } from "../../db";
 import { healthOk } from "../../shared/observability/health";
 import { storage } from "../../storage";
 import { requireRole, requireSession } from "../auth/context";
+import { env } from "../../shared/config/env";
 import { buildInsightsOverview, buildModuleInsights } from "./insights-service";
 import { activeForFeature, isMissingCautionTable, isMissingWhitelistTable, lineWhitelistDto, listLineWhitelist, toNullableDate } from "./line-whitelist-service";
 
