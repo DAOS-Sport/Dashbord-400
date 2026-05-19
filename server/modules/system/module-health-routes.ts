@@ -39,12 +39,12 @@ const moduleCheckers: Record<string, () => Promise<Omit<ModuleHealthResult, "mod
   "booking-snapshot": async () => {
     const [countRow] = await db.select({ n: count() }).from(bookingSnapshots);
     const [latestRow] = await db
-      .select({ capturedAt: bookingSnapshots.capturedAt })
+      .select({ snapshotAt: bookingSnapshots.snapshotAt })
       .from(bookingSnapshots)
-      .orderBy(desc(bookingSnapshots.capturedAt))
+      .orderBy(desc(bookingSnapshots.snapshotAt))
       .limit(1);
     const rowCount = countRow?.n ?? 0;
-    const latestAt = latestRow?.capturedAt ? latestRow.capturedAt.toISOString() : null;
+    const latestAt = latestRow?.snapshotAt ? latestRow.snapshotAt.toISOString() : null;
     return {
       status: "degraded",
       tableExists: true,
