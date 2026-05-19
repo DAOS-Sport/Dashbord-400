@@ -10,7 +10,7 @@ export function RoleSwitcher({ compact = false, visualActiveRole }: { compact?: 
   const [, setLocation] = useLocation();
   const { data: session } = useAuthMe();
 
-  if (!session) return null;
+  if (!session || session.grantedRoles.length <= 1) return null;
   const activeRole = visualActiveRole ?? session.activeRole;
 
   const goRole = (role: WorkbenchRole) => {

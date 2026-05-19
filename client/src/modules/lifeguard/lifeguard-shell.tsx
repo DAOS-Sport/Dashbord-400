@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { Bell, CalendarDays, Camera, ChevronUp, ClipboardList, Droplets, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { WorkbenchGlobalSearch } from "@/modules/workbench/workbench-global-search";
+import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { WorkbenchFacilitySwitcher } from "@/modules/workbench/workbench-facility-switcher";
 import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
 import { BrandLockup } from "@/shared/brand";
@@ -95,9 +96,17 @@ function MobileDrawer({
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div>
-            <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">場館</p>
-            <WorkbenchFacilitySwitcher compact tone="lifeguard" className="min-h-[48px] w-full text-[14px]" />
+          <div className="space-y-3">
+            <div>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">場館</p>
+              <WorkbenchFacilitySwitcher compact tone="lifeguard" className="min-h-[48px] w-full text-[14px]" />
+            </div>
+            {(session?.grantedRoles?.length ?? 0) > 1 && (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">角色</p>
+                <RoleSwitcher compact visualActiveRole="lifeguard" />
+              </div>
+            )}
           </div>
           <div className="my-4 border-t border-[#e6edf5]" />
           <nav className="grid gap-2">
@@ -207,7 +216,7 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const trackEvent = useTrackEvent();
   const { data: session } = useAuthMe();
-  const { logout } = useLogout();
+  const logoutMutation = useLogout();
   const granted = session?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
@@ -291,9 +300,14 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" className="w-52">
-                <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
+                <DropdownMenuItem
+                  onClick={() => logoutMutation.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
+                  disabled={logoutMutation.isPending}
+                  className="gap-2 text-red-600 focus:text-red-600"
+                  data-testid="menu-item-logout"
+                >
                   <LogOut className="h-4 w-4" />
-                  登出
+                  {logoutMutation.isPending ? "登出中…" : "登出"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -309,6 +323,9 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 <WorkbenchFacilitySwitcher tone="lifeguard" className="w-[172px] max-w-[54vw]" />
               </div>
               <div className="flex items-center gap-2">
+                <div className="hidden lg:block">
+                  <RoleSwitcher visualActiveRole="lifeguard" />
+                </div>
                 <WorkbenchGlobalSearch role="lifeguard" />
                 <WorkbenchNotificationBell role="lifeguard" />
               </div>

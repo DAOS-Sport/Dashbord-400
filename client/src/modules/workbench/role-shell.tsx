@@ -175,7 +175,7 @@ interface RoleShellProps {
 export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const [location] = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { logout } = useLogout();
+  const logoutMutation = useLogout();
   const trackEvent = useTrackEvent();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", role],
@@ -282,9 +282,14 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" className="w-52">
-                <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
+                <DropdownMenuItem
+                  onClick={() => logoutMutation.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
+                  disabled={logoutMutation.isPending}
+                  className="gap-2 text-red-600 focus:text-red-600"
+                  data-testid="menu-item-logout"
+                >
                   <LogOut className="h-4 w-4" />
-                  登出
+                  {logoutMutation.isPending ? "登出中…" : "登出"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
