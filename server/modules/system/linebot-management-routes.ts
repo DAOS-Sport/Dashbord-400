@@ -245,12 +245,15 @@ const fetchContractFullStatus = async (): Promise<UpstreamResult & { contract: C
     };
   }
 
+  const overallStatus: LinebotManagementStatus = result.data.overall === "failing" ? "degraded" : mapContractStatus(result.data.overall);
   return {
     ...result,
-    status: mapContractStatus(result.data.overall),
+    status: overallStatus,
     sourceMode: "contract",
     rawStatus: result.data.overall,
-    note: `Capability contract readable; overall=${result.data.overall}.`,
+    note: result.data.overall === "failing"
+      ? `Capability contract readable; overall=${result.data.overall}. 400LINE 自報降級，連線通訊正常。`
+      : `Capability contract readable; overall=${result.data.overall}.`,
     contract: result.data,
   };
 };

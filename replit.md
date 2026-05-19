@@ -93,3 +93,69 @@ The system is designed with a modular project structure, separating client-side 
 - 資料表：`court_reservations`、`court_sync_logs`、`court_sync_errors`（school 欄位區分學校）。
 - 前端：`client/src/pages/courts/{calendar,week,month,search,admin}.tsx`、共用元件於 `_components/`、`@/lib/court-{school,utils,date-utils}`。路由分主管/員工兩套：`/supervisor/courts/:school[/(week|month|search|admin)]`（包 `SupervisorCourtsFrame`）、`/employee/courts/:school[/(week|month|search|admin)]`（包 `EmployeeCourtsFrame`）。`/courts/:school[/...]` 為 legacy alias，自動 redirect 到 supervisor 版。Sidebar「場地預約」分組指向主管路由；員工 nav 透過 `getWorkbenchRoutes("employee")` 自動帶入 `/employee/courts/xinbei`。
 - 拓撲：`courts-xinbei`、`courts-sanchong` 節點與 PostgreSQL、Google Calendar 邊在 `topology-config.ts`。
+
+## Task #26 – 模組健康 BFF 接線（2026-05）
+
+### 模組 Registry（`shared/modules/registry/`）規則 — 勿亂改
+
+每個 registry 物件有 `bff` 欄位，決定模組在 System Control Center 的狀態徽章：
+
+| `bff` 欄位包含 | `status` 欄位 | 結果 |
+|---|---|---|
+| `*SectionKey`（任一）或 `apis` 有 `kind:"bff"` | `partial` / `implemented` | 顯示 `bff-wired`（綠色） |
+| 無 `*SectionKey` | 任何 | 顯示 `not_connected`（灰色） |
+| 有 `*SectionKey` | `planned` | 強制顯示 `planned`（灰色，overrides bff binding） |
+
+**有效的 `*SectionKey` 欄位名稱**：`employeeSectionKey`、`supervisorSectionKey`、`systemSectionKey`。  
+**注意**：bff 物件內不能有不存在的屬性名稱（會被 TS 型別擋住）。加 section key 前先看 `shared/modules/descriptors.ts` 的 `BffBinding` type。
+
+### 已修正的模組清單（Task #26）
+
+以下模組已新增對應 `*SectionKey`，使其從 `not_connected` 升為 `bff-wired`：
+
+**foundation.ts**
+- `auth` → `systemSectionKey: "auth"`
+
+**governance.ts**
+- `legacy-users` → `systemSectionKey: "legacyUsers"`
+- `facilities` → `systemSectionKey: "facilities"`
+- `session-governance` → `systemSectionKey: "sessionGovernance"`
+- `user-role-snapshots` → `systemSectionKey: "userRoleSnapshots"`
+- `bff-projections` → `telemetry.eventTypes` 補齊（已有 3 個 sectionKeys）
+
+**operations.ts**
+- `operations`（legacy）→ `supervisorSectionKey: "legacyOperations"`
+- `courts` → 新增 `employeeSectionKey: "courts"`（原已有 `supervisorSectionKey`）
+
+**content.ts**
+- `notification-recipients` → `systemSectionKey: "notificationRecipients"`
+- `notification-center` → status `planned` → **`partial`**（已有 `employeeSectionKey`）
+- `registration-courses` → status `planned` → **`partial`**；`data` 改指向 `registration_courses` 新表；`apis` 補充 module-health BFF 端點
+- `booking-snapshot` → status `planned` → **`partial`**（已有 `employeeSectionKey`）
+
+**portal-integrations.ts**
+- `portal-manage` → `supervisorSectionKey: "portalManage"`
+- `gmail-integration` → `systemSectionKey: "gmailIntegration"`
+- `file-upload-export` → `systemSectionKey: "fileUploadExport"`
+
+### 新增 DB 表（Task #26，已 approved）
+
+三張 stub 表已加入 `shared/schema.ts` 並推送至 DB：
+
+| 表名 | 用途 |
+|---|---|
+| `notification_hub` | Notification Center 未來事件佇列 stub |
+| `registration_courses` | 報名/課程模組 stub（含 facilityKey、starts_at、ends_at、capacity、status） |
+| `booking_snapshots` | Booking Snapshot 日期佔位快照（含 facilityKey、snapshot_date、total/booked slots） |
+
+### Module Health BFF 端點
+
+- **檔案**：`server/modules/system/module-health-routes.ts`
+- **掛載**：`registerModuleHealthRoutes(app, container)` 在 `server/modules/system/routes.ts` 的 `registerSystemRoutes` 內呼叫（在 `registerLinebotManagementRoutes` 之後）
+- **端點**：`GET /api/bff/system/module-health/:moduleId`（需 `requireSession` + `requireRole("system")`）
+- 目前支援的 moduleId：`notification-center`、`registration-courses`、`booking-snapshot`
+- 回傳 `{ moduleId, status, rowCount, tableExists, checkedAt }` 格式
+
+### linebot-management-routes.ts 修正
+
+`fetchContractFullStatus`（約 line 251）：當 `result.data.overall === "failing"` 時，`status` 改回傳 `"degraded"`（黃色）而非 `"not_connected"`。同時 `note` 顯示「400LINE 自報降級，連線通訊正常」，避免誤判為斷線。

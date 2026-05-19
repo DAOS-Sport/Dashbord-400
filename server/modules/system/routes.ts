@@ -19,6 +19,7 @@ import { registerHelperStatusRoutes } from "./helper-status-routes";
 import { registerLineBotRoutes } from "./line-bot-routes";
 import { registerLinebotManagementRoutes } from "./linebot-management-routes";
 import { registerLineWhitelistRoutes } from "./line-whitelist-routes";
+import { registerModuleHealthRoutes } from "./module-health-routes";
 import { registerSystemOperationsRoutes } from "./operations-routes";
 
 const readInternalToken = (req: Request) => {
@@ -120,6 +121,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   registerLineBotRoutes(app, container);
   registerLinebotManagementRoutes(app, container);
   registerLineWhitelistRoutes(app, container);
+  registerModuleHealthRoutes(app, container);
   registerSystemOperationsRoutes(app, container);
 
   app.get("/api/bff/system/control-center", requireSession, requireRole("system"), async (_req, res) => {

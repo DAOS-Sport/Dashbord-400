@@ -33,7 +33,7 @@ export const foundationModules: ModuleDefinition[] = [
       { provider: "LOCAL_STORAGE", purpose: "Former portal auth hint; not a source of truth.", status: legacy, notes: "Do not use localStorage as authority." },
       { provider: "POSTGRES", purpose: "Session, user, and audit tables.", status: partial },
     ],
-    bff: { plannedEndpoints: ["/api/auth/me"] },
+    bff: { systemSectionKey: "auth", plannedEndpoints: ["/api/auth/me"] },
     telemetry: { auditRequired: true, eventTypes: ["login", "logout", "role_switch", "facility_switch"] },
     governance: {
       ownerRole: "SYSTEM_ADMIN",

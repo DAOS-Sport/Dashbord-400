@@ -1857,3 +1857,43 @@ export const announcementWhitelist = pgTable(
 
 export type AnnouncementWhitelistEntry = typeof announcementWhitelist.$inferSelect;
 export type InsertAnnouncementWhitelistEntry = typeof announcementWhitelist.$inferInsert;
+
+export const notificationHub = pgTable("notification_hub", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  level: text("level").default("info").notNull(),
+  targetRole: text("target_role"),
+  facilityKey: text("facility_key"),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type NotificationHubEntry = typeof notificationHub.$inferSelect;
+export type InsertNotificationHubEntry = typeof notificationHub.$inferInsert;
+
+export const registrationCourses = pgTable("registration_courses", {
+  id: serial("id").primaryKey(),
+  courseName: text("course_name").notNull(),
+  facilityKey: text("facility_key"),
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  capacity: integer("capacity"),
+  enrolledCount: integer("enrolled_count").default(0).notNull(),
+  status: text("status").default("open").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type RegistrationCourse = typeof registrationCourses.$inferSelect;
+export type InsertRegistrationCourse = typeof registrationCourses.$inferInsert;
+
+export const bookingSnapshots = pgTable("booking_snapshots", {
+  id: serial("id").primaryKey(),
+  facilityKey: text("facility_key").notNull(),
+  snapshotAt: timestamp("snapshot_at").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type BookingSnapshot = typeof bookingSnapshots.$inferSelect;
+export type InsertBookingSnapshot = typeof bookingSnapshots.$inferInsert;
