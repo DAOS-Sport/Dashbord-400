@@ -1,0 +1,96 @@
+Build 模式了，直接動手改兩個檔案。
+
+
+2 actions
+現在同步改 internalRoutes.ts 的三個 facility-home 端點：
+
+
+2 actions
+現在替換掉 internalRoutes.ts 裡的輔助函式和三個端點：
+
+
+2 actions
+現在替換三個 facility-home 端點的實作：
+
+
+4 actions
+最後一個端點，單筆查詢：
+
+
+2 actions
+改完了，確認一下 TypeScript 編譯有沒有問題：
+
+
+2 actions
+零錯誤，應用程式已重新啟動。來確認 API 實際回傳的資料給你：
+
+
+2 actions
+應用程式已正常啟動。現在給你完整的 API 對接資料：
+
+改動後的 API 規格
+資料來源已從 published_announcements 換成 announcement_candidates，所有未被 rejected/ignored 的候選都會直接吐給前端。
+
+端點一覽
+方法	路徑	說明
+GET	/api/facility-home/list	所有啟用中館別清單
+GET	/api/facility-home/:groupId/home	今日首頁（mustRead + 一般）
+GET	/api/facility-home/:groupId/announcements	公告列表（搜尋 + 分頁）
+GET	/api/facility-home/:groupId/announcements/:id	單筆詳情
+GET	/api/internal/facility-home/:groupId/home	同上（需 Bearer token）
+GET	/api/internal/facility-home/:groupId/announcements	同上（需 Bearer token）
+每一筆資料的欄位結構
+{
+  "id": 1,
+  "sourceType": "candidate",
+  "candidateType": "rule",       // rule | notice | campaign | discount | script | ignore
+  "status": "rule_matched_pending_review",  // 前端可以用這個做篩選
+  "priority": "high",            // must_read | critical | high | normal | low | null
+  "confidence": 0.85,            // 0~1 浮點數
+  "isMustRead": true,            // priority=must_read/critical/high 或 confidence>=0.8
+  "title": "即日起所有教練務必確認學員資料",
+  "summary": null,               // AI 有跑的才有值，純 rule 的可能是 null
+  "originalText": "即日起所有教練務必確認學員資料...",
+  "recommendedAction": null,     // 建議處理方式
+  "recommendedReply": null,      // 建議話術
+  "badExample": null,            // 壞範例
+  "appliesToRoles": [],          // 適用角色清單
+  "scopeType": "group",          // group | facility | multi_facility | global
+  "startAt": null,               // 生效起始（ISO8601）
+  "endAt": null,                 // 生效結束（ISO8601）
+  "groupId": "C66a4b3bb3fbc3dcf52d42626ec512484",
+  "facilityName": "DAOS-新北高中（工作群）",
+  "displayName": "張主任",       // 發話者名稱
+  "isFromSupervisor": false,
+  "reasoningTags": ["⭐VIP", "強關鍵字:確認"],  // 為何通過篩選
+  "detectedAt": "2026-05-08T13:41:03.812Z"
+}
+
+/home 回傳結構
+{
+  "success": true,
+  "facility": { "id": 1, "lineGroupId": "C66a...", "name": "...", "shortName": "...", "tier": "A" },
+  "mustRead": [ /* isMustRead=true 的項目 */ ],
+  "announcements": [ /* 一般項目 */ ],
+  "total": 5,
+  "generatedAt": "2026-05-19T05:30:00.000Z"
+}
+
+/announcements 查詢參數
+參數	說明	範例
+q	關鍵字（搜尋 title/summary/原文）	?q=學員
+type	類型過濾	?type=rule
+page	頁碼（預設 1）	?page=2
+limit	每頁筆數（最多 50，預設 20）	?limit=50
+前端可以用來分類/過濾的欄位
+isMustRead: true → 標紅色重要公告
+status → rule_matched_pending_review（規則命中）/ ai_pending_review（AI 審）/ pending_review（等待中）
+confidence → 建議 ≥ 0.7 才顯示，< 0.5 可以降低權重
+candidateType → 分類標籤（rule/notice/campaign/script...）
+isFromSupervisor: true → 主管發的，可以置頂
+reasoningTags → 顯示「為什麼這則訊息被認為是公告」
+這樣前端就能直接拿到全部的候選資料，自己決定要怎麼篩選和顯示。你那邊開始串接後如果有欄位對不上或需要調整格式，再告訴我。
+
+
+3 actions
+修改已完成，API 現在應該正常回傳候選資料。你可以開始在前端串接了。有任何欄位對不上或格式需要調整的地方，隨時說。
