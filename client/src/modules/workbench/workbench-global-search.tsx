@@ -104,7 +104,7 @@ export function WorkbenchGlobalSearch({
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 60);
+      setTimeout(() => inputRef.current?.focus(), 120);
     } else {
       setInputValue("");
     }
@@ -127,64 +127,76 @@ export function WorkbenchGlobalSearch({
   };
 
   const items = searchQuery.data?.items ?? [];
+  const showResults = open && canSearch;
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div
+      ref={containerRef}
+      className={cn("relative flex items-center justify-end", className)}
+    >
+      {/* 展開的輸入框 — 從右往左延伸 */}
+      <div
+        className={cn(
+          "flex items-center overflow-hidden rounded-full border border-[#dfe7ef] bg-white transition-all duration-200 ease-in-out",
+          open
+            ? "mr-1 w-[200px] opacity-100 md:w-[260px]"
+            : "w-0 border-transparent opacity-0",
+        )}
+      >
+        <input
+          ref={inputRef}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="搜尋…"
+          data-testid="input-global-search"
+          className="min-w-0 flex-1 bg-transparent pl-4 pr-1 text-[13px] font-bold text-[#10233f] outline-none placeholder:text-[#aab4c0]"
+        />
+        {inputValue ? (
+          <button
+            type="button"
+            aria-label="清除"
+            onMouseDown={(e) => { e.preventDefault(); setInputValue(""); }}
+            className="mr-2 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#eef3f8] text-[#8b9aae] hover:bg-[#dfe7ef]"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        ) : null}
+      </div>
+
+      {/* 搜尋圖示按鈕 — 固定在右側 */}
       <button
         type="button"
-        aria-label="搜尋 (Ctrl+K)"
+        aria-label={open ? "關閉搜尋" : "搜尋 (Ctrl+K)"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         data-testid="button-global-search"
-        className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white md:bg-[#f0f4f8] md:text-[#10233f] lg:bg-[#f0f4f8] lg:text-[#10233f]"
+        className={cn(
+          "workbench-focus relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition-colors",
+          open
+            ? "bg-[#0d2a50] text-white md:bg-[#0d2a50] md:text-white"
+            : "bg-white/10 text-white md:bg-[#f0f4f8] md:text-[#10233f] lg:bg-[#f0f4f8] lg:text-[#10233f]",
+        )}
       >
         <Search className="h-4 w-4" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[min(92vw,440px)] overflow-hidden rounded-[12px] border border-[#dfe7ef] bg-white text-[#10233f] shadow-[0_24px_72px_-38px_rgba(15,34,58,0.62)]">
-          <div className="flex items-center gap-3 border-b border-[#e6edf5] px-4 py-3">
-            <Search className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
-            <input
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder="搜尋公告、任務、常見問題…"
-              data-testid="input-global-search"
-              className="min-w-0 flex-1 bg-transparent text-[14px] font-bold text-[#10233f] outline-none placeholder:text-[#9aa8ba]"
-            />
-            {inputValue ? (
-              <button
-                type="button"
-                aria-label="清除"
-                onClick={() => setInputValue("")}
-                className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-[#f2f6fa]"
-              >
-                <X className="h-3 w-3 text-[#8b9aae]" />
-              </button>
-            ) : null}
-          </div>
-
-          {!canSearch && (
-            <div className="px-4 py-5 text-center text-[12px] font-bold text-[#9aa8ba]">
-              輸入至少 2 個字元開始搜尋
-            </div>
-          )}
-
-          {canSearch && searchQuery.isFetching && !items.length && (
+      {/* 結果下拉列表 */}
+      {showResults && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[min(92vw,420px)] overflow-hidden rounded-[12px] border border-[#dfe7ef] bg-white text-[#10233f] shadow-[0_24px_72px_-38px_rgba(15,34,58,0.62)]">
+          {searchQuery.isFetching && !items.length && (
             <div className="flex items-center justify-center gap-2 px-4 py-5 text-[12px] font-bold text-[#637185]">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               搜尋中…
             </div>
           )}
 
-          {canSearch && !searchQuery.isFetching && !items.length && (
+          {!searchQuery.isFetching && !items.length && (
             <div className="px-4 py-5 text-center text-[12px] font-bold text-[#9aa8ba]">
               找不到「{debouncedQuery.trim()}」的相關結果
             </div>
           )}
 
-          {canSearch && items.length > 0 && (
+          {items.length > 0 && (
             <div className="max-h-[320px] overflow-y-auto p-2">
               {items.map((item) => (
                 <button
