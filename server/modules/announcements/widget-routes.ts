@@ -3,6 +3,7 @@ import { requireSession } from "../auth/context";
 import {
   getCampaignAnnouncements,
   getImportantAnnouncementsWithBreakdown,
+  getLastSyncStatus,
 } from "./widget-service";
 
 // Resolve facilityKey from query param or session, then verify access.
@@ -49,7 +50,12 @@ export function registerAnnouncementWidgetRoutes(app: Express): void {
         );
 
         const { data, filterBreakdown } = await getImportantAnnouncementsWithBreakdown(facilityKey, role, limit);
-        const sourceStatus = { filterBreakdown };
+        const syncStatus = getLastSyncStatus(facilityKey);
+        const sourceStatus = {
+          filterBreakdown,
+          lastSourceCheckedAt: syncStatus.fetchedAt,
+          upstreamConnected: syncStatus.connected,
+        };
         return res.json({ data, total: data.length, facilityKey, sourceStatus });
       } catch (err) {
         return next(err);

@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { announcementCandidates, type AnnouncementCandidate } from "@shared/schema";
 import { findFacilityLineGroup } from "@shared/domain/facilities";
 import type { AnnouncementFilterBreakdown } from "@shared/bff/envelope";
@@ -326,25 +326,39 @@ async function fetchAndBuildImportant(
   if (!env.databaseUrl) return { data: [], filterBreakdown: emptyBreakdown };
 
   const now = new Date();
-  const rows = await db
-    .select()
-    .from(announcementCandidates)
-    .where(
-      and(
-        or(isNull(announcementCandidates.facility), eq(announcementCandidates.facility, facilityKey)),
-        inArray(announcementCandidates.candidateType, [...IMPORTANT_TYPES]),
-        inArray(announcementCandidates.status, [...APPROVED_STATUSES]),
-        or(isNull(announcementCandidates.endAt), gte(announcementCandidates.endAt, now)),
-      ),
-    )
-    .orderBy(desc(announcementCandidates.detectedAt))
-    .limit(limit * 5);
+  const facilityFilter = or(
+    isNull(announcementCandidates.facility),
+    eq(announcementCandidates.facility, facilityKey),
+  );
+  const typeFilter = inArray(announcementCandidates.candidateType, [...IMPORTANT_TYPES]);
+  const expiryFilter = or(isNull(announcementCandidates.endAt), gte(announcementCandidates.endAt, now));
+  const approvedFilter = inArray(announcementCandidates.status, [...APPROVED_STATUSES]);
 
-  const upstreamTotal = rows.length;
-  const approvedTotal = upstreamTotal;
+  // Run two COUNT queries + data fetch in parallel:
+  // 1. upstreamTotal = all synced candidates for this facility + type (any status, not expired)
+  // 2. approvedTotal = those that also pass the approved/published status filter
+  const [countAllResult, countApprovedResult, rows] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(announcementCandidates)
+      .where(and(facilityFilter, typeFilter, expiryFilter)),
+    db
+      .select({ value: count() })
+      .from(announcementCandidates)
+      .where(and(facilityFilter, typeFilter, expiryFilter, approvedFilter)),
+    db
+      .select()
+      .from(announcementCandidates)
+      .where(and(facilityFilter, typeFilter, expiryFilter, approvedFilter))
+      .orderBy(desc(announcementCandidates.detectedAt))
+      .limit(limit * 5),
+  ]);
+
+  const upstreamTotal = countAllResult[0]?.value ?? 0;
+  const approvedTotal = countApprovedResult[0]?.value ?? 0;
 
   const qualityPassed = rows.filter(isDisplayableCandidate);
-  const qualityFiltered = upstreamTotal - qualityPassed.length;
+  const qualityFiltered = rows.length - qualityPassed.length;
 
   const scopePassed = qualityPassed.filter((r) => matchesScopeAndRole(r, role, facilityKey));
   const scopeFiltered = qualityPassed.length - scopePassed.length;
