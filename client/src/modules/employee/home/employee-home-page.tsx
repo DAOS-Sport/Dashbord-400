@@ -14,6 +14,8 @@ import {
   Home,
   Link as LinkIcon,
   ListChecks,
+  ChevronUp,
+  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquareText,
@@ -44,6 +46,14 @@ import { EmployeeFloatingQuickActions } from "@/modules/employee/employee-floati
 import { EmployeeFacilitySwitcher } from "@/modules/employee/employee-facility-switcher";
 import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
 import { WorkbenchGlobalSearch } from "@/modules/workbench/workbench-global-search";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { WidgetLayoutPanel } from "@/modules/employee/settings/widget-layout-panel";
 import {
   createEmployeeResource,
   createEmployeeFrontDeskHandover,
@@ -236,6 +246,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
   const trackEvent = useTrackEvent();
   const { data: session } = useAuthMe();
   const logoutMutation = useLogout();
+  const [widgetPanelOpen, setWidgetPanelOpen] = useState(false);
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", "employee-home-sidebar"],
     queryFn: fetchModuleNavigation,
@@ -251,6 +262,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
     ? items
     : items.filter((item) => item.id !== "courts");
   return (
+    <>
     <aside
       aria-hidden={collapsed}
       className={cn(
@@ -288,27 +300,49 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
           })}
         </nav>
 
-        <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
-          <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-bold">{userName}</p>
-              <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            data-testid="menu-item-logout"
-            disabled={logoutMutation.isPending}
-            onClick={() => logoutMutation.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
-            className="flex w-full min-h-9 items-center gap-3 rounded-[8px] px-3 py-2 text-[13px] font-bold text-[#b6c7d9] hover:bg-white/10 disabled:opacity-50"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            {logoutMutation.isPending ? "登出中…" : "登出"}
-          </button>
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-white/10"
+              >
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#007166] text-[12px] font-black">
+                  {userName.slice(0, 1)}
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-[13px] font-bold">{userName}</p>
+                  <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
+                </div>
+                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-52">
+              <DropdownMenuItem
+                onClick={() => setWidgetPanelOpen(true)}
+                className="gap-2"
+                data-testid="menu-item-widget-settings"
+              >
+                <LayoutDashboard className="h-4 w-4 text-[#1f6fd1]" />
+                首頁版型設定
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => logoutMutation.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
+                disabled={logoutMutation.isPending}
+                className="gap-2 text-red-600 focus:text-red-600"
+                data-testid="menu-item-logout"
+              >
+                <LogOut className="h-4 w-4" />
+                {logoutMutation.isPending ? "登出中…" : "登出"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </aside>
+    <WidgetLayoutPanel open={widgetPanelOpen} onOpenChange={setWidgetPanelOpen} />
+    </>
   );
 }
 
