@@ -586,6 +586,24 @@ const lineUsers = (result: UpstreamResult): LineAuthorityUser[] => {
 };
 
 const ragicCandidates = async (container: AppContainer): Promise<{ items: RagicCandidate[]; sourceStatus: LinebotManagementStatus; source: string; note: string }> => {
+  const cacheSlot = container.services.ragicCache.getEmployees();
+
+  if (cacheSlot.data !== null) {
+    return {
+      items: cacheSlot.data.map((employee) => ({
+        lineUserId: employee.lineUserId ?? employee.userId ?? "",
+        employeeNumber: employee.employeeNumber ?? employee.userId ?? null,
+        displayName: employee.displayName,
+        phone: employee.phone ?? null,
+        department: employee.department ?? employee.departments?.join(", ") ?? null,
+        source: cacheSlot.source,
+      })),
+      sourceStatus: "ready",
+      source: cacheSlot.source,
+      note: `Ragic H01 served from cache (${cacheSlot.data.length} employees, age ${cacheSlot.lastPrimedAt ? Math.round((Date.now() - cacheSlot.lastPrimedAt.getTime()) / 1000) + "s" : "unknown"}).`,
+    };
+  }
+
   try {
     const result = await container.integrations.ragicAuth.listActiveEmployees();
     if (!result.data) {
@@ -602,7 +620,7 @@ const ragicCandidates = async (container: AppContainer): Promise<{ items: RagicC
       })),
       sourceStatus: "ready",
       source: result.meta.source,
-      note: "Ragic H01 employee source loaded.",
+      note: "Ragic H01 employee source loaded (cache miss, direct fetch).",
     };
   } catch (error) {
     return { items: [], sourceStatus: "degraded", source: "ragic-h01", note: error instanceof Error ? error.message : "Ragic H01 unavailable." };

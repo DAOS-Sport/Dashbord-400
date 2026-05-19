@@ -208,6 +208,8 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   });
 
   app.get("/api/bff/system/health-overview", requireSession, requireRole("system"), (_req, res) => {
+    const ragicStatus = container.services.ragicCache.status();
+    const ragicOverall = ragicStatus.employees.status === "ok" && ragicStatus.facilities.status === "ok" ? "ok" : "degraded";
     return res.json({
       status: "ok",
       checkedAt: new Date().toISOString(),
@@ -222,6 +224,16 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
           detail: container.config.databaseUrl
             ? `DATABASE_PROFILE=${container.config.databaseProfile}`
             : "NEON_DATABASE_URL/DATABASE_URL is not configured; mock profile only",
+        },
+        {
+          name: "ragic-cache",
+          status: ragicOverall,
+          checkedAt: new Date().toISOString(),
+          detail: ragicOverall === "ok"
+            ? `employees=${ragicStatus.employees.count} (${ragicStatus.employees.source}), facilities=${ragicStatus.facilities.count} (${ragicStatus.facilities.source})`
+            : `employees: ${ragicStatus.employees.error ?? "ok"} | facilities: ${ragicStatus.facilities.error ?? "ok"}`,
+          employees: ragicStatus.employees,
+          facilities: ragicStatus.facilities,
         },
       ],
     });

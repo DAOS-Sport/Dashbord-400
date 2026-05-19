@@ -13,6 +13,7 @@ import { registerHandoverRoutes } from "../../modules/handover";
 
 export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express) => {
   const container = createAppContainer();
+  container.services.ragicCache.start();
   registerBackendModules(container);
   registerAuthRoutes(app, container);
   registerAnnouncementRoutes(app, container);

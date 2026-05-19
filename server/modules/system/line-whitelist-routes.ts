@@ -265,21 +265,43 @@ const pushLineBotWhitelists = async (
 
 const searchRagicCandidates = async (container: AppContainer, queryInput: unknown, limit: number) => {
   const query = typeof queryInput === "string" ? queryInput.trim().toLowerCase() : "";
-  const result = await safeRead(
-    () => container.integrations.ragicAuth.listActiveEmployees(),
-    { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
-  );
-  if (result.data === null) {
-    return {
-      ok: false as const,
-      body: {
-        message: "Ragic 員工資料暫時無法存取，請稍後再試",
-        sourceStatus: result.meta,
-        items: [],
-      },
-    };
+  const cacheSlot = container.services.ragicCache.getEmployees();
+
+  if (cacheSlot.data === null) {
+    const fallback = await safeRead(
+      () => container.integrations.ragicAuth.listActiveEmployees(),
+      { data: null, meta: { source: "ragic-employees", status: "unavailable" as const, fallbackReason: "Ragic employees lookup failed" } },
+    );
+    if (fallback.data === null) {
+      return {
+        ok: false as const,
+        body: {
+          message: "Ragic 員工資料暫時無法存取，請稍後再試",
+          sourceStatus: fallback.meta,
+          items: [],
+        },
+      };
+    }
+    const items = fallback.data
+      .map((employee) => ({
+        lineUserId: employee.lineUserId || employee.userId || employee.employeeNumber,
+        employeeNumber: employee.employeeNumber,
+        displayName: employee.displayName,
+        phone: employee.phone ?? "",
+        department: employee.department ?? employee.departments?.join(", ") ?? "",
+        title: employee.title ?? "",
+        source: fallback.meta.source,
+      }))
+      .filter((employee) => {
+        if (!query) return true;
+        const haystack = `${employee.lineUserId} ${employee.employeeNumber} ${employee.displayName} ${employee.phone} ${employee.department}`.toLowerCase();
+        return haystack.includes(query);
+      })
+      .slice(0, limit);
+    return { ok: true as const, body: { items, sourceStatus: fallback.meta } };
   }
-  const items = result.data
+
+  const items = cacheSlot.data
     .map((employee) => ({
       lineUserId: employee.lineUserId || employee.userId || employee.employeeNumber,
       employeeNumber: employee.employeeNumber,
@@ -287,7 +309,7 @@ const searchRagicCandidates = async (container: AppContainer, queryInput: unknow
       phone: employee.phone ?? "",
       department: employee.department ?? employee.departments?.join(", ") ?? "",
       title: employee.title ?? "",
-      source: result.meta.source,
+      source: cacheSlot.source,
     }))
     .filter((employee) => {
       if (!query) return true;
@@ -295,7 +317,13 @@ const searchRagicCandidates = async (container: AppContainer, queryInput: unknow
       return haystack.includes(query);
     })
     .slice(0, limit);
-  return { ok: true as const, body: { items, sourceStatus: result.meta } };
+  return {
+    ok: true as const,
+    body: {
+      items,
+      sourceStatus: { source: cacheSlot.source, status: "ok" as const, lastSyncAt: cacheSlot.lastPrimedAt?.toISOString() },
+    },
+  };
 };
 
 export const registerLineWhitelistRoutes = (app: Express, container: AppContainer) => {
