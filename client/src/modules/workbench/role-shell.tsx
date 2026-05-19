@@ -3,18 +3,19 @@ import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight,
   Bell,
   Bot,
   Building2,
   CalendarDays,
+  ChevronUp,
   ClipboardCheck,
   ClipboardList,
   FileText,
   Gauge,
   GraduationCap,
-  LifeBuoy,
   Home,
+  LifeBuoy,
+  LogOut,
   Menu,
   MoreHorizontal,
   Megaphone,
@@ -31,17 +32,20 @@ import {
   Waves,
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
-import type { SystemProjectStatus } from "@shared/system/project-monitoring-contract";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "./role-switcher";
 import { fetchModuleNavigation } from "@/shared/modules/api";
-import { fetchSystemProjectMonitoring } from "@/modules/system/project-monitoring/api";
-import { useAuthMe } from "@/shared/auth/session";
+import { useAuthMe, useLogout } from "@/shared/auth/session";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 import { WorkbenchNotificationBell } from "./workbench-notification-bell";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {};
 
@@ -85,21 +89,6 @@ const systemNavGroups = [
   { key: "collab-course", label: "偕同課系統", ids: ["system-collab-course-control", "system-collab-course-monitoring"] },
 ] as const;
 
-const statusLabel = (status: SystemProjectStatus) => {
-  if (status === "ready") return "正常";
-  if (status === "degraded") return "注意";
-  if (status === "error") return "錯誤";
-  return "未連線";
-};
-
-const statusClass = (status: SystemProjectStatus) =>
-  status === "ready"
-    ? "bg-[#e9f8df] text-[#188249]"
-    : status === "degraded"
-      ? "bg-[#fff6e7] text-[#9b6a00]"
-      : status === "error"
-        ? "bg-[#ffe8eb] text-[#dc2626]"
-        : "bg-[#eef2f6] text-[#536175]";
 
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
   id: item.id,
@@ -174,86 +163,6 @@ const isNavActive = (location: string, item: NavItem, role: "supervisor" | "syst
   return active || (index === 0 && role === "supervisor" && location === "/");
 };
 
-interface SystemGovernanceDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-function SystemGovernanceDrawer({ open, onOpenChange }: SystemGovernanceDrawerProps) {
-  const monitoring = useQuery({
-    queryKey: ["/api/bff/system/project-monitoring"],
-    queryFn: fetchSystemProjectMonitoring,
-    enabled: open,
-    staleTime: 30_000,
-  });
-  const items = (monitoring.data?.items ?? []).filter((item) => item.key !== "governance");
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full overflow-y-auto bg-[#f3f6fb] p-5 sm:max-w-[620px]">
-        <SheetHeader className="pr-8 text-left">
-          <SheetTitle className="text-[20px] font-black text-[#10233f]">總治理</SheetTitle>
-          <SheetDescription className="text-[13px] font-bold leading-5 text-[#637185]">
-            跨父類狀態總覽與快速導航。這裡只讀取摘要，不做深層操作。
-          </SheetDescription>
-        </SheetHeader>
-
-        {monitoring.isError ? (
-          <div className="mt-4 rounded-[8px] border border-[#ffc7cf] bg-[#fff7f8] p-3 text-[13px] font-black text-[#dc2626]">
-            總治理摘要讀取失敗。
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid gap-3">
-          {items.map((item) => (
-            <section key={item.key} className="rounded-[10px] border border-[#dfe7ef] bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[15px] font-black text-[#10233f]">{item.label}</p>
-                  <p className="mt-1 text-[12px] font-bold leading-5 text-[#637185]">{item.description}</p>
-                </div>
-                <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-black", statusClass(item.status))}>{statusLabel(item.status)}</span>
-              </div>
-              <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-                {[
-                  ["正常", item.metrics.ready],
-                  ["注意", item.metrics.degraded],
-                  ["未連線", item.metrics.notConnected],
-                  ["錯誤", item.metrics.error],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-[8px] bg-[#f7f9fb] p-2">
-                    <p className="text-[10px] font-black text-[#8b9aae]">{label}</p>
-                    <p className="text-[18px] font-black text-[#10233f]">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link onClick={() => onOpenChange(false)} href={item.controlCenterHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
-                  控制中心
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-                <Link onClick={() => onOpenChange(false)} href={item.monitorHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
-                  服務監控
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-                {item.governanceHref ? (
-                  <Link onClick={() => onOpenChange(false)} href={item.governanceHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
-                    治理/設定
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                ) : null}
-              </div>
-              <p className="mt-3 text-[11px] font-bold text-[#8b9aae]">最後更新 {new Date(item.lastUpdatedAt).toLocaleString("zh-TW")}</p>
-            </section>
-          ))}
-          {monitoring.isLoading ? (
-            <div className="rounded-[10px] border border-[#dfe7ef] bg-white p-4 text-[13px] font-bold text-[#637185]">載入總治理摘要中...</div>
-          ) : null}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
 
 interface RoleShellProps {
   role: "supervisor" | "system";
@@ -265,7 +174,7 @@ interface RoleShellProps {
 export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const [location] = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [governanceOpen, setGovernanceOpen] = useState(false);
+  const { logout } = useLogout();
   const trackEvent = useTrackEvent();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", role],
@@ -337,15 +246,13 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
             {role === "system" ? (
               <>
                 <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">總治理</div>
-                <button
-                  type="button"
-                  onClick={() => setGovernanceOpen(true)}
+                <Link
+                  href="/system/project-overview"
                   className="workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-left text-[13.5px] font-bold text-[#d8e3ef] transition hover:bg-white/[0.06] hover:text-white"
                 >
                   <Network className="h-4 w-4" />
                   <span className="min-w-0 flex-1 truncate">跨專案總覽</span>
-                  <ArrowRight className="h-3.5 w-3.5 opacity-70" />
-                </button>
+                </Link>
                 {systemNavGroups.map((group) => {
                   const groupItems = group.ids.map((id) => nav.find((item) => item.id === id)).filter(Boolean) as NavItem[];
                   if (!groupItems.length) return null;
@@ -362,13 +269,24 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
             )}
           </nav>
           <div className="mt-auto border-t border-white/10 pt-3">
-            <div className="flex items-center gap-3 px-2 py-2">
-              <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">{userName.slice(0, 1)}</div>
-              <div className="min-w-0 text-[12px] leading-4">
-                <p className="truncate font-black text-white">{userName}</p>
-                <p className="truncate text-[11px] text-[#9eacbc]">{userId} · {roleEnglishLabel}</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="workbench-focus flex w-full items-center gap-3 rounded-[6px] px-2 py-2 text-left hover:bg-white/[0.06]">
+                  <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">{userName.slice(0, 1)}</div>
+                  <div className="min-w-0 flex-1 text-[12px] leading-4">
+                    <p className="truncate font-black text-white">{userName}</p>
+                    <p className="truncate text-[11px] text-[#9eacbc]">{userId} · {roleEnglishLabel}</p>
+                  </div>
+                  <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#7c9ab8]" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-52">
+                <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
+                  <LogOut className="h-4 w-4" />
+                  登出
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </aside>
         ) : null}
@@ -391,16 +309,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                     <Menu className="h-5 w-5" />
                   )}
                 </button>
-                <div className="hidden min-w-0 items-center gap-3 lg:flex">
-                  <div className="grid h-8 w-8 place-items-center rounded-[6px] border border-[#e5e8ec] bg-[#fafbfc] text-[#4b596a]">
-                    <Home className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[14px] font-black">{role === "system" ? "系統管理" : "主管營運工作台"}</p>
-                    <p className="text-[9.5px] font-black uppercase tracking-[0.18em] text-[#7c8998]">{role === "system" ? "SYSTEM" : "SUPERVISOR"}</p>
-                  </div>
-                </div>
-                <p className="text-[15px] font-black lg:hidden">{role === "system" ? "IT 治理台" : "主管控制台"}</p>
+                <p className="text-[15px] font-black">{role === "system" ? "IT 治理台" : "主管控制台"}</p>
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 <div className="hidden lg:block">
@@ -463,7 +372,6 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
         })}
       </nav>
 
-      {role === "system" ? <SystemGovernanceDrawer open={governanceOpen} onOpenChange={setGovernanceOpen} /> : null}
     </div>
   );
 }

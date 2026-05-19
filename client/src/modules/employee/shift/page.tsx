@@ -24,14 +24,13 @@ function classifyRole(role?: string): "counter" | "lifeguard" | "other" {
   return "other";
 }
 
-function getActivePeriod(shifts: ShiftSummary[]): string {
-  const sorted = [...shifts].sort((a, b) => Date.parse(a.startsAt ?? "0") - Date.parse(b.startsAt ?? "0"));
-  const firstEvening = sorted.find((s) => {
-    const h = s.startsAt ? new Date(s.startsAt).getHours() : -1;
-    return h >= 14;
-  });
-  if (!firstEvening) return "早班";
-  return Date.now() >= Date.parse(firstEvening.startsAt ?? "0") ? "晚班" : "早班";
+function classifyShiftPeriod(s: ShiftSummary): "morning" | "evening" | "both" {
+  if (!s.startsAt || !s.endsAt) return "morning";
+  const sh = new Date(s.startsAt).getHours();
+  const eh = new Date(s.endsAt).getHours();
+  if (sh < 12 && eh > 12) return "both";
+  if (sh >= 12) return "evening";
+  return "morning";
 }
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -112,11 +111,8 @@ export default function EmployeeShiftPage() {
   const facilityName = shortFacilityName(home?.facility.name ?? "");
   const activeCount = shifts.filter((s) => s.status === "active").length;
 
-  const activePeriod = getActivePeriod(shifts);
-
-  const counterShifts = shifts.filter((s) => classifyRole(s.role) === "counter");
-  const lifeguardShifts = shifts.filter((s) => classifyRole(s.role) === "lifeguard");
-  const otherShifts = shifts.filter((s) => classifyRole(s.role) === "other");
+  const morningShifts = shifts.filter((s) => { const p = classifyShiftPeriod(s); return p === "morning" || p === "both"; });
+  const eveningShifts = shifts.filter((s) => { const p = classifyShiftPeriod(s); return p === "evening" || p === "both"; });
 
   const currentTime = now.toLocaleTimeString("zh-TW", {
     hour: "2-digit",
@@ -166,35 +162,68 @@ export default function EmployeeShiftPage() {
               )}
             </div>
 
-            {/* Active period label */}
-            <div className="border-t border-[#f0f4f8] px-5 pt-4 pb-1">
-              <p
-                className="text-[22px] font-black leading-none tracking-tight text-[#15935d]"
-                data-testid="shift-period-label"
-              >
-                {activePeriod}
-              </p>
-            </div>
-
-            {/* Role sections */}
-            <div className="divide-y divide-[#f0f4f8]">
-              <RoleSection
-                label="櫃台"
-                labelClass="text-[12px] font-black tracking-wide text-[#8b9aae]"
-                shifts={counterShifts}
-              />
-              <RoleSection
-                label="救生"
-                labelClass="text-[18px] font-black text-[#10233f]"
-                shifts={lifeguardShifts}
-              />
-              {otherShifts.length > 0 && (
-                <RoleSection
-                  label={otherShifts[0]?.role || "其他"}
-                  labelClass="text-[14px] font-black text-[#536175]"
-                  shifts={otherShifts}
-                />
-              )}
+            {/* Morning / Evening two-column split */}
+            <div className="grid grid-cols-2 divide-x divide-[#f0f4f8]">
+              {/* 早班 */}
+              <div>
+                <div className="border-b border-[#f0f4f8] px-5 py-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f9e5b]" data-testid="shift-period-label-morning">早班</p>
+                  <p className="text-[10px] font-bold text-[#8b9aae]">12:00 前開始</p>
+                </div>
+                {morningShifts.length === 0 ? (
+                  <div className="px-5 py-6 text-[12px] font-bold text-[#8b9aae]">無早班人員</div>
+                ) : (
+                  <div className="divide-y divide-[#f0f4f8]">
+                    <RoleSection
+                      label="櫃台"
+                      labelClass="text-[12px] font-black tracking-wide text-[#8b9aae]"
+                      shifts={morningShifts.filter((s) => classifyRole(s.role) === "counter")}
+                    />
+                    <RoleSection
+                      label="救生"
+                      labelClass="text-[14px] font-black text-[#10233f]"
+                      shifts={morningShifts.filter((s) => classifyRole(s.role) === "lifeguard")}
+                    />
+                    {morningShifts.filter((s) => classifyRole(s.role) === "other").length > 0 && (
+                      <RoleSection
+                        label={morningShifts.find((s) => classifyRole(s.role) === "other")?.role || "其他"}
+                        labelClass="text-[13px] font-black text-[#536175]"
+                        shifts={morningShifts.filter((s) => classifyRole(s.role) === "other")}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* 晚班 */}
+              <div>
+                <div className="border-b border-[#f0f4f8] px-5 py-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f6fe8]" data-testid="shift-period-label-evening">晚班</p>
+                  <p className="text-[10px] font-bold text-[#8b9aae]">12:00 後開始</p>
+                </div>
+                {eveningShifts.length === 0 ? (
+                  <div className="px-5 py-6 text-[12px] font-bold text-[#8b9aae]">無晚班人員</div>
+                ) : (
+                  <div className="divide-y divide-[#f0f4f8]">
+                    <RoleSection
+                      label="櫃台"
+                      labelClass="text-[12px] font-black tracking-wide text-[#8b9aae]"
+                      shifts={eveningShifts.filter((s) => classifyRole(s.role) === "counter")}
+                    />
+                    <RoleSection
+                      label="救生"
+                      labelClass="text-[14px] font-black text-[#10233f]"
+                      shifts={eveningShifts.filter((s) => classifyRole(s.role) === "lifeguard")}
+                    />
+                    {eveningShifts.filter((s) => classifyRole(s.role) === "other").length > 0 && (
+                      <RoleSection
+                        label={eveningShifts.find((s) => classifyRole(s.role) === "other")?.role || "其他"}
+                        labelClass="text-[13px] font-black text-[#536175]"
+                        shifts={eveningShifts.filter((s) => classifyRole(s.role) === "other")}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer total */}

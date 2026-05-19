@@ -1314,22 +1314,6 @@ type FlatShiftPerson = {
   isFuture: boolean;
 };
 
-function flattenShiftPeople(shifts: ShiftBoardDto["shifts"]): FlatShiftPerson[] {
-  const byId = new Map<string, FlatShiftPerson>();
-  // Priority: active (isCurrent) > upcoming (isFuture) > finished
-  const priority = (p: Pick<FlatShiftPerson, "isCurrent" | "isFuture">) =>
-    p.isCurrent ? 2 : p.isFuture ? 1 : 0;
-  for (const s of shifts) {
-    for (const p of s.people) {
-      const existing = byId.get(p.userId);
-      const candidate: FlatShiftPerson = { ...p, start: s.start, end: s.end, isCurrent: s.isCurrent, isFuture: s.isFuture };
-      if (!existing || priority(candidate) > priority(existing)) {
-        byId.set(p.userId, candidate);
-      }
-    }
-  }
-  return Array.from(byId.values());
-}
 
 type RoleGroup = "櫃台" | "救生" | "守望" | "其他";
 const ROLE_GROUP_ORDER: RoleGroup[] = ["櫃台", "救生", "守望", "其他"];
@@ -1390,6 +1374,36 @@ function ShiftRoleBlock({
   );
 }
 
+function buildMorningEveningFromBoard(shifts: ShiftBoardDto["shifts"]): { morning: FlatShiftPerson[]; evening: FlatShiftPerson[] } {
+  const morning = new Map<string, FlatShiftPerson>();
+  const evening = new Map<string, FlatShiftPerson>();
+  const prio = (p: { isCurrent: boolean; isFuture: boolean }) => p.isCurrent ? 2 : p.isFuture ? 1 : 0;
+  for (const s of shifts) {
+    const [sh = 0] = (s.start ?? "00:00").split(":").map(Number);
+    const [eh = 0] = (s.end ?? "00:00").split(":").map(Number);
+    const toMorning = sh < 12;
+    const toEvening = sh >= 12 || (sh < 12 && eh > 12);
+    for (const p of s.people) {
+      const entry: FlatShiftPerson = { ...p, start: s.start, end: s.end, isCurrent: s.isCurrent, isFuture: s.isFuture };
+      if (toMorning) { const ex = morning.get(p.userId); if (!ex || prio(entry) > prio(ex)) morning.set(p.userId, entry); }
+      if (toEvening) { const ex = evening.get(p.userId); if (!ex || prio(entry) > prio(ex)) evening.set(p.userId, entry); }
+    }
+  }
+  return { morning: Array.from(morning.values()), evening: Array.from(evening.values()) };
+}
+
+function buildRoleGroupMap(people: FlatShiftPerson[]): Map<RoleGroup, PersonWithStatus[]> {
+  const map = new Map<RoleGroup, PersonWithStatus[]>();
+  for (const person of people) {
+    const g = classifyRoleGroup(person.role);
+    const status: "active" | "upcoming" | "finished" = person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished";
+    const arr = map.get(g) ?? [];
+    arr.push({ person, status });
+    map.set(g, arr);
+  }
+  return map;
+}
+
 // ── ShiftBoardCard ───────────────────────────────────────────────────────────
 
 const ROLE_GROUP_LABEL_CLASS: Record<RoleGroup, string> = {
@@ -1408,15 +1422,6 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
     ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
     : null;
 
-  const flat = flattenShiftPeople(shifts);
-  const roleGroupMap = new Map<RoleGroup, PersonWithStatus[]>();
-  for (const person of flat) {
-    const g = classifyRoleGroup(person.role);
-    const status: "active" | "upcoming" | "finished" = person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished";
-    const arr = roleGroupMap.get(g) ?? [];
-    arr.push({ person, status });
-    roleGroupMap.set(g, arr);
-  }
 
   return (
     <WorkbenchCard className="flex h-full flex-col overflow-hidden p-5">
@@ -1448,20 +1453,41 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
         <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="space-y-5">
-            {ROLE_GROUP_ORDER.map((groupKey) => {
-              const people = roleGroupMap.get(groupKey) ?? [];
-              if (!people.length) return null;
-              return (
-                <ShiftRoleBlock
-                  key={groupKey}
-                  label={groupKey}
-                  labelClass={ROLE_GROUP_LABEL_CLASS[groupKey]}
-                  people={people}
-                />
-              );
-            })}
-          </div>
+          {(() => {
+            const { morning, evening } = buildMorningEveningFromBoard(shifts);
+            const morningMap = buildRoleGroupMap(morning);
+            const eveningMap = buildRoleGroupMap(evening);
+            return (
+              <div className="grid grid-cols-2 divide-x divide-[#f0f4f8]">
+                <div className="flex flex-col">
+                  <div className="border-b border-[#f0f4f8] px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#2f9e5b]">早班</p>
+                    <p className="text-[9px] font-bold text-[#8b9aae]">12:00 前</p>
+                  </div>
+                  <div className="space-y-4 px-3 py-3">
+                    {ROLE_GROUP_ORDER.map((g) => {
+                      const people = morningMap.get(g) ?? [];
+                      return people.length ? <ShiftRoleBlock key={g} label={g} labelClass={ROLE_GROUP_LABEL_CLASS[g]} people={people} /> : null;
+                    })}
+                    {!morning.length && <div className="py-4 text-center text-[12px] font-bold text-[#8b9aae]">無早班</div>}
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <div className="border-b border-[#f0f4f8] px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#2f6fe8]">晚班</p>
+                    <p className="text-[9px] font-bold text-[#8b9aae]">12:00 後</p>
+                  </div>
+                  <div className="space-y-4 px-3 py-3">
+                    {ROLE_GROUP_ORDER.map((g) => {
+                      const people = eveningMap.get(g) ?? [];
+                      return people.length ? <ShiftRoleBlock key={g} label={g} labelClass={ROLE_GROUP_LABEL_CLASS[g]} people={people} /> : null;
+                    })}
+                    {!evening.length && <div className="py-4 text-center text-[12px] font-bold text-[#8b9aae]">無晚班</div>}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

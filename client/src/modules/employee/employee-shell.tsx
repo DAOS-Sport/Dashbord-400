@@ -6,10 +6,12 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
+  ChevronUp,
   ClipboardCheck,
   FileText,
   GraduationCap,
   Home,
+  LogOut,
   Menu,
   MessageSquareText,
   MoreHorizontal,
@@ -19,7 +21,13 @@ import {
 import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
-import { useAuthMe } from "@/shared/auth/session";
+import { useAuthMe, useLogout } from "@/shared/auth/session";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
@@ -88,6 +96,7 @@ function EmployeeDesktopSidebar({
   userId: string;
   collapsed: boolean;
 }) {
+  const { logout } = useLogout();
   return (
     <aside
       aria-hidden={collapsed}
@@ -126,13 +135,24 @@ function EmployeeDesktopSidebar({
         </nav>
 
         <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
-          <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-bold">{userName}</p>
-              <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="workbench-focus flex w-full items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-white/10">
+                <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold">{userName}</p>
+                  <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
+                </div>
+                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start" className="w-52">
+              <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
+                <LogOut className="h-4 w-4" />
+                登出
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </aside>

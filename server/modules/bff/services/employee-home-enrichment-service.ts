@@ -67,7 +67,7 @@ export const enrichEmployeeHome = async (
       getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
       readFacilityLineAnnouncements({
         facilityKey: normalizedFacilityKey,
-        limit: 20,
+        limit: 100,
       }).catch(() => ({
         facility: {
           key: normalizedFacilityKey,

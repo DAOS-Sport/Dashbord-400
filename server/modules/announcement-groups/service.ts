@@ -27,7 +27,7 @@ export async function readFacilityLineAnnouncements(params: {
   limit?: number;
 }): Promise<AnnouncementGroupsReadResult> {
   const fetchedAt = new Date().toISOString();
-  const limit = Math.min(Math.max(Number(params.limit ?? 30), 1), 100);
+  const limit = Math.min(Math.max(Number(params.limit ?? 100), 1), 200);
   const groups = await storage.listAnnouncementGroups({ facilityKey: params.facilityKey, isActive: true });
   const publicGroups = groups.map((group) => ({
     id: group.id,

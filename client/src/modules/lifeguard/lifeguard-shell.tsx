@@ -1,12 +1,18 @@
 import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bell, CalendarDays, Camera, ClipboardList, Droplets, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
+import { Bell, CalendarDays, Camera, ChevronUp, ClipboardList, Droplets, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { WorkbenchFacilitySwitcher } from "@/modules/workbench/workbench-facility-switcher";
 import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
 import { BrandLockup } from "@/shared/brand";
 import { useAuthMe, useLogout } from "@/shared/auth/session";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { cn } from "@/lib/utils";
@@ -207,6 +213,7 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const trackEvent = useTrackEvent();
   const { data: session } = useAuthMe();
+  const { logout } = useLogout();
   const granted = session?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
@@ -278,13 +285,24 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
             })}
           </nav>
           <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
-            <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
-              <div className="min-w-0">
-                <p className="truncate text-[13px] font-bold">{userName}</p>
-                <p className="truncate text-[11px] text-[#b6c7d9]">{session?.userId || "未登入"} · 救生員</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="workbench-focus flex w-full items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-white/10">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold">{userName}</p>
+                    <p className="truncate text-[11px] text-[#b6c7d9]">{session?.userId || "未登入"} · 救生員</p>
+                  </div>
+                  <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-52">
+                <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
+                  <LogOut className="h-4 w-4" />
+                  登出
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </aside>
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">

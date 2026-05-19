@@ -18,6 +18,28 @@ const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/$
 const roleLabel = (item: StaffMemberSummary) =>
   item.title?.trim() || item.department?.trim() || item.shiftLabel?.trim() || "未分類";
 
+function parseZhTWTimeHour(t: string): number {
+  const m = t.match(/([上下])午(\d+):(\d+)/);
+  if (m) {
+    let h = parseInt(m[2]);
+    if (m[1] === "下" && h !== 12) h += 12;
+    if (m[1] === "上" && h === 12) h = 0;
+    return h;
+  }
+  const plain = t.match(/(\d+):(\d+)/);
+  return plain ? parseInt(plain[1]) : 0;
+}
+
+function classifyMemberPeriod(member: StaffMemberSummary): "morning" | "evening" | "both" {
+  const parts = (member.timeRange ?? "").split(" - ");
+  if (parts.length < 2) return "morning";
+  const sh = parseZhTWTimeHour(parts[0]);
+  const eh = parseZhTWTimeHour(parts[1]);
+  if (sh < 12 && eh > 12) return "both";
+  if (sh >= 12) return "evening";
+  return "morning";
+}
+
 function StaffRows({ title, items, empty }: { title: string; items: StaffMemberSummary[]; empty: string }) {
   return (
     <WorkbenchCard className="p-5">
@@ -309,10 +331,17 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
               </div>
             </WorkbenchCard>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <StaffRows title="當班現職人員" items={detailQuery.data?.staffing.current ?? []} empty="目前沒有當班資料。" />
-              <StaffRows title="下一班人員" items={detailQuery.data?.staffing.next ?? []} empty="目前沒有下一班資料。" />
-            </div>
+            {(() => {
+              const allStaff = [...(detailQuery.data?.staffing.current ?? []), ...(detailQuery.data?.staffing.next ?? [])];
+              const morningStaff = allStaff.filter((m) => { const p = classifyMemberPeriod(m); return p === "morning" || p === "both"; });
+              const eveningStaff = allStaff.filter((m) => { const p = classifyMemberPeriod(m); return p === "evening" || p === "both"; });
+              return (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <StaffRows title="早班（12:00 前）" items={morningStaff} empty="今日無早班人員。" />
+                  <StaffRows title="晚班（12:00 後）" items={eveningStaff} empty="今日無晚班人員。" />
+                </div>
+              );
+            })()}
 
             {detailQuery.isLoading ? <div className="rounded-[8px] bg-white p-5 text-[13px] font-bold text-[#637185]">載入單館模組概況中...</div> : null}
             {detailQuery.data ? (
