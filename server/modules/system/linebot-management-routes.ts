@@ -140,6 +140,34 @@ const capabilityMessage = (capability: ContractCapability) => {
   return `status=${capability.status}; todaySuccess=${ok}; todayError=${errors}`;
 };
 
+const buildKnownIssues = (contract: ContractFullStatus, domainKey?: string): string[] => {
+  const domains = domainKey
+    ? contract.domains.filter((domain) => domain.key === domainKey)
+    : contract.domains;
+  const issues: string[] = [];
+  for (const domain of domains) {
+    for (const cap of domain.capabilities) {
+      if (!cap.enabled) {
+        issues.push(`【${cap.label}】功能已停用（disabled）`);
+      } else if (cap.status === "failing") {
+        const snippet = cap.lastError ? `，錯誤：${cap.lastError.slice(0, 80)}` : "";
+        issues.push(`【${cap.label}】運作失敗（failing）${snippet}`);
+      } else if (cap.status === "stale") {
+        const lastOk = cap.lastSuccessAt
+          ? new Date(cap.lastSuccessAt).toLocaleString("zh-TW")
+          : "未知";
+        issues.push(`【${cap.label}】資料過期（stale），最後成功：${lastOk}`);
+      } else if (cap.status === "degraded") {
+        const errCount = cap.counters?.todayError ?? 0;
+        issues.push(`【${cap.label}】部分異常（degraded），今日錯誤 ${errCount} 次`);
+      } else if (!cap.configured) {
+        issues.push(`【${cap.label}】尚未設定（not_configured）`);
+      }
+    }
+  }
+  return issues;
+};
+
 const fetchLinebotJson = async (
   path: string,
   label: string,
@@ -812,6 +840,7 @@ const buildContractWhitelist = (contract: ContractFullStatus, contractResult: Up
 
 const buildContractPipeline = (contract: ContractFullStatus, contractResult: UpstreamResult): LinebotManagementPipelineDto => {
   const capabilities = contractCapabilities(contract, "announcement-pipeline");
+  const knownIssues = buildKnownIssues(contract, "announcement-pipeline");
   return {
     generatedAt: contract.generatedAt,
     status: mapContractStatus(contract.domains.find((domain) => domain.key === "announcement-pipeline")?.status ?? contract.overall),
@@ -838,6 +867,7 @@ const buildContractPipeline = (contract: ContractFullStatus, contractResult: Ups
       issues: capabilities.filter((capability) => capability.status !== "healthy").length,
     },
     apiReadiness: contractReadiness(contractResult),
+    knownIssues: knownIssues.length ? knownIssues : undefined,
   };
 };
 
@@ -961,6 +991,7 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
       const services = contractServiceRows(contractResult.contract);
       const facilities = contractFacilities(contractResult.contract);
       const readinessItems = contractReadiness(contractResult);
+      const knownIssues = buildKnownIssues(contractResult.contract);
       const dto: LinebotManagementOverviewDto = {
         generatedAt: contractResult.contract.generatedAt,
         status: mapContractStatus(contractResult.contract.overall),
@@ -979,6 +1010,7 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
           "If the contract becomes unavailable, this BFF automatically falls back to legacy 400LINE APIs.",
           "No secret value is surfaced; token state is reduced to readiness only.",
         ],
+        knownIssues: knownIssues.length ? knownIssues : undefined,
       };
       return res.json(dto);
     }
@@ -1041,6 +1073,7 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
     const contractResult = await fetchContractFullStatus();
     if (contractResult.contract) {
       const services = contractServiceRows(contractResult.contract);
+      const knownIssues = buildKnownIssues(contractResult.contract);
       const dto: LinebotManagementServicesDto = {
         generatedAt: contractResult.contract.generatedAt,
         status: combinedStatus(services),
@@ -1048,6 +1081,7 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
         rawStatus: contractResult.contract.overall,
         services,
         apiReadiness: contractReadiness(contractResult),
+        knownIssues: knownIssues.length ? knownIssues : undefined,
       };
       return res.json(dto);
     }
@@ -1078,40 +1112,77 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
   app.get("/api/bff/system/linebot-management/facilities", requireSession, requireRole("system"), async (_req, res) => {
     const contractResult = await fetchContractFullStatus();
     if (contractResult.contract) {
-      const items = contractFacilities(contractResult.contract);
+      const [contractItems, legacyResult] = await Promise.all([
+        Promise.resolve(contractFacilities(contractResult.contract)),
+        fetchLinebotJson("/api/facility-home/list", "群組 / 館別清單（legacy）"),
+      ]);
+      const legacyItems = facilityItems(legacyResult);
+      const contractCount = contractItems.length;
+      const legacyCount = legacyItems.length;
+      const diffNote = contractCount !== legacyCount
+        ? `Contract 回報 ${contractCount} 個功能域；legacy /api/facility-home/list 回傳 ${legacyCount} 個館別。差異可能因 contract 使用功能域統計、legacy 使用實際群組清單。`
+        : undefined;
       const dto: LinebotManagementFacilitiesDto = {
         generatedAt: contractResult.contract.generatedAt,
-        status: combinedStatus(items),
+        status: combinedStatus(contractItems),
         sourceMode: "contract",
         rawStatus: contractResult.contract.domains.find((domain) => domain.key === "facility-groups")?.status ?? contractResult.contract.overall,
-        items,
-        apiReadiness: contractReadiness(contractResult),
+        items: contractItems,
+        apiReadiness: [...contractReadiness(contractResult), readiness(legacyResult)],
+        contractCount,
+        legacyCount,
+        diffNote,
       };
       return res.json(dto);
     }
 
     const snapshot = await apiSnapshot();
+    const legacyItems = facilityItems(snapshot.facilityList);
     const dto: LinebotManagementFacilitiesDto = {
       generatedAt: nowIso(),
       status: snapshot.facilityList.status,
       sourceMode: "legacy_fallback",
-      items: facilityItems(snapshot.facilityList),
+      items: legacyItems,
       apiReadiness: [readiness(snapshot.facilityList), waitingReadiness("/api/internal/facility-home/:groupId/home", "館別首頁狀態")],
+      legacyCount: legacyItems.length,
     };
     res.json(dto);
   });
 
   app.get("/api/bff/system/linebot-management/whitelist-snapshot", requireSession, requireRole("system"), async (_req, res) => {
-    const contractResult = await fetchContractFullStatus();
-    if (contractResult.contract) return res.json(buildContractWhitelist(contractResult.contract, contractResult));
-
-    const snapshot = await apiSnapshot();
-    res.json(await buildWhitelist(container, snapshot));
+    const [contractResult, snapshot] = await Promise.all([fetchContractFullStatus(), apiSnapshot()]);
+    const liveWhitelist = await buildWhitelist(container, snapshot);
+    const sourceBreakdown = {
+      contractStatus: contractResult.contract ? contractResult.contract.overall : "unavailable",
+      lineAuthorityTotal: liveWhitelist.summary.lineAuthorityTotal,
+      cmsShadowTotal: liveWhitelist.summary.cmsShadowTotal,
+      ragicTotal: liveWhitelist.summary.ragicTotal,
+      note: contractResult.contract
+        ? `Contract 可讀取（overall=${contractResult.contract.overall}）；名單資料從 live 400LINE API 補齊。`
+        : "Contract 不可用；全部資料從 live 400LINE API fallback 取得。",
+    };
+    const knownIssues = contractResult.contract
+      ? buildKnownIssues(contractResult.contract, "access-control")
+      : [];
+    res.json({ ...liveWhitelist, sourceBreakdown, knownIssues: knownIssues.length ? knownIssues : undefined });
   });
 
   app.get("/api/bff/system/linebot-management/whitelist-comparison", requireSession, requireRole("system"), async (_req, res) => {
-    const snapshot = await apiSnapshot();
-    res.json(await buildWhitelist(container, snapshot));
+    const [contractResult, snapshot] = await Promise.all([fetchContractFullStatus(), apiSnapshot()]);
+    const liveWhitelist = await buildWhitelist(container, snapshot);
+    const sourceBreakdown = {
+      contractStatus: contractResult.contract ? contractResult.contract.overall : "unavailable",
+      lineAuthorityTotal: liveWhitelist.summary.lineAuthorityTotal,
+      cmsShadowTotal: liveWhitelist.summary.cmsShadowTotal,
+      ragicTotal: liveWhitelist.summary.ragicTotal,
+      note: contractResult.contract
+        ? `Contract 可讀取（overall=${contractResult.contract.overall}）；名單資料從 live 400LINE API 補齊。`
+        : "Contract 不可用；全部資料從 live 400LINE API fallback 取得。",
+    };
+    const knownIssues = contractResult.contract
+      ? buildKnownIssues(contractResult.contract, "access-control")
+      : [];
+    res.json({ ...liveWhitelist, sourceBreakdown, knownIssues: knownIssues.length ? knownIssues : undefined });
   });
 
   app.post("/api/bff/system/linebot-management/whitelist-sync-shadow", requireSession, requireRole("system"), async (req, res) => {

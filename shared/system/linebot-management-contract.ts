@@ -80,6 +80,14 @@ export type LinebotPipelineStage = {
   sourcePath?: string;
 };
 
+export type LinebotWhitelistSourceBreakdown = {
+  contractStatus: string;
+  lineAuthorityTotal: number;
+  cmsShadowTotal: number;
+  ragicTotal: number;
+  note: string;
+};
+
 export type LinebotManagementOverviewDto = {
   generatedAt: string;
   status: LinebotManagementStatus;
@@ -88,6 +96,7 @@ export type LinebotManagementOverviewDto = {
   cards: LinebotManagementCard[];
   apiReadiness: LinebotApiReadiness[];
   notes: string[];
+  knownIssues?: string[];
 };
 
 export type LinebotManagementServicesDto = {
@@ -97,6 +106,7 @@ export type LinebotManagementServicesDto = {
   rawStatus?: LinebotRawCapabilityStatus | string;
   services: LinebotServiceRow[];
   apiReadiness: LinebotApiReadiness[];
+  knownIssues?: string[];
 };
 
 export type LinebotManagementFacilitiesDto = {
@@ -106,6 +116,9 @@ export type LinebotManagementFacilitiesDto = {
   rawStatus?: LinebotRawCapabilityStatus | string;
   items: LinebotFacilityRow[];
   apiReadiness: LinebotApiReadiness[];
+  contractCount?: number;
+  legacyCount?: number;
+  diffNote?: string;
 };
 
 export type LinebotManagementWhitelistDto = {
@@ -131,6 +144,8 @@ export type LinebotManagementWhitelistDto = {
   items: LinebotWhitelistRow[];
   apiReadiness: LinebotApiReadiness[];
   rules: string[];
+  sourceBreakdown?: LinebotWhitelistSourceBreakdown;
+  knownIssues?: string[];
 };
 
 export type LinebotWhitelistSyncResult = {
@@ -168,4 +183,5 @@ export type LinebotManagementPipelineDto = {
     issues: number | null;
   };
   apiReadiness: LinebotApiReadiness[];
+  knownIssues?: string[];
 };

@@ -69,6 +69,52 @@ function EmptyBlock({ label }: { label: string }) {
   return <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">尚無{label}資料。</div>;
 }
 
+function KnownIssuesBlock({ issues }: { issues: string[] }) {
+  if (!issues.length) return null;
+  return (
+    <div className="rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3" data-testid="known-issues-block">
+      <p className="text-[12px] font-black text-[#c2410c]">已知問題（{issues.length} 項）</p>
+      <ul className="mt-2 space-y-1">
+        {issues.map((issue, index) => (
+          <li key={index} className="flex items-start gap-2 text-[12px] font-bold text-[#9a3412]">
+            <span className="mt-0.5 shrink-0 text-[#f97316]">·</span>
+            <span>{issue}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function SourceBreakdownBanner({ breakdown }: { breakdown: { contractStatus: string; lineAuthorityTotal: number; cmsShadowTotal: number; ragicTotal: number; note: string } }) {
+  return (
+    <div className="rounded-[8px] border border-[#e0f2fe] bg-[#f0f9ff] p-3" data-testid="source-breakdown-banner">
+      <p className="text-[12px] font-black text-[#0369a1]">資料來源摘要</p>
+      <div className="mt-2 flex flex-wrap gap-3">
+        <div className="rounded-[6px] border border-[#bae6fd] bg-white px-3 py-1.5">
+          <p className="text-[10px] font-black text-[#0369a1]">400LINE 授權名單</p>
+          <p className="text-[20px] font-black text-[#10233f]">{breakdown.lineAuthorityTotal}</p>
+        </div>
+        <div className="rounded-[6px] border border-[#bae6fd] bg-white px-3 py-1.5">
+          <p className="text-[10px] font-black text-[#0369a1]">CMS Shadow</p>
+          <p className="text-[20px] font-black text-[#10233f]">{breakdown.cmsShadowTotal}</p>
+        </div>
+        <div className="rounded-[6px] border border-[#bae6fd] bg-white px-3 py-1.5">
+          <p className="text-[10px] font-black text-[#0369a1]">Ragic 員工候選</p>
+          <p className="text-[20px] font-black text-[#10233f]">{breakdown.ragicTotal}</p>
+        </div>
+        <div className="flex items-center rounded-[6px] border border-[#bae6fd] bg-white px-3 py-1.5">
+          <div>
+            <p className="text-[10px] font-black text-[#0369a1]">Contract 狀態</p>
+            <p className="text-[12px] font-black text-[#536175]">{breakdown.contractStatus}</p>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] font-bold text-[#0369a1]">{breakdown.note}</p>
+    </div>
+  );
+}
+
 function ApiReadinessList({ items }: { items: LinebotApiReadiness[] }) {
   if (!items.length) return <EmptyBlock label="API readiness" />;
   return (
@@ -209,52 +255,83 @@ export default function SystemLinebotManagementPage() {
         </WorkbenchCard>
 
         {tab === "overview" ? (
-          <div className="grid gap-3 lg:grid-cols-[1fr_420px]">
-            <WorkbenchCard className="p-4">
-              <h2 className="text-[16px] font-black text-[#10233f]">狀態摘要</h2>
-              {overviewQuery.isError ? <ErrorBlock /> : null}
-              <div className="mt-3 grid gap-2">
-                {(overviewQuery.data?.notes ?? []).map((note) => (
-                  <div key={note} className="rounded-[8px] bg-[#f7f9fb] p-3 text-[12px] font-bold text-[#536175]">{note}</div>
-                ))}
-              </div>
-            </WorkbenchCard>
-            <WorkbenchCard className="p-4">
-              <h2 className="text-[16px] font-black text-[#10233f]">API Readiness</h2>
-              <div className="mt-3">
-                <ApiReadinessList items={(overviewQuery.data?.apiReadiness ?? []).slice(0, 5)} />
-              </div>
-            </WorkbenchCard>
+          <div className="space-y-3">
+            {(overviewQuery.data?.knownIssues?.length ?? 0) > 0 ? (
+              <KnownIssuesBlock issues={overviewQuery.data!.knownIssues!} />
+            ) : null}
+            <div className="grid gap-3 lg:grid-cols-[1fr_420px]">
+              <WorkbenchCard className="p-4">
+                <h2 className="text-[16px] font-black text-[#10233f]">狀態摘要</h2>
+                {overviewQuery.isError ? <ErrorBlock /> : null}
+                <div className="mt-3 grid gap-2">
+                  {(overviewQuery.data?.notes ?? []).map((note) => (
+                    <div key={note} className="rounded-[8px] bg-[#f7f9fb] p-3 text-[12px] font-bold text-[#536175]">{note}</div>
+                  ))}
+                </div>
+              </WorkbenchCard>
+              <WorkbenchCard className="p-4">
+                <h2 className="text-[16px] font-black text-[#10233f]">API Readiness</h2>
+                <div className="mt-3">
+                  <ApiReadinessList items={(overviewQuery.data?.apiReadiness ?? []).slice(0, 5)} />
+                </div>
+              </WorkbenchCard>
+            </div>
           </div>
         ) : null}
 
         {tab === "services" ? (
-          <WorkbenchCard className="p-4">
-            <h2 className="text-[16px] font-black text-[#10233f]">服務監控</h2>
-            {servicesQuery.isLoading ? <LoadingBlock /> : null}
-            {servicesQuery.isError ? <ErrorBlock /> : null}
-            <div className="mt-3 grid gap-2 xl:grid-cols-2">
-              {(servicesQuery.data?.services ?? []).map((service) => (
-                <div key={service.key} className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-[13px] font-black text-[#10233f]">{service.label}</p>
-                      <p className="mt-1 font-mono text-[11px] font-black text-[#536175]">{service.sourcePath}</p>
+          <div className="space-y-3">
+            {(servicesQuery.data?.knownIssues?.length ?? 0) > 0 ? (
+              <KnownIssuesBlock issues={servicesQuery.data!.knownIssues!} />
+            ) : null}
+            <WorkbenchCard className="p-4">
+              <h2 className="text-[16px] font-black text-[#10233f]">服務監控</h2>
+              {servicesQuery.isLoading ? <LoadingBlock /> : null}
+              {servicesQuery.isError ? <ErrorBlock /> : null}
+              <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                {(servicesQuery.data?.services ?? []).map((service) => (
+                  <div key={service.key} className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[13px] font-black text-[#10233f]">{service.label}</p>
+                        <p className="mt-1 font-mono text-[11px] font-black text-[#536175]">{service.sourcePath}</p>
+                      </div>
+                      <StatusPill status={service.status} />
                     </div>
-                    <StatusPill status={service.status} />
+                    <p className="mt-2 text-[12px] font-bold text-[#637185]">{service.message}</p>
+                    <p className="mt-2 text-[11px] font-bold text-[#8b9aae]">最後同步 {service.lastSyncAt ? new Date(service.lastSyncAt).toLocaleString("zh-TW") : "等待 heartbeat"}</p>
                   </div>
-                  <p className="mt-2 text-[12px] font-bold text-[#637185]">{service.message}</p>
-                  <p className="mt-2 text-[11px] font-bold text-[#8b9aae]">最後同步 {service.lastSyncAt ? new Date(service.lastSyncAt).toLocaleString("zh-TW") : "等待 heartbeat"}</p>
-                </div>
-              ))}
-            </div>
-            {!servicesQuery.isLoading && !(servicesQuery.data?.services ?? []).length ? <EmptyBlock label="服務監控" /> : null}
-          </WorkbenchCard>
+                ))}
+              </div>
+              {!servicesQuery.isLoading && !(servicesQuery.data?.services ?? []).length ? <EmptyBlock label="服務監控" /> : null}
+            </WorkbenchCard>
+          </div>
         ) : null}
 
         {tab === "facilities" ? (
           <WorkbenchCard className="p-4">
-            <h2 className="text-[16px] font-black text-[#10233f]">群組 / 館別</h2>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h2 className="text-[16px] font-black text-[#10233f]">群組 / 館別</h2>
+              {facilitiesQuery.data && (facilitiesQuery.data.contractCount !== undefined || facilitiesQuery.data.legacyCount !== undefined) ? (
+                <div className="flex flex-wrap items-center gap-2" data-testid="facilities-dual-count">
+                  {facilitiesQuery.data.contractCount !== undefined ? (
+                    <span className="rounded-full bg-[#f0f9ff] px-2.5 py-1 text-[11px] font-black text-[#0369a1]">
+                      Contract：{facilitiesQuery.data.contractCount} 個
+                    </span>
+                  ) : null}
+                  {facilitiesQuery.data.legacyCount !== undefined ? (
+                    <span className="rounded-full bg-[#f7f9fb] px-2.5 py-1 text-[11px] font-black text-[#536175]">
+                      Legacy：{facilitiesQuery.data.legacyCount} 個
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {facilitiesQuery.data?.diffNote ? (
+              <div className="mt-2 rounded-[6px] border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[12px] font-bold text-[#92400e]" data-testid="facilities-diff-note">
+                {facilitiesQuery.data.diffNote}
+              </div>
+            ) : null}
             {facilitiesQuery.isLoading ? <LoadingBlock /> : null}
             {facilitiesQuery.isError ? <ErrorBlock /> : null}
             <div className="mt-3 grid gap-2 xl:grid-cols-2">
@@ -295,6 +372,16 @@ export default function SystemLinebotManagementPage() {
             </div>
             {whitelistQuery.isLoading ? <LoadingBlock /> : null}
             {whitelistQuery.isError ? <ErrorBlock /> : null}
+            {whitelistQuery.data?.sourceBreakdown ? (
+              <div className="mt-3">
+                <SourceBreakdownBanner breakdown={whitelistQuery.data.sourceBreakdown} />
+              </div>
+            ) : null}
+            {(whitelistQuery.data?.knownIssues?.length ?? 0) > 0 ? (
+              <div className="mt-3">
+                <KnownIssuesBlock issues={whitelistQuery.data!.knownIssues!} />
+              </div>
+            ) : null}
             {syncMutation.data ? (
               <div className="mt-3 rounded-[8px] border border-[#d1fae5] bg-[#f0fdf4] p-3 text-[12px] font-bold text-[#188249]">
                 同步完成：created {syncMutation.data.created}，updated {syncMutation.data.updated}，skipped {syncMutation.data.skipped}，errors {syncMutation.data.errors}
@@ -336,39 +423,44 @@ export default function SystemLinebotManagementPage() {
         ) : null}
 
         {tab === "pipeline" ? (
-          <WorkbenchCard className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-[16px] font-black text-[#10233f]">重要公告管線</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#637185]">員工端群組重要公告可吃高信心候選，但需通過本地 displayable filter。</p>
-              </div>
-              {pipelineQuery.data ? <StatusPill status={pipelineQuery.data.status} /> : null}
-            </div>
-            {pipelineQuery.isLoading ? <LoadingBlock /> : null}
-            {pipelineQuery.isError ? <ErrorBlock /> : null}
-            <div className="mt-3 grid gap-2">
-              {(pipelineQuery.data?.stages ?? []).map((stage) => (
-                <div key={stage.key} className="grid gap-2 rounded-[8px] border border-[#edf1f6] bg-white p-3 lg:grid-cols-[220px_1fr_120px] lg:items-center">
-                  <p className="font-black text-[#10233f]">{stage.label}</p>
-                  <p className="text-[12px] font-bold text-[#637185]">{stage.description}</p>
-                  <StatusPill status={stage.status} />
-                </div>
-              ))}
-            </div>
-            {pipelineQuery.data ? (
-              <div className="mt-3 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-                <div className="flex items-center gap-2 text-[#536175]">
-                  <Database className="h-4 w-4" />
-                  <p className="text-[12px] font-black">員工端進入規則</p>
-                </div>
-                <p className="mt-2 text-[12px] font-bold text-[#637185]">
-                  priority = {pipelineQuery.data.employeeEntryRule.priority.join(" / ")}，
-                  confidence &gt;= {pipelineQuery.data.employeeEntryRule.minimumConfidence}，
-                  需符合 facility/group scope 與 displayable filter。來源標籤：{pipelineQuery.data.employeeEntryRule.sourceLabels.join("、")}。
-                </p>
-              </div>
+          <div className="space-y-3">
+            {(pipelineQuery.data?.knownIssues?.length ?? 0) > 0 ? (
+              <KnownIssuesBlock issues={pipelineQuery.data!.knownIssues!} />
             ) : null}
-          </WorkbenchCard>
+            <WorkbenchCard className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[16px] font-black text-[#10233f]">重要公告管線</h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#637185]">員工端群組重要公告可吃高信心候選，但需通過本地 displayable filter。</p>
+                </div>
+                {pipelineQuery.data ? <StatusPill status={pipelineQuery.data.status} /> : null}
+              </div>
+              {pipelineQuery.isLoading ? <LoadingBlock /> : null}
+              {pipelineQuery.isError ? <ErrorBlock /> : null}
+              <div className="mt-3 grid gap-2">
+                {(pipelineQuery.data?.stages ?? []).map((stage) => (
+                  <div key={stage.key} className="grid gap-2 rounded-[8px] border border-[#edf1f6] bg-white p-3 lg:grid-cols-[220px_1fr_120px] lg:items-center">
+                    <p className="font-black text-[#10233f]">{stage.label}</p>
+                    <p className="text-[12px] font-bold text-[#637185]">{stage.description}</p>
+                    <StatusPill status={stage.status} />
+                  </div>
+                ))}
+              </div>
+              {pipelineQuery.data ? (
+                <div className="mt-3 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                  <div className="flex items-center gap-2 text-[#536175]">
+                    <Database className="h-4 w-4" />
+                    <p className="text-[12px] font-black">員工端進入規則</p>
+                  </div>
+                  <p className="mt-2 text-[12px] font-bold text-[#637185]">
+                    priority = {pipelineQuery.data.employeeEntryRule.priority.join(" / ")}，
+                    confidence &gt;= {pipelineQuery.data.employeeEntryRule.minimumConfidence}，
+                    需符合 facility/group scope 與 displayable filter。來源標籤：{pipelineQuery.data.employeeEntryRule.sourceLabels.join("、")}。
+                  </p>
+                </div>
+              ) : null}
+            </WorkbenchCard>
+          </div>
         ) : null}
 
         {tab === "readiness" ? (
