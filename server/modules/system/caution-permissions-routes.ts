@@ -192,9 +192,14 @@ export const registerCautionPermissionRoutes = (app: Express, container: AppCont
   app.get("/api/cms/system/caution-permissions/candidates", requireSession, requireRole("system"), async (req, res) => {
     const query = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
     const employeesSlot = container.services.ragicCache.getEmployees();
+    const cacheReady = employeesSlot.data !== null && !employeesSlot.error;
     const result = {
       data: employeesSlot.data,
-      meta: { source: employeesSlot.source, status: employeesSlot.error ? "unavailable" as const : "ok" as const, fallbackReason: employeesSlot.error ?? undefined },
+      meta: {
+        source: employeesSlot.source,
+        status: cacheReady ? "ok" as const : "unavailable" as const,
+        fallbackReason: employeesSlot.error ?? (employeesSlot.data === null ? "Ragic employee cache not yet primed" : undefined),
+      },
     };
     let activeUserIds = new Set<string>();
     try {
