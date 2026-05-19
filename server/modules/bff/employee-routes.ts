@@ -1,4 +1,5 @@
 import { facilityLabel } from "@shared/domain/facilities";
+import { defaultEmployeeHomeWidgets } from "@shared/domain/layout";
 import type { ShortcutSummary } from "@shared/domain/workbench";
 import {
   getHomeLayoutCards,
@@ -461,6 +462,49 @@ export const registerEmployeeBffRoutes = (
       .catch(() => undefined);
 
     return res.json({ query, items });
+  });
+
+  const widgetItemSchema = z.object({
+    key: z.string().min(1),
+    label: z.string().min(1),
+    area: z.string().min(1),
+    enabled: z.boolean(),
+    size: z.enum(["wide", "card"]),
+    sortOrder: z.number().int(),
+  });
+
+  const widgetLayoutUpdateSchema = z.object({
+    widgets: z.array(widgetItemSchema).min(1).max(20),
+  });
+
+  app.get("/api/bff/employee/widget-layout", requireSession, async (req, res) => {
+    const session = req.workbenchSession!;
+    const facilityKey = session.activeFacility;
+    if (!facilityKey) return res.status(400).json({ message: "activeFacility is required" });
+    const layout = await storage
+      .getWidgetLayout({ facilityKey, role: "employee", layoutKey: "employee-home" })
+      .catch(() => null);
+    return res.json({
+      widgets: layout?.widgets ?? defaultEmployeeHomeWidgets,
+      isDefault: !layout,
+    });
+  });
+
+  app.put("/api/bff/employee/widget-layout", requireSession, async (req, res) => {
+    const session = req.workbenchSession!;
+    const facilityKey = session.activeFacility;
+    if (!facilityKey) return res.status(400).json({ message: "activeFacility is required" });
+    const parsed = widgetLayoutUpdateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid request body", errors: parsed.error.issues });
+    const saved = await storage.upsertWidgetLayout({
+      facilityKey,
+      role: "employee",
+      layoutKey: "employee-home",
+      widgets: parsed.data.widgets,
+      updatedByEmployeeNumber: session.userId,
+      updatedByName: session.displayName,
+    });
+    return res.json({ widgets: saved.widgets, isDefault: false });
   });
 
   app.get("/api/search/global", requireSession, async (req, res) => {

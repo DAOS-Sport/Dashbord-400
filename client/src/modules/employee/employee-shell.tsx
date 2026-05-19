@@ -11,6 +11,7 @@ import {
   FileText,
   GraduationCap,
   Home,
+  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquareText,
@@ -26,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
@@ -37,6 +39,7 @@ import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-vi
 import { EmployeeFloatingQuickActions } from "./employee-floating-quick-actions";
 import { WorkbenchFacilitySwitcher } from "@/modules/workbench/workbench-facility-switcher";
 import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
+import { WidgetLayoutPanel } from "./settings/widget-layout-panel";
 
 type EmployeeNavItem = {
   id: string;
@@ -96,66 +99,96 @@ function EmployeeDesktopSidebar({
   userId: string;
   collapsed: boolean;
 }) {
-  const { logout } = useLogout();
+  const logoutMutation = useLogout();
+  const [, navigate] = useLocation();
+  const [widgetPanelOpen, setWidgetPanelOpen] = useState(false);
+
+  const handleLogout = () => {
+    logoutMutation.mutate(undefined, {
+      onSettled: () => {
+        navigate("/login");
+        window.location.href = "/login";
+      },
+    });
+  };
+
   return (
-    <aside
-      aria-hidden={collapsed}
-      className={cn(
-        "hidden h-full min-h-0 shrink-0 overflow-hidden bg-[#1f3f68] text-white transition-[width,box-shadow] duration-200 md:flex",
-        collapsed ? "pointer-events-none w-0 shadow-none" : "w-[232px] shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)]",
-      )}
-    >
-      <div className="flex h-full w-[232px] shrink-0 flex-col px-4 py-4">
-        <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
+    <>
+      <aside
+        aria-hidden={collapsed}
+        className={cn(
+          "hidden h-full min-h-0 shrink-0 overflow-hidden bg-[#1f3f68] text-white transition-[width,box-shadow] duration-200 md:flex",
+          collapsed ? "pointer-events-none w-0 shadow-none" : "w-[232px] shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)]",
+        )}
+      >
+        <div className="flex h-full w-[232px] shrink-0 flex-col px-4 py-4">
+          <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
 
-        <WorkbenchFacilitySwitcher tone="employee" surface="sidebar" statusLabel="營運中" className="mt-4 shrink-0" />
+          <WorkbenchFacilitySwitcher tone="employee" surface="sidebar" statusLabel="營運中" className="mt-4 shrink-0" />
 
-        <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
-          {!items.length && loading ? (
-            <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
-          ) : null}
-          {items.map((item) => {
-            const active = isActivePath(location, item.href);
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                onClick={() => onNavigate(item)}
-                className={cn(
-                  "workbench-focus flex min-h-10 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
-                  active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
-                )}
-              >
-                <item.Icon className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">{item.badge}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+            {!items.length && loading ? (
+              <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
+            ) : null}
+            {items.map((item) => {
+              const active = isActivePath(location, item.href);
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => onNavigate(item)}
+                  className={cn(
+                    "workbench-focus flex min-h-10 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
+                    active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
+                  )}
+                >
+                  <item.Icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">{item.badge}</span> : null}
+                </Link>
+              );
+            })}
+          </nav>
 
-        <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className="workbench-focus flex w-full items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-white/10">
-                <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold">{userName}</p>
-                  <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
-                </div>
-                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="w-52">
-              <DropdownMenuItem onClick={logout} className="gap-2 text-red-600 focus:text-red-600">
-                <LogOut className="h-4 w-4" />
-                登出
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="workbench-focus flex w-full items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-white/10" data-testid="button-user-menu">
+                  <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold">{userName}</p>
+                    <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
+                  </div>
+                  <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-52">
+                <DropdownMenuItem
+                  onClick={() => setWidgetPanelOpen(true)}
+                  className="gap-2"
+                  data-testid="menu-item-widget-settings"
+                >
+                  <LayoutDashboard className="h-4 w-4 text-[#1f6fd1]" />
+                  首頁版型設定
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  disabled={logoutMutation.isPending}
+                  className="gap-2 text-red-600 focus:text-red-600"
+                  data-testid="menu-item-logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                  {logoutMutation.isPending ? "登出中…" : "登出"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+
+      <WidgetLayoutPanel open={widgetPanelOpen} onOpenChange={setWidgetPanelOpen} />
+    </>
   );
 }
 
