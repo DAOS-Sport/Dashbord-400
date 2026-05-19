@@ -4,18 +4,36 @@ import { createRagicAuthAdapter } from "../integrations/ragic";
 import { listRagicH05FacilityCandidates } from "../integrations/ragic/facility-adapter";
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const STALE_THRESHOLD_MS = REFRESH_INTERVAL_MS * 2.5;
 
 type CacheSlot<T> = {
   data: T | null;
   source: string;
   lastPrimedAt: Date | null;
+  lastAttemptAt: Date | null;
+  lastRefreshSucceededAt: Date | null;
   error: string | null;
 };
 
-const emptySlot = <T>(): CacheSlot<T> => ({ data: null, source: "none", lastPrimedAt: null, error: null });
+const emptySlot = <T>(): CacheSlot<T> => ({
+  data: null,
+  source: "none",
+  lastPrimedAt: null,
+  lastAttemptAt: null,
+  lastRefreshSucceededAt: null,
+  error: null,
+});
 
-const slotStatus = (slot: CacheSlot<unknown>): "ok" | "degraded" =>
-  slot.data !== null ? "ok" : "degraded";
+const slotStatus = (slot: CacheSlot<unknown>): "ok" | "degraded" => {
+  if (slot.data === null) return "degraded";
+  if (slot.error !== null) {
+    const ageMs = slot.lastRefreshSucceededAt
+      ? Date.now() - slot.lastRefreshSucceededAt.getTime()
+      : Infinity;
+    if (ageMs > STALE_THRESHOLD_MS) return "degraded";
+  }
+  return "ok";
+};
 
 class RagicCacheService {
   private readonly adapter = createRagicAuthAdapter();
@@ -24,32 +42,52 @@ class RagicCacheService {
   private timer: ReturnType<typeof setInterval> | null = null;
 
   private async refreshEmployees(): Promise<void> {
+    const attemptedAt = new Date();
     try {
       const result = await this.adapter.listActiveEmployees();
       if (result.data) {
-        this.employees = { data: result.data, source: result.meta.source, lastPrimedAt: new Date(), error: null };
+        this.employees = {
+          data: result.data,
+          source: result.meta.source,
+          lastPrimedAt: attemptedAt,
+          lastAttemptAt: attemptedAt,
+          lastRefreshSucceededAt: attemptedAt,
+          error: null,
+        };
       } else {
-        this.employees.error = result.meta.fallbackReason ?? "Ragic employees unavailable";
-        console.warn(`[RagicCache] employees refresh failed: ${this.employees.error}`);
+        const errMsg = result.meta.fallbackReason ?? "Ragic employees unavailable";
+        this.employees = { ...this.employees, lastAttemptAt: attemptedAt, error: errMsg };
+        console.warn(`[RagicCache] employees refresh failed: ${errMsg}`);
       }
     } catch (error) {
-      this.employees.error = error instanceof Error ? error.message : "Unknown error";
-      console.warn(`[RagicCache] employees exception: ${this.employees.error}`);
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      this.employees = { ...this.employees, lastAttemptAt: attemptedAt, error: errMsg };
+      console.warn(`[RagicCache] employees exception: ${errMsg}`);
     }
   }
 
   private async refreshFacilities(): Promise<void> {
+    const attemptedAt = new Date();
     try {
       const result = await listRagicH05FacilityCandidates();
       if (result.data) {
-        this.facilities = { data: result.data, source: result.meta.source, lastPrimedAt: new Date(), error: null };
+        this.facilities = {
+          data: result.data,
+          source: result.meta.source,
+          lastPrimedAt: attemptedAt,
+          lastAttemptAt: attemptedAt,
+          lastRefreshSucceededAt: attemptedAt,
+          error: null,
+        };
       } else {
-        this.facilities.error = result.meta.fallbackReason ?? "Ragic facilities unavailable";
-        console.warn(`[RagicCache] facilities refresh failed: ${this.facilities.error}`);
+        const errMsg = result.meta.fallbackReason ?? "Ragic facilities unavailable";
+        this.facilities = { ...this.facilities, lastAttemptAt: attemptedAt, error: errMsg };
+        console.warn(`[RagicCache] facilities refresh failed: ${errMsg}`);
       }
     } catch (error) {
-      this.facilities.error = error instanceof Error ? error.message : "Unknown error";
-      console.warn(`[RagicCache] facilities exception: ${this.facilities.error}`);
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      this.facilities = { ...this.facilities, lastAttemptAt: attemptedAt, error: errMsg };
+      console.warn(`[RagicCache] facilities exception: ${errMsg}`);
     }
   }
 

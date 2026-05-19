@@ -248,7 +248,7 @@ export const portalIntegrationModules: ModuleDefinition[] = [
     ],
     data: [{ table: "user_role_snapshots", entity: "role snapshot from Ragic", source: "postgres", status: partial }],
     integrations: [{ provider: "RAGIC", purpose: "Employee identity, status, department, role grants — cached every 5 min.", status: partial }],
-    bff: { systemSectionKey: "ragicCache" },
+    bff: { plannedEndpoints: ["/api/bff/system/health-overview"] },
     telemetry: { auditRequired: true, eventTypes: ["ragic_cache_refresh", "ragic_auth_success", "ragic_auth_failure"] },
     governance: { ownerRole: "SYSTEM_ADMIN", editableBy: ["SYSTEM_ADMIN"], readonlyFor: ["system"], notes: "External HR authority; RagicCacheService primes on server start and refreshes every 5 minutes." },
   },
