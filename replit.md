@@ -154,8 +154,20 @@ The system is designed with a modular project structure, separating client-side 
 - **掛載**：`registerModuleHealthRoutes(app, container)` 在 `server/modules/system/routes.ts` 的 `registerSystemRoutes` 內呼叫（在 `registerLinebotManagementRoutes` 之後）
 - **端點**：`GET /api/bff/system/module-health/:moduleId`（需 `requireSession` + `requireRole("system")`）
 - 目前支援的 moduleId：`notification-center`、`registration-courses`、`booking-snapshot`
-- 回傳 `{ moduleId, status, rowCount, tableExists, checkedAt }` 格式
+- 回傳格式：`{ moduleId, status: "degraded" | "error" | "not_registered", tableExists: boolean, rowCount: number, latestAt?: string | null, note: string, checkedAt: string }`
+- **重要**：三個 stub 模組全部回傳 `status: "degraded"`（非 `"ok"`），表示資料表存在但功能尚未接入，是「已接線、部分可用」而非「正常運作」。`booking-snapshot` 額外回傳 `latestAt`（最新快照時間）。
 
-### linebot-management-routes.ts 修正
+### Courts Stats 端點
 
-`fetchContractFullStatus`（約 line 251）：當 `result.data.overall === "failing"` 時，`status` 改回傳 `"degraded"`（黃色）而非 `"not_connected"`。同時 `note` 顯示「400LINE 自報降級，連線通訊正常」，避免誤判為斷線。
+- `GET /api/courts/:school/stats`（需 `requireEmployee()`）已新增於 `server/modules/courts/routes.ts`
+- 回傳今日該學校預約數量、Google Calendar 連線狀態、`status: "ok"`
+- Registry 中 `courts.bff.plannedEndpoints` 已補入 `/api/courts/xinbei/stats`
+- courts 模組同時有 `employeeSectionKey` 與 `supervisorSectionKey`，故兩個角色都能升到 `bff-wired`
+
+### linebot-management 修正（後端 + 前端）
+
+**後端** `server/modules/system/linebot-management-routes.ts`（約 line 251）：
+- `result.data.overall === "failing"` → `status: "degraded"`（黃色），`note` 說明「400LINE 自報降級，連線通訊正常」
+
+**前端** `client/src/modules/system/linebot-management/page.tsx`：
+- 當 `overviewQuery.data?.rawStatus === "failing"` 且 `status === "degraded"` 時，在頁首卡片顯示橘色警示 banner：「400LINE 自報部分功能異常（overall=failing），但連線通訊正常。系統顯示為降級狀態，不影響本儀表板與員工端讀取。」

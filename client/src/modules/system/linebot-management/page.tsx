@@ -165,6 +165,11 @@ export default function SystemLinebotManagementPage() {
                   source={overviewQuery.data.sourceMode}{overviewQuery.data.rawStatus ? ` · raw=${overviewQuery.data.rawStatus}` : ""}
                 </p>
               ) : null}
+              {overviewQuery.data?.rawStatus === "failing" && overviewQuery.data.status === "degraded" ? (
+                <div className="mt-2 rounded-[6px] border border-[#fed7aa] bg-[#fff7ed] px-3 py-2 text-[12px] font-bold text-[#c2410c]">
+                  400LINE 自報部分功能異常（overall=failing），但連線通訊正常。系統顯示為降級狀態，不影響本儀表板與員工端讀取。
+                </div>
+              ) : null}
             </div>
             {overviewQuery.data ? <StatusPill status={overviewQuery.data.status} /> : null}
           </div>

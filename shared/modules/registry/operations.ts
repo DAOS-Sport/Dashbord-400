@@ -153,7 +153,7 @@ export const operationsModules: ModuleDefinition[] = [
       { provider: "POSTGRES", purpose: "Reservation records and local sync state.", status: partial },
       { provider: "UNKNOWN", purpose: "Google Calendar sync adapter.", status: external },
     ],
-    bff: { employeeSectionKey: "courts", supervisorSectionKey: "courts" },
+    bff: { employeeSectionKey: "courts", supervisorSectionKey: "courts", plannedEndpoints: ["/api/courts/xinbei/stats"] },
     telemetry: { trackPageView: true, trackActionSubmit: true, auditRequired: true, eventTypes: ["COURT_RESERVATION_CREATED", "COURT_SYNC_RUN"] },
     governance: { ownerRole: "supervisor", editableBy: ["employee", "supervisor", "system"], readonlyFor: [], notes: "Use one canonical courts module; school-specific pages remain child routes." },
     legacy: { oldNames: ["courts-xinbei", "courts-sanchong"], oldRoutes: ["/courts/:school/*"] },

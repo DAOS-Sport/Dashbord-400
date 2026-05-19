@@ -75,6 +75,34 @@ export function registerCourtsRoutes(app: Express, deps: RegisterDeps): void {
   };
 
   app.get(
+    "/api/courts/:school/stats",
+    auth,
+    async (req, res) => {
+      const school = pickSchool(req, res);
+      if (!school) return;
+      try {
+        const today = fmtDate(new Date());
+        const todayReservations = await courtsStorage.getReservationsByDate(school, today);
+        return res.json({
+          school,
+          today,
+          todayCount: todayReservations.length,
+          googleCalendarEnabled: isGoogleCalendarEnabled(),
+          status: "ok",
+          checkedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        return res.status(500).json({
+          school,
+          status: "error",
+          message: error instanceof Error ? error.message : "Stats fetch failed.",
+          checkedAt: new Date().toISOString(),
+        });
+      }
+    },
+  );
+
+  app.get(
     "/api/courts/:school/reservations/:date",
     auth,
     async (req, res) => {
