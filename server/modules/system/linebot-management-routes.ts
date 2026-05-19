@@ -162,6 +162,8 @@ const buildKnownIssues = (contract: ContractFullStatus, domainKey?: string): str
         issues.push(`【${cap.label}】部分異常（degraded），今日錯誤 ${errCount} 次`);
       } else if (!cap.configured) {
         issues.push(`【${cap.label}】尚未設定（not_configured）`);
+      } else if (cap.status === "unknown") {
+        issues.push(`【${cap.label}】狀態未知（unknown），可能尚未回報或監控尚未啟動`);
       }
     }
   }
