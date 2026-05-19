@@ -244,7 +244,7 @@ export interface IStorage {
   }): Promise<LifeguardLostAndFound | undefined>;
 
   // Group Broadcasts (群組重要公告)
-  listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number }): Promise<GroupBroadcast[]>;
+  listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]>;
   getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined>;
   createGroupBroadcast(input: InsertGroupBroadcast): Promise<GroupBroadcast>;
   updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "candidateId">>): Promise<GroupBroadcast | undefined>;
@@ -1684,7 +1684,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Group Broadcasts
-  async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number }): Promise<GroupBroadcast[]> {
+  async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]> {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(groupBroadcasts.facilityKey, opts.facilityKey));
     if (opts.sourceFacilityKey) conditions.push(eq(groupBroadcasts.sourceFacilityKey, opts.sourceFacilityKey));
@@ -1693,7 +1693,8 @@ export class DatabaseStorage implements IStorage {
       ? base.where(conditions.length === 1 ? conditions[0] : and(...conditions))
       : base;
     const ordered = filtered.orderBy(desc(groupBroadcasts.createdAt));
-    return opts.limit ? ordered.limit(opts.limit) : ordered;
+    const paged = opts.offset ? ordered.offset(opts.offset) : ordered;
+    return opts.limit ? paged.limit(opts.limit) : paged;
   }
 
   async getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined> {

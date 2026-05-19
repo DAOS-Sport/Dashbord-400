@@ -87,25 +87,38 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
   const { requireEmployee, requireSupervisor } = deps;
 
   // Employee + Supervisor: list broadcasts for a facility
+  // facilityKey is ALWAYS taken from the session — never from the client — to prevent cross-facility leakage.
   app.get("/api/group-broadcasts", requireEmployee, async (req, res) => {
     try {
-      const facilityKey = typeof req.query.facilityKey === "string" ? req.query.facilityKey : undefined;
+      const session = (req as any).employeeSession ?? (req as any).session;
+      const sessionFacility: string | undefined =
+        session?.activeFacilityKey ?? session?.facilityKey ?? session?.activeFacility;
+
+      if (!sessionFacility) {
+        return res.status(400).json({ message: "無法取得場館資訊，請重新登入" });
+      }
+
       const limit = Math.min(Number(req.query.limit) || 20, 50);
-      const rows = await storage.listGroupBroadcasts({ facilityKey, limit });
-      res.json({ data: rows });
+      const page = Math.max(Number(req.query.page) || 1, 1);
+      const offset = (page - 1) * limit;
+
+      const rows = await storage.listGroupBroadcasts({ facilityKey: sessionFacility, limit, offset });
+      res.json({ data: rows, page, limit });
     } catch (err) {
       console.error("[group-broadcasts] list error:", err);
       res.status(500).json({ message: "讀取群組廣播失敗" });
     }
   });
 
-  // Supervisor: list ALL broadcasts (admin view)
+  // Supervisor: list ALL broadcasts (admin view) — facility filter optional, keyed by sourceFacilityKey
   app.get("/api/group-broadcasts/admin", requireSupervisor, async (req, res) => {
     try {
       const sourceFacilityKey = typeof req.query.sourceFacilityKey === "string" ? req.query.sourceFacilityKey : undefined;
       const limit = Math.min(Number(req.query.limit) || 50, 100);
-      const rows = await storage.listGroupBroadcasts({ sourceFacilityKey, limit });
-      res.json({ data: rows });
+      const page = Math.max(Number(req.query.page) || 1, 1);
+      const offset = (page - 1) * limit;
+      const rows = await storage.listGroupBroadcasts({ sourceFacilityKey, limit, offset });
+      res.json({ data: rows, page, limit });
     } catch (err) {
       console.error("[group-broadcasts] admin list error:", err);
       res.status(500).json({ message: "讀取群組廣播失敗" });
