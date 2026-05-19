@@ -11,7 +11,7 @@ export interface WorkbenchWidgetLayoutItem {
 }
 
 export const defaultEmployeeHomeWidgets: WorkbenchWidgetLayoutItem[] = [
-  { key: "search", label: "搜尋列", area: "top", enabled: true, size: "wide", sortOrder: 10 },
+  { key: "search", label: "搜尋列", area: "top", enabled: false, size: "wide", sortOrder: 10 },
   { key: "handover", label: "交辦事項", area: "primary", enabled: true, size: "card", sortOrder: 20 },
   { key: "tutoringToday", label: "今日家教預約", area: "primary", enabled: true, size: "card", sortOrder: 30 },
   { key: "announcements", label: "群組重要公告", area: "primary", enabled: true, size: "card", sortOrder: 40 },

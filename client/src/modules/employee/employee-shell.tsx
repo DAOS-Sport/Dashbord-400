@@ -21,8 +21,8 @@ import {
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
-import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { useAuthMe, useLogout } from "@/shared/auth/session";
+import { WorkbenchGlobalSearch } from "@/modules/workbench/workbench-global-search";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -234,7 +234,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
         />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] md:bg-white/[0.92] md:text-[#10233f] md:backdrop-blur-xl">
-            <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3 md:px-6">
+            <div className="flex h-14 w-full items-center justify-between gap-3 px-3 md:px-6">
               <div className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
@@ -246,15 +246,10 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
                   <Menu className="h-5 w-5" />
                 </button>
               </div>
-              <div className="hidden justify-center md:flex">
-                <RoleSwitcher visualActiveRole="employee" />
-              </div>
-              <div className="flex min-w-0 justify-end">
+              <div className="flex items-center gap-2">
+                <WorkbenchGlobalSearch role="employee" />
                 <WorkbenchNotificationBell role="employee" />
               </div>
-            </div>
-            <div className="border-t border-white/10 px-4 py-2 md:hidden">
-              <RoleSwitcher compact visualActiveRole="employee" />
             </div>
           </header>
 
