@@ -1685,13 +1685,15 @@ export class DatabaseStorage implements IStorage {
 
   // Group Broadcasts
   async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]> {
-    const conditions: ReturnType<typeof eq>[] = [];
+    const conditions: ReturnType<typeof eq>[] = [
+      isNull(groupBroadcasts.deletedAt),
+    ];
     if (opts.facilityKey) {
       conditions.push(sql`${groupBroadcasts.targetFacilityKeys} @> ARRAY[${opts.facilityKey}]::text[]` as ReturnType<typeof eq>);
     }
     if (opts.sourceFacilityKey) conditions.push(eq(groupBroadcasts.sourceFacilityKey, opts.sourceFacilityKey));
     const base = db.select().from(groupBroadcasts);
-    const filtered = conditions.length > 0 ? base.where(and(...conditions)) : base;
+    const filtered = base.where(and(...conditions));
     const ordered = filtered.orderBy(desc(groupBroadcasts.createdAt));
     const paged = opts.offset ? ordered.offset(opts.offset) : ordered;
     return opts.limit ? paged.limit(opts.limit) : paged;
@@ -1713,8 +1715,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteGroupBroadcast(id: number): Promise<boolean> {
-    const result = await db.delete(groupBroadcasts).where(eq(groupBroadcasts.id, id)).returning({ id: groupBroadcasts.id });
-    return result.length > 0;
+    // Soft-delete: set deleted_at so the row is preserved for audit purposes
+    const [row] = await db
+      .update(groupBroadcasts)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(groupBroadcasts.id, id), isNull(groupBroadcasts.deletedAt)))
+      .returning({ id: groupBroadcasts.id });
+    return !!row;
   }
 }
 

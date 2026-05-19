@@ -1923,6 +1923,8 @@ export const groupBroadcasts = pgTable(
     endAt: timestamp("end_at"),
     geminiProcessedAt: timestamp("gemini_processed_at"),
     candidateId: integer("candidate_id"),
+    // Soft-delete: supervisors can hide broadcasts without permanent loss
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1937,6 +1939,7 @@ export const insertGroupBroadcastSchema = createInsertSchema(groupBroadcasts).om
   id: true,
   createdAt: true,
   updatedAt: true,
+  deletedAt: true,
   geminiProcessedAt: true,
   candidateId: true,
   title: true,

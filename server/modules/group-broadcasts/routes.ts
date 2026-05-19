@@ -1,10 +1,9 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { announcementCandidates, groupBroadcasts } from "@shared/schema";
 import { storage } from "../../storage";
-import { resolveBroadcastTargets } from "./fan-out";
+import { resolveBroadcastTargets } from "@shared/group-broadcasts/fan-out";
 import { analyzeGroupBroadcastWithGemini } from "./gemini-service";
 
 type AuthMiddleware = (req: any, res: any, next: any) => void;
@@ -35,39 +34,47 @@ async function runGeminiAsync(broadcastId: number, originalText: string, targetF
       geminiProcessedAt: new Date(),
     };
 
-    if (result.isEvent) {
-      const primaryFacility = targetFacilityKeys[0] ?? "unknown";
-      const contentHash = Buffer.from(`group-broadcast:${broadcastId}:${primaryFacility}`, "utf8").toString("base64");
-      const [candidate] = await db
-        .insert(announcementCandidates)
-        .values({
-          sourceMessageId: `gb-${broadcastId}`,
-          groupId: `group-broadcast:${primaryFacility}`,
-          contentHash,
-          originalText,
-          title: result.title,
-          summary: result.summary ?? originalText.slice(0, 80),
-          candidateType: "campaign",
-          status: "approved",
-          confidence: 0.85,
-          facility: primaryFacility,
-          startAt: result.startAt ? new Date(result.startAt) : undefined,
-          endAt: result.endAt ? new Date(result.endAt) : undefined,
-          detectedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: announcementCandidates.contentHash,
-          set: {
+    // When Gemini detects an event, upsert announcement_candidates for EVERY target facility
+    // so all fan-out targets get campaign visibility in 活動檔期.
+    if (result.isEvent && targetFacilityKeys.length > 0) {
+      let firstCandidateId: number | undefined;
+      for (const facilityKey of targetFacilityKeys) {
+        const contentHash = Buffer.from(`group-broadcast:${broadcastId}:${facilityKey}`, "utf8").toString("base64");
+        const [candidate] = await db
+          .insert(announcementCandidates)
+          .values({
+            sourceMessageId: `gb-${broadcastId}-${facilityKey}`,
+            groupId: `group-broadcast:${facilityKey}`,
+            contentHash,
+            originalText,
             title: result.title,
             summary: result.summary ?? originalText.slice(0, 80),
+            candidateType: "campaign",
+            status: "approved",
+            confidence: 0.85,
+            facility: facilityKey,
             startAt: result.startAt ? new Date(result.startAt) : undefined,
             endAt: result.endAt ? new Date(result.endAt) : undefined,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: announcementCandidates.id });
+            detectedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: announcementCandidates.contentHash,
+            set: {
+              title: result.title,
+              summary: result.summary ?? originalText.slice(0, 80),
+              startAt: result.startAt ? new Date(result.startAt) : undefined,
+              endAt: result.endAt ? new Date(result.endAt) : undefined,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({ id: announcementCandidates.id });
 
-      geminiUpdate.candidateId = candidate?.id;
+        if (!firstCandidateId && candidate?.id) {
+          firstCandidateId = candidate.id;
+        }
+      }
+      // Store a reference to the first candidate for traceability
+      if (firstCandidateId) geminiUpdate.candidateId = firstCandidateId;
     }
 
     await storage.updateGroupBroadcastGemini(broadcastId, geminiUpdate);
@@ -119,10 +126,9 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
     }
   });
 
-  // POST /api/group-broadcasts — accepts raw LINE message data; fan-out applied; Gemini async
-  // Auth: INTERNAL_API_TOKEN bearer (webhook from LINE Bot) OR supervisor session
+  // POST /api/group-broadcasts — accepts raw LINE message data; fan-out applied; Gemini async.
+  // Auth: INTERNAL_API_TOKEN bearer (webhook/automated ingestion) OR supervisor session cookie.
   app.post("/api/group-broadcasts", async (req, res) => {
-    // Auth: accept either bearer token (webhook/automated) or supervisor session cookie
     const authHeader = req.headers.authorization ?? "";
     const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
     const expectedToken = process.env.INTERNAL_API_TOKEN ?? process.env.LINE_BOT_ADMIN_TOKEN ?? "";
@@ -140,14 +146,16 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
 
     try {
       const postSchema = z.object({
-        // Source LINE group (required for webhook ingestion, optional for manual entry)
+        // Source LINE group (required for webhook ingestion; optional for manual supervisor entry)
         sourceGroupId: z.string().optional(),
         senderName: z.string().optional(),
-        // Which facility the message originates from — fan-out logic applied from here
+        // Which facility the message originates from; fan-out logic is applied from here.
+        // For webhook ingestion, the caller should resolve sourceGroupId → facilityKey using
+        // the facility_announcement_groups table before calling this endpoint.
         sourceFacilityKey: z.string().min(1),
-        // Raw LINE message text — Gemini will extract title/priority from this
+        // Raw LINE message text — Gemini will extract title/priority/event from this.
         originalText: z.string().min(1),
-        // Optional priority override; Gemini may update this
+        // Optional priority override; Gemini will update this during async analysis.
         priority: z.enum(["normal", "high", "urgent"]).optional().default("normal"),
       });
 
@@ -157,7 +165,9 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
       }
 
       const { sourceGroupId, senderName, sourceFacilityKey, originalText, priority } = parsed.data;
-      const targetFacilityKeys = resolveBroadcastTargets(sourceFacilityKey);
+
+      // Resolve fan-out targets: sourceGroupId takes precedence for group-id-to-facility mapping
+      const targetFacilityKeys = resolveBroadcastTargets(sourceFacilityKey, sourceGroupId);
 
       const row = await storage.createGroupBroadcast({
         sourceGroupId: sourceGroupId ?? null,
@@ -169,7 +179,7 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
         geminiStatus: "pending",
       });
 
-      // Fire-and-forget Gemini analysis
+      // Fire-and-forget Gemini analysis (extracts title, priority, event detection)
       runGeminiAsync(row.id, originalText, targetFacilityKeys).catch(() => {});
 
       res.status(201).json({ data: row, targets: targetFacilityKeys });
@@ -179,7 +189,7 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
     }
   });
 
-  // Supervisor: hard-delete
+  // Supervisor: soft-delete (sets deleted_at; row is preserved for audit)
   app.delete("/api/group-broadcasts/:id", requireSupervisor, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -187,6 +197,7 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
 
       const row = await storage.getGroupBroadcastById(id);
       if (!row) return res.status(404).json({ message: "找不到此廣播" });
+      if (row.deletedAt) return res.status(404).json({ message: "此廣播已刪除" });
 
       const deleted = await storage.deleteGroupBroadcast(id);
       if (!deleted) return res.status(404).json({ message: "刪除失敗" });
