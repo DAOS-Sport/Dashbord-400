@@ -48,9 +48,13 @@ function ProjectWidget({ item }: { item: SystemProjectSummary }) {
   const iconLabel = PROJECT_ICON_LABEL[item.key] ?? item.key.toUpperCase().slice(0, 4);
   return (
     <WorkbenchCard className="flex flex-col gap-0 overflow-hidden p-0" data-testid={`card-project-${item.key}`}>
-      {/* Header */}
-      <div className="flex items-start gap-4 border-b border-[#f0f4f8] p-5">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] bg-[#10233f] font-mono text-[11px] font-black text-white">
+      {/* Clickable header → control center */}
+      <Link
+        href={item.controlCenterHref}
+        className="group flex items-start gap-4 border-b border-[#f0f4f8] p-5 hover:bg-[#f7f9fb]"
+        data-testid={`link-card-header-${item.key}`}
+      >
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] bg-[#10233f] font-mono text-[11px] font-black text-white group-hover:bg-[#1d3a63]">
           {iconLabel}
         </div>
         <div className="min-w-0 flex-1">
@@ -63,7 +67,8 @@ function ProjectWidget({ item }: { item: SystemProjectSummary }) {
           </div>
           <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#637185]">{item.description}</p>
         </div>
-      </div>
+        <ArrowRight className="h-4 w-4 shrink-0 translate-x-0 text-[#c5d0db] transition-transform group-hover:translate-x-0.5" />
+      </Link>
 
       {/* Metrics */}
       <div className="grid grid-cols-4 gap-2 px-5 py-4">
@@ -75,14 +80,6 @@ function ProjectWidget({ item }: { item: SystemProjectSummary }) {
 
       {/* Footer links */}
       <div className="mt-auto flex items-center gap-2 border-t border-[#f0f4f8] px-5 py-3">
-        <Link
-          href={item.controlCenterHref}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-[6px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]"
-          data-testid={`link-control-${item.key}`}
-        >
-          控制中心
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
         <Link
           href={item.monitorHref}
           className="inline-flex min-h-8 items-center gap-1.5 rounded-[6px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]"
@@ -121,10 +118,16 @@ export default function SystemProjectOverviewPage() {
 
   const readyCount = items.filter((i) => i.status === "ready").length;
   const degradedCount = items.filter((i) => i.status === "degraded").length;
-  const errorCount = items.filter((i) => i.status === "error" || i.status === "not_connected").length;
+  const errorCount = items.filter((i) => i.status === "error").length;
+  const notConnectedCount = items.filter((i) => i.status === "not_connected").length;
   const generatedAt = query.data?.generatedAt;
 
-  const overallOk = degradedCount === 0 && errorCount === 0;
+  const hasError = errorCount > 0;
+  const hasDegraded = degradedCount > 0 || notConnectedCount > 0;
+  const overallOk = !hasError && !hasDegraded;
+
+  const summaryBgClass = overallOk ? "bg-[#eaf8ef]" : hasError ? "bg-[#ffe8eb]" : "bg-[#fff6e7]";
+  const summaryText = overallOk ? "所有系統運作正常" : hasError ? "部分系統異常" : "部分系統注意";
 
   return (
     <RoleShell role="system" title="跨專案總覽" subtitle="IT PROJECT OVERVIEW">
@@ -135,17 +138,15 @@ export default function SystemProjectOverviewPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className={cn("flex h-9 w-9 items-center justify-center rounded-full", overallOk ? "bg-[#eaf8ef]" : degradedCount > 0 ? "bg-[#fff6e7]" : "bg-[#ffe8eb]")}>
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-full", summaryBgClass)}>
                   {overallOk
                     ? <CheckCircle2 className="h-5 w-5 text-[#188249]" />
-                    : errorCount > 0
+                    : hasError
                       ? <XCircle className="h-5 w-5 text-[#dc2626]" />
                       : <TriangleAlert className="h-5 w-5 text-[#9b6a00]" />}
                 </span>
                 <div>
-                  <p className="text-[14px] font-black text-[#10233f]">
-                    {overallOk ? "所有系統運作正常" : errorCount > 0 ? "部分系統異常" : "部分系統注意"}
-                  </p>
+                  <p className="text-[14px] font-black text-[#10233f]">{summaryText}</p>
                   <p className="text-[11px] font-bold text-[#637185]">{items.length} 個父系統</p>
                 </div>
               </div>
@@ -161,10 +162,16 @@ export default function SystemProjectOverviewPage() {
                     <span className="text-[#9b6a00]">{degradedCount} 注意</span>
                   </div>
                 )}
+                {notConnectedCount > 0 && (
+                  <div className="flex items-center gap-1.5 text-[12px] font-bold">
+                    <span className="h-2 w-2 rounded-full bg-[#9ca3af]" />
+                    <span className="text-[#536175]">{notConnectedCount} 未連線</span>
+                  </div>
+                )}
                 {errorCount > 0 && (
                   <div className="flex items-center gap-1.5 text-[12px] font-bold">
                     <span className="h-2 w-2 rounded-full bg-[#dc2626]" />
-                    <span className="text-[#dc2626]">{errorCount} 異常</span>
+                    <span className="text-[#dc2626]">{errorCount} 錯誤</span>
                   </div>
                 )}
               </div>
