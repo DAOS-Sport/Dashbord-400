@@ -186,7 +186,7 @@ export function WorkbenchGlobalSearch({
               </div>
             )}
 
-            {items.length > 0 && (
+            {canSearch && items.length > 0 && (
               <div className="p-2">
                 {items.map((item) => (
                   <button
