@@ -14,6 +14,7 @@ import {
   Home,
   Link as LinkIcon,
   ListChecks,
+  LogOut,
   Menu,
   MessageSquareText,
   Plus,
@@ -59,7 +60,7 @@ import {
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { cn } from "@/lib/utils";
 import { FacilityGate } from "@/shared/auth/facility-gate";
-import { useAuthMe } from "@/shared/auth/session";
+import { useAuthMe, useLogout } from "@/shared/auth/session";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
@@ -234,6 +235,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
   const [location] = useLocation();
   const trackEvent = useTrackEvent();
   const { data: session } = useAuthMe();
+  const logoutMutation = useLogout();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", "employee-home-sidebar"],
     queryFn: fetchModuleNavigation,
@@ -294,6 +296,16 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
               <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
             </div>
           </div>
+          <button
+            type="button"
+            data-testid="menu-item-logout"
+            disabled={logoutMutation.isPending}
+            onClick={() => logoutMutation.mutate(undefined, { onSettled: () => { window.location.href = "/login"; } })}
+            className="flex w-full min-h-9 items-center gap-3 rounded-[8px] px-3 py-2 text-[13px] font-bold text-[#b6c7d9] hover:bg-white/10 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {logoutMutation.isPending ? "登出中…" : "登出"}
+          </button>
         </div>
       </div>
     </aside>
