@@ -14,7 +14,7 @@ export type SupervisorModulePreviewItem = {
 };
 
 export type SupervisorHomeDrawerConfig = {
-  moduleId: "parking" | "counter-log" | "lane-rentals" | "courts";
+  moduleId: "parking" | "lane-rentals" | "courts";
   eyebrow: string;
   title: string;
   description: string;

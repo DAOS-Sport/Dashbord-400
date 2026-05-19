@@ -387,7 +387,7 @@ function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
   const Shell = shell === "lifeguard" ? LifeguardShell : EmployeeShell;
 
   return (
-    <Shell title="交接任務" subtitle={`本日 ${items.length} 則 · 依館別共用`}>
+    <Shell title="交辦事項" subtitle={`本日 ${items.length} 則 · 依館別共用`}>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {statusMetrics.map((metric) => (
@@ -401,7 +401,7 @@ function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
           <section className="rounded-[8px] border border-[#dfe7ef] bg-white shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-4">
             <div>
-              <h2 className="text-[18px] font-black text-[#10233f]">交接任務列表</h2>
+              <h2 className="text-[18px] font-black text-[#10233f]">交辦事項列表</h2>
               <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">未完成依剩餘時間近到遠排序</p>
             </div>
             <button onClick={() => handoverQuery.refetch()} className="workbench-focus inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
@@ -425,7 +425,7 @@ function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
           </div>
           <div className="min-h-[420px]">
             {handoverQuery.isLoading ? (
-              <div className="p-6 text-[13px] font-bold text-[#637185]">載入交接任務中...</div>
+              <div className="p-6 text-[13px] font-bold text-[#637185]">載入交辦事項中...</div>
             ) : filtered.length ? (
               filtered.map((item) => (
                 <HandoverRow
@@ -456,7 +456,7 @@ function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
               <div className="grid min-h-[360px] place-items-center p-6 text-center">
                 <div>
                   <MessageSquareText className="mx-auto h-10 w-10 text-[#9aa8ba]" />
-              <p className="mt-3 text-[15px] font-black text-[#10233f]">{tab === "pending" ? "尚未設定交接任務" : "查無已完成交接"}</p>
+              <p className="mt-3 text-[15px] font-black text-[#10233f]">{tab === "pending" ? "尚未設定交辦事項" : "查無已完成交辦"}</p>
                   <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">資料會依館別與目前登入員工權限回傳。</p>
                 </div>
               </div>
@@ -466,7 +466,7 @@ function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
 
           <aside className="h-fit rounded-[8px] border border-[#dfe7ef] bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
           <div className="border-l-4 border-[#16b6b1] pl-3">
-            <h2 className="text-[18px] font-black text-[#10233f]">新增交接任務</h2>
+            <h2 className="text-[18px] font-black text-[#10233f]">新增交辦事項</h2>
             <p className="mt-1 text-[12px] font-bold text-[#637185]">作者：{session?.displayName ?? "員工"} · 場館：{facilityKey}</p>
           </div>
           <label className="mt-4 block text-[12px] font-black text-[#536175]" htmlFor="handover-title">

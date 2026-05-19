@@ -29,11 +29,11 @@
 | 已分組 | 74 |
 | 未分組 | 0 |
 | 可疑未綁 BFF 使用者模組 | 0 |
-| implemented | 24 |
-| partial | 37 |
-| planned | 6 |
-| legacy | 4 |
-| external | 2 |
+| implemented | 29 |
+| partial | 32 |
+| planned | 0 |
+| legacy | 11 |
+| external | 1 |
 | deprecated | 1 |
 
 ## 3. 母系統登記
@@ -63,7 +63,6 @@
 |---|---|---|
 | `activity-periods` | employee, supervisor | 活動檔期/課程快訊 |
 | `campaigns-events` | employee, lifeguard, supervisor | 活動資料來源 |
-| `checkins` | employee | 點名/報到預留 |
 | `employee-resources` | employee, lifeguard, supervisor | 常用文件、教材資料 |
 | `employee-settings` | employee | 員工設定 |
 | `employee-training` | employee, lifeguard, supervisor, system | 員工教材與觀看紀錄 |
@@ -85,19 +84,15 @@
 | `lifeguard-log` | lifeguard, supervisor, system | 救生員日誌 |
 | `lifeguard-lost-and-found` | employee, lifeguard | 失物招領 |
 | `lifeguard-water-quality` | lifeguard | 水質檢測照片 |
-| `supervisor-lifeguard-overview` | supervisor, system | 主管救生紀錄總覽 |
 
 ### 3.4 主管營運模組
 
-目的：主管端停車、櫃台日誌、水道租借、場地預約、任務、交接、異常與報表。
+目的：主管端場館狀態、停車、水道租借、場地預約、交辦事項與營運相容彙整。
 
 | Module ID | 目前角色 | 管理重點 |
 |---|---|---|
-| `analytics` | supervisor, system | 報表 |
-| `anomalies` | supervisor, system | 異常審核 |
-| `counter-log` | supervisor, system | 櫃台日誌 |
 | `courts` | employee, supervisor, system | 場地預約/場租查看 |
-| `handover` | employee, lifeguard, supervisor | 櫃台交接/交辦 |
+| `handover` | employee, lifeguard, supervisor | 交辦事項 |
 | `lane-rentals` | supervisor, system | 水道租借 |
 | `operations` | supervisor, system | 營運相容/彙整 |
 | `parking` | supervisor, system | 停車場總覽 |
@@ -106,7 +101,6 @@
 | `parking-payments` | supervisor, system | 停車場付款審核 |
 | `parking-plans` | supervisor, system | 停車場方案 |
 | `parking-vehicles` | supervisor, system | 停車場車輛 |
-| `tasks` | employee, lifeguard, supervisor | 任務管理 |
 
 ### 3.5 公告、通知與知識
 
@@ -172,19 +166,19 @@
 
 ### Employee navigation
 
-`employee-home`, `handover`, `activity-periods`, `employee-resources`, `employee-training`, `personal-note`, `lifeguard-lost-and-found`, `courts`, `knowledge-base-qna`, `checkins`
+`employee-home`, `announcements`, `handover`, `activity-periods`, `employee-resources`, `employee-training`, `lifeguard-lost-and-found`, `courts`, `knowledge-base-qna`
 
 ### Lifeguard navigation
 
-`lifeguard-home`, `lifeguard-water-quality`, `lifeguard-coach-dive`, `lifeguard-cleanup`, `lifeguard-lane-issues`, `lifeguard-lost-and-found`, `lifeguard-lane-rentals`, `lifeguard-log`, `announcements`, `employee-training`, `knowledge-base-qna`
+`lifeguard-home`, `lifeguard-water-quality`, `lifeguard-coach-dive`, `lifeguard-cleanup`, `lifeguard-lane-issues`, `lifeguard-lost-and-found`, `lifeguard-lane-rentals`, `lifeguard-log`, `handover`
 
 ### Supervisor navigation
 
-`supervisor-dashboard`, `facilities`, `parking`, `counter-log`, `lane-rentals`, `courts`, `tasks`, `announcements`, `announcement-groups`, `supervisor-lifeguard-overview`, `handover`, `employee-training`, `anomalies`, `analytics`
+`supervisor-dashboard`, `facilities`, `parking`, `lane-rentals`, `courts`, `announcements`, `announcement-groups`, `handover`, `employee-training`
 
 ### System navigation
 
-`system-dashboard`, `system-function-relations`, `system-topology`, `system-health`, `system-observability`, `integration-sync-jobs`, `telemetry-audit`, `system-lifeguard-audit`, `raw-inspector`, `employee-training`
+`system-control-center`, `system-watchdog`, `system-operations`, `system-insights`, `system-governance`, `linebot-management`, `helper-status`, `line-whitelist`
 
 ## 5. 登記完成定義
 

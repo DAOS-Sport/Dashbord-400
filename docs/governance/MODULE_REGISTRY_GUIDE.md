@@ -70,19 +70,18 @@ When a source fails, BFF returns `empty`, `not_connected`, or degraded section m
 Employee navigation is intentionally role-curated. The employee sidebar order is:
 
 1. `employee-home`
-2. `handover`
-3. `activity-periods`
-4. `employee-resources`
-5. `personal-note`
-6. `knowledge-base-qna`
-7. `checkins`
+2. `announcements`
+3. `handover`
+4. `activity-periods`
+5. `employee-resources`
+6. `employee-training`
+7. `lifeguard-lost-and-found`
+8. `courts`
+9. `knowledge-base-qna`
 
 Do not add employee sidebar items by editing components. Update the module descriptor and the employee navigation policy in `shared/modules/descriptors.ts`.
 
-`handover` has two UI labels by design:
-
-- Sidebar destination: `櫃台交接`
-- Home card/action context: `櫃台交辦`
+`handover` uses one UI label across employee, lifeguard, and supervisor shells: `交辦事項`.
 
 `shift-reminder` is read-only. The frontend must consume `ShiftBoardDto` from BFF and must not call Smart Schedule or external schedule APIs directly.
 

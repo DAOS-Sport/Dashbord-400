@@ -42,9 +42,9 @@ Every module must be assigned by code, not by visual placement alone. The shared
 Current groups:
 
 - `entry-identity`: login, role, facility, home shells, session and role snapshots.
-- `employee-content`: employee daily content, resources, training, notes, checkins, search and not-connected cards.
-- `lifeguard-workflows`: lifeguard operation modules, supervisor overview and system lifeguard audit.
-- `supervisor-operations`: parking, counter logs, lane rentals, courts, tasks, handover, anomalies and reports.
+- `employee-content`: employee daily content, resources, training, Q&A media, search and not-connected cards.
+- `lifeguard-workflows`: lifeguard operation modules, shared handover, facility detail rollup and system lifeguard audit.
+- `supervisor-operations`: facilities, parking, lane rentals, courts, handover and facility module rollups.
 - `announcements`: announcements, announcement groups, overlays, notification recipients and Q&A.
 - `system-governance`: topology, function relations, health, audit, raw inspector, watchdog and projections.
 - `integrations`: LINE, schedule, Ragic, Gmail and integration sync jobs.

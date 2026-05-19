@@ -17,6 +17,11 @@ const formatTime = (value: string) => {
   }).format(date);
 };
 
+const formatBytes = (value: number) => {
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(value / 1024))} KB`;
+};
+
 function PendingQnaCard({
   item,
   reviewNote,
@@ -50,6 +55,23 @@ function PendingQnaCard({
             <div className="mt-3 flex flex-wrap gap-2">
               {item.tags.map((tag) => (
                 <span key={tag} className="rounded-full bg-[#eef6ff] px-2 py-1 text-[11px] font-black text-[#1b6eea]">{tag}</span>
+              ))}
+            </div>
+          ) : null}
+          {item.attachments?.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {item.attachments.map((attachment) => (
+                <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-[#f8fafc]">
+                  {attachment.kind === "image" ? (
+                    <img src={attachment.url} alt={attachment.originalName} className="h-32 w-full object-cover" />
+                  ) : (
+                    <video src={attachment.url} controls className="h-32 w-full bg-black object-contain" />
+                  )}
+                  <div className="px-3 py-2">
+                    <p className="truncate text-[12px] font-black text-[#10233f]">{attachment.originalName}</p>
+                    <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{attachment.kind === "image" ? "照片" : "影片"} · {formatBytes(attachment.size)}</p>
+                  </div>
+                </a>
               ))}
             </div>
           ) : null}

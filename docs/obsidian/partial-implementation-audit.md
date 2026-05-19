@@ -15,9 +15,6 @@ Partial 只能表示核心可用但有缺角；若長期不補，就要改成 le
 | [[modules/lifeguard-lane-issues|lifeguard-lane-issues]] | lifeguard | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
 | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | lifeguard, employee | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
 | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | lifeguard | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
-| [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | supervisor, system | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
-| [[modules/analytics|analytics]] | supervisor, system | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
-| [[modules/counter-log|counter-log]] | supervisor, system | 能上線 | 缺 uiStates / freshness；路由仍 partial/legacy |
 | [[modules/courts|courts]] | employee, supervisor, system | 能上線 | 缺 uiStates / freshness；資料層仍 partial/planned；路由仍 partial/legacy |
 | [[modules/hr-audit|hr-audit]] | system, SYSTEM_ADMIN | 能上線 | 缺 uiStates / freshness；仍依賴 legacy/proxy endpoint；資料層仍 partial/planned；路由仍 partial/legacy |
 | [[modules/announcement-review|announcement-review]] | supervisor, system | 能上線 | 缺 uiStates / freshness；仍依賴 legacy/proxy endpoint；資料層仍 partial/planned；路由仍 partial/legacy |

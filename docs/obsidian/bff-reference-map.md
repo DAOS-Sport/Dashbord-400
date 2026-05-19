@@ -37,11 +37,8 @@
 | [[modules/lifeguard-lane-issues|lifeguard-lane-issues]] | 水道事項 | plannedEndpoint: `/api/bff/lifeguard/home` | lifeguard | home-card / dashboard widget |
 | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | 失物招領 | plannedEndpoint: `/api/bff/employee/lost-and-found`<br>plannedEndpoint: `/api/bff/lifeguard/home`<br>plannedEndpoint: `/api/bff/lifeguard/lost-and-found` | lifeguard, employee | home-card / dashboard widget |
 | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | 水道租借狀態 | plannedEndpoint: `/api/bff/lifeguard/lane-rentals` | lifeguard | home-card / dashboard widget |
-| [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | 救生紀錄總覽 | supervisorSectionKey: `lifeguardOverview`<br>plannedEndpoint: `/api/bff/supervisor/lifeguard-overview` | supervisor, system | role detail page |
 | [[modules/system-function-relations|system-function-relations]] | 當前功能關係 | systemSectionKey: `functionRelations` | system, SYSTEM_ADMIN | role detail page |
-| [[modules/analytics|analytics]] | Analytics | supervisorSectionKey: `reports`<br>systemSectionKey: `uiEventOverview`<br>plannedEndpoint: `/api/bff/system/ui-event-overview` | supervisor, system | admin management surface |
 | [[modules/operations|operations]] | Operations | supervisorSectionKey: `legacyOperations`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | system, supervisor | admin management surface |
-| [[modules/counter-log|counter-log]] | Counter Log | supervisorSectionKey: `counterLog` | supervisor, system | home-card / dashboard widget |
 | [[modules/lane-rentals|lane-rentals]] | Lane Rentals | supervisorSectionKey: `laneRentals` | supervisor, system | home-card / dashboard widget |
 | [[modules/courts|courts]] | Courts | employeeSectionKey: `courts`<br>supervisorSectionKey: `courts`<br>plannedEndpoint: `/api/courts/xinbei/stats` | employee, supervisor, system | home-card / dashboard widget |
 | [[modules/parking|parking]] | Parking Management | supervisorSectionKey: `parking` | supervisor, system | home-card / dashboard widget |
@@ -57,8 +54,8 @@
 | [[modules/announcement-review|announcement-review]] | Announcement Review | supervisorSectionKey: `announcementReview`<br>plannedEndpoint: `/api/announcement-candidates` | supervisor, system | admin management surface |
 | [[modules/announcement-summary|announcement-summary]] | Announcement Summary | supervisorSectionKey: `announcementSummary`<br>plannedEndpoint: `/api/announcement-dashboard/summary` | supervisor, system | admin management surface |
 | [[modules/system-announcements|system-announcements]] | System Announcements | employeeSectionKey: `announcements`<br>supervisorSectionKey: `announcements` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
-| [[modules/handover|handover]] | 櫃台交接 | employeeSectionKey: `handover`<br>supervisorSectionKey: `handoverOverview`<br>plannedEndpoint: `/api/bff/employee/handover/list`<br>plannedEndpoint: `/api/bff/employee/handover/summary`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | employee, lifeguard, supervisor | home-card / dashboard widget |
-| [[modules/anomalies|anomalies]] | Anomalies | supervisorSectionKey: `pendingAnomalies`<br>systemSectionKey: `alerts` | supervisor, system | home-card / dashboard widget |
+| [[modules/handover|handover]] | 交辦事項 | employeeSectionKey: `handover`<br>supervisorSectionKey: `handoverOverview`<br>plannedEndpoint: `/api/bff/employee/handover/list`<br>plannedEndpoint: `/api/bff/employee/handover/summary`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | employee, lifeguard, supervisor | home-card / dashboard widget |
+| [[modules/anomalies|anomalies]] | Anomalies | supervisorSectionKey: `pendingAnomalies`<br>systemSectionKey: `alerts` | system | home-card / dashboard widget |
 | [[modules/notification-recipients|notification-recipients]] | Notification Recipients | systemSectionKey: `notificationRecipients`<br>plannedEndpoint: `/api/notification-recipients` | system, supervisor | admin management surface |
 | [[modules/campaigns-events|campaigns-events]] | Campaigns and Events | employeeSectionKey: `campaigns` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/booking-snapshot|booking-snapshot]] | Booking Snapshot | employeeSectionKey: `bookingSnapshot`<br>plannedEndpoint: `/api/bff/employee/home` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
@@ -68,7 +65,6 @@
 | [[modules/knowledge-base-qna|knowledge-base-qna]] | 相關問題詢問 | employeeSectionKey: `qna` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/activity-periods|activity-periods]] | 活動檔期 / 課程快訊 | employeeSectionKey: `events` | employee, supervisor | home-card / dashboard widget |
 | [[modules/registration-courses|registration-courses]] | 報名 / 課程 | employeeSectionKey: `registrationCourses` | employee | home-card / dashboard widget |
-| [[modules/checkins|checkins]] | 點名 / 報到 | employeeSectionKey: `checkins` | employee | home-card / dashboard widget |
 | [[modules/employee-settings|employee-settings]] | 員工設定 | employeeSectionKey: `settings` | employee | role detail page |
 | [[modules/search|search]] | 快速搜尋 | employeeSectionKey: `search`<br>supervisorSectionKey: `search`<br>systemSectionKey: `search` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/weather-widget|weather-widget]] | 天氣卡片 | employeeSectionKey: `weather` | employee | home-card / dashboard widget |
@@ -145,9 +141,7 @@
 | `GET /api/bff/lifeguard/lost-and-found` | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | partial | `/api/bff/employee/lost-and-found`<br>`/api/bff/lifeguard/home`<br>`/api/bff/lifeguard/lost-and-found` | `lifeguard_lost_and_found` |
 | `POST /api/bff/lifeguard/lost-and-found` | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | partial | `/api/bff/employee/lost-and-found`<br>`/api/bff/lifeguard/home`<br>`/api/bff/lifeguard/lost-and-found` | `lifeguard_lost_and_found` |
 | `PATCH /api/bff/lifeguard/lost-and-found/:id` | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | partial | `/api/bff/employee/lost-and-found`<br>`/api/bff/lifeguard/home`<br>`/api/bff/lifeguard/lost-and-found` | `lifeguard_lost_and_found` |
-| `GET /api/bff/lifeguard/lane-rentals` | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | partial | `/api/bff/lifeguard/lane-rentals` | `lane_rentals` |
-| `GET /api/bff/supervisor/lifeguard-overview` | [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | partial | `lifeguardOverview`<br>`/api/bff/supervisor/lifeguard-overview` | `lifeguard_water_quality_logs`<br>`lifeguard_coach_dive_logs`<br>`lifeguard_cleanup_logs`<br>`lifeguard_lost_and_found` |
-| `GET /api/bff/system/ui-event-overview` | [[modules/analytics|analytics]] | partial | `reports`<br>`uiEventOverview`<br>`/api/bff/system/ui-event-overview` | `portal_events`<br>`ui_events` |
+| `GET /api/bff/lifeguard/lane-rentals` | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | partial | `/api/bff/lifeguard/lane-rentals` | `lane_rentals`<br>`lane_rental_layouts` |
 | `GET /api/bff/system/health-overview` | [[modules/system-health|system-health]] | implemented | `health`<br>`/api/bff/system/health-overview`<br>`/api/bff/system/integration-overview` | `integration_error_logs`<br>`sync_job_runs` |
 | `GET /api/bff/system/integration-overview` | [[modules/system-health|system-health]] | implemented | `health`<br>`/api/bff/system/health-overview`<br>`/api/bff/system/integration-overview` | `integration_error_logs`<br>`sync_job_runs` |
 | `GET /api/bff/system/overview` | [[modules/system-health|system-health]] | partial | `health`<br>`/api/bff/system/health-overview`<br>`/api/bff/system/integration-overview` | `integration_error_logs`<br>`sync_job_runs` |
@@ -223,20 +217,8 @@
 | `/lifeguard/lost-and-found` | lifeguard | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | partial | `/api/bff/employee/lost-and-found`<br>`/api/bff/lifeguard/home`<br>`/api/bff/lifeguard/lost-and-found` |
 | `/employee/lost-and-found` | employee | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | partial | `/api/bff/employee/lost-and-found`<br>`/api/bff/lifeguard/home`<br>`/api/bff/lifeguard/lost-and-found` |
 | `/lifeguard/lane-rentals` | lifeguard | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | partial | `/api/bff/lifeguard/lane-rentals` |
-| `/supervisor/lifeguard-overview` | supervisor | [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | partial | `lifeguardOverview`<br>`/api/bff/supervisor/lifeguard-overview` |
 | `/system/function-relations` | system | [[modules/system-function-relations|system-function-relations]] | implemented | `functionRelations` |
-| `/analytics` | system | [[modules/analytics|analytics]] | implemented | `reports`<br>`uiEventOverview`<br>`/api/bff/system/ui-event-overview` |
-| `/supervisor/reports` | supervisor | [[modules/analytics|analytics]] | partial | `reports`<br>`uiEventOverview`<br>`/api/bff/system/ui-event-overview` |
 | `/operations` | system | [[modules/operations|operations]] | legacy | `legacyOperations`<br>`/api/bff/supervisor/dashboard` |
-| `/supervisor/counter-log/submissions` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/supervisor/counter-log/daily-templates` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/supervisor/counter-log/assigned-tasks` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/supervisor/counter-log/recurring-templates` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/supervisor/counter-log/submissions` | system | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/admin/counter-logs/daily-templates` | system | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/admin/counter-logs/assigned-tasks` | system | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/admin/counter-logs/recurring-templates` | system | [[modules/counter-log|counter-log]] | partial | `counterLog` |
-| `/admin/counter-logs/submissions` | system | [[modules/counter-log|counter-log]] | partial | `counterLog` |
 | `/supervisor/lane-rentals` | supervisor | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
 | `/supervisor/lane-rentals` | system | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
 | `/admin/lane-rentals` | system | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
@@ -295,7 +277,6 @@
 | `/lifeguard/handover` | lifeguard | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
 | `/supervisor/handover` | supervisor | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
 | `/anomaly-reports` | system | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
-| `/supervisor/anomalies` | supervisor | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
 | `/system/alerts` | system | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
 | `/anomaly-reports` | system | [[modules/notification-recipients|notification-recipients]] | partial | `notificationRecipients`<br>`/api/notification-recipients` |
 | `/portal/:facilityKey/campaigns` | employee | [[modules/campaigns-events|campaigns-events]] | legacy | `campaigns` |
@@ -310,7 +291,6 @@
 | `/employee/activity-periods/:id` | employee | [[modules/activity-periods|activity-periods]] | partial | `events` |
 | `/portal/:facilityKey/campaigns` | employee | [[modules/activity-periods|activity-periods]] | partial | `events` |
 | `/employee/registration-courses` | employee | [[modules/registration-courses|registration-courses]] | partial | `registrationCourses` |
-| `/employee/checkins` | employee | [[modules/checkins|checkins]] | partial | `checkins` |
 | `/employee/settings` | employee | [[modules/employee-settings|employee-settings]] | partial | `settings` |
 | `/supervisor/facilities` | supervisor | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` |
 | `/supervisor/facilities/:facilityKey` | supervisor | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` |

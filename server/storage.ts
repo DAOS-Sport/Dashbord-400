@@ -30,6 +30,7 @@ import {
   type LifeguardCleanupLog, type InsertLifeguardCleanupLog,
   type LifeguardLostAndFound, type InsertLifeguardLostAndFound,
   type LaneRental, type InsertLaneRental,
+  type LaneRentalLayout, type InsertLaneRentalLayout,
   type ParkingPlan, type InsertParkingPlan,
   type ParkingVehicle, type InsertParkingVehicle,
   type ParkingContract, type InsertParkingContract,
@@ -44,7 +45,7 @@ import {
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
   waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions, workLogReviewActions,
   lifeguardWaterQualityLogs, lifeguardCoachDiveLogs, lifeguardCleanupLogs, lifeguardLostAndFound,
-  laneRentals,
+  laneRentals, laneRentalLayouts,
   parkingPlans, parkingVehicles, parkingContracts, parkingPayments, parkingEventDays,
   groupBroadcasts,
 } from "@shared/schema";
@@ -245,7 +246,9 @@ export interface IStorage {
   // Lane rentals (水道租借)
   listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]>;
   getLaneRentalById(id: number): Promise<LaneRental | undefined>;
-  findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; excludeId?: number }): Promise<LaneRental[]>;
+  getLaneRentalLayout(facilityKey: string): Promise<LaneRentalLayout | undefined>;
+  upsertLaneRentalLayout(input: InsertLaneRentalLayout): Promise<LaneRentalLayout>;
+  findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; startMeter?: number; endMeter?: number; excludeId?: number }): Promise<LaneRental[]>;
   createLaneRental(input: InsertLaneRental): Promise<LaneRental>;
   updateLaneRental(id: number, data: Partial<InsertLaneRental>): Promise<LaneRental | undefined>;
   deleteLaneRental(id: number): Promise<boolean>;
@@ -1541,9 +1544,34 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; excludeId?: number }): Promise<LaneRental[]> {
+  async getLaneRentalLayout(facilityKey: string): Promise<LaneRentalLayout | undefined> {
+    const [row] = await db.select().from(laneRentalLayouts).where(eq(laneRentalLayouts.facilityKey, facilityKey)).limit(1);
+    return row;
+  }
+
+  async upsertLaneRentalLayout(input: InsertLaneRentalLayout): Promise<LaneRentalLayout> {
+    const [row] = await db
+      .insert(laneRentalLayouts)
+      .values({ ...input, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: laneRentalLayouts.facilityKey,
+        set: {
+          poolLength: input.poolLength,
+          laneCount: input.laneCount,
+          zones: input.zones,
+          updatedBy: input.updatedBy ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return row;
+  }
+
+  async findLaneRentalConflicts(opts: { facilityKey: string; bookingDate: string; laneCode: string; startTime: string; endTime: string; startMeter?: number; endMeter?: number; excludeId?: number }): Promise<LaneRental[]> {
     // Two intervals [a,b) and [c,d) overlap iff a < d AND c < b.
     // We compare HH:MM strings lexicographically — valid for fixed-format zero-padded times.
+    const startMeter = opts.startMeter ?? 0;
+    const endMeter = opts.endMeter ?? 50;
     const conditions = [
       eq(laneRentals.facilityKey, opts.facilityKey),
       eq(laneRentals.bookingDate, opts.bookingDate),
@@ -1551,6 +1579,8 @@ export class DatabaseStorage implements IStorage {
       eq(laneRentals.status, "active"),
       sql`${laneRentals.startTime} < ${opts.endTime}`,
       sql`${opts.startTime} < ${laneRentals.endTime}`,
+      sql`${laneRentals.startMeter} < ${endMeter}`,
+      sql`${startMeter} < ${laneRentals.endMeter}`,
     ];
     const rows = await db.select().from(laneRentals).where(and(...conditions));
     return opts.excludeId ? rows.filter((r) => r.id !== opts.excludeId) : rows;
@@ -1560,6 +1590,8 @@ export class DatabaseStorage implements IStorage {
     // Atomic create: serialize concurrent writers on (facility, date, lane) via advisory lock
     // then re-check conflicts inside the same transaction before insert. This closes the
     // TOCTOU window between findLaneRentalConflicts() and INSERT.
+    const startMeter = input.startMeter ?? 0;
+    const endMeter = input.endMeter ?? 50;
     const lockKey = `${input.facilityKey}|${input.bookingDate}|${input.laneCode}`;
     return await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
@@ -1570,11 +1602,13 @@ export class DatabaseStorage implements IStorage {
         eq(laneRentals.status, "active"),
         sql`${laneRentals.startTime} < ${input.endTime}`,
         sql`${input.startTime} < ${laneRentals.endTime}`,
+        sql`${laneRentals.startMeter} < ${endMeter}`,
+        sql`${startMeter} < ${laneRentals.endMeter}`,
       ));
       if (conflicts.length > 0) {
         const c = conflicts[0];
         const err: Error & { code?: string; conflicts?: LaneRental[] } = new Error(
-          `時段衝突：水道 ${c.laneCode} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
+          `時段衝突：${c.zoneLabel || `水道 ${c.laneCode}`} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
         );
         err.code = "LANE_RENTAL_CONFLICT";
         err.conflicts = conflicts;
@@ -1592,6 +1626,8 @@ export class DatabaseStorage implements IStorage {
     const existing = await this.getLaneRentalById(id);
     if (!existing) return undefined;
     const merged = { ...existing, ...data } as LaneRental;
+    const startMeter = merged.startMeter ?? 0;
+    const endMeter = merged.endMeter ?? 50;
     const lockKey = `${existing.facilityKey}|${existing.bookingDate}|${existing.laneCode}`;
     return await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
@@ -1603,12 +1639,14 @@ export class DatabaseStorage implements IStorage {
           eq(laneRentals.status, "active"),
           sql`${laneRentals.startTime} < ${merged.endTime}`,
           sql`${merged.startTime} < ${laneRentals.endTime}`,
+          sql`${laneRentals.startMeter} < ${endMeter}`,
+          sql`${startMeter} < ${laneRentals.endMeter}`,
         ));
         const real = conflicts.filter((r) => r.id !== id);
         if (real.length > 0) {
           const c = real[0];
           const err: Error & { code?: string; conflicts?: LaneRental[] } = new Error(
-            `時段衝突：水道 ${c.laneCode} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
+            `時段衝突：${c.zoneLabel || `水道 ${c.laneCode}`} 已被「${c.renterName}」於 ${c.startTime}-${c.endTime} 預訂`,
           );
           err.code = "LANE_RENTAL_CONFLICT";
           err.conflicts = real;

@@ -38,6 +38,15 @@ export interface KnowledgeBaseQnaDTO {
   answer: string | null;
   category: string | null;
   tags: string[];
+  attachments: Array<{
+    id: string;
+    kind: "image" | "video";
+    url: string;
+    key: string;
+    mime: string;
+    originalName: string;
+    size: number;
+  }>;
   status: "draft" | "published" | "archived";
   reviewStatus: "pending" | "approved" | "rejected";
   reviewNote: string | null;
@@ -196,6 +205,7 @@ export const createKnowledgeBaseQna = (input: {
   answer?: string | null;
   category?: string | null;
   tags?: string[];
+  attachments?: KnowledgeBaseQnaDTO["attachments"];
   isPinned?: boolean;
   reviewStatus?: "pending" | "approved" | "rejected";
   reviewNote?: string | null;
@@ -206,11 +216,28 @@ export const updateKnowledgeBaseQna = (id: number, input: Partial<{
   answer: string | null;
   category: string | null;
   tags: string[];
+  attachments: KnowledgeBaseQnaDTO["attachments"];
   isPinned: boolean;
   status: "draft" | "published" | "archived";
   reviewStatus: "pending" | "approved" | "rejected";
   reviewNote: string | null;
 }>) => apiPatch<KnowledgeBaseQnaDTO>(`/api/portal/knowledge-base-qna/${id}`, input);
+
+export const uploadKnowledgeBaseQnaMedia = async (facilityKey: string, file: File) => {
+  const formData = new FormData();
+  formData.append("facilityKey", facilityKey);
+  formData.append("file", file);
+  const response = await fetch("/api/portal/knowledge-base-qna/media", {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: "附件上傳失敗" }));
+    throw new Error(error.message || "附件上傳失敗");
+  }
+  return response.json() as Promise<KnowledgeBaseQnaDTO["attachments"][number]>;
+};
 
 export const fetchSupervisorQnaReview = (facilityKey?: string, limit = 200) => {
   const params = new URLSearchParams({ limit: String(limit) });

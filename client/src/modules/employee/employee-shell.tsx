@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
   Bell,
   BookOpen,
   CalendarDays,
@@ -18,7 +17,6 @@ import {
   MoreHorizontal,
   PackageSearch,
   Search,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
@@ -51,15 +49,13 @@ const iconByKey: Record<string, LucideIcon> = {
   "book-open": BookOpen,
   "file-text": FileText,
   "graduation-cap": GraduationCap,
-  "shield-check": ShieldCheck,
   "package-search": PackageSearch,
   search: Search,
 };
 
 const employeeQuickActions: FloatingQuickActionItem[] = [
   { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Megaphone },
-  { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
-  { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: AlertCircle },
+  { label: "交辦事項", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
   { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
 ];
 

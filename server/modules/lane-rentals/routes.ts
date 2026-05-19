@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import { z } from "zod";
 import { storage } from "../../storage";
-import { insertLaneRentalSchema, type LaneRental } from "@shared/schema";
+import { insertLaneRentalLayoutSchema, insertLaneRentalSchema, type LaneRental } from "@shared/schema";
 import { facilityLineGroups } from "@shared/domain/facilities";
 
 interface CallerProfile {
@@ -79,6 +79,46 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
     }
   });
 
+  app.get("/api/lane-rentals/layout", requireEmployee(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey ?? "").trim();
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      const caller = getCaller(req);
+      if (!canAccessFacility(req, caller, facilityKey)) {
+        return res.status(403).json({ message: "無權限存取此館別" });
+      }
+      const layout = await storage.getLaneRentalLayout(facilityKey);
+      res.json({ layout });
+    } catch (e) {
+      console.error("[lane-rentals] layout read failed", e);
+      res.status(500).json({ message: "載入水道配置失敗" });
+    }
+  });
+
+  app.put("/api/lane-rentals/layout", requireSupervisor(), async (req, res) => {
+    try {
+      const facilityKey = String(req.query.facilityKey || req.body?.facilityKey || "").trim();
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      const caller = getCaller(req);
+      if (!canAccessFacility(req, caller, facilityKey)) {
+        return res.status(403).json({ message: "無權限設定此館別的水道配置" });
+      }
+      const parsed = insertLaneRentalLayoutSchema.safeParse({
+        ...req.body,
+        facilityKey,
+        updatedBy: caller.employeeNumber,
+      });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      }
+      const layout = await storage.upsertLaneRentalLayout(parsed.data);
+      res.json({ layout });
+    } catch (e) {
+      console.error("[lane-rentals] layout save failed", e);
+      res.status(500).json({ message: "儲存水道配置失敗" });
+    }
+  });
+
   app.post("/api/lane-rentals", requireSupervisor(), async (req, res) => {
     try {
       const parsed = insertLaneRentalSchema.safeParse(req.body);
@@ -92,6 +132,9 @@ export function registerLaneRentalRoutes(app: Express, deps: RegisterDeps) {
       }
       if (input.startTime >= input.endTime) {
         return res.status(400).json({ message: "結束時間需晚於開始時間" });
+      }
+      if ((input.startMeter ?? 0) >= (input.endMeter ?? 50)) {
+        return res.status(400).json({ message: "水道區域終點需大於起點" });
       }
       try {
         const item = await storage.createLaneRental({

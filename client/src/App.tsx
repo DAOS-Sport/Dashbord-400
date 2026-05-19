@@ -4,12 +4,6 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AdminWorkLogDailyTemplates from "@/pages/admin/work-logs/daily-templates";
-import AdminWorkLogAssignedTasks from "@/pages/admin/work-logs/assigned-tasks";
-import AdminWorkLogRecurringTemplates from "@/pages/admin/work-logs/recurring-templates";
-import AdminWorkLogWaterSchedules from "@/pages/admin/work-logs/water-schedules";
-import AdminWorkLogWaterStandards from "@/pages/admin/work-logs/water-standards";
-import AdminWorkLogSubmissions from "@/pages/admin/work-logs/submissions";
 import AdminLaneRentals from "@/pages/admin/lane-rentals";
 import AdminParkingDashboard from "@/pages/admin/parking/dashboard";
 import AdminParkingVehicles from "@/pages/admin/parking/vehicles";
@@ -53,13 +47,10 @@ import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
 import SupervisorGroupBroadcastsPage from "@/modules/supervisor/group-broadcasts/page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
-import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
 import SupervisorPeoplePage from "@/modules/supervisor/people/page";
 import SupervisorHandoverPage from "@/modules/supervisor/handover/page";
 import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
-import SupervisorReportsPage from "@/modules/supervisor/reports/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
-import SupervisorLifeguardOverviewPage from "@/modules/supervisor/lifeguard-overview/page";
 import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
 import SystemDashboardPage from "@/modules/system/dashboard-page";
 import SystemAlertsPage from "@/modules/system/alerts/page";
@@ -228,10 +219,6 @@ function WorkbenchRouter() {
         <Redirect to="/supervisor/parking" />
       </Route>
       <Route path="/supervisor/parking" component={AdminParkingDashboard} />
-      <Route path="/supervisor/counter-log/daily-templates" component={AdminWorkLogDailyTemplates} />
-      <Route path="/supervisor/counter-log/assigned-tasks" component={AdminWorkLogAssignedTasks} />
-      <Route path="/supervisor/counter-log/recurring-templates" component={AdminWorkLogRecurringTemplates} />
-      <Route path="/supervisor/counter-log/submissions" component={AdminWorkLogSubmissions} />
       <Route path="/supervisor/lane-rentals" component={AdminLaneRentals} />
       <Route path="/supervisor/courts/:school/week">
         <SupervisorCourtsFrame>
@@ -288,9 +275,6 @@ function WorkbenchRouter() {
       <Route path="/supervisor/group-broadcasts">
         <SupervisorGroupBroadcastsPage />
       </Route>
-      <Route path="/supervisor/anomalies">
-        <SupervisorAnomaliesPage />
-      </Route>
       <Route path="/supervisor/people">
         <SupervisorPeoplePage />
       </Route>
@@ -303,9 +287,6 @@ function WorkbenchRouter() {
       <Route path="/supervisor/handover">
         <SupervisorHandoverPage />
       </Route>
-      <Route path="/supervisor/reports">
-        <SupervisorReportsPage />
-      </Route>
       <Route path="/supervisor/settings">
         <Redirect to="/supervisor" />
       </Route>
@@ -314,9 +295,6 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/supervisor/qna-review">
         <SupervisorQnaReviewPage />
-      </Route>
-      <Route path="/supervisor/lifeguard-overview">
-        <SupervisorLifeguardOverviewPage />
       </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/lifeguard/log">
@@ -444,15 +422,12 @@ function WorkbenchRouter() {
       <Route path="/employee/settings">
         <EmployeeSettingsPage />
       </Route>
-      <Route path="/employee/checkins">
-        <EmployeeMorePage />
-      </Route>
       <Route path="/employee/more">
         <EmployeeMorePage />
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
-      <Route component={SystemControlCenterPage} />
+      <Route component={NotFound} />
     </Switch>
   );
 }

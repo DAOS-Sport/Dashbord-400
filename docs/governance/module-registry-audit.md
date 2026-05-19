@@ -1,6 +1,6 @@
 # Module Registry Audit
 
-Date: 2026-04-27
+Date: 2026-05-19
 
 ## Existing Frontend Pages
 
@@ -32,18 +32,14 @@ Legacy portal pages:
 New workbench pages:
 
 - `/employee`, `/employee/home` -> `dashboard`, `portal-home`
-- `/employee/tasks` -> `tasks`
 - `/employee/announcements` -> `announcements`, `campaigns-events`
 - `/employee/handover` -> `handover`
 - `/employee/shift` -> `shift-reminder`
-- `/employee/more` -> `quick-links`, `employee-resources`, `personal-note`
+- `/employee/more` -> `quick-links`, `employee-resources`
 - `/supervisor`, `/supervisor/home` -> `dashboard`
-- `/supervisor/tasks` -> `tasks`
 - `/supervisor/announcements` -> `announcement-review`, `announcements`
-- `/supervisor/anomalies` -> `anomalies`
-- `/supervisor/people` -> `facilities`, `user-role-snapshots`
+- `/supervisor/facilities`, `/supervisor/facilities/:facilityKey` -> `facilities`, `user-role-snapshots`, `handover`, lifeguard modules
 - `/supervisor/handover` -> `handover`
-- `/supervisor/reports` -> `analytics`, `portal-analytics`
 - `/supervisor/settings` -> `quick-links`, `system-announcements`, `widget-layout-settings`
 - `/system`, `/system/overview` -> `dashboard`, `system-observability`
 - `/system/alerts` -> `anomalies`, `watchdog-events`

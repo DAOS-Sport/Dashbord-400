@@ -221,9 +221,9 @@ function MobileLifeguardHome({
           <LifeBuoy className="mb-1 h-5 w-5 text-[#1f6fd1]" />
           完整日誌
         </Link>
-        <Link href="/employee/training" className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
+        <Link href="/lifeguard/handover" className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
           <ClipboardList className="mb-1 h-5 w-5 text-[#007166]" />
-          更多
+          交辦
         </Link>
       </section>
 
@@ -251,7 +251,7 @@ function LifeguardHomeContent() {
   const desktopCards = useMemo(() => lifeguardOperationModules, []);
 
   return (
-    <LifeguardShell title="救生員工作台" subtitle="今日救生作業、照片回傳、交接與日誌從這裡進入。">
+    <LifeguardShell title="救生員工作台" subtitle="今日救生作業、照片回傳、交辦與日誌從這裡進入。">
       {isLoading ? (
         <div className="rounded-[8px] bg-white p-6 text-[13px] font-bold text-[#637185]">載入救生工作台...</div>
       ) : (

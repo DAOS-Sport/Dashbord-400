@@ -11,25 +11,22 @@ import {
   SupervisorModuleShell,
 } from "@/modules/supervisor/module-shell";
 
-export type WorkLogModule = "lifeguard" | "counter";
+export type WorkLogModule = "lifeguard";
 
 const STORAGE_KEY: Record<WorkLogModule, string> = {
   lifeguard: "work-logs-admin-facility",
-  counter: "counter-logs-admin-facility",
 };
 
 const MODULE_LABEL: Record<WorkLogModule, string> = {
   lifeguard: "救生員日誌",
-  counter: "櫃台日誌",
 };
 
 const URL_PREFIX: Record<WorkLogModule, string> = {
   lifeguard: "/admin/work-logs",
-  counter: "/supervisor/counter-log",
 };
 
-export function detectModuleFromPath(path: string): WorkLogModule {
-  return path.startsWith("/admin/counter-logs") || path.startsWith("/supervisor/counter-log") ? "counter" : "lifeguard";
+export function detectModuleFromPath(_path: string): WorkLogModule {
+  return "lifeguard";
 }
 
 export function useModuleType(): WorkLogModule {
@@ -125,7 +122,7 @@ export function WorkLogAdminShell({
 
   return (
     <SupervisorModuleShell
-      moduleId={moduleType === "counter" ? "counter-log" : "lifeguard-log"}
+      moduleId="lifeguard-log"
       title={title}
       eyebrow={`${moduleLabel} · SUPERVISOR REVIEW`}
       description={description ?? "每日固定、主管交辦與回報審核。"}

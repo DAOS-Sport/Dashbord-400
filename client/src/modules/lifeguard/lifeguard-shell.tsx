@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bell, BookOpen, CalendarDays, Camera, ClipboardList, Droplets, GraduationCap, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
+import { Bell, CalendarDays, Camera, ClipboardList, Droplets, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { BrandLockup } from "@/shared/brand";
@@ -14,8 +14,6 @@ const iconByKey: Record<string, LucideIcon> = {
   home: Home,
   lifebuoy: LifeBuoy,
   bell: Bell,
-  "book-open": BookOpen,
-  "graduation-cap": GraduationCap,
   droplets: Droplets,
   camera: Camera,
   "clipboard-list": ClipboardList,
@@ -36,11 +34,8 @@ const primaryNav = [
 ];
 
 const secondaryNav = [
-  { id: "handover", label: "交接任務", href: "/lifeguard/handover", Icon: MessageSquareText },
+  { id: "handover", label: "交辦事項", href: "/lifeguard/handover", Icon: MessageSquareText },
   { id: "lifeguard-log", label: "救生員日誌", href: "/lifeguard/log", Icon: LifeBuoy },
-  { id: "announcements", label: "群組公告", href: "/employee/announcements", Icon: Bell },
-  { id: "employee-training", label: "員工教材", href: "/employee/training", Icon: GraduationCap },
-  { id: "knowledge-base-qna", label: "相關問題詢問", href: "/employee/qna", Icon: BookOpen },
 ];
 
 const currentShiftLabel = () => {
@@ -180,7 +175,7 @@ function MobileMoreDrawer({
   if (!open) return null;
   const moreItems = [
     ...lifeguardOperationModules.map((module) => ({ id: module.id, label: module.label, href: module.href, Icon: module.Icon, helper: module.helper })),
-    ...secondaryNav.map((item) => ({ ...item, helper: "共用入口" })),
+    ...secondaryNav.map((item) => ({ ...item, helper: "交辦與日誌" })),
   ];
 
   return (
@@ -191,7 +186,7 @@ function MobileMoreDrawer({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-[18px] font-black text-[#10233f]">更多救生入口</p>
-            <p className="mt-1 text-[13px] font-bold text-[#637185]">水道、租借、日誌與共用資料</p>
+            <p className="mt-1 text-[13px] font-bold text-[#637185]">水道、租借、交辦與日誌</p>
           </div>
           <button type="button" onClick={onClose} className="workbench-focus grid h-12 w-12 place-items-center rounded-[12px] bg-[#f2f6fa]" aria-label="關閉">
             <X className="h-5 w-5" />
@@ -287,7 +282,7 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
               );
             })}
             <div className="my-2 border-t border-white/10" />
-            <p className="px-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#8fb2ce]">共用入口</p>
+            <p className="px-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#8fb2ce]">交辦與日誌</p>
             {secondaryNav.map((item) => {
               const active = isActivePath(location, item.href);
               return (

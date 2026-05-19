@@ -135,7 +135,7 @@ export default function SupervisorHandoverPage() {
   );
 
   return (
-    <RoleShell role="supervisor" title="交接任務" subtitle="主管、救生、櫃台共用同館別交接資料；依館別隔離，不綁固定班別，避免污染班表來源。">
+    <RoleShell role="supervisor" title="交辦事項" subtitle="主管、救生、櫃台共用同館別交辦資料；依館別隔離，不綁固定班別，避免污染班表來源。">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {statusMetrics.map((metric) => (
@@ -153,7 +153,7 @@ export default function SupervisorHandoverPage() {
                 <MessageSquarePlus className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-[15px] font-black">新增交接任務</h2>
+                <h2 className="text-[15px] font-black">新增交辦事項</h2>
                 <p className="text-[12px] font-bold text-[#8b9aae]">依館別同步給主管、救生與櫃台查看。</p>
               </div>
             </div>
@@ -224,7 +224,7 @@ export default function SupervisorHandoverPage() {
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
               {handoversQuery.isLoading ? (
-                <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185] lg:col-span-3">載入交接任務中...</div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185] lg:col-span-3">載入交辦事項中...</div>
               ) : handovers.length > 0 ? (
                 grouped.map((column) => (
                   <section key={column.key} className="rounded-[12px] border border-[#e5e8ec] bg-[#f8fafc] p-3">
@@ -271,7 +271,7 @@ export default function SupervisorHandoverPage() {
                   </section>
                 ))
               ) : (
-                <SupervisorEmptyState icon={CheckCircle2} title="目前沒有交接任務" description="建立後會同步出現在同館別主管、救生與櫃台端。" className="lg:col-span-3" />
+                <SupervisorEmptyState icon={CheckCircle2} title="目前沒有交辦事項" description="建立後會同步出現在同館別主管、救生與櫃台端。" className="lg:col-span-3" />
               )}
             </div>
           </WorkbenchCard>

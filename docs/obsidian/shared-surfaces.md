@@ -22,9 +22,9 @@
 
 | Provider | Registered Uses |
 | --- | --- |
-| POSTGRES | 45 |
+| POSTGRES | 42 |
 | LINE_BOT_ASSISTANT | 16 |
-| UNKNOWN | 14 |
+| UNKNOWN | 13 |
 | OBJECT_STORAGE | 10 |
 | RAGIC | 9 |
 | SMART_SCHEDULE_MANAGER | 8 |
@@ -38,18 +38,17 @@
 | Table / Entity | Module Owners |
 | --- | --- |
 | audit_logs | [[modules/system-control-center|system-control-center]], [[modules/system-operations|system-operations]], [[modules/system-insights|system-insights]], [[modules/system-governance|system-governance]], [[modules/announcement-review|announcement-review]], [[modules/anomalies|anomalies]], [[modules/portal-review|portal-review]], [[modules/telemetry-audit|telemetry-audit]] |
-| source_snapshots | [[modules/operations|operations]], [[modules/announcement-summary|announcement-summary]], [[modules/shift-reminder|shift-reminder]], [[modules/checkins|checkins]], [[modules/linebot-integration|linebot-integration]], [[modules/schedule-integration|schedule-integration]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
 | employee_resources | [[modules/employee-home|employee-home]], [[modules/campaigns-events|campaigns-events]], [[modules/activity-periods|activity-periods]], [[modules/portal-manage|portal-manage]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
-| portal_events | [[modules/analytics|analytics]], [[modules/announcements|announcements]], [[modules/handover|handover]], [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
+| source_snapshots | [[modules/operations|operations]], [[modules/announcement-summary|announcement-summary]], [[modules/shift-reminder|shift-reminder]], [[modules/linebot-integration|linebot-integration]], [[modules/schedule-integration|schedule-integration]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
 | employee_home_projection | [[modules/dashboard|dashboard]], [[modules/employee-home|employee-home]], [[modules/portal-home|portal-home]], [[modules/bff-projections|bff-projections]] |
 | system_overview_projection | [[modules/dashboard|dashboard]], [[modules/system-dashboard|system-dashboard]], [[modules/system-observability|system-observability]], [[modules/bff-projections|bff-projections]] |
 | integration_error_logs | [[modules/system-watchdog|system-watchdog]], [[modules/system-health|system-health]], [[modules/system-observability|system-observability]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
 | user_role_snapshots | [[modules/hr-audit|hr-audit]], [[modules/ragic-integration|ragic-integration]], [[modules/session-governance|session-governance]], [[modules/user-role-snapshots|user-role-snapshots]] |
+| portal_events | [[modules/announcements|announcements]], [[modules/handover|handover]], [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
 | users | [[modules/auth|auth]], [[modules/system-operations|system-operations]], [[modules/legacy-users|legacy-users]] |
 | sessions_index | [[modules/auth|auth]], [[modules/system-operations|system-operations]], [[modules/session-governance|session-governance]] |
 | supervisor_dashboard_projection | [[modules/dashboard|dashboard]], [[modules/supervisor-dashboard|supervisor-dashboard]], [[modules/bff-projections|bff-projections]] |
 | watchdog_events | [[modules/system-control-center|system-control-center]], [[modules/system-watchdog|system-watchdog]], [[modules/watchdog-events|watchdog-events]] |
-| ui_events | [[modules/system-insights|system-insights]], [[modules/analytics|analytics]], [[modules/telemetry-audit|telemetry-audit]] |
 | sync_job_runs | [[modules/system-health|system-health]], [[modules/schedule-integration|schedule-integration]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
 | system_announcements | [[modules/announcements|announcements]], [[modules/system-announcements|system-announcements]], [[modules/portal-manage|portal-manage]] |
 | quick_links | [[modules/quick-links|quick-links]], [[modules/employee-settings|employee-settings]], [[modules/portal-manage|portal-manage]] |
@@ -57,12 +56,10 @@
 | operational_handovers | [[modules/employee-home|employee-home]], [[modules/handover|handover]] |
 | daily_report_submissions | [[modules/lifeguard-home|lifeguard-home]], [[modules/lifeguard-log|lifeguard-log]] |
 | lifeguard_handover_notes | [[modules/lifeguard-log|lifeguard-log]], [[modules/lifeguard-lane-issues|lifeguard-lane-issues]] |
+| ui_events | [[modules/system-insights|system-insights]], [[modules/telemetry-audit|telemetry-audit]] |
 | line_feature_whitelist | [[modules/linebot-management|linebot-management]], [[modules/line-whitelist|line-whitelist]] |
-| lifeguard_water_quality_logs | [[modules/lifeguard-water-quality|lifeguard-water-quality]], [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] |
-| lifeguard_coach_dive_logs | [[modules/lifeguard-coach-dive|lifeguard-coach-dive]], [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] |
-| lifeguard_cleanup_logs | [[modules/lifeguard-cleanup|lifeguard-cleanup]], [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] |
-| lifeguard_lost_and_found | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]], [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] |
 | lane_rentals | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]], [[modules/lane-rentals|lane-rentals]] |
+| lane_rental_layouts | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]], [[modules/lane-rentals|lane-rentals]] |
 | MODULE_REGISTRY | [[modules/system-function-relations|system-function-relations]], [[modules/search|search]] |
 | parking_vehicles | [[modules/parking|parking]], [[modules/parking-vehicles|parking-vehicles]] |
 | parking_contracts | [[modules/parking|parking]], [[modules/parking-contracts|parking-contracts]] |
@@ -85,8 +82,6 @@
 | GET /api/bff/supervisor/dashboard | [[modules/dashboard|dashboard]], [[modules/supervisor-dashboard|supervisor-dashboard]], [[modules/bff-projections|bff-projections]] |
 | GET /api/admin/overview | [[modules/dashboard|dashboard]], [[modules/operations|operations]], [[modules/schedule-integration|schedule-integration]] |
 | POST /api/bff/lifeguard/photo-upload | [[modules/lifeguard-water-quality|lifeguard-water-quality]], [[modules/lifeguard-coach-dive|lifeguard-coach-dive]], [[modules/lifeguard-cleanup|lifeguard-cleanup]] |
-| GET /api/portal/analytics | [[modules/analytics|analytics]], [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
-| GET /api/bff/system/ui-event-overview | [[modules/analytics|analytics]], [[modules/system-observability|system-observability]], [[modules/telemetry-audit|telemetry-audit]] |
 | GET /api/portal/system-announcements | [[modules/announcements|announcements]], [[modules/system-announcements|system-announcements]], [[modules/portal-manage|portal-manage]] |
 | GET /api/announcement-candidates | [[modules/announcement-review|announcement-review]], [[modules/portal-review|portal-review]], [[modules/linebot-integration|linebot-integration]] |
 | POST /api/announcement-candidates/:id/approve | [[modules/announcement-review|announcement-review]], [[modules/portal-review|portal-review]], [[modules/linebot-integration|linebot-integration]] |
@@ -98,8 +93,6 @@
 | POST /api/auth/active-role | [[modules/auth|auth]], [[modules/session-governance|session-governance]] |
 | POST /api/auth/ragic-login | [[modules/auth|auth]], [[modules/ragic-integration|ragic-integration]] |
 | GET /api/bff/lifeguard/home | [[modules/lifeguard-home|lifeguard-home]], [[modules/lifeguard-log|lifeguard-log]] |
-| GET /api/work-logs/today | [[modules/lifeguard-log|lifeguard-log]], [[modules/counter-log|counter-log]] |
-| POST /api/work-logs/handover | [[modules/lifeguard-log|lifeguard-log]], [[modules/counter-log|counter-log]] |
 | GET /api/bff/system/watchdog-events | [[modules/system-watchdog|system-watchdog]], [[modules/watchdog-events|watchdog-events]] |
 | GET /api/admin/interview-users | [[modules/hr-audit|hr-audit]], [[modules/schedule-integration|schedule-integration]] |
 | GET /api/bff/system/health-overview | [[modules/system-health|system-health]], [[modules/ragic-integration|ragic-integration]] |
@@ -118,7 +111,9 @@
 | GET /api/bff/system/schedule-snapshot | [[modules/shift-reminder|shift-reminder]], [[modules/schedule-integration|schedule-integration]] |
 | GET /api/facility-home/:groupId/home | [[modules/portal-home|portal-home]], [[modules/linebot-integration|linebot-integration]] |
 | GET /api/portal/layout-settings | [[modules/portal-manage|portal-manage]], [[modules/widget-layout-settings|widget-layout-settings]] |
+| GET /api/portal/analytics | [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
 | POST /api/portal/events | [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
+| GET /api/bff/system/ui-event-overview | [[modules/system-observability|system-observability]], [[modules/telemetry-audit|telemetry-audit]] |
 | PATCH /api/portal/employee-resources/:id | [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | DELETE /api/portal/employee-resources/:id | [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 
@@ -186,15 +181,9 @@
 | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | endpoint | /api/bff/lifeguard/home |
 | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | endpoint | /api/bff/lifeguard/lost-and-found |
 | [[modules/lifeguard-lane-rentals|lifeguard-lane-rentals]] | endpoint | /api/bff/lifeguard/lane-rentals |
-| [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | supervisor | lifeguardOverview |
-| [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | endpoint | /api/bff/supervisor/lifeguard-overview |
 | [[modules/system-function-relations|system-function-relations]] | system | functionRelations |
-| [[modules/analytics|analytics]] | supervisor | reports |
-| [[modules/analytics|analytics]] | system | uiEventOverview |
-| [[modules/analytics|analytics]] | endpoint | /api/bff/system/ui-event-overview |
 | [[modules/operations|operations]] | supervisor | legacyOperations |
 | [[modules/operations|operations]] | endpoint | /api/bff/supervisor/dashboard |
-| [[modules/counter-log|counter-log]] | supervisor | counterLog |
 | [[modules/lane-rentals|lane-rentals]] | supervisor | laneRentals |
 | [[modules/courts|courts]] | employee | courts |
 | [[modules/courts|courts]] | supervisor | courts |
@@ -246,7 +235,6 @@
 | [[modules/knowledge-base-qna|knowledge-base-qna]] | employee | qna |
 | [[modules/activity-periods|activity-periods]] | employee | events |
 | [[modules/registration-courses|registration-courses]] | employee | registrationCourses |
-| [[modules/checkins|checkins]] | employee | checkins |
 | [[modules/employee-settings|employee-settings]] | employee | settings |
 | [[modules/search|search]] | employee | search |
 | [[modules/search|search]] | supervisor | search |

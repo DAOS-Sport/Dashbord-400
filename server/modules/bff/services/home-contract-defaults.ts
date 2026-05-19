@@ -39,18 +39,7 @@ export const defaultEmployeeShortcuts: ShortcutSummary[] = [
   },
 ];
 
-export const defaultEmployeeDocumentLinks: DocumentSummary[] = [
-  {
-    id: "system-checkins-link",
-    title: "點名 / 報到",
-    updatedAt: "系統入口",
-    url: "/employee/checkins",
-    description: "員工點名與報到入口",
-    subCategory: "點名/報到",
-    sortOrder: 0,
-    source: "system_link",
-  },
-];
+export const defaultEmployeeDocumentLinks: DocumentSummary[] = [];
 
 export const employeeModuleDescriptorMap = new Map(
   getModuleDescriptorsByRole("employee").map((descriptor) => [

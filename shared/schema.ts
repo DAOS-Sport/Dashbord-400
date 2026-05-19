@@ -21,6 +21,28 @@ export type User = typeof users.$inferSelect;
 const metadataSourceSchema = z.enum(["manual", "agent", "webhook", "system", "migration", "external", "external-checkin-system"]);
 const workbenchRoleSchema = z.enum(["employee", "lifeguard", "supervisor", "system"]);
 
+export const qnaAttachmentKindSchema = z.enum(["image", "video"]);
+export const qnaAttachmentSchema = z.object({
+  id: z.string().min(1),
+  kind: qnaAttachmentKindSchema,
+  url: z.string().min(1),
+  key: z.string().min(1),
+  mime: z.string().min(1),
+  originalName: z.string().min(1),
+  size: z.number().int().min(0),
+});
+export type QnaAttachment = z.infer<typeof qnaAttachmentSchema>;
+
+export const laneRentalZoneSchema = z.object({
+  id: z.string().min(1),
+  laneCode: z.string().min(1).max(4),
+  label: z.string().min(1).max(80),
+  startMeter: z.number().int().min(0).max(50),
+  endMeter: z.number().int().min(1).max(50),
+  color: z.string().max(32).optional().nullable(),
+});
+export type LaneRentalZone = z.infer<typeof laneRentalZoneSchema>;
+
 export const facilities = pgTable("facilities", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key").notNull().unique(),
@@ -318,6 +340,7 @@ export const knowledgeBaseQna = pgTable("knowledge_base_qna", {
   answer: text("answer"),
   category: text("category"),
   tags: text("tags").array().default(sql`ARRAY[]::text[]`).notNull(),
+  attachments: jsonb("attachments").$type<QnaAttachment[]>().default(sql`'[]'::jsonb`).notNull(),
   status: text("status").default("published").notNull(),
   reviewStatus: text("review_status").default("approved").notNull(),
   reviewNote: text("review_note"),
@@ -343,6 +366,7 @@ export const insertKnowledgeBaseQnaSchema = createInsertSchema(knowledgeBaseQna)
   answer: z.string().max(4000, "答案過長").optional().nullable(),
   category: z.string().max(60, "分類過長").optional().nullable(),
   tags: z.array(z.string().max(32)).max(12).optional(),
+  attachments: z.array(qnaAttachmentSchema).max(5).optional(),
   status: z.enum(["draft", "published", "archived"]).default("published"),
   reviewStatus: z.enum(["pending", "approved", "rejected"]).default("approved"),
   reviewNote: z.string().max(1000, "審核備註過長").optional().nullable(),
@@ -1404,6 +1428,10 @@ export const laneRentals = pgTable("lane_rentals", {
   facilityKey: text("facility_key").notNull(),
   bookingDate: text("booking_date").notNull(),
   laneCode: text("lane_code").notNull(),
+  zoneId: text("zone_id"),
+  zoneLabel: text("zone_label"),
+  startMeter: integer("start_meter").default(0).notNull(),
+  endMeter: integer("end_meter").default(50).notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
   renterName: text("renter_name").notNull(),
@@ -1425,7 +1453,11 @@ export const insertLaneRentalSchema = createInsertSchema(laneRentals).omit({
 }).extend({
   facilityKey: z.string().min(1),
   bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  laneCode: z.enum(["A", "B", "C", "D", "E"]),
+  laneCode: z.enum(["A", "B", "C", "D", "E", "F", "G", "H"]),
+  zoneId: z.string().max(80).optional().nullable(),
+  zoneLabel: z.string().max(80).optional().nullable(),
+  startMeter: z.number().int().min(0).max(50).optional(),
+  endMeter: z.number().int().min(1).max(50).optional(),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   renterName: z.string().min(1).max(100),
@@ -1436,6 +1468,30 @@ export const insertLaneRentalSchema = createInsertSchema(laneRentals).omit({
 
 export type InsertLaneRental = z.infer<typeof insertLaneRentalSchema>;
 export type LaneRental = typeof laneRentals.$inferSelect;
+
+export const laneRentalLayouts = pgTable("lane_rental_layouts", {
+  facilityKey: text("facility_key").primaryKey(),
+  poolLength: integer("pool_length").default(50).notNull(),
+  laneCount: integer("lane_count").default(6).notNull(),
+  zones: jsonb("zones").$type<LaneRentalZone[]>().default(sql`'[]'::jsonb`).notNull(),
+  updatedBy: text("updated_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertLaneRentalLayoutSchema = createInsertSchema(laneRentalLayouts).omit({
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  facilityKey: z.string().min(1),
+  poolLength: z.union([z.literal(25), z.literal(50)]).default(50),
+  laneCount: z.number().int().min(1).max(8).default(6),
+  zones: z.array(laneRentalZoneSchema.refine((zone) => zone.startMeter < zone.endMeter, "區域終點必須大於起點")).max(32).default([]),
+  updatedBy: z.string().max(80).optional().nullable(),
+});
+
+export type InsertLaneRentalLayout = z.infer<typeof insertLaneRentalLayoutSchema>;
+export type LaneRentalLayout = typeof laneRentalLayouts.$inferSelect;
 
 // ======================================================================
 // 停車場會員與租約管理 (Parking Member & Lease Management)

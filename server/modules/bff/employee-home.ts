@@ -104,15 +104,6 @@ export const getEmployeeHomeMock = (): EmployeeHomeDto => ({
   ),
   documents: ok(
     [
-      {
-        id: "system-checkins-link",
-        title: "點名 / 報到",
-        updatedAt: "系統入口",
-        url: "/employee/checkins",
-        description: "員工點名與報到入口",
-        subCategory: "點名/報到",
-        source: "system_link",
-      },
       { id: "doc-1", title: "場館 SOP 手冊", updatedAt: "2026/04/10" },
       { id: "doc-2", title: "緊急應變流程", updatedAt: "2026/03/15" },
       { id: "doc-3", title: "設備檢修記錄表", updatedAt: "2026/04/01" },

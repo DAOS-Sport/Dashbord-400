@@ -281,22 +281,23 @@ export function registerWorkLogRoutes(app: Express, deps: RegisterDeps) {
       if (key.includes("..") || key.startsWith("/")) {
         return res.status(400).json({ message: "無效的物件鍵" });
       }
-      // Strict facility-scoped naming. The upload endpoint guarantees every
-      // key it produces matches one of:
+      // Strict facility-scoped naming. Upload endpoints guarantee every key
+      // they produce matches one of:
       //   work-logs/<facilityKey>/<file>
       //   work-logs/<sub>/<facilityKey>/<file>
+      //   knowledge-base-qna/<facilityKey>/<file>
       // Anything outside that contract is denied by default (deny-list-by-
       // default policy) so future buckets containing unrelated objects can't
       // leak through this proxy.
       const parts = key.split("/").filter(Boolean);
-      if (parts.length < 3 || parts[0] !== "work-logs") {
-        return res.status(403).json({ message: "鍵不符合 work-logs 命名規則" });
+      if (parts.length < 3 || (parts[0] !== "work-logs" && parts[0] !== "knowledge-base-qna")) {
+        return res.status(403).json({ message: "鍵不符合命名規則" });
       }
       // Detect 2-segment vs 3-segment layout. Facility key is the segment
       // immediately before the filename.
       const facilityKey = parts[parts.length - 2];
       if (!/^[a-z0-9_\-]+$/i.test(facilityKey)) {
-        return res.status(403).json({ message: "鍵不符合 work-logs 命名規則" });
+        return res.status(403).json({ message: "鍵不符合命名規則" });
       }
       const caller = getCaller(req);
       if (!canAccessFacility(req, caller, facilityKey)) {

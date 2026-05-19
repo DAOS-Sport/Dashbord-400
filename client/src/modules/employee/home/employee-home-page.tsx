@@ -20,7 +20,6 @@ import {
   MessageSquareText,
   Plus,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import type {
   AnnouncementSummary,
@@ -69,8 +68,7 @@ import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-vi
 
 const employeeHomeQuickActions: FloatingQuickActionItem[] = [
   { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Bell },
-  { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
-  { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: ShieldCheck },
+  { label: "交辦事項", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
   { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
 ];
 
@@ -87,7 +85,6 @@ const iconByKey: Record<string, LucideIcon> = {
   "calendar-days": CalendarDays,
   "clipboard-check": ListChecks,
   "book-open": BookOpen,
-  "shield-check": ShieldCheck,
   "file-text": FileText,
   "graduation-cap": GraduationCap,
   link: LinkIcon,

@@ -33,19 +33,19 @@ generated_at: 2026-05-18
 ## 功能邏輯
 
 - 入口從 `/supervisor/lane-rentals`、`/supervisor/lane-rentals`、`/admin/lane-rentals` 進入，依角色 supervisor、system 顯示。
-- 讀取透過 `GET /api/lane-rentals`。
-- 寫入透過 `POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`。
+- 讀取透過 `GET /api/lane-rentals`、`GET /api/lane-rentals/layout`。
+- 寫入透過 `POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`、`PUT /api/lane-rentals/layout`。
 - 外部或基礎依賴：POSTGRES。
-- 資料落點 / entity：`lane_rentals`。
+- 資料落點 / entity：`lane_rentals`、`lane_rental_layouts`。
 
 ## 資料寫法 / 寫入規則
 
 - 資料權威：`postgres`。
-- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`lane_rentals`。
+- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`lane_rentals`、`lane_rental_layouts`。
 - 沒有 projection 資料登記。
 - 沒有 telemetry 資料登記。
 - 沒有 external data binding。
-- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`。
+- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`、`PUT /api/lane-rentals/layout`。
 
 ## UI/UX 邏輯
 
@@ -61,7 +61,7 @@ generated_at: 2026-05-18
 
 - 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
 - Section key / planned endpoint：supervisorSectionKey=`laneRentals`。
-- 寫入後 BFF 需要刷新或重算的 CRUD endpoint：`GET /api/lane-rentals`、`POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`。
+- 寫入後 BFF 需要刷新或重算的 CRUD endpoint：`GET /api/lane-rentals`、`POST /api/lane-rentals`、`PATCH /api/lane-rentals/:id`、`DELETE /api/lane-rentals/:id`、`GET /api/lane-rentals/layout`、`PUT /api/lane-rentals/layout`。
 - 沒有 proxy / external API 邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
 
@@ -69,7 +69,7 @@ generated_at: 2026-05-18
 
 - UI：確認 home-card / dashboard widget 的 loading / empty / degraded / error / disabled 狀態。
 - BFF：新增或調整欄位時，先改 server DTO / shared domain type，再改 page mapping。
-- 資料：確認 `lane_rentals` 的讀寫方向沒有繞過 owner module。
+- 資料：確認 `lane_rentals`、`lane_rental_layouts` 的讀寫方向沒有繞過 owner module。
 - 整合：確認 POSTGRES 的 fallback / unavailable 狀態有對應 UI。
 - 文件：改動後重跑 `npm run docs:obsidian`，讓本頁、BFF Reference Map 與 BFF 技術規範同步。
 
@@ -89,6 +89,8 @@ generated_at: 2026-05-18
 | POST | /api/lane-rentals | crud | implemented |
 | PATCH | /api/lane-rentals/:id | crud | implemented |
 | DELETE | /api/lane-rentals/:id | crud | implemented |
+| GET | /api/lane-rentals/layout | crud | implemented |
+| PUT | /api/lane-rentals/layout | crud | implemented |
 
 ### BFF Sections
 
@@ -110,6 +112,7 @@ generated_at: 2026-05-18
 | Table / Entity | Entity | Source | Status | Notes |
 | --- | --- | --- | --- | --- |
 | lane_rentals | lane rental | postgres | implemented |  |
+| lane_rental_layouts | shared lane layout | postgres | implemented |  |
 
 ## Integrations
 

@@ -58,7 +58,7 @@ export const getEmployeeResourceSections = async (facilityKey: string) => {
     .map(mapTrainingResource);
   const mergedDocuments = [
     ...defaultEmployeeDocumentLinks,
-    ...documents.filter((item) => item.url !== "/employee/checkins"),
+    ...documents,
   ].slice(0, 10);
   return {
     announcements,

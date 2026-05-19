@@ -71,7 +71,7 @@ export const normalizeEmployeeActionableShortcuts = (shortcuts: ShortcutSummary[
     .filter((shortcut) => {
       const href = shortcut.href?.trim();
       if (!href || href.startsWith("#")) return false;
-      if (shortcut.id === "more" || shortcut.id === "checkins" || href === "/employee/more") return false;
+      if (shortcut.id === "more" || href === "/employee/more") return false;
       return true;
     })
     .slice(0, employeeShortcutLimit);

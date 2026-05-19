@@ -34,7 +34,7 @@ generated_at: 2026-05-18
 
 - 入口從 `/employee/qna`、`/supervisor/qna-review` 進入，依角色 employee、lifeguard、supervisor 顯示。
 - 讀取透過 `GET /api/portal/knowledge-base-qna`、`GET /api/bff/employee/search`。
-- 寫入透過 `POST /api/portal/knowledge-base-qna`、`PATCH /api/portal/knowledge-base-qna/:id`、`DELETE /api/portal/knowledge-base-qna/:id`。
+- 寫入透過 `POST /api/portal/knowledge-base-qna`、`POST /api/portal/knowledge-base-qna/media`、`PATCH /api/portal/knowledge-base-qna/:id`、`DELETE /api/portal/knowledge-base-qna/:id`。
 - 外部或基礎依賴：POSTGRES。
 - 資料落點 / entity：`knowledge_base_qna`。
 
@@ -45,7 +45,7 @@ generated_at: 2026-05-18
 - 沒有 projection 資料登記。
 - 沒有 telemetry 資料登記。
 - 沒有 external data binding。
-- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/portal/knowledge-base-qna`、`PATCH /api/portal/knowledge-base-qna/:id`、`DELETE /api/portal/knowledge-base-qna/:id`。
+- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/portal/knowledge-base-qna`、`POST /api/portal/knowledge-base-qna/media`、`PATCH /api/portal/knowledge-base-qna/:id`、`DELETE /api/portal/knowledge-base-qna/:id`。
 
 ## UI/UX 邏輯
 
@@ -87,6 +87,7 @@ generated_at: 2026-05-18
 | --- | --- | --- | --- |
 | GET | /api/portal/knowledge-base-qna | crud | partial |
 | POST | /api/portal/knowledge-base-qna | crud | partial |
+| POST | /api/portal/knowledge-base-qna/media | upload | partial |
 | PATCH | /api/portal/knowledge-base-qna/:id | crud | partial |
 | DELETE | /api/portal/knowledge-base-qna/:id | crud | partial |
 | GET | /api/bff/employee/search | bff | partial |

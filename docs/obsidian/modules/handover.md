@@ -1,6 +1,6 @@
 ---
 module_id: handover
-label: "櫃台交接"
+label: "交辦事項"
 status: implemented
 domain: core
 owner_role: supervisor
@@ -8,7 +8,7 @@ source_of_truth: postgres
 generated_at: 2026-05-18
 ---
 
-# 櫃台交接
+# 交辦事項
 
 [[../00-index|模組總覽]] / [[../shared-surfaces|共用區塊]] / [[../bff-reference-map|BFF Reference Map]] / [[../bff-technical-spec|BFF 技術規範]] / [[../cleanup-backlog|清洗 backlog]]
 
@@ -16,7 +16,7 @@ generated_at: 2026-05-18
 
 1. 角色：supervisor；可見角色 employee, lifeguard, supervisor
 2. RAGIC / 資料庫：不使用 Ragic；資料源為 postgres
-3. 功能 / 需求 / 用途：Facility-scoped shared handover task surface for counter, lifeguard, and supervisor roles. 狀態：implemented / 已接線。
+3. 功能 / 需求 / 用途：Facility-scoped shared assignment surface for counter, lifeguard, and supervisor roles. 狀態：implemented / 已接線。
 
 ## Registry Snapshot
 
@@ -145,7 +145,7 @@ generated_at: 2026-05-18
 - Editable by: employee, lifeguard, supervisor
 - Readonly for: 未登記
 - Requires approval: no
-- Governance notes: 交接任務是舊任務與舊個人記事退役後唯一工作事項頁；counter/employee, lifeguard, and supervisor share operational_handovers by facilityKey.
+- Governance notes: 交辦事項是舊任務與舊個人記事退役後唯一工作事項頁；counter/employee, lifeguard, and supervisor share operational_handovers by facilityKey.
 
 ## Legacy
 

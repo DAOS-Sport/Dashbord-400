@@ -365,24 +365,4 @@ export function registerLifeguardOperationRoutes(app: Express, deps: RegisterDep
     res.json({ facilityKey: facility.facilityKey, date, items });
   });
 
-  app.get("/api/bff/supervisor/lifeguard-overview", deps.requireSupervisor(), async (req, res) => {
-    const actor = getActor(req);
-    const facilityKeys = actor.roles.includes("system") ? undefined : actor.facilities;
-    const fromDate = startOfDay();
-    const [waterQuality, coachDive, cleanup, laneIssues, lostItems] = await Promise.all([
-      storage.listLifeguardWaterQualityLogs({ facilityKeys, fromDate, limit: 200 }),
-      storage.listLifeguardCoachDiveLogs({ facilityKeys, fromDate, limit: 200 }),
-      storage.listLifeguardCleanupLogs({ facilityKeys, fromDate, limit: 200 }),
-      Promise.all((facilityKeys?.length ? facilityKeys : [actor.facilityKey]).filter(Boolean).map((facilityKey) => storage.listLifeguardHandoverNotes({ facilityKey, workDate: todayTaipei(), limit: 100 }))).then((rows) => rows.flat()),
-      storage.listLifeguardLostAndFound({ facilityKeys, claimStatus: "unclaimed", limit: 50 }),
-    ]);
-    res.json({
-      waterQuality: waterQuality.map(serialize),
-      coachDive: coachDive.map(serialize),
-      cleanup: cleanup.map(serialize),
-      laneIssues: laneIssues.map(serialize),
-      lostItems: lostItems.map(serialize),
-    });
-  });
-
 }

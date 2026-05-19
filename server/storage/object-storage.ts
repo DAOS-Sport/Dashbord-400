@@ -21,7 +21,18 @@ export const ALLOWED_IMAGE_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
 ]);
 
+export const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+]);
+
+export const ALLOWED_VIDEO_EXTENSIONS = new Set([
+  ".mp4", ".mov", ".webm",
+]);
+
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOAD_FILES_PER_REQUEST = 5;
 
 export interface UploadInput {
@@ -42,6 +53,7 @@ export interface UploadResult {
 function safeExt(originalName: string, mime: string): string {
   const ext = path.extname(originalName).toLowerCase();
   if (ALLOWED_IMAGE_EXTENSIONS.has(ext)) return ext;
+  if (ALLOWED_VIDEO_EXTENSIONS.has(ext)) return ext;
   switch (mime) {
     case "image/jpeg": return ".jpg";
     case "image/png": return ".png";
@@ -49,6 +61,9 @@ function safeExt(originalName: string, mime: string): string {
     case "image/webp": return ".webp";
     case "image/heic": return ".heic";
     case "image/heif": return ".heif";
+    case "video/mp4": return ".mp4";
+    case "video/quicktime": return ".mov";
+    case "video/webm": return ".webm";
     default: return ".bin";
   }
 }
@@ -155,16 +170,22 @@ async function downloadObjectStorage(key: string): Promise<{ buffer: Buffer; mim
 
 // ============ Public API ============
 
-export async function uploadFile(input: UploadInput): Promise<UploadResult> {
-  if (!ALLOWED_IMAGE_MIME_TYPES.has(input.mime)) {
+export async function uploadMediaFile(input: UploadInput, opts?: { allowedMimeTypes?: Set<string>; maxBytes?: number }): Promise<UploadResult> {
+  const allowed = opts?.allowedMimeTypes ?? ALLOWED_IMAGE_MIME_TYPES;
+  const maxBytes = opts?.maxBytes ?? MAX_UPLOAD_BYTES;
+  if (!allowed.has(input.mime)) {
     throw new Error(`不支援的檔案類型：${input.mime}`);
   }
-  if (input.buffer.byteLength > MAX_UPLOAD_BYTES) {
-    throw new Error(`檔案過大，上限 ${(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(0)} MB`);
+  if (input.buffer.byteLength > maxBytes) {
+    throw new Error(`檔案過大，上限 ${(maxBytes / 1024 / 1024).toFixed(0)} MB`);
   }
   const key = generateKey(input.folder, input.originalName, input.mime);
   if (MODE === "mock") return uploadMock(input, key);
   return uploadObjectStorage(input, key);
+}
+
+export async function uploadFile(input: UploadInput): Promise<UploadResult> {
+  return uploadMediaFile(input, { allowedMimeTypes: ALLOWED_IMAGE_MIME_TYPES, maxBytes: MAX_UPLOAD_BYTES });
 }
 
 /**
@@ -196,6 +217,9 @@ export function inferMimeFromKey(key: string): string {
     case ".webp": return "image/webp";
     case ".heic": return "image/heic";
     case ".heif": return "image/heif";
+    case ".mp4": return "video/mp4";
+    case ".mov": return "video/quicktime";
+    case ".webm": return "video/webm";
     default: return "application/octet-stream";
   }
 }

@@ -1,4 +1,6 @@
 import type { Express, Request, RequestHandler } from "express";
+import { randomUUID } from "node:crypto";
+import multer from "multer";
 import { z } from "zod";
 import type { AppContainer } from "../../app/container";
 import type { EmployeeProfile } from "../auth/legacy-ragic-auth";
@@ -6,6 +8,13 @@ import { defaultEmployeeHomeWidgets, normalizeWidgetLayout } from "@shared/domai
 import { canMutateEmployeeResource } from "@shared/employee-resources/privacy";
 import { env } from "../../shared/config/env";
 import { withCreateMetadata, withEmployeeCreateMetadata, withUpdateMetadata } from "../../shared/data/write-metadata";
+import {
+  ALLOWED_IMAGE_MIME_TYPES,
+  ALLOWED_VIDEO_MIME_TYPES,
+  MAX_UPLOAD_BYTES,
+  MAX_VIDEO_UPLOAD_BYTES,
+  uploadMediaFile,
+} from "../../storage/object-storage";
 import { storage } from "../../storage";
 
 const correlationIdFromRequest = (req: Request) => {
@@ -336,6 +345,52 @@ export const registerPortalContentRoutes = (
     message: "資料庫尚未連線，請在部署環境設定 NEON_DATABASE_URL 或 DATABASE_URL 後使用相關問題詢問功能。",
     code: "DATABASE_NOT_CONNECTED",
   });
+  const qnaMediaMimeTypes = new Set<string>();
+  ALLOWED_IMAGE_MIME_TYPES.forEach((mimeType) => qnaMediaMimeTypes.add(mimeType));
+  ALLOWED_VIDEO_MIME_TYPES.forEach((mimeType) => qnaMediaMimeTypes.add(mimeType));
+  const qnaMediaUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_VIDEO_UPLOAD_BYTES, files: 1 },
+    fileFilter: (_req, file, cb) => {
+      if (!qnaMediaMimeTypes.has(file.mimetype)) {
+        cb(new Error(`不支援的檔案類型：${file.mimetype}`));
+        return;
+      }
+      cb(null, true);
+    },
+  });
+
+  app.post("/api/portal/knowledge-base-qna/media", requireEmployee(), qnaMediaUpload.single("file"), async (req, res) => {
+    try {
+      const facilityKey = String(req.body?.facilityKey || req.workbenchSession?.activeFacility || "");
+      if (!facilityKey) return res.status(400).json({ message: "缺少 facilityKey" });
+      if (!canAccessFacility(req, facilityKey)) return res.status(403).json({ message: "無此館別權限" });
+      if (!req.file) return res.status(400).json({ message: "請選擇附件" });
+      const kind = req.file.mimetype.startsWith("video/") ? "video" : "image";
+      const maxBytes = kind === "video" ? MAX_VIDEO_UPLOAD_BYTES : MAX_UPLOAD_BYTES;
+      if (req.file.size > maxBytes) {
+        return res.status(400).json({ message: `檔案過大，上限 ${(maxBytes / 1024 / 1024).toFixed(0)} MB` });
+      }
+      const uploaded = await uploadMediaFile({
+        buffer: req.file.buffer,
+        mime: req.file.mimetype || "application/octet-stream",
+        originalName: req.file.originalname || "qna-media",
+        folder: `knowledge-base-qna/${facilityKey}`,
+      }, { allowedMimeTypes: qnaMediaMimeTypes, maxBytes });
+      res.status(201).json({
+        id: randomUUID(),
+        kind,
+        url: uploaded.url,
+        key: uploaded.key,
+        mime: uploaded.mime,
+        originalName: uploaded.originalName,
+        size: uploaded.size,
+      });
+    } catch (err) {
+      const m = err instanceof Error ? err.message : "附件上傳失敗";
+      res.status(m.startsWith("不支援") || m.startsWith("檔案過大") ? 400 : 500).json({ message: m });
+    }
+  });
 
   app.get("/api/portal/knowledge-base-qna", requireEmployee(), async (req, res) => {
     try {
@@ -366,6 +421,7 @@ export const registerPortalContentRoutes = (
       const parsed = insertKnowledgeBaseQnaSchema.safeParse({
         ...body,
         tags: Array.isArray(body.tags) ? body.tags : [],
+        attachments: Array.isArray(body.attachments) ? body.attachments : [],
         reviewStatus: "pending",
         reviewNote: null,
         reviewedBy: null,
@@ -388,7 +444,7 @@ export const registerPortalContentRoutes = (
         action: "KNOWLEDGE_QNA_CREATED",
         resource: "knowledge_base_qna",
         resourceId: String(created.id),
-        payload: { question: created.question, category: created.category, tags: created.tags },
+        payload: { question: created.question, category: created.category, tags: created.tags, attachmentCount: created.attachments.length },
         correlationId: correlationIdFromRequest(req),
         resultStatus: "success",
       });
@@ -415,6 +471,7 @@ export const registerPortalContentRoutes = (
         answer: z.string().max(4000).nullable().optional(),
         category: z.string().max(60).nullable().optional(),
         tags: z.array(z.string().max(32)).max(12).optional(),
+        attachments: z.array((await import("@shared/schema")).qnaAttachmentSchema).max(5).optional(),
         isPinned: z.boolean().optional(),
         status: z.enum(["draft", "published", "archived"]).optional(),
         reviewStatus: z.enum(["pending", "approved", "rejected"]).optional(),
@@ -439,7 +496,7 @@ export const registerPortalContentRoutes = (
         action: "KNOWLEDGE_QNA_UPDATED",
         resource: "knowledge_base_qna",
         resourceId: String(updated.id),
-        payload: { question: updated.question, category: updated.category, status: updated.status },
+        payload: { question: updated.question, category: updated.category, status: updated.status, attachmentCount: updated.attachments.length },
         correlationId: correlationIdFromRequest(req),
         resultStatus: "success",
       });

@@ -114,7 +114,6 @@ const acceptedBackgroundPending = new Set([
   "bff-projections",
   "booking-snapshot",
   "campaigns-events",
-  "checkins",
   "employee-resources",
   "file-upload-export",
   "facilities",
@@ -368,16 +367,12 @@ const runSupervisorModuleTests = () => {
     "supervisor-dashboard",
     "facilities",
     "parking",
-    "counter-log",
     "lane-rentals",
     "courts",
     "announcements",
     "announcement-groups",
-    "supervisor-lifeguard-overview",
     "handover",
     "employee-training",
-    "anomalies",
-    "analytics",
   ];
   assert(
     navigation.map((item) => item.id).join(",") === expected.join(","),
@@ -432,11 +427,6 @@ const runSupervisorModuleTests = () => {
     "parking primary route must be supervisor workbench route",
   );
   assert(
-    getPrimaryRoute("counter-log", "supervisor") ===
-      "/supervisor/counter-log/submissions",
-    "counter-log primary route must be supervisor workbench route",
-  );
-  assert(
     getPrimaryRoute("lane-rentals", "supervisor") ===
       "/supervisor/lane-rentals",
     "lane-rentals primary route must be supervisor workbench route",
@@ -445,7 +435,7 @@ const runSupervisorModuleTests = () => {
     getPrimaryRoute("courts", "supervisor") === "/supervisor/courts/xinbei",
     "courts primary route must be supervisor workbench route",
   );
-  ["parking", "counter-log", "lane-rentals", "courts"].forEach((id) =>
+  ["parking", "lane-rentals", "courts"].forEach((id) =>
     sourceIncludes(
       "client/src/modules/supervisor/dashboard-page.tsx",
       `moduleId: "${id}"`,
@@ -517,7 +507,6 @@ const runSupervisorModuleTests = () => {
   [
     "/supervisor/parking",
     "/supervisor/parking/payments",
-    "/supervisor/counter-log/submissions",
     "/supervisor/lane-rentals",
     "/supervisor/courts/xinbei",
     "/supervisor/courts/xinbei/search",
@@ -587,9 +576,7 @@ const runLifeguardModuleTests = () => {
     "lifeguard-lost-and-found",
     "lifeguard-lane-rentals",
     "lifeguard-log",
-    "announcements",
-    "employee-training",
-    "knowledge-base-qna",
+    "handover",
   ];
   assert(
     navigation.map((item) => item.id).join(",") === expected.join(","),
@@ -597,7 +584,7 @@ const runLifeguardModuleTests = () => {
   );
   assert(
     cards.map((item) => item.moduleId).join(",") ===
-      "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna,search",
+      "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover,search",
     `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   expected.forEach((id) =>
@@ -773,14 +760,12 @@ const runCanonicalModuleRegistrationTests = () => {
     "lane-rentals",
     "courts",
     "lifeguard-log",
-    "counter-log",
     "lifeguard-water-quality",
     "lifeguard-coach-dive",
     "lifeguard-cleanup",
     "lifeguard-lane-issues",
     "lifeguard-lost-and-found",
     "lifeguard-lane-rentals",
-    "supervisor-lifeguard-overview",
   ].forEach((id) =>
     sourceIncludes(
       "shared/modules/ids.ts",
@@ -788,7 +773,7 @@ const runCanonicalModuleRegistrationTests = () => {
       `${id} must be declared as a canonical module id`,
     ),
   );
-  ["parking", "counter-log", "lane-rentals", "courts"].forEach((id) =>
+  ["parking", "lane-rentals", "courts"].forEach((id) =>
     assert(
       supervisorIds.includes(id),
       `supervisor descriptors missing canonical module: ${id}`,
@@ -798,11 +783,6 @@ const runCanonicalModuleRegistrationTests = () => {
     "client/src/App.tsx",
     "/supervisor/parking/event-days",
     "parking event-days supervisor route must be registered even if it redirects to the dashboard",
-  );
-  sourceIncludes(
-    "client/src/App.tsx",
-    "/supervisor/counter-log/submissions",
-    "counter-log supervisor route must be registered",
   );
   sourceIncludes(
     "client/src/App.tsx",
@@ -830,11 +810,6 @@ const runCanonicalModuleRegistrationTests = () => {
     "parking pages must render inside supervisor module shell",
   );
   sourceIncludes(
-    "client/src/pages/admin/work-logs/_shared.tsx",
-    "SupervisorModuleShell",
-    "counter-log pages must render inside supervisor module shell",
-  );
-  sourceIncludes(
     "client/src/pages/admin/lane-rentals.tsx",
     "SupervisorModuleShell",
     "lane rentals page must render inside supervisor module shell",
@@ -849,12 +824,6 @@ const runCanonicalModuleRegistrationTests = () => {
       read("client/src/pages/admin/parking/_shared.tsx"),
     ),
     "parking tabs must not use legacy admin hrefs",
-  );
-  assert(
-    !/counter:\s*"\/admin\/counter-logs"/.test(
-      read("client/src/pages/admin/work-logs/_shared.tsx"),
-    ),
-    "counter-log tabs must not use legacy admin prefix",
   );
   assert(
     !read("client/src/pages/courts/_components/app-header.tsx").includes(
@@ -1669,11 +1638,6 @@ const runNotConnectedUxTests = () => {
     "client/src/modules/employee/home/employee-home-page.tsx",
     '<DegradedCard title="今日班表"',
     "shift reminder must use DegradedCard when source is disconnected",
-  );
-  sourceIncludes(
-    "client/src/modules/employee/more/page.tsx",
-    "/employee/checkins",
-    "checkins route must render a not_connected surface",
   );
   sourceIncludes(
     "client/src/modules/employee/more/page.tsx",

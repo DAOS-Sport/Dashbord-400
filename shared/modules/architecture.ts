@@ -52,11 +52,11 @@ export const moduleArchitectureGroupLabels: Record<ModuleArchitectureGroupId, { 
   },
   "lifeguard-workflows": {
     title: "救生作業與稽核",
-    description: "救生首頁、照片/GPS 作業、失物、水道事項、主管觀察與 IT 稽核。",
+    description: "救生首頁、照片/GPS 作業、失物、水道事項、交辦與 IT 稽核。",
   },
   "supervisor-operations": {
     title: "主管營運模組",
-    description: "主管端停車、櫃台日誌、水道租借、場地預約、任務、交接、異常與報表。",
+    description: "主管端場館、停車、水道租借、場地預約、公告、交辦與首頁摘要。",
   },
   announcements: {
     title: "公告、通知與知識",
@@ -143,18 +143,15 @@ export const getModuleArchitectureGroupId = (module: ModuleDefinition): ModuleAr
     return "system-governance";
   }
 
-  if (module.id.startsWith("lifeguard") || module.id === "supervisor-lifeguard-overview") {
+  if (module.id.startsWith("lifeguard")) {
     return "lifeguard-workflows";
   }
 
   if (
     module.id.startsWith("parking") ||
-    module.id === "counter-log" ||
     module.id === "lane-rentals" ||
     module.id === "courts" ||
     module.id === "handover" ||
-    module.id === "anomalies" ||
-    module.id === "analytics" ||
     module.id === "operations"
   ) {
     return "supervisor-operations";

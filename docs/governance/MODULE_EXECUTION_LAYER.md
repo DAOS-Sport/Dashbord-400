@@ -60,9 +60,9 @@ Legacy aliases may coexist during migration, but new UI work must prefer `homeCa
 Current employee UI ordering:
 
 - PC top bar + left sidebar are both used on employee pages.
-- PC left sidebar is generated from `/api/modules/navigation` and must remain in this order: 首頁, 櫃台交接, 活動檔期/課程快訊, 常用文件, 個人工作記事, 相關問題詢問, 點名/報到.
-- Mobile home order is: 今日任務, 快速操作最多 7 個, 群組重要公告, 櫃台交辦.
-- `homeCards.handover.payload` is the home-card handover payload for 櫃台交辦.
+- PC left sidebar is generated from `/api/modules/navigation` and must remain in this order: 首頁, 群組公告, 交辦事項, 活動檔期/課程快訊, 常用文件, 員工教材, 失物招領, 場地預約, 相關問題詢問.
+- Mobile home order is: 今日任務, 快速操作最多 7 個, 群組重要公告, 交辦事項.
+- `homeCards.handover.payload` is the home-card handover payload for 交辦事項.
 - `homeCards.shiftReminder.payload` is the ShiftBoard DTO for 今日班表.
 - 快速操作的預設入口必須由 `homeCards.quickActions` / `shortcuts` BFF section 提供；使用者自訂排序、顯示名稱、連結與色彩只能作為個人 UI preference，不可成為權限或 session truth。
 

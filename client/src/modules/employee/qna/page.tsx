@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Edit3, Pin, Plus, Search, Trash2 } from "lucide-react";
+import { BookOpen, Edit3, ImagePlus, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import {
   createKnowledgeBaseQna,
@@ -9,6 +9,7 @@ import {
   fetchKnowledgeBaseQna,
   type KnowledgeBaseQnaDTO,
   updateKnowledgeBaseQna,
+  uploadKnowledgeBaseQnaMedia,
 } from "@/modules/employee/home/api";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -35,6 +36,11 @@ const formatTime = (value: string) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+};
+
+const formatBytes = (value: number) => {
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(value / 1024))} KB`;
 };
 
 const reviewStatusLabel: Record<KnowledgeBaseQnaDTO["reviewStatus"], string> = {
@@ -93,6 +99,29 @@ function QnaCard({
               ))}
             </div>
           ) : null}
+          {item.attachments?.length ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {item.attachments.map((attachment) => (
+                <a
+                  key={attachment.id}
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-[#f8fafc]"
+                >
+                  {attachment.kind === "image" ? (
+                    <img src={attachment.url} alt={attachment.originalName} className="h-32 w-full object-cover" />
+                  ) : (
+                    <video src={attachment.url} controls className="h-32 w-full bg-black object-contain" />
+                  )}
+                  <div className="px-3 py-2">
+                    <p className="truncate text-[12px] font-black text-[#10233f]">{attachment.originalName}</p>
+                    <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{attachment.kind === "image" ? "照片" : "影片"} · {formatBytes(attachment.size)}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : null}
           {item.reviewStatus === "rejected" && item.reviewNote ? (
             <div className="mt-3 rounded-[8px] border border-[#ffd6dc] bg-[#fff7f8] px-3 py-2 text-[12px] font-bold text-[#a92740]">
               退回原因：{item.reviewNote}
@@ -133,6 +162,7 @@ export default function EmployeeQnaPage() {
   const [answer, setAnswer] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
+  const [attachments, setAttachments] = useState<KnowledgeBaseQnaDTO["attachments"]>([]);
   const [isPinned, setIsPinned] = useState(false);
 
   const homeQuery = useQuery({
@@ -159,6 +189,7 @@ export default function EmployeeQnaPage() {
     setAnswer("");
     setCategory("");
     setTags("");
+    setAttachments([]);
     setIsPinned(false);
   };
 
@@ -168,6 +199,7 @@ export default function EmployeeQnaPage() {
     setAnswer(item.answer ?? "");
     setCategory(item.category ?? "");
     setTags(item.tags.join(", "));
+    setAttachments(item.attachments ?? []);
     setIsPinned(item.isPinned);
   };
 
@@ -184,6 +216,7 @@ export default function EmployeeQnaPage() {
         answer: answer.trim() || null,
         category: category.trim() || null,
         tags: splitTags(tags),
+        attachments,
         isPinned,
       };
       return editing ? updateKnowledgeBaseQna(editing.id, input) : createKnowledgeBaseQna(input);
@@ -198,6 +231,19 @@ export default function EmployeeQnaPage() {
     mutationFn: deleteKnowledgeBaseQna,
     onSuccess: invalidate,
   });
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => uploadKnowledgeBaseQnaMedia(facilityKey, file),
+    onSuccess: (attachment) => {
+      setAttachments((items) => [...items, attachment].slice(0, 5));
+    },
+  });
+
+  const onPickAttachments = (files: FileList | null) => {
+    if (!files?.length) return;
+    const remaining = Math.max(0, 5 - attachments.length);
+    Array.from(files).slice(0, remaining).forEach((file) => uploadMutation.mutate(file));
+  };
 
   return (
     <EmployeeShell title="相關問題詢問" subtitle="">
@@ -303,6 +349,58 @@ export default function EmployeeQnaPage() {
                 className="min-h-10 rounded-[8px] border border-[#cfd9e5] bg-white px-3 text-[13px] text-[#10233f] outline-none"
               />
             </label>
+            <div className="grid gap-2 rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[12px] font-black text-[#536175]">照片 / 影片補充</p>
+                  <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{attachments.length} / 5</p>
+                </div>
+                <label className="workbench-focus inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
+                  <ImagePlus className="h-4 w-4" />
+                  上傳
+                  <input
+                    type="file"
+                    accept="image/*,video/mp4,video/quicktime,video/webm"
+                    multiple
+                    className="sr-only"
+                    disabled={attachments.length >= 5 || uploadMutation.isPending}
+                    onChange={(event) => {
+                      onPickAttachments(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+              {attachments.length ? (
+                <div className="grid gap-2">
+                  {attachments.map((attachment) => (
+                    <div key={attachment.id} className="flex items-center gap-2 rounded-[8px] bg-white p-2">
+                      <div className="h-12 w-16 overflow-hidden rounded-[6px] bg-[#edf2f7]">
+                        {attachment.kind === "image" ? (
+                          <img src={attachment.url} alt={attachment.originalName} className="h-full w-full object-cover" />
+                        ) : (
+                          <video src={attachment.url} className="h-full w-full bg-black object-cover" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-black text-[#10233f]">{attachment.originalName}</p>
+                        <p className="text-[11px] font-bold text-[#8b9aae]">{attachment.kind === "image" ? "照片" : "影片"} · {formatBytes(attachment.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={`移除 ${attachment.originalName}`}
+                        onClick={() => setAttachments((items) => items.filter((item) => item.id !== attachment.id))}
+                        className="workbench-focus grid h-8 w-8 place-items-center rounded-[8px] text-[#e33f5f] hover:bg-[#fff3f5]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {uploadMutation.isPending ? <p className="text-[12px] font-bold text-[#637185]">附件上傳中...</p> : null}
+              {uploadMutation.isError ? <p className="text-[12px] font-bold text-[#ff4964]">{uploadMutation.error.message}</p> : null}
+            </div>
             <label className="flex min-h-10 items-center justify-between gap-3 rounded-[8px] border border-[#dfe7ef] bg-[#f8fafc] px-3 text-[13px] font-black text-[#536175]">
               置頂
               <input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="h-4 w-4 accent-[#16b6b1]" />

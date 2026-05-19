@@ -36,12 +36,12 @@ generated_at: 2026-05-18
 - 讀取透過 `GET /api/bff/lifeguard/lane-rentals`。
 - 目前沒有登記寫入 API；視為 read-only、external、planned 或 legacy surface。
 - 外部或基礎依賴：POSTGRES。
-- 資料落點 / entity：`lane_rentals`。
+- 資料落點 / entity：`lane_rentals`、`lane_rental_layouts`。
 
 ## 資料寫法 / 寫入規則
 
 - 資料權威：`postgres`。
-- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`lane_rentals`。
+- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`lane_rentals`、`lane_rental_layouts`。
 - 沒有 projection 資料登記。
 - 沒有 telemetry 資料登記。
 - 沒有 external data binding。
@@ -69,7 +69,7 @@ generated_at: 2026-05-18
 
 - UI：確認 home-card / dashboard widget 的 loading / empty / degraded / error / disabled 狀態。
 - BFF：新增或調整欄位時，先改 server DTO / shared domain type，再改 page mapping。
-- 資料：確認 `lane_rentals` 的讀寫方向沒有繞過 owner module。
+- 資料：確認 `lane_rentals`、`lane_rental_layouts` 的讀寫方向沒有繞過 owner module。
 - 整合：確認 POSTGRES 的 fallback / unavailable 狀態有對應 UI。
 - 文件：改動後重跑 `npm run docs:obsidian`，讓本頁、BFF Reference Map 與 BFF 技術規範同步。
 
@@ -105,6 +105,7 @@ generated_at: 2026-05-18
 | Table / Entity | Entity | Source | Status | Notes |
 | --- | --- | --- | --- | --- |
 | lane_rentals | lane rental readonly schedule | postgres | partial |  |
+| lane_rental_layouts | shared lane layout | postgres | partial |  |
 
 ## Integrations
 

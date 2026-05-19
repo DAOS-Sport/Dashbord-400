@@ -9,8 +9,8 @@
 | Item | Value |
 | --- | --- |
 | Current architecture score | 80 / 100 |
-| Registered modules | 78 |
-| Architecture grouped modules | 78 / 78 |
+| Registered modules | 74 |
+| Architecture grouped modules | 74 / 74 |
 | Suspicious unbound modules | 0 |
 | Generated date | 2026-05-18 |
 
@@ -35,31 +35,30 @@
 | external | 1 |
 | implemented | 29 |
 | legacy | 11 |
-| partial | 35 |
-| planned | 1 |
+| partial | 32 |
 
 ### Domain
 
 | Domain | Count |
 | --- | --- |
-| core | 17 |
-| derived | 9 |
+| core | 16 |
+| derived | 8 |
 | integration | 8 |
 | legacy | 4 |
-| support | 24 |
+| support | 22 |
 | system | 16 |
 
 ### Source Of Truth
 
 | Source | Count |
 | --- | --- |
-| external | 16 |
+| external | 15 |
 | legacy | 4 |
 | none | 2 |
-| postgres | 36 |
+| postgres | 34 |
 | private | 1 |
 | projection | 8 |
-| telemetry | 11 |
+| telemetry | 10 |
 
 ## 入口、身分與場館權限
 
@@ -85,8 +84,8 @@
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
 | [[modules/activity-periods|activity-periods]] | 活動檔期 / 課程快訊 | partial | employee, supervisor | workbench | yes |
+| [[modules/anomalies|anomalies]] | Anomalies | implemented | system | workbench | yes |
 | [[modules/campaigns-events|campaigns-events]] | Campaigns and Events | partial | employee, lifeguard, supervisor | workbench | yes |
-| [[modules/checkins|checkins]] | 點名 / 報到 | planned | employee | workbench | yes |
 | [[modules/employee-resources|employee-resources]] | Employee Resources | implemented | employee, lifeguard, supervisor | workbench | yes |
 | [[modules/employee-settings|employee-settings]] | 員工設定 | partial | employee | workbench | yes |
 | [[modules/employee-training|employee-training]] | Employee Training | partial | employee, lifeguard, supervisor, system | workbench | yes |
@@ -97,7 +96,7 @@
 
 ## 救生作業與稽核
 
-救生首頁、照片/GPS 作業、失物、水道事項、主管觀察與 IT 稽核。
+救生首頁、照片/GPS 作業、失物、水道事項、交辦與 IT 稽核。
 
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
@@ -108,19 +107,15 @@
 | [[modules/lifeguard-log|lifeguard-log]] | 救生員日誌 | partial | lifeguard, supervisor, system | workbench | yes |
 | [[modules/lifeguard-lost-and-found|lifeguard-lost-and-found]] | 失物招領 | partial | lifeguard, employee | workbench | yes |
 | [[modules/lifeguard-water-quality|lifeguard-water-quality]] | 水質檢測 | partial | lifeguard | workbench | yes |
-| [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | 救生紀錄總覽 | partial | supervisor, system | workbench | yes |
 
 ## 主管營運模組
 
-主管端停車、櫃台日誌、水道租借、場地預約、任務、交接、異常與報表。
+主管端場館、停車、水道租借、場地預約、公告、交辦與首頁摘要。
 
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
-| [[modules/analytics|analytics]] | Analytics | partial | supervisor, system | workbench | yes |
-| [[modules/anomalies|anomalies]] | Anomalies | implemented | supervisor, system | workbench | yes |
-| [[modules/counter-log|counter-log]] | Counter Log | partial | supervisor, system | workbench | yes |
 | [[modules/courts|courts]] | Courts | partial | employee, supervisor, system | workbench | yes |
-| [[modules/handover|handover]] | 櫃台交接 | implemented | employee, lifeguard, supervisor | workbench | yes |
+| [[modules/handover|handover]] | 交辦事項 | implemented | employee, lifeguard, supervisor | workbench | yes |
 | [[modules/lane-rentals|lane-rentals]] | Lane Rentals | implemented | supervisor, system | workbench | yes |
 | [[modules/operations|operations]] | Operations | legacy | system, supervisor | legacy-route | yes |
 | [[modules/parking|parking]] | Parking Management | implemented | supervisor, system | workbench | yes |

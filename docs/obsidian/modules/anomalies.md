@@ -14,9 +14,9 @@ generated_at: 2026-05-18
 
 ## Module Intake Governance
 
-1. 角色：supervisor；可見角色 supervisor, system
+1. 角色：supervisor；可見角色 system
 2. RAGIC / 資料庫：不使用 Ragic；資料源為 postgres
-3. 功能 / 需求 / 用途：Clock-in anomaly reports, review, resolution, and supervisor/system alert surfaces. 狀態：implemented / 已接線。
+3. 功能 / 需求 / 用途：Clock-in anomaly reports, review, resolution, and system alert surfaces. 狀態：implemented / 已接線。
 
 ## Registry Snapshot
 
@@ -26,13 +26,13 @@ generated_at: 2026-05-18
 - Source of truth: `postgres`
 - Homepage widget: yes
 - Visibility: homepage_widget, detail_page, admin_page
-- Priority: {"supervisor":6,"system":3}
+- Priority: {"system":3}
 
 
 
 ## 功能邏輯
 
-- 入口從 `/anomaly-reports`、`/supervisor/anomalies`、`/system/alerts` 進入，依角色 supervisor、system 顯示。
+- 入口從 `/anomaly-reports`、`/system/alerts` 進入，依角色 system 顯示。
 - 讀取透過 `GET /api/anomaly-reports`、`GET /api/anomaly-reports/:id`。
 - 寫入透過 `POST /api/anomaly-report`、`PATCH /api/anomaly-reports/:id/resolution`、`PATCH /api/anomaly-reports/batch/resolution`、`DELETE /api/anomaly-reports/:id`。
 - 外部或基礎依賴：GMAIL_SMTP、OBJECT_STORAGE。
@@ -49,7 +49,7 @@ generated_at: 2026-05-18
 
 ## UI/UX 邏輯
 
-- Surface model：home-card / dashboard widget；UI density：營運掃描密度、表格/列表可比較、批次操作需明確狀態。
+- Surface model：home-card / dashboard widget；UI density：IT governance density、狀態/錯誤可掃描、避免裝飾性版面。
 - 首頁卡片需支援 ready / empty / stale / degraded / unavailable 狀態，不用顏色作為唯一提示。
 - 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
 - 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
@@ -78,7 +78,6 @@ generated_at: 2026-05-18
 | Path | Role | Kind | Status |
 | --- | --- | --- | --- |
 | /anomaly-reports | system | legacy_admin | implemented |
-| /supervisor/anomalies | supervisor | supervisor | implemented |
 | /system/alerts | system | system | implemented |
 
 ## API / BFF

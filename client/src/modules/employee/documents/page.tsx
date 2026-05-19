@@ -6,7 +6,7 @@ import { createEmployeeResource, fetchEmployeeHome, updateEmployeeResource } fro
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 
-const defaultDocumentCategoryOptions = ["點名/報到", "文件", "表單", "規則", "課程", "其他"];
+const defaultDocumentCategoryOptions = ["文件", "表單", "規則", "課程", "其他"];
 type DocumentSortMode = "custom" | "name" | "category" | "recent";
 const sortModeLabels: Record<DocumentSortMode, string> = {
   custom: "自訂",

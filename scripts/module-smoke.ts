@@ -141,7 +141,7 @@ assert(
   getNavigationModules("lifeguard")
     .map((item) => item.id)
     .join(",") ===
-    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna",
+    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover",
   `lifeguard navigation order changed: ${getNavigationModules("lifeguard")
     .map((item) => item.id)
     .join(",")}`,
@@ -150,7 +150,7 @@ assert(
   getHomeLayoutCards("lifeguard")
     .map((item) => item.moduleId)
     .join(",") ===
-    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,announcements,employee-training,knowledge-base-qna,search",
+    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover,search",
   `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -159,7 +159,7 @@ assert(
   getNavigationModules("supervisor")
     .map((item) => item.id)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
+    "supervisor-dashboard,facilities,parking,lane-rentals,courts,announcements,announcement-groups,handover,employee-training",
   `supervisor navigation order changed: ${getNavigationModules("supervisor")
     .map((item) => item.id)
     .join(",")}`,
@@ -186,17 +186,12 @@ assert(
   getWorkbenchRoutes("supervisor")
     .map((item) => item.moduleId)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
+    "supervisor-dashboard,facilities,parking,lane-rentals,courts,announcements,announcement-groups,handover,employee-training",
   "supervisor route manifest must match sidebar order",
 );
 assert(
   getPrimaryRoute("parking", "supervisor") === "/supervisor/parking",
   "parking supervisor primary path changed",
-);
-assert(
-  getPrimaryRoute("counter-log", "supervisor") ===
-    "/supervisor/counter-log/submissions",
-  "counter-log supervisor primary path changed",
 );
 assert(
   getPrimaryRoute("lane-rentals", "supervisor") === "/supervisor/lane-rentals",
@@ -221,11 +216,6 @@ assert(
   "legacy announcement groups path must redirect to supervisor announcement groups",
 );
 assert(
-  getRedirectForLegacyPath("/admin/counter-logs/submissions") ===
-    "/supervisor/counter-log/submissions",
-  "legacy counter logs path must redirect to supervisor counter log",
-);
-assert(
   getRedirectForLegacyPath("/admin/lane-rentals") ===
     "/supervisor/lane-rentals",
   "legacy lane rentals path must redirect to supervisor lane rentals",
@@ -238,7 +228,7 @@ assert(
   getHomeLayoutCards("supervisor")
     .map((item) => item.moduleId)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+    "supervisor-dashboard,facilities,parking,lane-rentals,courts,announcements,announcement-groups,handover,employee-training,booking-snapshot,notification-center,search",
   `supervisor home card order changed: ${getHomeLayoutCards("supervisor")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -548,10 +538,6 @@ assert(
   "announcement groups supervisor route must be registered",
 );
 assert(
-  appRoutes.includes("/supervisor/counter-log/submissions"),
-  "counter-log supervisor route must be registered",
-);
-assert(
   appRoutes.includes("/supervisor/lane-rentals"),
   "lane-rentals supervisor route must be registered",
 );
@@ -593,14 +579,12 @@ for (const id of [
   "lane-rentals",
   "courts",
   "lifeguard-log",
-  "counter-log",
   "lifeguard-water-quality",
   "lifeguard-coach-dive",
   "lifeguard-cleanup",
   "lifeguard-lane-issues",
   "lifeguard-lost-and-found",
   "lifeguard-lane-rentals",
-  "supervisor-lifeguard-overview",
 ]) {
   assert(
     moduleIdsSource.includes(`"${id}"`),
@@ -631,10 +615,6 @@ const parkingShell = readFileSync(
   join(repoRoot, "client", "src", "pages", "admin", "parking", "_shared.tsx"),
   "utf8",
 );
-const counterLogShell = readFileSync(
-  join(repoRoot, "client", "src", "pages", "admin", "work-logs", "_shared.tsx"),
-  "utf8",
-);
 const laneRentalsPage = readFileSync(
   join(repoRoot, "client", "src", "pages", "admin", "lane-rentals.tsx"),
   "utf8",
@@ -656,20 +636,12 @@ assert(
   "parking pages must render inside supervisor module shell",
 );
 assert(
-  counterLogShell.includes("SupervisorModuleShell"),
-  "counter-log pages must render inside supervisor module shell",
-);
-assert(
   laneRentalsPage.includes("SupervisorModuleShell"),
   "lane rentals page must render inside supervisor module shell",
 );
 assert(
   !/href:\s*"\/admin\/parking/.test(parkingShell),
   "parking tabs must not use legacy admin hrefs",
-);
-assert(
-  !/counter:\s*"\/admin\/counter-logs"/.test(counterLogShell),
-  "counter-log tabs must not use legacy admin prefix",
 );
 assert(
   !courtsHeader.includes("`/courts/${school}"),
@@ -994,7 +966,7 @@ assert(
   supervisorDashboardPage.includes("主管資料無法載入"),
   "supervisor dashboard must show an explicit BFF error state instead of infinite loading",
 );
-for (const id of ["parking", "counter-log", "lane-rentals", "courts"]) {
+for (const id of ["parking", "lane-rentals", "courts"]) {
   assert(
     supervisorDashboardPage.includes(`moduleId: "${id}"`),
     `supervisor dashboard module drawer missing ${id}`,
@@ -1009,7 +981,6 @@ for (const id of ["parking", "counter-log", "lane-rentals", "courts"]) {
 for (const path of [
   "/supervisor/parking",
   "/supervisor/parking/payments",
-  "/supervisor/counter-log/submissions",
   "/supervisor/lane-rentals",
   "/supervisor/courts/xinbei",
   "/supervisor/courts/xinbei/search",
@@ -1067,9 +1038,9 @@ assert(
   "supervisor handover page must remain the supervisor work-item create flow",
 );
 assert(
-  supervisorPeoplePage.includes("selectedFacilityKey") &&
-    supervisorPeoplePage.includes("facilities.map"),
-  "supervisor facilities page must support facility-level filtering",
+  supervisorPeoplePage.includes("routeFacilityKey") &&
+    supervisorPeoplePage.includes("getFacilityDetailHref"),
+  "supervisor facilities page must support facility-level detail routing",
 );
 assert(
   !supervisorHandoverPage.includes("targetShiftLabel"),

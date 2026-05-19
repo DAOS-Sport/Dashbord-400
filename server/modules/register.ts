@@ -4,7 +4,6 @@ import { announcementsModule } from "./announcements";
 import { anomaliesModule } from "./anomalies";
 import { authModule } from "./auth";
 import { bffModule } from "./bff";
-import { checkinsModule } from "./checkins";
 import { dashboardModule } from "./dashboard";
 import { integrationsModule } from "./integrations";
 import { portalModule } from "./portal";
@@ -21,7 +20,6 @@ export const backendModules: BackendModule[] = [
   announcementsModule,
   anomaliesModule,
   schedulesModule,
-  checkinsModule,
   dashboardModule,
   telemetryModule,
   systemModule,

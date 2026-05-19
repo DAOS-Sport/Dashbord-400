@@ -27,13 +27,12 @@ Purpose: keep `shared/modules` aligned with real pages and prevent duplicate mod
 | `lifeguard-lost-and-found` | `client/src/modules/lifeguard/operation-detail-page.tsx` and `/employee/lost-and-found` reuse | `/api/bff/lifeguard/lost-and-found` | active |
 | `lifeguard-lane-rentals` | `client/src/modules/lifeguard/operation-detail-page.tsx` | `/api/bff/lifeguard/lane-rentals` | active readonly |
 | `supervisor-dashboard` | `client/src/modules/supervisor/dashboard-page.tsx` | `/api/bff/supervisor/dashboard` | active |
-| `supervisor-lifeguard-overview` | `client/src/modules/supervisor/lifeguard-overview/page.tsx` | `/api/bff/supervisor/lifeguard-overview` | active |
+| `facilities` | `client/src/modules/supervisor/people/page.tsx` | `/api/bff/supervisor/facilities/:facilityKey/detail` | active |
 | `system-function-relations` | `client/src/modules/system/function-relations/page.tsx` | front-end only architecture map | active |
 | `system-topology` | `client/src/pages/system-topology.tsx` | front-end only topology config | active |
 | `system-lifeguard-audit` | `client/src/modules/system/lifeguard-audit/page.tsx` | `/api/bff/system/lifeguard-audit` | active |
 | `parking` | `client/src/pages/admin/parking/*` wrapped by supervisor shell | `/api/parking/*` | legacy page reused, workbench route active |
-| `counter-log` | `client/src/pages/admin/work-logs/*` wrapped by supervisor shell | `/api/work-logs/admin/*` | legacy page reused, workbench route active |
-| `lane-rentals` | `client/src/pages/admin/lane-rentals.tsx` wrapped by supervisor shell | `/api/lane-rentals/*` | legacy page reused, workbench route active |
+| `lane-rentals` | `client/src/pages/admin/lane-rentals.tsx` wrapped by supervisor shell | `/api/lane-rentals/*`, `/api/lane-rentals/layout` | legacy page reused, workbench route active |
 | `courts` | `client/src/pages/courts/*` wrapped by employee/supervisor frames | `/api/courts/*` | legacy page reused, workbench route active |
 | `announcement-groups` | `client/src/modules/supervisor/announcement-groups/page.tsx` | `/api/admin/announcement-groups` | active; API path remains admin compatibility |
 
@@ -53,9 +52,9 @@ Purpose: keep `shared/modules` aligned with real pages and prevent duplicate mod
 | Group | Purpose |
 |---|---|
 | `entry-identity` | Login, role, facility, home shells, sessions, role snapshots and legacy user compatibility. |
-| `employee-content` | Employee daily content, resources, training, notes, checkins, search and placeholder/not-connected cards. |
-| `lifeguard-workflows` | Lifeguard operation modules, supervisor lifeguard overview and IT lifeguard audit. |
-| `supervisor-operations` | Parking, counter log, lane rentals, courts, tasks, handover, anomalies and reports. |
+| `employee-content` | Employee daily content, resources, training, Q&A attachments, search and placeholder/not-connected cards. |
+| `lifeguard-workflows` | Lifeguard operation modules, shared handover, facility detail rollup and IT lifeguard audit. |
+| `supervisor-operations` | Facilities, parking, lane rentals, courts, handover and facility module rollups. |
 | `announcements` | System announcements, LINE group bindings, review/summary, recipients, notifications and Q&A. |
 | `system-governance` | Function relations, topology, health, telemetry audit, raw inspector, watchdog and BFF projections. |
 | `integrations` | LINE Bot, schedule, Ragic, Gmail and integration sync jobs. |
@@ -67,7 +66,7 @@ Purpose: keep `shared/modules` aligned with real pages and prevent duplicate mod
 |---|---|---|
 | `client/src/pages/admin/*` components still exist | reused implementation wrapped in supervisor workbench shell | remove only after equivalent `client/src/modules/supervisor/*` pages fully replace them |
 | API paths such as `/api/admin/announcement-groups` remain | backend compatibility and existing client service names | migrate later behind BFF aliases, then deprecate admin API names |
-| `analytics` and `operations` module IDs remain | compatibility with earlier registry taxonomy | keep redirected until report/operations modules are fully renamed |
+| Retired supervisor pages | `/supervisor/counter-log/*`, `/supervisor/lifeguard-overview`, `/supervisor/anomalies`, and `/supervisor/reports` are intentionally absent | keep replacement surfaces in `handover`, `facilities`, `system/alerts`, and `system/insights` |
 
 ## Verification
 

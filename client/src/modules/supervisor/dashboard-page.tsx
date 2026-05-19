@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { AlertCircle, CalendarCheck, CalendarDays, Car, CheckSquare, ClipboardCheck, ClipboardList, Megaphone, UserRound, Users, Waves, X } from "lucide-react";
+import { AlertCircle, CalendarCheck, CalendarDays, Car, CheckSquare, ClipboardList, Megaphone, UserRound, Users, Waves, X } from "lucide-react";
 import type { StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityOverview } from "@shared/domain/workbench";
 import { apiGet } from "@/shared/api/client";
 import { useAuthMe } from "@/shared/auth/session";
@@ -31,18 +31,6 @@ interface ParkingDashboardSummary {
   overdueCount: number;
   todayEventDayCount: number;
   monthRevenue: number;
-}
-
-interface WorkLogSubmissionPreview {
-  id: number | string;
-  status: string;
-  workDate?: string;
-  shiftType?: string;
-  submittedByName?: string | null;
-  submittedBy?: string | null;
-  submittedAt?: string | null;
-  totalCompleted?: number;
-  totalRequired?: number;
 }
 
 interface LaneRentalPreview {
@@ -93,11 +81,6 @@ const extractItems = <T,>(payload: unknown): T[] => {
 };
 
 const fetchParkingSummary = () => apiGet<ParkingDashboardSummary>("/api/parking/dashboard");
-
-const fetchCounterLogPreview = (facilityKey: string, workDate: string) => {
-  const params = new URLSearchParams({ facilityKey, workDate, moduleType: "counter" });
-  return apiGet<{ items: WorkLogSubmissionPreview[] }>(`/api/work-logs/admin/submissions?${params.toString()}`);
-};
 
 const fetchLaneRentalPreview = (workDate: string) => {
   const params = new URLSearchParams({ facilityKey: "songshan_pool", date: workDate });
@@ -497,24 +480,10 @@ function FacilityOverviewGrid({
   );
 }
 
-const submissionStatusLabel: Record<string, string> = {
-  submitted: "待審核",
-  approved: "已核准",
-  returned: "已退回",
-};
-
-const shiftLabel: Record<string, string> = {
-  morning: "早班",
-  noon: "中班",
-  night: "晚班",
-  all: "全班",
-};
-
 const supervisorQuickActions: FloatingQuickActionItem[] = [
-  { label: "櫃台交接", helper: "新增或調整今日交辦", href: "/supervisor/handover", Icon: ClipboardList },
+  { label: "交辦事項", helper: "新增或調整今日交辦", href: "/supervisor/handover", Icon: ClipboardList },
   { label: "公告發布", helper: "推送場館公告", href: "/supervisor/announcements", Icon: Megaphone },
-  { label: "異常審核", helper: "處理待審核事件", href: "/supervisor/anomalies", Icon: AlertCircle },
-  { label: "營運報表", helper: "開啟統計與匯出", href: "/supervisor/reports", Icon: CalendarDays },
+  { label: "場館狀態", helper: "查看場館與當班摘要", href: "/supervisor/facilities", Icon: CalendarDays },
 ];
 
 function SupervisorQuickActionRail() {
@@ -535,19 +504,12 @@ export default function SupervisorDashboardPage() {
   const [dutyDrawerOpen, setDutyDrawerOpen] = useState(false);
   const workDate = useMemo(() => todayYmd(), []);
   const facilities = data?.facilities?.data ?? [];
-  const primaryFacilityKey = facilities[0]?.facilityKey ?? "";
   const hasSongshan = facilities.some((facility) => facility.facilityKey === "songshan_pool");
 
   const parkingQuery = useQuery({
     queryKey: ["supervisor-home", "parking"],
     queryFn: fetchParkingSummary,
     enabled: Boolean(data),
-    retry: false,
-  });
-  const counterLogQuery = useQuery({
-    queryKey: ["supervisor-home", "counter-log", primaryFacilityKey, workDate],
-    queryFn: () => fetchCounterLogPreview(primaryFacilityKey, workDate),
-    enabled: Boolean(data && primaryFacilityKey),
     retry: false,
   });
   const laneRentalQuery = useQuery({
@@ -576,19 +538,6 @@ export default function SupervisorDashboardPage() {
       { id: "parking-not-signed", title: "尚未簽約", value: formatNumber(parking.notSignedCount), tone: parking.notSignedCount > 0 ? "navy" : "green" },
       { id: "parking-overdue", title: "逾期未繳 / 已過期", value: formatNumber(parking.overdueCount), tone: parking.overdueCount > 0 ? "red" : "green" },
     ] : [];
-
-    const counterItems = extractItems<WorkLogSubmissionPreview>(counterLogQuery.data).slice(0, 5);
-    const counterPending = counterItems.filter((item) => item.status === "submitted").length;
-    const counterReturned = counterItems.filter((item) => item.status === "returned").length;
-    const counterStatus: SupervisorHomeDrawerStatus = !primaryFacilityKey
-      ? "degraded"
-      : counterLogQuery.isLoading
-        ? "loading"
-        : counterLogQuery.isError
-          ? "error"
-          : counterItems.length
-            ? "ready"
-            : "empty";
 
     const laneItems = extractItems<LaneRentalPreview>(laneRentalQuery.data).slice(0, 5);
     const bookedHours = extractItems<LaneRentalPreview>(laneRentalQuery.data).reduce((sum, item) => sum + minutesBetween(item.startTime, item.endTime) / 60, 0);
@@ -643,36 +592,6 @@ export default function SupervisorDashboardPage() {
         ctas: [
           { label: "前往停車場總覽", href: "/supervisor/parking" as const },
           { label: "付款審核", href: "/supervisor/parking/payments" as const, variant: "secondary" },
-        ],
-      },
-      {
-        moduleId: "counter-log",
-        eyebrow: "Counter Log",
-        title: "櫃台日誌",
-        description: "今日櫃台日報、待審核與退回摘要。",
-        status: counterStatus,
-        statusLabel: counterStatus === "error" ? "載入失敗" : counterStatus === "degraded" ? "無場館" : counterStatus === "loading" ? "載入中" : counterStatus === "empty" ? "無回報" : "已連線",
-        icon: ClipboardCheck,
-        primaryMetric: formatNumber(counterItems.length),
-        primaryLabel: "今日回報",
-        secondaryMetric: formatNumber(counterPending),
-        secondaryLabel: "待審核",
-        stats: [
-          { label: "今日回報", value: formatNumber(counterItems.length), tone: "blue" },
-          { label: "待審核", value: formatNumber(counterPending), tone: counterPending > 0 ? "amber" : "green" },
-          { label: "退回", value: formatNumber(counterReturned), tone: counterReturned > 0 ? "red" : "green" },
-        ],
-        items: counterItems.map((item) => ({
-          id: String(item.id),
-          title: item.submittedByName ?? item.submittedBy ?? "未命名回報",
-          meta: `${item.workDate ?? workDate} · ${shiftLabel[item.shiftType ?? ""] ?? item.shiftType ?? "未標班別"} · ${item.totalCompleted ?? 0}/${item.totalRequired ?? 0}`,
-          value: submissionStatusLabel[item.status] ?? item.status,
-          tone: item.status === "returned" ? "red" : item.status === "submitted" ? "amber" : "green",
-        })),
-        emptyText: "今日尚無櫃台日誌回報。",
-        errorText: "櫃台日誌摘要載入失敗，請進入審核頁查看完整列表。",
-        ctas: [
-          { label: "前往櫃台日誌審核", href: "/supervisor/counter-log/submissions" as const },
         ],
       },
       {
@@ -739,9 +658,6 @@ export default function SupervisorDashboardPage() {
       },
     ];
   }, [
-    counterLogQuery.data,
-    counterLogQuery.isError,
-    counterLogQuery.isLoading,
     courtsQuery.data,
     courtsQuery.isError,
     courtsQuery.isLoading,
@@ -752,12 +668,11 @@ export default function SupervisorDashboardPage() {
     parkingQuery.data,
     parkingQuery.isError,
     parkingQuery.isLoading,
-    primaryFacilityKey,
     workDate,
   ]);
 
   return (
-    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、櫃台交接與公告確認狀態" role="supervisor">
+    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、交辦事項與公告確認狀態" role="supervisor">
       {sessionLoading || !canLoadSupervisorDashboard ? (
         <div className="rounded-[8px] bg-white p-6 text-[14px] font-bold text-[#637185]">正在切換主管權限...</div>
       ) : isError ? (
@@ -806,10 +721,10 @@ export default function SupervisorDashboardPage() {
             helper="集中顯示，減少首頁高度。"
             items={[
               { label: "營運人力", value: `${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`, helper: `在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`, icon: Users, tone: "green" },
-              { label: "待審核異常", value: data.pendingAnomalies.data?.length ?? 0, helper: "需儘速處理", icon: AlertCircle, tone: "red", href: "/supervisor/anomalies" },
-              { label: "未完成交班", value: data.incompleteTasks.data?.length ?? 0, helper: "待回報 / 待完成", icon: ClipboardList, tone: "navy", href: "/supervisor/handover" },
+              { label: "待處理異常", value: data.pendingAnomalies.data?.length ?? 0, helper: "已移入 system surface", icon: AlertCircle, tone: "red" },
+              { label: "未完成交辦", value: data.incompleteTasks.data?.length ?? 0, helper: "待回報 / 待完成", icon: ClipboardList, tone: "navy", href: "/supervisor/handover" },
               { label: "未確認公告", value: data.announcementAcks.data?.unconfirmed ?? 0, helper: "需補強通知", icon: Megaphone, tone: "amber", href: "/supervisor/announcements" },
-              { label: "剩餘交接", value: data.handoverOverview.data?.open ?? 0, helper: "提醒 / 服務 / 櫃台", icon: CheckSquare, tone: "blue", href: "/supervisor/handover" },
+              { label: "剩餘交辦", value: data.handoverOverview.data?.open ?? 0, helper: "提醒 / 服務 / 櫃台", icon: CheckSquare, tone: "blue", href: "/supervisor/handover" },
             ]}
           />
 
@@ -839,7 +754,7 @@ export default function SupervisorDashboardPage() {
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <WorkbenchCard className="p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[15px] font-black">未完成交班 Top 5</h2>
+                <h2 className="text-[15px] font-black">未完成交辦 Top 5</h2>
                 <button className="workbench-focus rounded-[8px] px-2 py-1 text-[11px] font-black text-[#007166]">查看全部 →</button>
               </div>
               <div className="space-y-2">
@@ -854,7 +769,7 @@ export default function SupervisorDashboardPage() {
                   </div>
                 )) : (
                   <div className="grid min-h-[132px] place-items-center rounded-[8px] bg-[#fbfcfd] text-center text-[13px] font-bold text-[#637185]">
-                    目前沒有未完成交班。
+                    目前沒有未完成交辦。
                   </div>
                 )}
               </div>

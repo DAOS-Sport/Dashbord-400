@@ -287,7 +287,50 @@ export interface SupervisorFacilityOverview {
   next: number;
   openHandovers?: number;
   incompleteTasks?: number;
+  currentCounterCount?: number;
+  currentLifeguardCount?: number;
+  lifeguardWaterQualityCount?: number;
+  lifeguardAttachmentCount?: number;
   currentLead?: { name: string; title?: string };
+}
+
+export interface SupervisorFacilityAttachmentDto {
+  id: string;
+  kind: "image" | "video" | "link";
+  label: string;
+  url: string;
+  source: string;
+}
+
+export interface SupervisorFacilityModuleItemDto {
+  id: string;
+  title: string;
+  status: string;
+  meta?: string;
+  description?: string | null;
+  attachments?: SupervisorFacilityAttachmentDto[];
+}
+
+export interface SupervisorFacilityDetailDto {
+  facility: SupervisorFacilityOverview;
+  staffing: {
+    current: StaffMemberSummary[];
+    next: StaffMemberSummary[];
+  };
+  frontDesk: {
+    openHandovers: number;
+    items: SupervisorFacilityModuleItemDto[];
+  };
+  lifeguard: {
+    waterQualityStatus: string;
+    modules: Array<{
+      id: string;
+      label: string;
+      status: string;
+      count: number;
+      items: SupervisorFacilityModuleItemDto[];
+    }>;
+  };
 }
 
 export interface SupervisorDashboardDto {
