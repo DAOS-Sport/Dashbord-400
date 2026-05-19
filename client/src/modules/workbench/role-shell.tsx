@@ -23,6 +23,7 @@ import {
   PackageSearch,
   Car,
   Search,
+  Server,
   ShieldCheck,
   Users,
   Waves,
@@ -39,8 +40,8 @@ import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navig
 
 const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {
 };
-const HELPER_MONITOR_MODULE_IDS = new Set(["helper-status", "line-whitelist"]);
-const helperSectionStartsAt = (items: NavItem[]) => items.findIndex((item) => HELPER_MONITOR_MODULE_IDS.has(item.id));
+const LINEBOT_MODULE_IDS = new Set(["linebot-management", "helper-status", "line-whitelist"]);
+const linebotSectionStartsAt = (items: NavItem[]) => items.findIndex((item) => LINEBOT_MODULE_IDS.has(item.id));
 
 type NavItem = {
   id: string;
@@ -64,6 +65,7 @@ const iconByKey: Record<string, LucideIcon> = {
   gauge: Gauge,
   "shield-check": ShieldCheck,
   search: Search,
+  server: Server,
   link: MoreHorizontal,
   building: Building2,
   megaphone: Megaphone,
@@ -166,7 +168,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const grantedFacilities = session.data?.grantedFacilities ?? [];
   const facilityLabels = useFacilityLabelMap(grantedFacilities);
   const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
-  const helperStartIndex = role === "system" ? helperSectionStartsAt(nav) : -1;
+  const linebotStartIndex = role === "system" ? linebotSectionStartsAt(nav) : -1;
   const mobileItems = nav.slice(0, 5);
   const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
@@ -205,7 +207,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
               <p className="truncate text-[11px] text-[#b8c8da]">{roleLabel}</p>
             </div>
           </div>
-          <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">MAIN</div>
+          <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">400CMS</div>
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
             {!nav.length && navigation.isLoading ? (
               <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d8e3ef]">導覽載入中...</div>
@@ -216,8 +218,8 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
               const rootActive = index === 0 && role === "supervisor" && location === "/";
               return (
                 <div key={item.id} className="contents">
-                  {index === helperStartIndex ? (
-                    <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">400小幫手</div>
+                  {index === linebotStartIndex ? (
+                    <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">400LINE</div>
                   ) : null}
                   <Link
                     href={item.href}

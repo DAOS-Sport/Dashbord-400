@@ -1,7 +1,11 @@
 import { desc } from "drizzle-orm";
 import { db } from "../../db";
 import { lineFeatureWhitelist } from "@shared/schema";
+import type { LineWhitelistEntry } from "@shared/system/line-whitelist-contract";
 import { normalizeLineFeatureAccess } from "@shared/system/line-feature-whitelist";
+import { getDatabaseRuntimeConfig } from "../../shared/db/profile";
+
+const dbRuntime = getDatabaseRuntimeConfig();
 
 export const toNullableDate = (value: string | null | undefined) => {
   if (!value) return null;
@@ -9,7 +13,7 @@ export const toNullableDate = (value: string | null | undefined) => {
   return Number.isFinite(date.getTime()) ? date : null;
 };
 
-export const lineWhitelistDto = (row: typeof lineFeatureWhitelist.$inferSelect) => ({
+export const lineWhitelistDto = (row: typeof lineFeatureWhitelist.$inferSelect): LineWhitelistEntry => ({
   id: row.id,
   lineUserId: row.lineUserId,
   employeeNumber: row.employeeNumber,
@@ -40,6 +44,14 @@ export const isMissingCautionTable = (error: unknown) =>
     : /caution_query_permissions|caution_query_permission_audit/i.test(error instanceof Error ? error.message : String(error)));
 
 export const listLineWhitelist = async () => {
+  if (dbRuntime.isMockConnection) {
+    return {
+      storageStatus: "schema_pending" as const,
+      items: [],
+      error: "Database URL is not configured. Set NEON_DATABASE_URL or DATABASE_URL to read line_feature_whitelist.",
+    };
+  }
+
   try {
     const rows = await db
       .select()

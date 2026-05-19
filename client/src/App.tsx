@@ -69,6 +69,7 @@ import SystemAuditPage from "@/modules/system/audit/page";
 import SystemControlCenterPage from "@/modules/system/control-center/page";
 import SystemGovernancePage from "@/modules/system/governance/page";
 import SystemHelperStatusPage from "@/modules/system/helper-status/page";
+import SystemLinebotManagementPage from "@/modules/system/linebot-management/page";
 import SystemLineWhitelistPage from "@/modules/system/line-whitelist/page";
 import SystemInsightsPage from "@/modules/system/insights/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
@@ -76,7 +77,6 @@ import SystemOperationsPage from "@/modules/system/operations/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
-import SystemTopologyPage from "@/pages/system/topology";
 import WorkbenchLoginPage from "@/modules/workbench/login-page";
 import DesignSystemShowcase from "@/design-system/__demo__/showcase";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
@@ -363,6 +363,7 @@ function WorkbenchRouter() {
       <Route path="/system/operations" component={SystemOperationsPage} />
       <Route path="/system/insights" component={SystemInsightsPage} />
       <Route path="/system/governance" component={SystemGovernancePage} />
+      <Route path="/system/linebot-management" component={SystemLinebotManagementPage} />
       <Route path="/system/helper-status" component={SystemHelperStatusPage} />
       <Route path="/system/lineXBS-status" component={SystemHelperStatusPage} />
       <Route path="/system/line-whitelist" component={SystemLineWhitelistPage} />
@@ -382,7 +383,6 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
-      <Route path="/system/topology" component={SystemTopologyPage} />
       <Route path="/system/overview" component={SystemControlCenterPage} />
       <Route path="/system" component={SystemControlCenterPage} />
       <Route path="/employee/courts/:school/week">

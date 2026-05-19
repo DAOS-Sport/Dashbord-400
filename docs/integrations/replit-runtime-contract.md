@@ -88,3 +88,19 @@ Runtime BFF entrypoints are intentionally split by role:
 | Shared BFF services | `server/modules/bff/services/*` |
 
 Do not add new role-specific endpoints back into `server/modules/bff/routes.ts`; add them to the matching role route file.
+
+## Module Intake Governance
+
+Before adding any new module, feature, route, integration, permission, Ragic-backed flow, or LINE Bot capability in Replit, apply:
+
+```text
+docs/operations/skills/module-intake-governance/SKILL.md
+```
+
+Every intake answer must include all three fields:
+
+1. `角色`
+2. `RAGIC 資料庫`
+3. `功能 / 需求 / 用途`
+
+If any field is unknown, do not implement the module yet. Identify the missing field first so the module registry, BFF boundary, Ragic source, and UI route stay clean.

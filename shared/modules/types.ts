@@ -85,6 +85,7 @@ export interface ModuleIntegrationBinding {
     | "SMART_SCHEDULE_MANAGER"
     | "RAGIC"
     | "GMAIL_SMTP"
+    | "CWA"
     | "LOCAL_STORAGE"
     | "POSTGRES"
     | "NEON"
@@ -100,6 +101,10 @@ export interface ModuleBffBinding {
   supervisorSectionKey?: string;
   systemSectionKey?: string;
   plannedEndpoints?: string[];
+  uiStates?: Array<"loading" | "ready" | "empty" | "error" | "degraded" | "unavailable" | "disabled" | "stale">;
+  freshness?: "realtime" | "5min" | "1hour" | "daily" | "manual";
+  uiStateSourceFiles?: string[];
+  sharedComponents?: string[];
 }
 
 export interface ModuleTelemetryBinding {

@@ -247,7 +247,7 @@ assert(
   getNavigationModules("system")
     .map((item) => item.id)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,helper-status,line-whitelist",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,linebot-management,helper-status,line-whitelist",
   `system navigation order changed: ${getNavigationModules("system")
     .map((item) => item.id)
     .join(",")}`,
@@ -256,7 +256,7 @@ assert(
   getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,helper-status,line-whitelist",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,linebot-management,helper-status,line-whitelist",
   `system home card order changed: ${getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",")}`,

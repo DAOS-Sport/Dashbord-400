@@ -32,6 +32,8 @@ const roles: AppRole[] = ["employee", "lifeguard", "supervisor", "system", "SYST
 const methods: ModuleApiBinding["method"][] = ["GET", "POST", "PATCH", "PUT", "DELETE"];
 const apiKinds: ModuleApiBinding["kind"][] = ["bff", "crud", "proxy", "auth", "telemetry", "export", "upload", "legacy"];
 const domains: ModuleDomainType[] = ["core", "derived", "support", "system", "integration", "legacy"];
+const uiStates: NonNullable<ModuleDefinition["bff"]["uiStates"]>[number][] = ["loading", "ready", "empty", "error", "degraded", "unavailable", "disabled", "stale"];
+const freshnessProfiles: NonNullable<ModuleDefinition["bff"]["freshness"]>[] = ["realtime", "5min", "1hour", "daily", "manual"];
 
 const assert = (condition: boolean, message: string) => {
   if (!condition) throw new Error(message);
@@ -114,6 +116,15 @@ export const assertModuleRegistryValid = (): void => {
       assert(Boolean(binding.path.trim()), `Module ${module.id} API path cannot be empty`);
       assert(apiKinds.includes(binding.kind), `Module ${module.id} API ${binding.path} has invalid kind`);
       assert(statuses.includes(binding.status), `Module ${module.id} API ${binding.path} has invalid status`);
+    }
+
+    if (module.bff.uiStates) {
+      for (const state of module.bff.uiStates) {
+        assert(uiStates.includes(state), `Module ${module.id} BFF UI state is invalid: ${state}`);
+      }
+    }
+    if (module.bff.freshness) {
+      assert(freshnessProfiles.includes(module.bff.freshness), `Module ${module.id} BFF freshness is invalid: ${module.bff.freshness}`);
     }
   }
 };

@@ -421,10 +421,10 @@ export function invalidateCandidateCache(facilityKey?: string): void {
     // Invalidate sync throttle
     syncMetaCache.delete(facilityKey);
     // Invalidate result caches for this facility
-    for (const key of importantResultCache.keys()) {
+    for (const key of Array.from(importantResultCache.keys())) {
       if (key.startsWith(`${facilityKey}||`)) importantResultCache.delete(key);
     }
-    for (const key of campaignResultCache.keys()) {
+    for (const key of Array.from(campaignResultCache.keys())) {
       if (key.startsWith(`${facilityKey}||`)) campaignResultCache.delete(key);
     }
   } else {

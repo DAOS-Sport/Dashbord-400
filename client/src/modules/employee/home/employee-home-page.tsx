@@ -791,8 +791,8 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
         ) : (
           <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
             <span>{sourceMessage}</span>
-            {source?.updatedAt ? (
-              <span className="mt-1.5 block text-[10px] font-bold text-[#b8975a]">上次更新：{formatShortDateTime(source.updatedAt)}</span>
+            {source?.meta.lastSyncAt ? (
+              <span className="mt-1.5 block text-[10px] font-bold text-[#b8975a]">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
             ) : null}
           </div>
         )}
@@ -1020,8 +1020,8 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged, source }: { camp
         )) : (
           <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">
             <span>目前沒有活動快訊</span>
-            {source?.updatedAt ? (
-              <span className="mt-1 block text-[10px] font-bold text-[#adb9c8]">上次更新：{formatShortDateTime(source.updatedAt)}</span>
+            {source?.meta.lastSyncAt ? (
+              <span className="mt-1 block text-[10px] font-bold text-[#adb9c8]">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
             ) : null}
           </div>
         )}

@@ -1,168 +1,176 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Activity, ChevronDown, ChevronLeft, ChevronUp, Clock, Download, History, Search, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Activity, ChevronDown, ChevronLeft, ChevronUp, Clock, Pencil, Plus, Save, Search, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
 import { LINE_FEATURES } from "@shared/system/line-feature-whitelist";
 import {
-  createCautionPermission,
-  createLineBotVipEntry,
+  createLineBotInterviewUser,
   createLineWhitelistEntry,
-  deleteLineBotVipEntry,
-  deleteLineWhitelistEntry,
-  fetchCautionPermissionAudit,
-  fetchCautionPermissions,
+  deleteLineBotInterviewUser,
+  fetchLineBotInterviewUsers,
   fetchLineBotServiceStatus,
   fetchLineBotServiceStatusSnapshots,
-  fetchLineBotVipWhitelist,
   fetchLineWhitelist,
-  importInterviewUsers,
-  searchCautionCandidates,
   searchLineWhitelistCandidates,
-  updateCautionPermissionPeriod,
-  updateCautionPermissionStatus,
+  updateLineBotInterviewUser,
   updateLineWhitelistEntry,
-  type CautionCandidate,
-  type CautionPermission,
-  type ImportInterviewResult,
+  type InterviewUserEntry,
+  type LineBotInterviewUserPayload,
   type LineWhitelistCandidate,
   type LineWhitelistEntry,
-  type VipWhitelistEntry,
 } from "./api";
 
 const whitelistQueryKey = ["/api/bff/system/line-whitelist"];
-const cautionQueryKey = ["/api/cms/system/caution-permissions"];
-const tabs = ["慎用查詢", "主管白名單", "公告 VIP", "群組 tier"] as const;
+const lineAuthorityQueryKey = ["/api/bff/system/line-bot/interview-users", "line-whitelist-authority"];
+const defaultFeatureAccess = () =>
+  Object.fromEntries(LINE_FEATURES.map((feature) => [feature.key, feature.key === "interview" || feature.key === "caution-query"]));
 
-const dateValue = (v?: string | null) => v ? v.slice(0, 10).replaceAll("-", "/") : "";
-const inputDateValue = (v?: string | null) => v ? v.slice(0, 10) : "";
-const maskPhone = (phone?: string | null) => phone ? phone.replace(/(\d{4})\d+(\d{3})$/, "$1***$2") : "-";
-
-const cautionStatusCopy: Record<string, { label: string; className: string }> = {
-  active: { label: "● 啟用", className: "bg-[#e9f8df] text-[#188249]" },
-  expiring_soon: { label: "⚠ 即將到期", className: "bg-[#fff6e7] text-[#ca8a04]" },
-  expired: { label: "⚠ 已過期", className: "bg-[#ffe8df] text-[#c2410c]" },
-  disabled: { label: "○ 已停用", className: "bg-[#eef2f6] text-[#536175]" },
-  not_yet_effective: { label: "尚未生效", className: "bg-[#eef2ff] text-[#3b82f6]" },
+const dateValue = (value?: string | null) => value ? value.slice(0, 10).replaceAll("-", "/") : "";
+const inputDateValue = (value?: string | null) => value ? value.slice(0, 10) : "";
+const fullPhone = (phone?: string | null) => phone || "-";
+const isExpiringSoon = (entry: LineWhitelistEntry) => {
+  if (entry.unlimited || !entry.endsAt || entry.status !== "active") return false;
+  const end = new Date(entry.endsAt).getTime();
+  if (!Number.isFinite(end)) return false;
+  const days = (end - Date.now()) / (1000 * 60 * 60 * 24);
+  return days >= 0 && days <= 14;
 };
 
-const svcColor: Record<string, string> = {
-  up: "bg-[#e9f8df] text-[#188249]",
-  down: "bg-[#ffe8df] text-[#c2410c]",
-  degraded: "bg-[#fff6e7] text-[#ca8a04]",
-  unknown: "bg-[#eef2f6] text-[#536175]",
+const featureSummary = (features: Record<string, boolean>) =>
+  LINE_FEATURES.filter((feature) => features[feature.key]).map((feature) => feature.label).join("、") || "未開功能";
+
+const operationErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : typeof error === "string" ? error : "操作失敗，請稍後再試。";
+
+const asInterviewUsers = (value: InterviewUserEntry[] | { items?: InterviewUserEntry[]; users?: InterviewUserEntry[] } | undefined) => {
+  if (Array.isArray(value)) return value;
+  return value?.items ?? value?.users ?? [];
 };
 
-function HistoryDrawer({ entry, open, onClose }: { entry: CautionPermission | null; open: boolean; onClose: () => void }) {
-  const auditQuery = useQuery({
-    queryKey: ["/api/cms/system/caution-permissions/audit", entry?.id],
-    queryFn: () => fetchCautionPermissionAudit(entry!.id),
-    enabled: open && Boolean(entry),
-  });
-  return (
-    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[620px]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2 text-[#10233f]"><History className="h-5 w-5" /> {entry?.displayName ?? "權限"} — 權限歷史</SheetTitle>
-          <SheetDescription>核發、停用、期限變更與 LINE 小幫手實際使用紀錄。</SheetDescription>
-        </SheetHeader>
-        {entry ? (
-          <div className="mt-5 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-            <p className="text-[13px] font-black text-[#10233f]">{entry.department ?? "-"} · {entry.position ?? "-"}</p>
-            <p className="mt-1 font-mono text-[12px] font-black text-[#536175]">{entry.userId}</p>
-            <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">{maskPhone(entry.phone)}</p>
-          </div>
-        ) : null}
-        <div className="mt-5 space-y-3">
-          {(auditQuery.data?.items ?? []).map((item) => (
-            <div key={item.id} className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
-              <p className="text-[13px] font-black text-[#10233f]">{item.action}</p>
-              <p className="mt-1 text-[12px] font-bold text-[#637185]">操作：{item.actor} · {new Date(item.createdAt).toLocaleString("zh-TW")}</p>
-              {item.metadata ? <pre className="mt-2 overflow-x-auto rounded-[6px] bg-[#f7f9fb] p-2 text-[11px] text-[#536175]">{JSON.stringify(item.metadata, null, 2)}</pre> : null}
-            </div>
-          ))}
-          {!auditQuery.isLoading && !(auditQuery.data?.items ?? []).length ? (
-            <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">尚無歷史紀錄。</div>
-          ) : null}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
+const lineAuthorityUserName = (user: InterviewUserEntry) =>
+  user.displayName || user.userName || String(user.name ?? "") || "未命名";
 
-function PermissionCard({ entry, onHistory }: { entry: CautionPermission; onHistory: (e: CautionPermission) => void }) {
-  const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [periodType, setPeriodType] = useState<"unlimited" | "range" | "today_only">(entry.permissionEndAt ? "range" : "unlimited");
-  const [startAt, setStartAt] = useState(inputDateValue(entry.permissionStartAt));
-  const [endAt, setEndAt] = useState(inputDateValue(entry.permissionEndAt));
-  const [reason, setReason] = useState("");
-  const ui = cautionStatusCopy[entry.status] ?? cautionStatusCopy.disabled;
-  const statusMutation = useMutation({
-    mutationFn: (isActive: boolean) => updateCautionPermissionStatus(entry.id, isActive),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: cautionQueryKey }),
+const lineAuthorityUserId = (user: InterviewUserEntry) =>
+  user.lineUserId || user.userId || String(user.id ?? "");
+
+const lineAuthorityIsActive = (user: InterviewUserEntry) =>
+  user.isActive === true || user.isActive === "true" || (user.isActive !== false && user.status !== "disabled");
+
+const lineAuthorityFlag = (value: boolean | string | undefined, fallback = false) =>
+  value === undefined ? fallback : value === true || value === "true";
+
+const lineAuthorityFeatures = (user: InterviewUserEntry) => [
+  lineAuthorityFlag(user.canInterviewCheck) ? "面試模組" : "",
+  lineAuthorityFlag(user.canCautionQuery) ? "慎用查詢" : "",
+  lineAuthorityFlag(user.canInternalQuery) ? "人員查詢" : "",
+  lineAuthorityFlag(user.canUseAiAgent) ? "AI 智能客服" : "",
+].filter(Boolean).join("、") || "400LINE 授權";
+
+const lineAuthorityPayload = (
+  userId: string,
+  input: {
+    displayName: string;
+    employeeNumber?: string | null;
+    phone?: string | null;
+    department?: string | null;
+    canInterviewCheck?: boolean;
+    canCautionQuery?: boolean;
+    canInternalQuery?: boolean;
+    canUseAiAgent?: boolean;
+    isActive?: boolean;
+  },
+): LineBotInterviewUserPayload => ({
+  userId,
+  lineUserId: userId,
+  userName: input.displayName,
+  displayName: input.displayName,
+  employeeNumber: input.employeeNumber || null,
+  phone: input.phone || null,
+  department: input.department || null,
+  canInterviewCheck: Boolean(input.canInterviewCheck),
+  canCautionQuery: Boolean(input.canCautionQuery),
+  canInternalQuery: Boolean(input.canInternalQuery),
+  canUseAiAgent: Boolean(input.canUseAiAgent),
+  isActive: input.isActive !== false,
+});
+
+function ServiceHealthStrip() {
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const statusQuery = useQuery({
+    queryKey: ["/api/bff/system/line-bot/service-status", "line-whitelist"],
+    queryFn: fetchLineBotServiceStatus,
+    refetchInterval: 30_000,
+    retry: 1,
   });
-  const periodMutation = useMutation({
-    mutationFn: () => updateCautionPermissionPeriod(entry.id, { periodType, periodStartAt: startAt || null, periodEndAt: endAt || null, changeReason: reason }),
-    onSuccess: () => { setEditing(false); setReason(""); queryClient.invalidateQueries({ queryKey: cautionQueryKey }); },
+  const snapshotsQuery = useQuery({
+    queryKey: ["/api/bff/system/line-bot/service-status/snapshots", "line-whitelist"],
+    queryFn: fetchLineBotServiceStatusSnapshots,
+    enabled: showSnapshots,
+    retry: 1,
   });
+  const services = Array.isArray(statusQuery.data?.services) ? statusQuery.data.services : [];
   return (
     <WorkbenchCard className="p-4">
-      <div className="grid gap-3 xl:grid-cols-[1fr_220px_120px_180px] xl:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-[16px] font-black text-[#10233f]">{entry.displayName}</h3>
-            <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", ui.className)}>{ui.label}</span>
-          </div>
-          <p className="mt-1 font-mono text-[12px] font-black text-[#536175]">{entry.userId}</p>
-          <p className="mt-1 text-[12px] font-bold text-[#637185]">{entry.department ?? "-"} · {entry.position ?? "-"} · {maskPhone(entry.phone)}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Activity className="h-5 w-5 text-[#536175]" />
+          <h2 className="text-[15px] font-black text-[#10233f]">400LINE 連線狀態</h2>
+          {statusQuery.isFetching ? <span className="text-[11px] font-bold text-[#8b9aae]">更新中…</span> : null}
         </div>
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">授權期限</p>
-          <p className="mt-1 text-[12px] font-black text-[#10233f]">
-            {entry.permissionEndAt ? `${dateValue(entry.permissionStartAt) || "立即"} ~ ${dateValue(entry.permissionEndAt)}` : "無期限"}
-          </p>
-        </div>
-        <label className="flex items-center gap-2">
-          <Switch checked={entry.isActive} onCheckedChange={(v) => statusMutation.mutate(v)} />
-          <span className="text-[12px] font-black text-[#536175]">{entry.isActive ? "啟用" : "停用"}</span>
-        </label>
-        <div className="flex flex-wrap gap-2 xl:justify-end">
-          <button type="button" onClick={() => setEditing((v) => !v)} className="rounded-[8px] border border-[#dfe7ef] px-3 py-2 text-[12px] font-black text-[#10233f]">編輯期限</button>
-          <button type="button" onClick={() => onHistory(entry)} className="rounded-[8px] border border-[#dfe7ef] px-3 py-2 text-[12px] font-black text-[#10233f]">查看歷史</button>
-        </div>
+        <button type="button" onClick={() => setShowSnapshots((value) => !value)} className="flex items-center gap-1 rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]">
+          {showSnapshots ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          快照
+        </button>
       </div>
-      {editing ? (
-        <div className="mt-4 grid gap-3 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 lg:grid-cols-[160px_1fr_1fr_1.4fr_auto] lg:items-end">
-          <label className="grid gap-1">
-            <span className="text-[11px] font-black text-[#8b9aae]">授權類型</span>
-            <select value={periodType} onChange={(e) => setPeriodType(e.target.value as typeof periodType)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
-              <option value="unlimited">無期限</option>
-              <option value="range">指定期間</option>
-              <option value="today_only">僅今日內測試</option>
-            </select>
-          </label>
-          <input type="date" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold" />
-          <input type="date" value={endAt} disabled={periodType !== "range"} onChange={(e) => setEndAt(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold disabled:opacity-50" />
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="變更原因，至少 5 字" className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold" />
-          <button type="button" disabled={reason.trim().length < 5 || periodMutation.isPending} onClick={() => periodMutation.mutate()} className="h-10 rounded-[8px] bg-[#0f1b3d] px-4 text-[12px] font-black text-white disabled:opacity-50">儲存</button>
+      {(statusQuery.data as { message?: string } | undefined)?.message ? (
+        <div className="mt-3 rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[12px] font-bold text-[#8a5a00]">
+          {(statusQuery.data as { message?: string }).message}
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {services.map((service) => {
+          const status = String(service.status ?? "unknown");
+          const ok = ["healthy", "up", "ok"].includes(status.toLowerCase());
+          const bad = ["critical", "down", "unhealthy"].includes(status.toLowerCase());
+          return (
+            <span key={`${service.name ?? service.service}-${status}`} className={cn("rounded-full px-3 py-1.5 text-[12px] font-black", ok ? "bg-[#e9f8df] text-[#188249]" : bad ? "bg-[#ffe8df] text-[#c2410c]" : "bg-[#fff6e7] text-[#ca8a04]")}>
+              {service.name ?? service.service ?? "unknown"} · {status}
+            </span>
+          );
+        })}
+        {!statusQuery.isLoading && !services.length ? <span className="text-[12px] font-bold text-[#8b9aae]">尚未取得 400LINE 服務狀態。</span> : null}
+      </div>
+      {showSnapshots ? (
+        <div className="mt-3 grid gap-2">
+          {(snapshotsQuery.data?.items ?? []).slice(0, 4).map((snapshot, index) => {
+            const at = snapshot.snappedAt ?? snapshot.createdAt ?? snapshot.checkedAt;
+            return (
+              <div key={String(snapshot.id ?? index)} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 text-[12px] font-bold text-[#536175]">
+                {at ? new Date(at).toLocaleString("zh-TW") : "未標記時間"}
+              </div>
+            );
+          })}
+          {!snapshotsQuery.isLoading && !(snapshotsQuery.data?.items ?? []).length ? <p className="text-[12px] font-bold text-[#8b9aae]">尚無快照記錄。</p> : null}
         </div>
       ) : null}
     </WorkbenchCard>
   );
 }
 
-function WhitelistEntryCard({ entry, onDelete }: { entry: LineWhitelistEntry; onDelete: (id: number) => void }) {
+function WhitelistEntryCard({ entry }: { entry: LineWhitelistEntry }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [localFeatures, setLocalFeatures] = useState<Record<string, boolean>>(entry.featureAccess);
+  const [periodType, setPeriodType] = useState<"unlimited" | "range">(entry.unlimited ? "unlimited" : "range");
+  const [startsAt, setStartsAt] = useState(inputDateValue(entry.startsAt));
+  const [endsAt, setEndsAt] = useState(inputDateValue(entry.endsAt));
   const updateMutation = useMutation({
-    mutationFn: (payload: { status?: "active" | "disabled"; featureAccess?: Record<string, boolean> }) =>
-      updateLineWhitelistEntry(entry.id, { ...payload, unlimited: entry.unlimited }),
+    mutationFn: (payload: { status?: "active" | "disabled"; featureAccess?: Record<string, boolean>; unlimited?: boolean; startsAt?: string | null; endsAt?: string | null }) =>
+      updateLineWhitelistEntry(entry.id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: whitelistQueryKey }),
   });
   const toggleFeature = (key: string, value: boolean) => {
@@ -170,767 +178,544 @@ function WhitelistEntryCard({ entry, onDelete }: { entry: LineWhitelistEntry; on
     setLocalFeatures(next);
     updateMutation.mutate({ featureAccess: next });
   };
+  const savePeriod = () => {
+    updateMutation.mutate({
+      unlimited: periodType === "unlimited",
+      startsAt: startsAt || null,
+      endsAt: periodType === "unlimited" ? null : (endsAt || null),
+    });
+  };
   return (
     <WorkbenchCard className="p-4">
-      <div className="grid gap-3 xl:grid-cols-[1fr_160px_120px_80px] xl:items-start">
+      <div className="grid gap-3 xl:grid-cols-[1fr_180px_140px_120px] xl:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[15px] font-black text-[#10233f]">{entry.displayName}</h3>
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", entry.status === "active" ? "bg-[#e9f8df] text-[#188249]" : "bg-[#eef2f6] text-[#536175]")}>
-              {entry.status === "active" ? "● 啟用" : "○ 停用"}
+              {entry.status === "active" ? "啟用" : "停用"}
             </span>
+            {isExpiringSoon(entry) ? <span className="rounded-full bg-[#fff6e7] px-2 py-0.5 text-[10px] font-black text-[#ca8a04]">即將到期</span> : null}
           </div>
           <p className="mt-0.5 font-mono text-[11px] font-black text-[#536175]">{entry.lineUserId}</p>
-          <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{entry.department ?? "-"}{entry.employeeNumber ? ` · #${entry.employeeNumber}` : ""}</p>
+          <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{fullPhone(entry.phone)} · {entry.department ?? "-"}</p>
         </div>
-        <div className="flex flex-wrap gap-1">
-          {LINE_FEATURES.map((f) => (
-            <span key={f.key} className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", localFeatures[f.key] ? "bg-[#eff6ff] text-[#1d4ed8]" : "bg-[#f3f6fb] text-[#8b9aae]")}>
-              {f.label}
-            </span>
-          ))}
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">授權期限</p>
+          <p className="mt-1 text-[12px] font-black text-[#10233f]">{entry.unlimited ? "無期限" : `${dateValue(entry.startsAt) || "立即"} ~ ${dateValue(entry.endsAt) || "未指定"}`}</p>
         </div>
         <label className="flex items-center gap-2">
-          <Switch checked={entry.status === "active"} onCheckedChange={(v) => updateMutation.mutate({ status: v ? "active" : "disabled" })} />
+          <Switch disabled={updateMutation.isPending} checked={entry.status === "active"} onCheckedChange={(value) => updateMutation.mutate({ status: value ? "active" : "disabled" })} />
           <span className="text-[12px] font-black text-[#536175]">{entry.status === "active" ? "啟用" : "停用"}</span>
         </label>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-[8px] border border-[#dfe7ef] px-3 py-2 text-[12px] font-black text-[#10233f]">
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => { if (window.confirm(`確定要刪除 ${entry.displayName} 的白名單授權？`)) onDelete(entry.id); }}
-            className="rounded-[8px] border border-[#ffe8df] px-3 py-2 text-[12px] font-black text-[#c2410c] hover:bg-[#ffe8df]"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
+        <button type="button" onClick={() => setExpanded((value) => !value)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          編輯
+        </button>
       </div>
+      <p className="mt-3 text-[11px] font-bold text-[#637185]">{featureSummary(localFeatures)}</p>
       {expanded ? (
-        <div className="mt-4 grid gap-2 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 sm:grid-cols-2 lg:grid-cols-3">
-          {LINE_FEATURES.map((f) => (
-            <label key={f.key} className="flex items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] bg-white p-2">
-              <div>
-                <p className="text-[12px] font-black text-[#10233f]">{f.label}</p>
-                <p className="text-[10px] font-bold text-[#8b9aae]">{f.description}</p>
-              </div>
-              <Switch checked={Boolean(localFeatures[f.key])} onCheckedChange={(v) => toggleFeature(f.key, v)} />
+        <div className="mt-4 grid gap-3 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {LINE_FEATURES.map((feature) => (
+              <label key={feature.key} className="flex min-h-[70px] items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] bg-white p-3">
+                <div>
+                  <p className="text-[12px] font-black text-[#10233f]">{feature.label}</p>
+                  <p className="mt-0.5 text-[10px] font-bold text-[#8b9aae]">{feature.description}</p>
+                </div>
+                <Switch disabled={updateMutation.isPending} checked={Boolean(localFeatures[feature.key])} onCheckedChange={(value) => toggleFeature(feature.key, value)} />
+              </label>
+            ))}
+          </div>
+          {updateMutation.isError ? (
+            <div className="rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
+              {operationErrorMessage(updateMutation.error)}
+            </div>
+          ) : null}
+          <div className="grid gap-2 lg:grid-cols-[160px_1fr_1fr_auto] lg:items-end">
+            <label className="grid gap-1">
+              <span className="text-[11px] font-black text-[#8b9aae]">期限</span>
+              <select value={periodType} onChange={(event) => setPeriodType(event.target.value as "unlimited" | "range")} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
+                <option value="unlimited">無期限</option>
+                <option value="range">指定起迄</option>
+              </select>
             </label>
-          ))}
-          {entry.notes ? <p className="col-span-full text-[11px] font-bold text-[#8b9aae]">備註：{entry.notes}</p> : null}
-          <p className="col-span-full text-[10px] font-bold text-[#8b9aae]">最後更新：{new Date(entry.updatedAt).toLocaleString("zh-TW")}</p>
+            <input type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold" />
+            <input type="date" value={endsAt} disabled={periodType === "unlimited"} onChange={(event) => setEndsAt(event.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold disabled:opacity-50" />
+            <button type="button" onClick={savePeriod} disabled={updateMutation.isPending} className="h-10 rounded-[8px] bg-[#0f1b3d] px-4 text-[12px] font-black text-white disabled:opacity-50">儲存期限</button>
+          </div>
         </div>
       ) : null}
     </WorkbenchCard>
   );
 }
 
-function LineBotServiceHealthPanel() {
-  const [showSnapshots, setShowSnapshots] = useState(false);
-  const statusQuery = useQuery({
-    queryKey: ["/api/bff/system/line-bot/service-status"],
-    queryFn: fetchLineBotServiceStatus,
-    refetchInterval: 30_000,
-    retry: 1,
+function AuthorityUserCard({ user }: { user: InterviewUserEntry }) {
+  const queryClient = useQueryClient();
+  const userId = lineAuthorityUserId(user);
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [displayName, setDisplayName] = useState(lineAuthorityUserName(user));
+  const [department, setDepartment] = useState(user.department ?? "");
+  const [phone, setPhone] = useState(user.phone ?? "");
+  const [canInterviewCheck, setCanInterviewCheck] = useState(lineAuthorityFlag(user.canInterviewCheck, true));
+  const [canCautionQuery, setCanCautionQuery] = useState(lineAuthorityFlag(user.canCautionQuery));
+  const [canInternalQuery, setCanInternalQuery] = useState(lineAuthorityFlag(user.canInternalQuery, true));
+  const [canUseAiAgent, setCanUseAiAgent] = useState(lineAuthorityFlag(user.canUseAiAgent));
+  const [isActive, setIsActive] = useState(user.isActive !== false && user.status !== "disabled");
+  const invalidateAuthority = () => queryClient.invalidateQueries({ queryKey: lineAuthorityQueryKey });
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateLineBotInterviewUser(userId, lineAuthorityPayload(userId, {
+        displayName,
+        department,
+        phone,
+        canInterviewCheck,
+        canCautionQuery,
+        canInternalQuery,
+        canUseAiAgent,
+        isActive,
+      })),
+    onSuccess: () => {
+      setEditing(false);
+      invalidateAuthority();
+    },
   });
-  const snapshotsQuery = useQuery({
-    queryKey: ["/api/bff/system/line-bot/service-status/snapshots"],
-    queryFn: fetchLineBotServiceStatusSnapshots,
-    enabled: showSnapshots,
-    retry: 1,
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteLineBotInterviewUser(userId),
+    onSuccess: () => invalidateAuthority(),
   });
-
-  const raw = statusQuery.data as Record<string, unknown> | undefined;
-  const services: Array<{ name: string; status?: string; message?: string; latencyMs?: number }> =
-    Array.isArray(raw?.services)
-      ? raw.services as Array<{ name: string; status?: string }>
-      : raw
-        ? Object.entries(raw)
-            .filter(([k]) => !["generatedAt", "checkedAt", "message"].includes(k))
-            .map(([name, val]) =>
-              val && typeof val === "object" && "status" in val
-                ? { name, ...(val as object) }
-                : { name, status: typeof val === "string" ? val : "unknown" },
-            )
-        : [];
-
   return (
-    <WorkbenchCard className="p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-[#536175]" />
-          <h2 className="text-[15px] font-black text-[#10233f]">LINE Bot 服務健康</h2>
-          {statusQuery.isFetching ? <span className="text-[11px] font-bold text-[#8b9aae]">更新中…</span> : null}
-        </div>
-        <div className="flex items-center gap-2">
-          {raw?.checkedAt || raw?.generatedAt ? (
-            <span className="text-[11px] font-bold text-[#8b9aae]">
-              {new Date(String(raw.checkedAt ?? raw.generatedAt)).toLocaleTimeString("zh-TW")} 更新
+    <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+      <div className="grid gap-2 lg:grid-cols-[1fr_180px_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[13px] font-black text-[#10233f]">{lineAuthorityUserName(user)}</p>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", lineAuthorityIsActive(user) ? "bg-[#e9f8df] text-[#188249]" : "bg-[#eef2f6] text-[#536175]")}>
+              {lineAuthorityIsActive(user) ? "啟用" : "停用"}
             </span>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setShowSnapshots((v) => !v)}
-            className="flex items-center gap-1 rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]"
-          >
-            {showSnapshots ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            快照歷史
+          </div>
+          <p className="mt-0.5 truncate font-mono text-[11px] font-black text-[#536175]">{userId || "未提供 userId"}</p>
+          <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{fullPhone(user.phone)} · {user.department ?? "-"}</p>
+        </div>
+        <p className="text-[11px] font-black text-[#536175]">{lineAuthorityFeatures(user)}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => { setEditing((value) => !value); setConfirmDelete(false); }} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#536175] hover:bg-[#f3f6fb]">
+            {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            {editing ? "收合" : "編輯"}
+          </button>
+          <button type="button" onClick={() => confirmDelete ? deleteMutation.mutate() : setConfirmDelete(true)} disabled={deleteMutation.isPending || !userId} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] px-3 text-[11px] font-black text-[#c2410c] disabled:opacity-50">
+            <Trash2 className="h-3.5 w-3.5" />
+            {confirmDelete ? "確認刪除" : "刪除"}
           </button>
         </div>
       </div>
-
-      {(raw as { message?: string } | undefined)?.message ? (
-        <div className="mt-3 rounded-[8px] border border-[#ffe8df] bg-[#fff8f6] p-3 text-[12px] font-bold text-[#c2410c]">
-          {(raw as { message?: string }).message}
-        </div>
-      ) : null}
-
-      {services.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {services.map((svc, i) => {
-            const color = svcColor[svc.status ?? "unknown"] ?? svcColor.unknown;
-            return (
-              <div key={i} className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-black", color)}>
-                <span>{svc.name}</span>
-                <span className="opacity-60">·</span>
-                <span className="uppercase">{svc.status ?? "?"}</span>
-                {svc.latencyMs ? <span className="text-[10px] opacity-60">{svc.latencyMs}ms</span> : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : !statusQuery.isLoading ? (
-        <p className="mt-3 text-[12px] font-bold text-[#8b9aae]">
-          {statusQuery.isError ? "服務狀態查詢失敗，請確認 LINE Bot 連線" : "未設定 LINE_BOT_ADMIN_TOKEN 或服務健康端點無回應"}
-        </p>
-      ) : null}
-
-      {showSnapshots ? (
-        <div className="mt-4 space-y-2">
-          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">快照歷史</p>
-          {snapshotsQuery.isLoading ? <p className="text-[12px] font-bold text-[#8b9aae]">載入中…</p> : null}
-          {(snapshotsQuery.data?.items ?? []).slice(0, 10).map((snap, i) => (
-            <div key={i} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-              <p className="text-[11px] font-black text-[#536175]">{new Date(snap.createdAt).toLocaleString("zh-TW")}</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {((snap.services as Array<{ name?: string; status?: string }> | undefined) ?? []).map((svc, j) => {
-                  const color = svcColor[svc.status ?? "unknown"] ?? svcColor.unknown;
-                  return (
-                    <span key={j} className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", color)}>
-                      {svc.name ?? `服務${j + 1}`} {svc.status ?? "?"}
-                    </span>
-                  );
-                })}
-              </div>
+      {editing ? (
+        <div className="mt-3 grid gap-3 rounded-[8px] border border-[#edf1f6] bg-white p-3">
+          <div className="grid gap-2 md:grid-cols-3">
+            <label className="grid gap-1">
+              <span className="text-[11px] font-black text-[#8b9aae]">姓名</span>
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[11px] font-black text-[#8b9aae]">部門</span>
+              <input value={department} onChange={(event) => setDepartment(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-[11px] font-black text-[#8b9aae]">電話</span>
+              <input value={phone} onChange={(event) => setPhone(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
+            </label>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              ["面試模組", canInterviewCheck, setCanInterviewCheck],
+              ["慎用查詢", canCautionQuery, setCanCautionQuery],
+              ["人員查詢", canInternalQuery, setCanInternalQuery],
+              ["AI 智能客服", canUseAiAgent, setCanUseAiAgent],
+              ["啟用", isActive, setIsActive],
+            ].map(([label, checked, setter]) => (
+              <label key={String(label)} className="flex min-h-10 items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] px-3">
+                <span className="text-[11px] font-black text-[#536175]">{String(label)}</span>
+                <Switch checked={Boolean(checked)} onCheckedChange={(value) => (setter as (next: boolean) => void)(value)} />
+              </label>
+            ))}
+          </div>
+          {updateMutation.isError || deleteMutation.isError ? (
+            <div className="rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
+              {operationErrorMessage(updateMutation.error ?? deleteMutation.error)}
             </div>
-          ))}
-          {!snapshotsQuery.isLoading && !(snapshotsQuery.data?.items ?? []).length ? (
-            <p className="text-[12px] font-bold text-[#8b9aae]">尚無快照記錄</p>
           ) : null}
+          <button type="button" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || !displayName.trim() || !userId} className="inline-flex h-10 w-fit items-center gap-2 rounded-[8px] bg-[#0f1b3d] px-4 text-[12px] font-black text-white disabled:opacity-50">
+            <Save className="h-4 w-4" />
+            {updateMutation.isPending ? "儲存中..." : "儲存變更"}
+          </button>
         </div>
       ) : null}
-    </WorkbenchCard>
+    </div>
   );
 }
 
 export default function SystemLineWhitelistPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<typeof tabs[number]>("慎用查詢");
-
-  const [cautionStatus, setCautionStatus] = useState("all");
-  const [dept, setDept] = useState("");
-  const [query, setQuery] = useState("");
-  const [candidateQueryText, setCandidateQueryText] = useState("");
-  const [selected, setSelected] = useState<CautionCandidate | null>(null);
-  const [periodType, setPeriodType] = useState<"unlimited" | "range" | "today_only">("unlimited");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [note, setNote] = useState("");
-  const [historyEntry, setHistoryEntry] = useState<CautionPermission | null>(null);
-
-  const [vipUserId, setVipUserId] = useState("");
-  const [vipDisplayName, setVipDisplayName] = useState("");
-
   const [ragicQuery, setRagicQuery] = useState("");
   const [ragicSelected, setRagicSelected] = useState<LineWhitelistCandidate | null>(null);
   const [manualLineUserId, setManualLineUserId] = useState("");
-  const [wlFeatures, setWlFeatures] = useState<Record<string, boolean>>(
-    Object.fromEntries(LINE_FEATURES.map((f) => [f.key, false])),
-  );
-  const [wlNotes, setWlNotes] = useState("");
+  const [featureAccess, setFeatureAccess] = useState<Record<string, boolean>>(defaultFeatureAccess());
+  const [periodType, setPeriodType] = useState<"unlimited" | "range">("unlimited");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [notes, setNotes] = useState("");
   const [wlSearch, setWlSearch] = useState("");
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [importResult, setImportResult] = useState<ImportInterviewResult | null>(null);
-
-  const permissionsQuery = useQuery({
-    queryKey: [...cautionQueryKey, cautionStatus, dept, query],
-    queryFn: () => fetchCautionPermissions({ status: cautionStatus, dept, q: query }),
-  });
-  const candidateQuery = useQuery({
-    queryKey: ["/api/cms/system/caution-permissions/candidates", candidateQueryText],
-    queryFn: () => searchCautionCandidates(candidateQueryText),
-    enabled: candidateQueryText.trim().length > 0,
-  });
+  const [lastSavedName, setLastSavedName] = useState("");
+  const [lastSyncMessage, setLastSyncMessage] = useState("");
+  const [authorityUserId, setAuthorityUserId] = useState("");
+  const [authorityName, setAuthorityName] = useState("");
+  const [authorityDepartment, setAuthorityDepartment] = useState("");
+  const [authorityPhone, setAuthorityPhone] = useState("");
 
   const whitelistQuery = useQuery({
     queryKey: whitelistQueryKey,
     queryFn: fetchLineWhitelist,
-    enabled: activeTab === "主管白名單",
   });
-
-  const vipQueryKey = ["/api/bff/system/line-bot/vip-whitelist"];
-  const vipListQuery = useQuery({
-    queryKey: vipQueryKey,
-    queryFn: fetchLineBotVipWhitelist,
-    enabled: activeTab === "公告 VIP",
+  const lineAuthorityQuery = useQuery({
+    queryKey: lineAuthorityQueryKey,
+    queryFn: fetchLineBotInterviewUsers,
     retry: 1,
   });
-  const vipItems: VipWhitelistEntry[] = (() => {
-    const raw = vipListQuery.data;
-    if (Array.isArray(raw)) return raw;
-    if (raw && typeof raw === "object" && "items" in raw) return (raw as { items: VipWhitelistEntry[] }).items;
-    return [];
-  })();
-
-  const createVipMutation = useMutation({
-    mutationFn: createLineBotVipEntry,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: vipQueryKey }); setVipUserId(""); setVipDisplayName(""); },
-  });
-  const deleteVipMutation = useMutation({
-    mutationFn: deleteLineBotVipEntry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: vipQueryKey }),
-  });
   const ragicCandidateQuery = useQuery({
-    queryKey: ["/api/bff/system/line-whitelist/candidates"],
-    queryFn: () => searchLineWhitelistCandidates(""),
-    enabled: activeTab === "主管白名單",
+    queryKey: ["/api/bff/system/line-whitelist/candidates", ragicQuery.trim()],
+    queryFn: () => searchLineWhitelistCandidates(ragicQuery.trim()),
     staleTime: 60_000,
   });
-
   const filteredRagicCandidates = useMemo(() => {
     const all = ragicCandidateQuery.data?.items ?? [];
-    const q = ragicQuery.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter((c) => {
-      const hay = `${c.displayName} ${c.employeeNumber} ${c.lineUserId} ${c.department} ${c.phone}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [ragicCandidateQuery.data, ragicQuery]);
-
-  const createCautionMutation = useMutation({
-    mutationFn: createCautionPermission,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: cautionQueryKey });
-      setSelected(null); setCandidateQueryText(""); setNote(""); setPeriodType("unlimited"); setStartAt(""); setEndAt("");
-    },
-  });
-
-  const createWlMutation = useMutation({
-    mutationFn: createLineWhitelistEntry,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: whitelistQueryKey });
-      setRagicSelected(null); setManualLineUserId(""); setRagicQuery(""); setWlNotes("");
-      setWlFeatures(Object.fromEntries(LINE_FEATURES.map((f) => [f.key, false])));
-    },
-  });
-
-  const deleteWlMutation = useMutation({
-    mutationFn: deleteLineWhitelistEntry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: whitelistQueryKey }),
-  });
-
-  const importInterviewMutation = useMutation({
-    mutationFn: importInterviewUsers,
-    onSuccess: (data) => {
-      setImportResult(data);
-      setShowImportDialog(true);
-      queryClient.invalidateQueries({ queryKey: whitelistQueryKey });
-    },
-  });
-
-  const cautionSummary = permissionsQuery.data?.summary;
-  const cautionCanSubmit = Boolean(selected) && permissionsQuery.data?.storageStatus !== "schema_pending";
-  const cautionPeriodEnd = useMemo(() => {
-    if (periodType === "today_only") return "24 小時後自動失效";
-    if (periodType === "range") return endAt || "尚未指定迄日";
-    return "無期限";
-  }, [endAt, periodType]);
-
-  const effectiveLineUserId = ragicSelected
-    ? (ragicSelected.lineUserId && ragicSelected.lineUserId !== ragicSelected.employeeNumber ? ragicSelected.lineUserId : manualLineUserId)
-    : manualLineUserId;
-  const needsManualId = ragicSelected
-    ? !ragicSelected.lineUserId || ragicSelected.lineUserId === ragicSelected.employeeNumber
-    : true;
-  const wlCanSubmit = Boolean(ragicSelected?.displayName) && effectiveLineUserId.trim().length > 0 && whitelistQuery.data?.storageStatus !== "schema_pending";
-
+    const query = ragicQuery.trim().toLowerCase();
+    if (!query) return all;
+    return all.filter((candidate) =>
+      `${candidate.displayName} ${candidate.lineUserId} ${candidate.employeeNumber} ${candidate.phone} ${candidate.department}`.toLowerCase().includes(query),
+    );
+  }, [ragicCandidateQuery.data?.items, ragicQuery]);
+  const normalizedSelectedLineUserId = ragicSelected?.lineUserId && ragicSelected.lineUserId !== ragicSelected.employeeNumber ? ragicSelected.lineUserId : "";
+  const effectiveLineUserId = normalizedSelectedLineUserId || manualLineUserId.trim();
+  const selectedExisting = effectiveLineUserId
+    ? (whitelistQuery.data?.items ?? []).find((item) => item.lineUserId === effectiveLineUserId)
+    : null;
+  const needsManualLineId = Boolean(ragicSelected) && !normalizedSelectedLineUserId;
+  const canSubmit = Boolean(ragicSelected?.displayName) && effectiveLineUserId.length > 0 && whitelistQuery.data?.storageStatus !== "schema_pending";
   const filteredWhitelist = useMemo(() => {
-    const q = wlSearch.trim().toLowerCase();
+    const query = wlSearch.trim().toLowerCase();
     return (whitelistQuery.data?.items ?? []).filter((item) => {
-      if (!q) return true;
-      return `${item.displayName} ${item.lineUserId} ${item.employeeNumber ?? ""} ${item.department ?? ""}`.toLowerCase().includes(q);
+      if (!query) return true;
+      return `${item.displayName} ${item.lineUserId} ${item.phone ?? ""} ${item.department ?? ""}`.toLowerCase().includes(query);
     });
   }, [whitelistQuery.data?.items, wlSearch]);
+  const lineAuthorityUsers = useMemo(() => {
+    const query = wlSearch.trim().toLowerCase();
+    return asInterviewUsers(lineAuthorityQuery.data).filter((user) => {
+      if (!query) return true;
+      return `${lineAuthorityUserName(user)} ${lineAuthorityUserId(user)} ${user.phone ?? ""} ${user.department ?? ""}`.toLowerCase().includes(query);
+    });
+  }, [lineAuthorityQuery.data, wlSearch]);
+  const lineAuthorityActiveCount = lineAuthorityUsers.filter(lineAuthorityIsActive).length;
+  const lineAuthorityDisabledCount = Math.max(lineAuthorityUsers.length - lineAuthorityActiveCount, 0);
+  const summary = {
+    total: Math.max(whitelistQuery.data?.summary.total ?? 0, lineAuthorityUsers.length),
+    active: Math.max(whitelistQuery.data?.summary.active ?? 0, lineAuthorityActiveCount),
+    disabled: Math.max(whitelistQuery.data?.summary.disabled ?? 0, lineAuthorityDisabledCount),
+    expiringSoon: (whitelistQuery.data?.items ?? []).filter(isExpiringSoon).length,
+  };
+
+  const selectCandidate = (candidate: LineWhitelistCandidate) => {
+    const lineUserId = candidate.lineUserId && candidate.lineUserId !== candidate.employeeNumber ? candidate.lineUserId : "";
+    const existing = lineUserId ? (whitelistQuery.data?.items ?? []).find((item) => item.lineUserId === lineUserId) : null;
+    setRagicSelected(candidate);
+    setManualLineUserId("");
+    setRagicQuery("");
+    setFeatureAccess(existing?.featureAccess ?? defaultFeatureAccess());
+    setPeriodType(existing?.unlimited === false ? "range" : "unlimited");
+    setStartsAt(inputDateValue(existing?.startsAt));
+    setEndsAt(inputDateValue(existing?.endsAt));
+    setNotes(existing?.notes ?? "");
+  };
+
+  const createMutation = useMutation({
+    mutationFn: createLineWhitelistEntry,
+    onSuccess: (entry) => {
+      setLastSavedName(entry.displayName);
+      setLastSyncMessage(entry.sync?.message ?? "");
+      queryClient.invalidateQueries({ queryKey: whitelistQueryKey });
+      setRagicSelected(null);
+      setManualLineUserId("");
+      setFeatureAccess(defaultFeatureAccess());
+      setPeriodType("unlimited");
+      setStartsAt("");
+      setEndsAt("");
+      setNotes("");
+    },
+  });
+  const createAuthorityMutation = useMutation({
+    mutationFn: () =>
+      createLineBotInterviewUser(lineAuthorityPayload(authorityUserId.trim(), {
+        displayName: authorityName.trim(),
+        department: authorityDepartment.trim(),
+        phone: authorityPhone.trim(),
+        canInterviewCheck: true,
+        canCautionQuery: true,
+        canInternalQuery: true,
+        canUseAiAgent: false,
+        isActive: true,
+      })),
+    onSuccess: () => {
+      setAuthorityUserId("");
+      setAuthorityName("");
+      setAuthorityDepartment("");
+      setAuthorityPhone("");
+      queryClient.invalidateQueries({ queryKey: lineAuthorityQueryKey });
+    },
+  });
 
   return (
-    <RoleShell role="system" title="400 LINE 白名單管理" subtitle="CAUTION QUERY PERMISSIONS">
+    <RoleShell role="system" title="400 LINE 白名單管理" subtitle="INTERVIEW + CAUTION ACCESS">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-line-whitelist-page">
         <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
           <ChevronLeft className="h-4 w-4" />
           回控制中心
         </Link>
 
-        <div className="flex flex-wrap gap-2 rounded-[8px] border border-[#dfe7ef] bg-white p-2">
-          {tabs.map((tab) => (
-            <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={cn("rounded-full px-3 py-2 text-[12px] font-black", activeTab === tab ? "bg-[#0f1b3d] text-white" : "text-[#536175] hover:bg-[#f3f6fb]")}>
-              {tab}
-            </button>
-          ))}
+        {whitelistQuery.data?.storageStatus === "schema_pending" ? (
+          <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[13px] font-black text-[#8a5a00]">
+            白名單資料表尚未建立：請執行 db:push 後即可寫入。
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: "授權人員", value: summary.total, icon: Users },
+            { label: "啟用中", value: summary.active, icon: ShieldCheck },
+            { label: "已停用", value: summary.disabled, icon: SlidersHorizontal },
+            { label: "即將到期", value: summary.expiringSoon, icon: Clock },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <WorkbenchCard key={item.label} className="p-4">
+                <div className="flex items-center justify-between text-[#8b9aae]">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em]">{item.label}</p>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <p className="mt-3 text-[30px] font-black text-[#10233f]">{item.value}</p>
+              </WorkbenchCard>
+            );
+          })}
         </div>
 
-        {activeTab === "慎用查詢" ? (
-          <>
-            {permissionsQuery.data?.storageStatus === "schema_pending" ? (
-              <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[13px] font-black text-[#8a5a00]">
-                慎用查詢權限資料表尚未建立：請套用 migrations/0012_caution_query_permissions.sql 或執行 db:push 後即可寫入。
+        <div className="grid gap-3 xl:grid-cols-[430px_1fr]">
+          <WorkbenchCard className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-[16px] font-black text-[#10233f]">新增 / 更新授權</h2>
+                <p className="mt-1 text-[12px] font-bold text-[#637185]">搜尋 Ragic H01 人員，對準姓名與 LINE userId 後，選擇功能並加入 400LINE 白名單。</p>
               </div>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-5">
-              {[
-                { label: "授權人員", value: cautionSummary?.total ?? 0, icon: Users },
-                { label: "啟用中", value: cautionSummary?.active ?? 0, icon: ShieldCheck },
-                { label: "即將到期", value: cautionSummary?.expiringSoon ?? 0, icon: Clock },
-                { label: "已過期", value: cautionSummary?.expired ?? 0, icon: Search },
-                { label: "已停用", value: cautionSummary?.disabled ?? 0, icon: SlidersHorizontal },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <WorkbenchCard key={item.label} className="p-4">
-                    <div className="flex items-center justify-between text-[#8b9aae]">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em]">{item.label}</p>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <p className="mt-3 text-[30px] font-black text-[#10233f]">{item.value}</p>
-                  </WorkbenchCard>
-                );
-              })}
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[430px_1fr]">
-              <WorkbenchCard className="p-4">
-                <h2 className="text-[16px] font-black text-[#10233f]">新增授權人員</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#637185]">從疆域/Ragic 員工資料搜尋，已啟用授權者不會重複出現。</p>
-                <input
-                  value={candidateQueryText}
-                  onChange={(e) => setCandidateQueryText(e.target.value)}
-                  placeholder="搜尋姓名 / 部門 / 電話 / userId"
-                  className="mt-4 h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                />
-                <div className="mt-3 max-h-[280px] overflow-y-auto rounded-[8px] border border-[#edf1f6]">
-                  {(candidateQuery.data?.items ?? []).map((candidate) => (
-                    <button key={candidate.userId} type="button" onClick={() => setSelected(candidate)} className={cn("block w-full border-b border-[#edf1f6] p-3 text-left last:border-b-0 hover:bg-[#fbfcfd]", selected?.userId === candidate.userId && "bg-[#ecfeff]")}>
-                      <p className="text-[13px] font-black text-[#10233f]">{candidate.displayName} <span className="text-[11px] text-[#8b9aae]">{candidate.position}</span></p>
-                      <p className="mt-1 font-mono text-[11px] font-black text-[#536175]">{candidate.userId}</p>
-                      <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{maskPhone(candidate.phone)} · {candidate.department || "-"}</p>
-                    </button>
-                  ))}
-                  {candidateQueryText.trim() && !candidateQuery.isFetching && !(candidateQuery.data?.items ?? []).length ? (
-                    <div className="p-4 text-[12px] font-bold text-[#8b9aae]">沒有符合或可新增的人員。</div>
-                  ) : null}
+            {!ragicSelected ? (
+              <>
+                <div className="relative mt-4">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8b9aae]" />
+                  <input value={ragicQuery} onChange={(event) => setRagicQuery(event.target.value)} placeholder="搜尋姓名 / userid / 電話 / 部門" className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white py-0 pl-8 pr-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
                 </div>
-                <div className="mt-4 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-                  <p className="text-[12px] font-black text-[#10233f]">已選擇</p>
-                  <p className="mt-1 text-[13px] font-bold text-[#536175]">{selected ? `${selected.displayName} · ${selected.department || "-"}` : "尚未選擇人員"}</p>
-                  <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">期限：{cautionPeriodEnd}</p>
-                </div>
-                <div className="mt-4 grid gap-3">
-                  <select value={periodType} onChange={(e) => setPeriodType(e.target.value as typeof periodType)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
-                    <option value="unlimited">無期限授權</option>
-                    <option value="range">指定期間</option>
-                    <option value="today_only">僅今日內測試</option>
-                  </select>
-                  <input type="date" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold" />
-                  {periodType === "range" ? <input type="date" value={endAt} onChange={(e) => setEndAt(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold" /> : null}
-                  <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="備註，最多 200 字" className="min-h-[84px] rounded-[8px] border border-[#dfe7ef] p-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
-                  <button type="button" disabled={!cautionCanSubmit || createCautionMutation.isPending} onClick={() => {
-                    if (!selected) return;
-                    createCautionMutation.mutate({ userId: selected.userId, displayName: selected.displayName, phone: selected.phone, department: selected.department, position: selected.position, periodType, periodStartAt: startAt || null, periodEndAt: endAt || null, note: note || null });
-                  }} className="min-h-10 rounded-[8px] bg-[#0f1b3d] px-4 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
-                    核發授權
-                  </button>
-                </div>
-              </WorkbenchCard>
-
-              <div className="space-y-3">
-                <div className="grid gap-2 rounded-[8px] border border-[#dfe7ef] bg-white p-3 lg:grid-cols-[160px_180px_1fr]">
-                  <select value={cautionStatus} onChange={(e) => setCautionStatus(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
-                    <option value="all">所有狀態</option>
-                    <option value="active">啟用中</option>
-                    <option value="expiring_soon">即將到期</option>
-                    <option value="expired">已過期</option>
-                    <option value="disabled">已停用</option>
-                  </select>
-                  <select value={dept} onChange={(e) => setDept(e.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
-                    <option value="">所有部門</option>
-                    {(permissionsQuery.data?.departments ?? []).map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜尋姓名 / 部門 / 電話 / userId" className="h-10 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
-                </div>
-                {(permissionsQuery.data?.items ?? []).map((entry) => (
-                  <PermissionCard key={entry.id} entry={entry} onHistory={setHistoryEntry} />
-                ))}
-                {!permissionsQuery.isLoading && !(permissionsQuery.data?.items ?? []).length ? (
-                  <WorkbenchCard className="grid min-h-[220px] place-items-center p-6 text-center">
-                    <div>
-                      <ShieldCheck className="mx-auto h-10 w-10 text-[#8b9aae]" />
-                      <p className="mt-3 text-[14px] font-black text-[#10233f]">尚未授權任何人員</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側搜尋疆域/Ragic 人員後即可核發第一筆慎用查詢權限。</p>
-                    </div>
-                  </WorkbenchCard>
+                {ragicCandidateQuery.data?.sourceStatus ? (
+                  <div className="mt-2 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-2 text-[11px] font-bold text-[#637185]">
+                    Ragic H01：{ragicCandidateQuery.data.sourceStatus.status}
+                    {ragicCandidateQuery.data.sourceStatus.lastSyncAt ? ` · ${new Date(ragicCandidateQuery.data.sourceStatus.lastSyncAt).toLocaleString("zh-TW")}` : ""}
+                    {ragicCandidateQuery.data.sourceStatus.fallbackReason ? ` · ${ragicCandidateQuery.data.sourceStatus.fallbackReason}` : ""}
+                  </div>
                 ) : null}
+                <div className="mt-2 max-h-[280px] overflow-y-auto rounded-[8px] border border-[#edf1f6]">
+                  {ragicCandidateQuery.isLoading ? (
+                    <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">載入 Ragic H01 員工中…</div>
+                  ) : ragicCandidateQuery.isError ? (
+                    <div className="p-4 text-center text-[12px] font-bold text-[#c2410c]">Ragic H01 員工資料暫時無法存取</div>
+                  ) : filteredRagicCandidates.length ? (
+                    filteredRagicCandidates.map((candidate) => (
+                      <button key={candidate.lineUserId || candidate.employeeNumber} type="button" onClick={() => selectCandidate(candidate)} className="block w-full border-b border-[#edf1f6] p-3 text-left last:border-b-0 hover:bg-[#f5f8fb]">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-black text-[#10233f]">{candidate.displayName}</p>
+                            <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{fullPhone(candidate.phone)} · {candidate.department || "-"}</p>
+                          </div>
+                          <p className="shrink-0 font-mono text-[10px] text-[#536175]">{candidate.lineUserId && candidate.lineUserId !== candidate.employeeNumber ? candidate.lineUserId.slice(0, 8) + "…" : "待綁定"}</p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">無符合人員</div>
+                  )}
+                </div>
+                {ragicCandidateQuery.data ? <p className="mt-1 text-right text-[10px] font-bold text-[#8b9aae]">共 {ragicCandidateQuery.data.items.length} 位，篩選後 {filteredRagicCandidates.length} 位</p> : null}
+              </>
+            ) : (
+              <div className="mt-4 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[13px] font-black text-[#10233f]">{ragicSelected.displayName}</p>
+                  <button type="button" onClick={() => setRagicSelected(null)} className="text-[11px] font-black text-[#8b9aae] hover:text-[#536175]">重新選擇</button>
+                </div>
+                <div className="mt-2 grid gap-2 text-[12px] font-bold text-[#536175]">
+                  <p>userid：<span className="font-mono">{effectiveLineUserId || "待綁定"}</span></p>
+                  <p>電話：{fullPhone(ragicSelected.phone)}</p>
+                  <p>部門：{ragicSelected.department || "-"}</p>
+                </div>
+                {needsManualLineId ? (
+                  <input value={manualLineUserId} onChange={(event) => setManualLineUserId(event.target.value)} placeholder="手動輸入 LINE userId（U 開頭）" className="mt-3 h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[12px] outline-none focus:border-[#2dd4bf]" />
+                ) : null}
+                {selectedExisting ? <p className="mt-2 text-[11px] font-black text-[#0e7490]">此人已在白名單，送出會更新原授權。</p> : null}
               </div>
-            </div>
-          </>
-        ) : activeTab === "主管白名單" ? (
-          <>
-            {whitelistQuery.data?.storageStatus === "schema_pending" ? (
-              <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[13px] font-black text-[#8a5a00]">
-                白名單資料表尚未建立：請執行 db:push 後即可寫入。
-              </div>
-            ) : null}
+            )}
 
-            <div className="grid gap-3 md:grid-cols-4">
-              {[
-                { label: "授權人員", value: whitelistQuery.data?.summary.total ?? 0, icon: Users },
-                { label: "啟用中", value: whitelistQuery.data?.summary.active ?? 0, icon: ShieldCheck },
-                { label: "已停用", value: whitelistQuery.data?.summary.disabled ?? 0, icon: SlidersHorizontal },
-                { label: "面試授權", value: whitelistQuery.data?.summary.interviewEnabled ?? 0, icon: UserPlus },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <WorkbenchCard key={item.label} className="p-4">
-                    <div className="flex items-center justify-between text-[#8b9aae]">
-                      <p className="text-[11px] font-black uppercase tracking-[0.16em]">{item.label}</p>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <p className="mt-3 text-[30px] font-black text-[#10233f]">{item.value}</p>
-                  </WorkbenchCard>
-                );
-              })}
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-[430px_1fr]">
-              <WorkbenchCard className="p-4">
-                <div className="flex items-start justify-between gap-2">
+            <div className="mt-4 grid gap-2">
+              <p className="text-[12px] font-black text-[#10233f]">功能選用清單</p>
+              {LINE_FEATURES.map((feature) => (
+                <label key={feature.key} className="flex items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] p-2">
                   <div>
-                    <h2 className="text-[16px] font-black text-[#10233f]">新增成員</h2>
-                    <p className="mt-1 text-[12px] font-bold text-[#637185]">從 Ragic 員工名單中選取，LINE userId 自動帶入後設定功能授權。</p>
+                    <p className="text-[12px] font-black text-[#10233f]">{feature.label}</p>
+                    <p className="text-[10px] font-bold text-[#8b9aae]">{feature.description}</p>
                   </div>
-                  <button
-                    type="button"
-                    data-testid="button-import-interview-users"
-                    onClick={() => {
-                      if (window.confirm("從 LINE Bot 匯入目前 8 位面試授權名單，並與 Ragic 員工資料比對補全？")) {
-                        importInterviewMutation.mutate();
-                      }
-                    }}
-                    disabled={importInterviewMutation.isPending}
-                    className="flex shrink-0 items-center gap-1.5 rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-2 text-[12px] font-black text-[#10233f] hover:bg-[#f5f8fb] disabled:opacity-50"
-                  >
-                    <Download className="h-3.5 w-3.5 text-[#2dd4bf]" />
-                    {importInterviewMutation.isPending ? "匯入中…" : "從 LINE Bot 匯入"}
-                  </button>
+                  <Switch checked={Boolean(featureAccess[feature.key])} onCheckedChange={(value) => setFeatureAccess((prev) => ({ ...prev, [feature.key]: value }))} />
+                </label>
+              ))}
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              <p className="text-[12px] font-black text-[#10233f]">授權期限</p>
+              <select value={periodType} onChange={(event) => setPeriodType(event.target.value as "unlimited" | "range")} className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold">
+                <option value="unlimited">無期限</option>
+                <option value="range">指定起迄</option>
+              </select>
+              <input type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold" />
+              {periodType === "range" ? <input type="date" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="h-10 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold" /> : null}
+            </div>
+
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={200} placeholder="備註（選填），最多 200 字" className="mt-3 min-h-[72px] w-full rounded-[8px] border border-[#dfe7ef] p-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
+            {createMutation.isError ? (
+              <div className="mt-3 rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
+                {operationErrorMessage(createMutation.error)}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              disabled={!canSubmit || createMutation.isPending}
+              onClick={() => {
+                if (!canSubmit || !ragicSelected) return;
+                createMutation.mutate({
+                  lineUserId: effectiveLineUserId,
+                  displayName: ragicSelected.displayName,
+                  employeeNumber: ragicSelected.employeeNumber || null,
+                  phone: ragicSelected.phone || null,
+                  department: ragicSelected.department || null,
+                  status: "active",
+                  featureAccess,
+                  startsAt: startsAt || null,
+                  endsAt: periodType === "unlimited" ? null : (endsAt || null),
+                  unlimited: periodType === "unlimited",
+                  notes: notes || null,
+                });
+              }}
+              className="mt-3 min-h-10 w-full rounded-[8px] bg-[#0f1b3d] px-4 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {createMutation.isPending ? "儲存中…" : selectedExisting ? "更新授權" : "新增至白名單"}
+            </button>
+          </WorkbenchCard>
+
+          <div className="space-y-3">
+            {lastSavedName ? (
+              <div className="rounded-[8px] border border-[#d1fae5] bg-[#f0fdf4] p-3 text-[12px] font-bold text-[#188249]">
+                已儲存 {lastSavedName} 的功能授權，後端會同步更新 400LINE 白名單。
+              </div>
+            ) : null}
+            {lastSyncMessage ? (
+              <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[12px] font-bold text-[#8a5a00]">
+                {lastSyncMessage}
+              </div>
+            ) : null}
+            <div className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
+              <p className="text-[13px] font-black text-[#10233f]">目前 400LINE 白名單對象</p>
+              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">上方顯示 400LINE 目前可讀到的系統授權名單；下方顯示 CMS shadow 內可編輯的詳細授權。</p>
+            </div>
+            <input value={wlSearch} onChange={(event) => setWlSearch(event.target.value)} placeholder="搜尋白名單（姓名 / userid / 電話 / 部門）" className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
+
+            <WorkbenchCard className="p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-[13px] font-black text-[#10233f]">系統目前授權名單</p>
+                  <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">來源：400LINE /api/admin/interview-users，可直接新增、編輯、刪除既有 LINE 功能授權。</p>
                 </div>
-
-                {!ragicSelected ? (
-                  <>
-                    <div className="relative mt-4">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8b9aae]" />
-                      <input
-                        value={ragicQuery}
-                        onChange={(e) => setRagicQuery(e.target.value)}
-                        placeholder="篩選員工（姓名 / 部門 / 工號）"
-                        data-testid="input-ragic-search"
-                        className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white py-0 pl-8 pr-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                      />
-                    </div>
-                    <div className="mt-2 max-h-[260px] overflow-y-auto rounded-[8px] border border-[#edf1f6]">
-                      {ragicCandidateQuery.isLoading ? (
-                        <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">載入員工名單中…</div>
-                      ) : ragicCandidateQuery.isError ? (
-                        <div className="p-4 text-center text-[12px] font-bold text-[#c2410c]">Ragic 員工資料暫時無法存取</div>
-                      ) : filteredRagicCandidates.length > 0 ? (
-                        filteredRagicCandidates.map((c) => (
-                          <button
-                            key={c.lineUserId || c.employeeNumber}
-                            type="button"
-                            data-testid={`button-select-ragic-candidate-${c.employeeNumber}`}
-                            onClick={() => { setRagicSelected(c); setManualLineUserId(""); setRagicQuery(""); }}
-                            className="block w-full border-b border-[#edf1f6] p-3 text-left last:border-b-0 hover:bg-[#f5f8fb]"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-[13px] font-black text-[#10233f]">{c.displayName} <span className="text-[10px] font-bold text-[#8b9aae]">{c.title}</span></p>
-                                <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{c.department || "-"} · #{c.employeeNumber}</p>
-                              </div>
-                              <p className="shrink-0 font-mono text-[10px] text-[#536175]">
-                                {c.lineUserId && c.lineUserId !== c.employeeNumber ? c.lineUserId.slice(0, 8) + "…" : <span className="text-[#f59e0b]">待綁定</span>}
-                              </p>
-                            </div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-4 text-center text-[12px] font-bold text-[#8b9aae]">無符合員工</div>
-                      )}
-                    </div>
-                    {ragicCandidateQuery.data && (
-                      <p className="mt-1 text-right text-[10px] font-bold text-[#8b9aae]">共 {ragicCandidateQuery.data.items.length} 位員工{ragicQuery ? `，篩選後 ${filteredRagicCandidates.length} 位` : ""}</p>
-                    )}
-                  </>
-                ) : null}
-
-                {ragicSelected ? (
-                  <div className="mt-3 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[12px] font-black text-[#10233f]">已選擇：{ragicSelected.displayName}</p>
-                      <button type="button" onClick={() => { setRagicSelected(null); setManualLineUserId(""); }} className="text-[11px] font-bold text-[#8b9aae] hover:text-[#536175]">清除</button>
-                    </div>
-                    <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{ragicSelected.department || "-"} · #{ragicSelected.employeeNumber}</p>
-                    {needsManualId ? (
-                      <div className="mt-2">
-                        <p className="text-[11px] font-bold text-[#c2410c]">此員工尚未綁定 LINE，請手動輸入 LINE userId：</p>
-                        <input
-                          value={manualLineUserId}
-                          onChange={(e) => setManualLineUserId(e.target.value)}
-                          placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                          data-testid="input-manual-line-user-id"
-                          className="mt-1 h-9 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[12px] outline-none focus:border-[#2dd4bf]"
-                        />
-                      </div>
-                    ) : (
-                      <p className="mt-0.5 font-mono text-[11px] text-[#536175]">LINE userId：{ragicSelected.lineUserId}</p>
-                    )}
-                  </div>
-                ) : null}
-
-                <div className="mt-4 space-y-2">
-                  <p className="text-[12px] font-black text-[#10233f]">功能授權</p>
-                  {LINE_FEATURES.map((f) => (
-                    <label key={f.key} className="flex items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] p-2">
-                      <div>
-                        <p className="text-[12px] font-black text-[#10233f]">{f.label}</p>
-                        <p className="text-[10px] font-bold text-[#8b9aae]">{f.description}</p>
-                      </div>
-                      <Switch
-                        checked={Boolean(wlFeatures[f.key])}
-                        onCheckedChange={(v) => setWlFeatures((prev) => ({ ...prev, [f.key]: v }))}
-                      />
-                    </label>
-                  ))}
-                </div>
-
-                <textarea
-                  value={wlNotes}
-                  onChange={(e) => setWlNotes(e.target.value)}
-                  maxLength={200}
-                  placeholder="備註（選填），最多 200 字"
-                  className="mt-3 min-h-[72px] w-full rounded-[8px] border border-[#dfe7ef] p-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                />
+                <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[11px] font-black text-[#536175]">{lineAuthorityUsers.length} 位</span>
+              </div>
+              <div className="mt-3 grid gap-2 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 xl:grid-cols-[1.25fr_0.9fr_0.9fr_0.9fr_auto] xl:items-end">
+                <label className="grid gap-1">
+                  <span className="text-[11px] font-black text-[#8b9aae]">LINE userId</span>
+                  <input value={authorityUserId} onChange={(event) => setAuthorityUserId(event.target.value)} placeholder="U 開頭 userId" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[12px] font-bold" />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-[11px] font-black text-[#8b9aae]">姓名</span>
+                  <input value={authorityName} onChange={(event) => setAuthorityName(event.target.value)} placeholder="姓名" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-[11px] font-black text-[#8b9aae]">部門</span>
+                  <input value={authorityDepartment} onChange={(event) => setAuthorityDepartment(event.target.value)} placeholder="部門" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
+                </label>
+                <label className="grid gap-1">
+                  <span className="text-[11px] font-black text-[#8b9aae]">電話</span>
+                  <input value={authorityPhone} onChange={(event) => setAuthorityPhone(event.target.value)} placeholder="電話" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
+                </label>
                 <button
                   type="button"
-                  disabled={!wlCanSubmit || createWlMutation.isPending}
-                  data-testid="button-submit-whitelist"
-                  onClick={() => {
-                    if (!wlCanSubmit || !ragicSelected) return;
-                    createWlMutation.mutate({
-                      lineUserId: effectiveLineUserId.trim(),
-                      displayName: ragicSelected.displayName,
-                      employeeNumber: ragicSelected.employeeNumber || null,
-                      department: ragicSelected.department || null,
-                      featureAccess: wlFeatures,
-                      unlimited: true,
-                      notes: wlNotes || null,
-                    });
-                  }}
-                  className="mt-3 min-h-10 w-full rounded-[8px] bg-[#0f1b3d] px-4 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => createAuthorityMutation.mutate()}
+                  disabled={createAuthorityMutation.isPending || !authorityUserId.trim() || !authorityName.trim()}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#0f1b3d] px-3 text-[12px] font-black text-white disabled:opacity-50"
                 >
-                  {createWlMutation.isPending ? "新增中…" : "新增至白名單"}
+                  <Plus className="h-4 w-4" />
+                  新增
                 </button>
-              </WorkbenchCard>
-
-              <div className="space-y-3">
-                <input
-                  value={wlSearch}
-                  onChange={(e) => setWlSearch(e.target.value)}
-                  placeholder="搜尋白名單（姓名 / LINE userId / 部門）"
-                  className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                />
-                {whitelistQuery.isLoading ? (
-                  <WorkbenchCard className="p-6 text-center text-[12px] font-bold text-[#8b9aae]">載入中…</WorkbenchCard>
-                ) : filteredWhitelist.length > 0 ? (
-                  filteredWhitelist.map((entry) => (
-                    <WhitelistEntryCard key={entry.id} entry={entry} onDelete={(id) => deleteWlMutation.mutate(id)} />
-                  ))
-                ) : (
-                  <WorkbenchCard className="grid min-h-[220px] place-items-center p-6 text-center">
-                    <div>
-                      <Users className="mx-auto h-10 w-10 text-[#8b9aae]" />
-                      <p className="mt-3 text-[14px] font-black text-[#10233f]">{wlSearch ? "無符合結果" : "尚未新增任何成員"}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側搜尋 Ragic 員工並設定功能授權後新增。</p>
-                    </div>
-                  </WorkbenchCard>
-                )}
               </div>
-            </div>
-          </>
-        ) : activeTab === "公告 VIP" ? (
-          <>
-            <div className="grid gap-3 xl:grid-cols-[400px_1fr]">
-              <WorkbenchCard className="p-4">
-                <h2 className="text-[16px] font-black text-[#10233f]">新增 VIP 公告成員</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#637185]">直接寫入 LINE Bot 公告白名單，優先接收重要公告推播。亦可在「主管白名單」頁開啟 VIP 公告功能自動同步。</p>
-                <div className="mt-4 grid gap-3">
-                  <input
-                    value={vipUserId}
-                    onChange={(e) => setVipUserId(e.target.value)}
-                    placeholder="LINE userId（U 開頭）"
-                    data-testid="input-vip-user-id"
-                    className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[13px] outline-none focus:border-[#2dd4bf]"
-                  />
-                  <input
-                    value={vipDisplayName}
-                    onChange={(e) => setVipDisplayName(e.target.value)}
-                    placeholder="顯示名稱"
-                    data-testid="input-vip-display-name"
-                    className="h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]"
-                  />
-                  <button
-                    type="button"
-                    disabled={!vipUserId.trim() || !vipDisplayName.trim() || createVipMutation.isPending}
-                    data-testid="button-add-vip"
-                    onClick={() => createVipMutation.mutate({ userId: vipUserId.trim(), displayName: vipDisplayName.trim() })}
-                    className="min-h-10 rounded-[8px] bg-[#0f1b3d] px-4 text-[13px] font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {createVipMutation.isPending ? "新增中…" : "新增至 VIP 白名單"}
-                  </button>
-                  {createVipMutation.isError ? (
-                    <p className="text-[11px] font-bold text-[#c2410c]">新增失敗，請確認 LINE_BOT_ADMIN_TOKEN 設定</p>
-                  ) : null}
+              {createAuthorityMutation.isError ? (
+                <div className="mt-3 rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
+                  {operationErrorMessage(createAuthorityMutation.error)}
+                </div>
+              ) : null}
+              {lineAuthorityQuery.isLoading ? (
+                <div className="mt-3 rounded-[8px] bg-[#fbfcfd] p-4 text-center text-[12px] font-bold text-[#8b9aae]">讀取 400LINE 授權名單中…</div>
+              ) : lineAuthorityQuery.isError ? (
+                <div className="mt-3 rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[12px] font-bold text-[#8a5a00]">
+                  目前無法讀取 400LINE 系統白名單；CMS shadow 仍可從下方查看，新增/更新請從左側 Ragic H01 流程執行。
+                </div>
+              ) : lineAuthorityUsers.length ? (
+                <div className="mt-3 grid gap-2">
+                  {lineAuthorityUsers.map((user) => <AuthorityUserCard key={lineAuthorityUserId(user) || lineAuthorityUserName(user)} user={user} />)}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[8px] bg-[#fbfcfd] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
+                  {wlSearch ? "400LINE 授權名單無符合結果" : "400LINE 目前沒有回傳授權名單"}
+                </div>
+              )}
+            </WorkbenchCard>
+
+            {whitelistQuery.isLoading ? (
+              <WorkbenchCard className="p-6 text-center text-[12px] font-bold text-[#8b9aae]">載入中…</WorkbenchCard>
+            ) : filteredWhitelist.length ? (
+              filteredWhitelist.map((entry) => <WhitelistEntryCard key={entry.id} entry={entry} />)
+            ) : (
+              <WorkbenchCard className="grid min-h-[220px] place-items-center p-6 text-center">
+                <div>
+                  <UserPlus className="mx-auto h-10 w-10 text-[#8b9aae]" />
+                  <p className="mt-3 text-[14px] font-black text-[#10233f]">{wlSearch ? "無符合結果" : "尚未新增任何成員"}</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側搜尋 Ragic H01 人員後新增授權。</p>
                 </div>
               </WorkbenchCard>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-black text-[#10233f]">LINE Bot VIP 公告白名單 <span className="ml-2 text-[11px] font-bold text-[#8b9aae]">（即時從 LINE Bot 讀取）</span></p>
-                  <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey: vipQueryKey })} className="rounded-[8px] border border-[#dfe7ef] px-3 py-1.5 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]">重新整理</button>
-                </div>
-
-                {vipListQuery.isLoading ? (
-                  <WorkbenchCard className="p-6 text-center text-[12px] font-bold text-[#8b9aae]">從 LINE Bot 載入中…</WorkbenchCard>
-                ) : vipListQuery.isError || (vipListQuery.data as { message?: string } | undefined)?.message ? (
-                  <WorkbenchCard className="p-4">
-                    <p className="text-[13px] font-bold text-[#c2410c]">
-                      {(vipListQuery.data as { message?: string } | undefined)?.message ?? "無法連線至 LINE Bot，請確認 LINE_BOT_ADMIN_TOKEN 設定"}
-                    </p>
-                  </WorkbenchCard>
-                ) : vipItems.length > 0 ? (
-                  vipItems.map((entry) => (
-                    <WorkbenchCard key={String(entry.id)} className="p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-black text-[#10233f]">{entry.displayName}</p>
-                          <p className="mt-0.5 font-mono text-[11px] font-bold text-[#536175]">{entry.userId}</p>
-                          {entry.createdAt ? <p className="mt-0.5 text-[10px] font-bold text-[#8b9aae]">新增：{new Date(entry.createdAt).toLocaleString("zh-TW")}</p> : null}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { if (window.confirm(`確定要將 ${entry.displayName} 從 VIP 白名單移除？`)) deleteVipMutation.mutate(entry.id); }}
-                          className="shrink-0 rounded-[8px] border border-[#ffe8df] px-3 py-2 text-[12px] font-black text-[#c2410c] hover:bg-[#ffe8df]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </WorkbenchCard>
-                  ))
-                ) : (
-                  <WorkbenchCard className="grid min-h-[180px] place-items-center p-6 text-center">
-                    <div>
-                      <ShieldCheck className="mx-auto h-10 w-10 text-[#8b9aae]" />
-                      <p className="mt-3 text-[14px] font-black text-[#10233f]">VIP 白名單目前為空</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">從左側新增成員，或在「主管白名單」頁開啟「VIP 公告」功能自動同步。</p>
-                    </div>
-                  </WorkbenchCard>
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          <WorkbenchCard className="grid min-h-[320px] place-items-center p-6 text-center">
-            <div>
-              <SlidersHorizontal className="mx-auto h-10 w-10 text-[#8b9aae]" />
-              <p className="mt-3 text-[16px] font-black text-[#10233f]">{activeTab} — 建置中</p>
-              <p className="mt-1 text-[13px] font-bold text-[#8b9aae]">此分頁將透過 LINE Bot Admin API proxy 管理，敬請期待。</p>
-            </div>
-          </WorkbenchCard>
-        )}
-
-        <LineBotServiceHealthPanel />
-      </div>
-      <HistoryDrawer entry={historyEntry} open={Boolean(historyEntry)} onClose={() => setHistoryEntry(null)} />
-
-      {showImportDialog && importResult ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowImportDialog(false)}>
-          <div className="w-full max-w-[560px] rounded-[12px] border border-[#edf1f6] bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-[#edf1f6] p-5">
-              <h2 className="text-[16px] font-black text-[#10233f]">匯入面試名單完成</h2>
-              <p className="mt-1 text-[12px] font-bold text-[#637185]">從 LINE Bot 拉取名單，逐一與 Ragic 員工資料比對後寫入白名單。</p>
-            </div>
-            <div className="grid grid-cols-4 gap-px bg-[#edf1f6] border-b border-[#edf1f6]">
-              {[
-                { label: "總人數", value: importResult.total },
-                { label: "Ragic 配對", value: importResult.matched },
-                { label: "新建", value: importResult.created },
-                { label: "更新", value: importResult.updated },
-              ].map((item) => (
-                <div key={item.label} className="bg-white p-3 text-center">
-                  <p className="text-[22px] font-black text-[#10233f]">{item.value}</p>
-                  <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">{item.label}</p>
-                </div>
-              ))}
-            </div>
-            <div className="max-h-[320px] overflow-y-auto p-4 space-y-2">
-              {importResult.results.map((r) => (
-                <div key={r.lineUserId} className={cn("flex items-start gap-3 rounded-[8px] border p-3", r.action === "error" ? "border-[#ffe8df] bg-[#fff8f6]" : r.ragicMatch ? "border-[#d1fae5] bg-[#f0fdf4]" : "border-[#edf1f6] bg-[#fbfcfd]")}>
-                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full" style={{ background: r.action === "error" ? "#ef4444" : r.ragicMatch ? "#22c55e" : "#94a3b8" }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[13px] font-black text-[#10233f]">{r.userName}</p>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", r.action === "created" ? "bg-[#ecfeff] text-[#0e7490]" : r.action === "updated" ? "bg-[#fef9c3] text-[#a16207]" : "bg-[#fee2e2] text-[#b91c1c]")}>
-                        {r.action === "created" ? "新建" : r.action === "updated" ? "更新" : "錯誤"}
-                      </span>
-                      {r.ragicMatch ? <span className="text-[10px] font-black text-[#16a34a]">● Ragic 配對</span> : <span className="text-[10px] font-bold text-[#94a3b8]">○ 未配對（僅存姓名）</span>}
-                    </div>
-                    <p className="mt-0.5 font-mono text-[10px] text-[#8b9aae] truncate">{r.lineUserId}</p>
-                    {r.ragicMatch ? <p className="mt-0.5 text-[11px] font-bold text-[#536175]">{r.department || "-"} · #{r.employeeNumber}</p> : null}
-                    {r.error ? <p className="mt-1 text-[11px] font-bold text-[#ef4444]">{r.error}</p> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-[#edf1f6] p-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowImportDialog(false)}
-                className="rounded-[8px] bg-[#10233f] px-5 py-2 text-[13px] font-black text-white hover:bg-[#1a3255]"
-              >
-                完成
-              </button>
-            </div>
+            )}
           </div>
         </div>
-      ) : null}
+
+        <ServiceHealthStrip />
+      </div>
     </RoleShell>
   );
 }

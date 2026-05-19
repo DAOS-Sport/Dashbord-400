@@ -898,6 +898,7 @@ const runSystemModuleTests = () => {
     "system-operations",
     "system-insights",
     "system-governance",
+    "linebot-management",
     "helper-status",
     "line-whitelist",
   ];
@@ -939,6 +940,14 @@ const runSystemModuleTests = () => {
         card.routePath === "/system/governance",
     ),
     "system governance card must route to /system/governance",
+  );
+  assert(
+    cards.some(
+      (card) =>
+        card.moduleId === "linebot-management" &&
+        card.routePath === "/system/linebot-management",
+    ),
+    "linebot management card must route to /system/linebot-management",
   );
   assert(
     cards.some(
@@ -1013,6 +1022,11 @@ const runSystemModuleTests = () => {
     "client/src/App.tsx",
     'path="/system/governance"',
     "system governance route must be registered",
+  );
+  sourceIncludes(
+    "client/src/App.tsx",
+    'path="/system/linebot-management"',
+    "linebot management route must be registered",
   );
   sourceIncludes(
     "client/src/App.tsx",
@@ -1143,32 +1157,32 @@ const runSystemModuleTests = () => {
     "governance page must include Audit Raw tab",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.get\("\/api\/bff\/system\/operations\/user-search",\s*requireSession,\s*requireRole\("system"\)/,
     "operations user search endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.get\("\/api\/bff\/system\/operations\/user\/:userId",\s*requireSession,\s*requireRole\("system"\)/,
     "operations user detail endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/reset-session",\s*requireSession,\s*requireRole\("system"\)/,
     "reset-session endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/refresh-cache",\s*requireSession,\s*requireRole\("system"\)/,
     "refresh-cache endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.post\("\/api\/bff\/system\/operations\/user\/:userId\/resend-notification",\s*requireSession,\s*requireRole\("system"\)/,
     "resend-notification endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     /app\.get\("\/api\/bff\/system\/operations\/recent-assists",\s*requireSession,\s*requireRole\("system"\)/,
     "recent assists endpoint must require system role",
   );
@@ -1183,27 +1197,27 @@ const runSystemModuleTests = () => {
     "insights module endpoint must require system role",
   );
   sourceIncludes(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     "reason: z.string().trim().min(3)",
     "operations interventions must require reason >= 3 chars",
   );
   sourceIncludes(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     "SYSTEM_USER_INTERVENTION_FORBIDDEN",
     "operations interventions must reject system-role targets",
   );
   sourceIncludes(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     "OPS_RESET_SESSION",
     "reset-session must write audit action",
   );
   sourceIncludes(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     "OPS_REFRESH_CACHE",
     "refresh-cache must write audit action",
   );
   sourceIncludes(
-    "server/modules/system/routes.ts",
+    "server/modules/system/operations-routes.ts",
     "OPS_RESEND_NOTIFICATION",
     "resend-notification must write audit action",
   );
@@ -1411,14 +1425,81 @@ const runSystemReadEndpointAuthTests = () => {
     "watchdog events endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/linebot-management-routes.ts",
+    /app\.get\("\/api\/bff\/system\/linebot-management\/overview",\s*requireSession,\s*requireRole\("system"\)/,
+    "linebot management overview endpoint must require system role",
+  );
+  sourceMatches(
+    "server/modules/system/helper-status-routes.ts",
     /app\.get\("\/api\/bff\/system\/helper-status",\s*requireSession,\s*requireRole\("system"\)/,
     "helper status endpoint must require system role",
   );
   sourceMatches(
-    "server/modules/system/routes.ts",
+    "server/modules/system/line-whitelist-routes.ts",
     /app\.get\("\/api\/bff\/system\/line-whitelist",\s*requireSession,\s*requireRole\("system"\)/,
     "line whitelist endpoint must require system role",
+  );
+  sourceIncludes(
+    "server/modules/system/line-whitelist-routes.ts",
+    "LINE_WHITELIST_DELETE_DISABLED",
+    "line whitelist DELETE must return a disabled method response",
+  );
+  sourceIncludes(
+    "server/modules/system/line-whitelist-routes.ts",
+    "LINEBOT_IMPORT_DISABLED",
+    "line whitelist must not allow LINE Bot import as the detailed authorization path",
+  );
+  sourceIncludes(
+    "server/modules/system/line-whitelist-routes.ts",
+    "/api/internal/feature-whitelist",
+    "line whitelist save must try the full 400LINE feature whitelist contract first",
+  );
+  sourceIncludes(
+    "server/modules/system/line-whitelist-routes.ts",
+    "featureAccess: access",
+    "line whitelist 400LINE sync payload must include featureAccess",
+  );
+  sourceIncludes(
+    "client/src/modules/system/line-whitelist/page.tsx",
+    "搜尋 Ragic H01 人員",
+    "line whitelist UI must use Ragic H01 as the detailed authorization source",
+  );
+  sourceIncludes(
+    "client/src/modules/system/line-whitelist/page.tsx",
+    "lastSyncMessage",
+    "line whitelist UI must surface 400LINE sync status after CMS shadow save",
+  );
+  sourceIncludes(
+    "server/modules/system/linebot-management-routes.ts",
+    "/api/bff/system/linebot-management/whitelist-comparison",
+    "linebot management must expose whitelist comparison as read-only monitoring",
+  );
+  sourceIncludes(
+    "server/modules/system/linebot-management-routes.ts",
+    "/api/bff/system/linebot-management/whitelist-sync-shadow",
+    "linebot management must keep shadow sync separate from detailed authorization editing",
+  );
+  assert(
+    !read("server/modules/system/line-whitelist-routes.ts").includes("LINE_WHITELIST_DELETED"),
+    "line whitelist entries must not record destructive delete events",
+  );
+  assert(
+    !read("server/modules/system/line-whitelist-routes.ts").includes("db.delete(lineFeatureWhitelist)"),
+    "line whitelist entries must be revoked by status or expiry, not deleted from storage",
+  );
+  assert(
+    !read("shared/modules/registry/foundation.ts").includes('api("DELETE", "/api/bff/system/line-whitelist/:id"'),
+    "line whitelist registry must not expose a DELETE endpoint",
+  );
+  sourceMatches(
+    "server/modules/system/caution-permissions-routes.ts",
+    /app\.get\("\/api\/cms\/system\/caution-permissions",\s*requireSession,\s*requireRole\("system"\)/,
+    "caution permissions endpoint must require system role",
+  );
+  sourceMatches(
+    "server/modules/system/line-bot-routes.ts",
+    /app\.get\("\/api\/bff\/system\/line-bot\/service-status",\s*requireSession,\s*requireRole\("system"\)/,
+    "line bot service status endpoint must require system role",
   );
   sourceMatches(
     "server/modules/system/routes.ts",
@@ -1429,6 +1510,16 @@ const runSystemReadEndpointAuthTests = () => {
     "server/modules/system/routes.ts",
     "adapter_is_mock_in_real_mode",
     "real mode mock adapters must expose degraded reason",
+  );
+  sourceIncludes(
+    "scripts/authenticated-bff-smoke.ts",
+    "/api/bff/system/helper-status",
+    "authenticated BFF smoke must cover helper status",
+  );
+  sourceIncludes(
+    "scripts/authenticated-bff-smoke.ts",
+    "/api/bff/system/operations/recent-assists",
+    "authenticated BFF smoke must cover operations recent assists",
   );
 };
 

@@ -9,6 +9,7 @@ import { fetchCwaWeather } from "../../../integrations/weather/cwa-adapter";
 import { degraded, ok, unavailable } from "../../../shared/bff/section";
 import { env } from "../../../shared/config/env";
 import { storage } from "../../../storage";
+import { readFacilityLineAnnouncements } from "../../announcement-groups/service";
 import {
   getCampaignAnnouncements,
   getImportantAnnouncements,
@@ -43,7 +44,13 @@ export const enrichEmployeeHome = async (
   const currentShiftCount = dto.shifts.data?.length ?? 0;
 
   // Fetch layout, weather, and candidate widgets in parallel
-  const [layoutSetting, cwaWeather, candidateImportant, candidateCampaigns] =
+  const [
+    layoutSetting,
+    cwaWeather,
+    candidateImportant,
+    candidateCampaigns,
+    lineAnnouncementsResult,
+  ] =
     await Promise.all([
       storage
         .getWidgetLayout({
@@ -57,6 +64,22 @@ export const enrichEmployeeHome = async (
         () => [],
       ),
       getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
+      readFacilityLineAnnouncements({
+        facilityKey: normalizedFacilityKey,
+        limit: 20,
+      }).catch(() => ({
+        facility: {
+          key: normalizedFacilityKey,
+          name: normalizedFacilityKey,
+        },
+        groups: [],
+        announcements: [],
+        fetchedAt: now,
+        sourceStatus: {
+          connected: false,
+          errorMessage: "LINE 公告群組讀取失敗",
+        },
+      })),
     ]);
 
   let nextDto: EmployeeHomeDto = {
@@ -85,13 +108,11 @@ export const enrichEmployeeHome = async (
     .slice(0, 8)
     .map((item) => mapSystemAnnouncementSummary(item, now));
 
-  // Widget A (重要公告): Only DB-backed candidate announcements + portal (system) announcements.
-  // Employee resource announcements and raw LINE group messages are excluded here to keep
-  // Widget A as a clean, isolated candidate stream on the home widget.
-  // The full /employee/announcements page continues to show all sources.
   const announcementsBeforeOverlay = uniqueAnnouncements([
-    ...candidateImportant,
+    ...lineAnnouncementsResult.announcements,
+    ...employeeResources.announcements,
     ...portalAnnouncements,
+    ...candidateImportant,
   ]).sort(
     (a, b) =>
       Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)) ||
@@ -102,8 +123,19 @@ export const enrichEmployeeHome = async (
     await applyAnnouncementOverlays(announcementsBeforeOverlay)
   ).slice(0, 10);
 
-  // Derive source status from widget sync metadata instead of LINE group fetch
   const widgetSyncStatus = getLastSyncStatus(normalizedFacilityKey);
+  const lineSourceStatus =
+    lineAnnouncementsResult.sourceStatus.connected ||
+    lineAnnouncementsResult.announcements.length > 0
+      ? {
+          ...lineAnnouncementsResult.sourceStatus,
+          fetchedAt: lineAnnouncementsResult.fetchedAt,
+        }
+      : {
+          connected: widgetSyncStatus.connected,
+          errorMessage: widgetSyncStatus.errorMessage ?? null,
+          fetchedAt: widgetSyncStatus.fetchedAt,
+        };
 
   nextDto = {
     ...nextDto,
@@ -111,11 +143,7 @@ export const enrichEmployeeHome = async (
     shortcuts: ok(defaultEmployeeShortcuts, now),
     announcements: announcementSectionFromSources(
       announcements,
-      {
-        connected: widgetSyncStatus.connected,
-        errorMessage: widgetSyncStatus.errorMessage,
-        fetchedAt: widgetSyncStatus.fetchedAt,
-      },
+      lineSourceStatus,
       now,
     ),
     // Widget B (課程活動): candidate campaigns prepended to employee resource events

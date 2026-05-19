@@ -9,6 +9,7 @@
 - 專案拓樸：`docs/planning/PHASE_TOPOLOGY_MAP.md`
 - 驗收門檻：`docs/planning/PHASE_ACCEPTANCE_GATES.md`
 - UI/UX 強制審理：`docs/design/UIUX_SKILL_REVIEW_PROTOCOL.md`
+- 模組入口治理：`docs/operations/skills/module-intake-governance/SKILL.md`
 
 ## 1. 為什麼加入 skill-assisted 路由
 
@@ -62,6 +63,11 @@ VoltAgent `awesome-agent-skills` 是技能目錄，不是本專案要直接全�
 
 每次施工前：
 
+0. 若是新增模組、功能、路由、整合、權限或 LINE Bot 能力，先套用 `docs/operations/skills/module-intake-governance/SKILL.md`，並回答：
+   - `角色`
+   - `RAGIC 資料庫`
+   - `功能 / 需求 / 用途`
+   三者缺一不可。
 1. 讀 `docs/planning/PHASE_TOPOLOGY_MAP.md`，確認 Phase。
 2. 讀本文件，確認要啟用的 skill。
 3. 若涉及 UI / UX / 頁面 / 元件 / 互動，必須先讀 `docs/design/UIUX_SKILL_REVIEW_PROTOCOL.md`。

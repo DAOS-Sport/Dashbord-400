@@ -135,6 +135,7 @@ export const getModuleArchitectureGroupId = (module: ModuleDefinition): ModuleAr
     module.id.includes("raw") ||
     module.id.includes("watchdog") ||
     module.id === "bff-projections" ||
+    module.id === "linebot-management" ||
     module.id === "helper-status" ||
     module.id === "line-whitelist" ||
     module.id === "hr-audit"

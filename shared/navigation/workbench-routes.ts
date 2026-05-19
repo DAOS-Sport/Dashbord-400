@@ -58,7 +58,8 @@ export const workbenchRoutes = [
   { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
   { moduleId: "system-governance", label: "治理面", iconKey: "network", role: "system", primaryPath: "/system/governance", shell: "system" },
-  { moduleId: "helper-status", label: "400小幫手", iconKey: "bot", role: "system", primaryPath: "/system/lineXBS-status", shell: "system" },
+  { moduleId: "linebot-management", label: "400LINE 管理", iconKey: "bot", role: "system", primaryPath: "/system/linebot-management", shell: "system" },
+  { moduleId: "helper-status", label: "服務監控", iconKey: "server", role: "system", primaryPath: "/system/lineXBS-status", shell: "system" },
   { moduleId: "line-whitelist", label: "白名單", iconKey: "users", role: "system", primaryPath: "/system/line-whitelist", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
 
@@ -77,7 +78,7 @@ export const getRedirectForLegacyPath = (pathname: string): string | undefined =
   if (normalized === "/anomaly-reports") return "/supervisor/anomalies";
   if (normalized === "/announcements" || normalized === "/announcements/summary") return "/supervisor/announcements";
   if (normalized === "/system-health" || normalized === "/system/health" || normalized === "/system/alerts" || normalized === "/system/integrations") return "/system/watchdog";
-  if (normalized === "/system/function-relations" || normalized === "/system/audit" || normalized === "/system/training-views") return "/system/governance";
+  if (normalized === "/system/function-relations" || normalized === "/system/audit" || normalized === "/system/training-views" || normalized === "/system/topology") return "/system/governance";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";
   if (normalized === "/admin/parking") return "/supervisor/parking";
   if (normalized === "/admin/parking/dashboard") return "/supervisor/parking";

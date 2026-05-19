@@ -18,6 +18,7 @@ export const MODULE_IDS = [
   "system-operations",
   "system-insights",
   "system-governance",
+  "linebot-management",
   "helper-status",
   "line-whitelist",
   "supervisor-dashboard",
