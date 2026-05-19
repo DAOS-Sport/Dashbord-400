@@ -1605,113 +1605,10 @@ const formatBoardDateHeader = (value?: string) => {
   return new Intl.DateTimeFormat("zh-TW", { month: "long", day: "numeric", weekday: "short" }).format(parsed);
 };
 
-const getShiftPeriodLabel = (start?: string) => {
-  if (!start) return "班次";
-  const hour = new Date(start).getHours();
-  if (Number.isNaN(hour)) return "班次";
-  if (hour < 11) return "早班";
-  if (hour < 16) return "午班";
-  return "晚班";
-};
-
 const fmtShiftHHMM = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "--:--";
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
-
-const SHIFT_ROLE_PRIORITY = ["櫃台", "救生", "救生員", "守望", "教練", "PT", "pt", "主管"];
-
-type ShiftPersonWithTime = {
-  userId: string;
-  name: string;
-  role: string;
-  isCurrentUser: boolean;
-  startTime: string;
-  endTime: string;
-  isCurrent: boolean;
-  isFuture: boolean;
-};
-
-function buildShiftPeriodGroups(
-  shifts: ShiftBoardDto["shifts"],
-): Array<{ label: string; byRole: Map<string, ShiftPersonWithTime[]> }> {
-  const early = new Map<string, ShiftPersonWithTime[]>();
-  const late = new Map<string, ShiftPersonWithTime[]>();
-  const seen = new Set<string>();
-  const sorted = [...shifts].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-  for (const shift of sorted) {
-    // Task #95: use explicit period from API first; early/mid → 早班, late → 晚班
-    // fallback to time-based heuristic when period is absent
-    const hour = new Date(shift.start).getHours();
-    const bucket =
-      shift.period === "early" || shift.period === "mid"
-        ? early
-        : shift.period === "late"
-          ? late
-          : hour < 14
-            ? early
-            : late;
-    const st = fmtShiftHHMM(shift.start);
-    const et = fmtShiftHHMM(shift.end);
-    for (const p of shift.people) {
-      if (seen.has(p.userId)) continue;
-      seen.add(p.userId);
-      const person: ShiftPersonWithTime = { ...p, startTime: st, endTime: et, isCurrent: shift.isCurrent, isFuture: shift.isFuture };
-      const arr = bucket.get(p.role) ?? [];
-      arr.push(person);
-      bucket.set(p.role, arr);
-    }
-  }
-  const sortRoles = (m: Map<string, ShiftPersonWithTime[]>) =>
-    new Map<string, ShiftPersonWithTime[]>(
-      Array.from(m.entries()).sort(([a], [b]) => {
-        const ai = SHIFT_ROLE_PRIORITY.indexOf(a);
-        const bi = SHIFT_ROLE_PRIORITY.indexOf(b);
-        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-      }),
-    );
-  const groups: Array<{ label: string; byRole: Map<string, ShiftPersonWithTime[]> }> = [];
-  if (early.size) groups.push({ label: "早班", byRole: sortRoles(early) });
-  if (late.size) groups.push({ label: "晚班", byRole: sortRoles(late) });
-  return groups;
-}
-
-const ROLE_TAG_STYLES: Record<string, string> = {
-  救生員: "bg-[#e6f0ff] text-[#2a5fd1]",
-  PT: "bg-[#efe6ff] text-[#7a3fcf]",
-  pt: "bg-[#efe6ff] text-[#7a3fcf]",
-  教練: "bg-[#ffe9d6] text-[#c0651a]",
-  櫃台: "bg-[#e1f5ee] text-[#127558]",
-  主管: "bg-[#fff2cf] text-[#8a6510]",
-};
-const roleTagClass = (role: string) =>
-  ROLE_TAG_STYLES[role] ?? ROLE_TAG_STYLES[role.toLowerCase()] ?? "bg-[#eef2f6] text-[#637185]";
-
-const AVATAR_PALETTE = [
-  "bg-[#fde2e4] text-[#9a1f3a]",
-  "bg-[#fde9c9] text-[#8a5a12]",
-  "bg-[#e6f3d4] text-[#3f6c12]",
-  "bg-[#d4ecff] text-[#1d4e8c]",
-  "bg-[#e7defb] text-[#5b3aa8]",
-  "bg-[#ffe1f0] text-[#a32873]",
-  "bg-[#d4f1e8] text-[#0f6b54]",
-];
-const avatarToneClass = (seed: string) => {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
-};
-
-const formatRemainingHours = (now: number, endIso: string) => {
-  const end = Date.parse(endIso);
-  if (!Number.isFinite(end)) return null;
-  const ms = end - now;
-  if (ms <= 0) return null;
-  const hours = ms / (60 * 60 * 1000);
-  if (hours >= 1) return `${Math.round(hours)}`;
-  const minutes = Math.max(1, Math.round(ms / (60 * 1000)));
-  return `${minutes}m`;
 };
 
 // ── Shift board helpers ──────────────────────────────────────────────────────
@@ -1744,17 +1641,14 @@ function flattenShiftPeople(shifts: ShiftBoardDto["shifts"]): FlatShiftPerson[] 
   return Array.from(byId.values());
 }
 
-function getBoardActivePeriod(shifts: ShiftBoardDto["shifts"], nowMs: number): string {
-  const sorted = [...shifts].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-  const firstEvening = sorted.find((s) => new Date(s.start).getHours() >= 14);
-  if (!firstEvening) return "早班";
-  return nowMs >= Date.parse(firstEvening.start) ? "晚班" : "早班";
-}
+type RoleGroup = "櫃台" | "救生" | "守望" | "其他";
+const ROLE_GROUP_ORDER: RoleGroup[] = ["櫃台", "救生", "守望", "其他"];
 
-function classifyShiftRole(role: string): "counter" | "lifeguard" | "other" {
-  if (role === "櫃台") return "counter";
-  if (role.includes("救生")) return "lifeguard";
-  return "other";
+function classifyRoleGroup(role: string): RoleGroup {
+  if (role === "櫃台") return "櫃台";
+  if (role.includes("救生")) return "救生";
+  if (role.includes("守望")) return "守望";
+  return "其他";
 }
 
 type PersonWithStatus = { person: FlatShiftPerson; status: "active" | "upcoming" | "finished" };
@@ -1771,27 +1665,34 @@ function ShiftRoleBlock({
   if (!people.length) return null;
   return (
     <div>
-      <p className={cn("mb-2", labelClass)}>{label}</p>
-      <div className="space-y-1.5">
+      <div className="mb-2 flex items-center gap-1.5">
+        <p className={cn("text-[11px] font-black uppercase tracking-[0.08em]", labelClass)}>{label}</p>
+        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#eef2f6] px-1 text-[10px] font-black text-[#637185]">
+          {people.length}
+        </span>
+      </div>
+      <div className="space-y-2">
         {people.map(({ person, status }) => (
-          <div key={person.userId} className="flex items-center gap-2" data-testid={`row-shift-person-${person.userId}`}>
-            <span
-              className={cn(
-                "text-[16px] font-bold leading-snug",
-                status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]",
-              )}
-            >
-              {person.name}
-            </span>
-            {status === "active" && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
-                上班中
+          <div key={person.userId} className="flex items-center justify-between gap-2" data-testid={`row-shift-person-${person.userId}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className={cn(
+                  "truncate text-[14px] font-bold leading-snug",
+                  status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]",
+                )}
+              >
+                {person.name}
               </span>
-            )}
-            {status === "finished" && (
-              <span className="text-[10px] font-bold text-[#c8d3de]">已結束</span>
-            )}
+              {status === "active" && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+                  上班中
+                </span>
+              )}
+            </div>
+            <span className={cn("shrink-0 font-mono text-[11px] font-bold tabular-nums", status === "finished" ? "text-[#c8d3de]" : "text-[#637185]")}>
+              {fmtShiftHHMM(person.start)}–{fmtShiftHHMM(person.end)}
+            </span>
           </div>
         ))}
       </div>
@@ -1800,6 +1701,13 @@ function ShiftRoleBlock({
 }
 
 // ── ShiftBoardCard ───────────────────────────────────────────────────────────
+
+const ROLE_GROUP_LABEL_CLASS: Record<RoleGroup, string> = {
+  "櫃台": "text-[#127558]",
+  "救生": "text-[#2a5fd1]",
+  "守望": "text-[#7a3fcf]",
+  "其他": "text-[#637185]",
+};
 
 function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
   const shifts = board?.shifts ?? [];
@@ -1810,49 +1718,15 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
     ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
     : null;
 
-  const periodGroups = buildShiftPeriodGroups(shifts);
-  const earlyGroup = periodGroups.find((g) => g.label === "早班");
-  const lateGroup = periodGroups.find((g) => g.label === "晚班");
-
-  const renderPeriodCol = (
-    group: ReturnType<typeof buildShiftPeriodGroups>[0] | undefined,
-    label: string,
-  ) => {
-    const allPeople = group ? Array.from(group.byRole.values()).flat() : [];
-    return (
-      <div className="min-w-0 flex-1">
-        <p className="mb-3 text-[22px] font-black leading-none tracking-tight text-[#15935d]">{label}</p>
-        {allPeople.length === 0 ? (
-          <p className="text-[12px] font-bold text-[#8b9aae]">今日無{label}</p>
-        ) : (
-          <div className="space-y-2.5">
-            {allPeople.map((person) => (
-              <div
-                key={person.userId}
-                className="flex items-baseline justify-between gap-2"
-                data-testid={`row-shift-person-${person.userId}`}
-              >
-                <div className="flex min-w-0 items-baseline gap-1.5">
-                  <span
-                    className={cn(
-                      "truncate text-[15px] font-bold leading-snug",
-                      person.isCurrent || person.isFuture ? "text-[#10233f]" : "text-[#a8b5c5]",
-                    )}
-                  >
-                    {person.name}
-                  </span>
-                  <span className="shrink-0 text-[13px] font-bold text-[#8b9aae]">{person.role}</span>
-                </div>
-                <span className="shrink-0 font-mono text-[11px] font-bold tabular-nums text-[#637185]">
-                  {person.startTime}–{person.endTime}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
+  const flat = flattenShiftPeople(shifts);
+  const roleGroupMap = new Map<RoleGroup, PersonWithStatus[]>();
+  for (const person of flat) {
+    const g = classifyRoleGroup(person.role);
+    const status: "active" | "upcoming" | "finished" = person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished";
+    const arr = roleGroupMap.get(g) ?? [];
+    arr.push({ person, status });
+    roleGroupMap.set(g, arr);
+  }
 
   return (
     <WorkbenchCard className="flex h-full flex-col overflow-hidden p-5">
@@ -1884,10 +1758,19 @@ function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
         <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex gap-5">
-            {renderPeriodCol(earlyGroup, "早班")}
-            <div className="w-px shrink-0 self-stretch bg-[#f0f4f8]" />
-            {renderPeriodCol(lateGroup, "晚班")}
+          <div className="space-y-5">
+            {ROLE_GROUP_ORDER.map((groupKey) => {
+              const people = roleGroupMap.get(groupKey) ?? [];
+              if (!people.length) return null;
+              return (
+                <ShiftRoleBlock
+                  key={groupKey}
+                  label={groupKey}
+                  labelClass={ROLE_GROUP_LABEL_CLASS[groupKey]}
+                  people={people}
+                />
+              );
+            })}
           </div>
         </div>
       )}
