@@ -1911,12 +1911,21 @@ export const groupBroadcasts = pgTable(
     content: text("content").notNull(),
     createdBy: text("created_by").notNull(),
     createdByName: text("created_by_name").notNull(),
+    // LINE webhook fields (null for manual supervisor-composed broadcasts)
+    sourceGroupId: text("source_group_id"),
+    senderName: text("sender_name"),
+    // Priority: 'normal' | 'high' | 'urgent'
+    priority: text("priority").default("normal").notNull(),
+    // Gemini analysis
     geminiStatus: text("gemini_status").default("pending").notNull(),
     geminiIsEvent: boolean("gemini_is_event"),
     geminiStartAt: timestamp("gemini_start_at"),
     geminiEndAt: timestamp("gemini_end_at"),
     geminiSummary: text("gemini_summary"),
+    geminiProcessedAt: timestamp("gemini_processed_at"),
     candidateId: integer("candidate_id"),
+    // Soft delete
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -1932,6 +1941,9 @@ export const insertGroupBroadcastSchema = createInsertSchema(groupBroadcasts).om
   id: true,
   createdAt: true,
   updatedAt: true,
+  deletedAt: true,
+  geminiProcessedAt: true,
+  candidateId: true,
 });
 
 export type InsertGroupBroadcast = z.infer<typeof insertGroupBroadcastSchema>;

@@ -247,7 +247,7 @@ export interface IStorage {
   listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]>;
   getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined>;
   createGroupBroadcast(input: InsertGroupBroadcast): Promise<GroupBroadcast>;
-  updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "candidateId">>): Promise<GroupBroadcast | undefined>;
+  updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined>;
   deleteGroupBroadcast(id: number): Promise<boolean>;
 
   // Lane rentals (水道租借)
@@ -1685,13 +1685,11 @@ export class DatabaseStorage implements IStorage {
 
   // Group Broadcasts
   async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]> {
-    const conditions = [];
+    const conditions: ReturnType<typeof eq>[] = [sql`${groupBroadcasts.deletedAt} IS NULL` as any];
     if (opts.facilityKey) conditions.push(eq(groupBroadcasts.facilityKey, opts.facilityKey));
     if (opts.sourceFacilityKey) conditions.push(eq(groupBroadcasts.sourceFacilityKey, opts.sourceFacilityKey));
     const base = db.select().from(groupBroadcasts);
-    const filtered = conditions.length > 0
-      ? base.where(conditions.length === 1 ? conditions[0] : and(...conditions))
-      : base;
+    const filtered = base.where(and(...conditions));
     const ordered = filtered.orderBy(desc(groupBroadcasts.createdAt));
     const paged = opts.offset ? ordered.offset(opts.offset) : ordered;
     return opts.limit ? paged.limit(opts.limit) : paged;
@@ -1707,14 +1705,18 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "candidateId">>): Promise<GroupBroadcast | undefined> {
+  async updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined> {
     const [row] = await db.update(groupBroadcasts).set({ ...data, updatedAt: new Date() }).where(eq(groupBroadcasts.id, id)).returning();
     return row;
   }
 
   async deleteGroupBroadcast(id: number): Promise<boolean> {
-    const result = await db.delete(groupBroadcasts).where(eq(groupBroadcasts.id, id)).returning({ id: groupBroadcasts.id });
-    return result.length > 0;
+    // Soft delete
+    const [row] = await db.update(groupBroadcasts)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(groupBroadcasts.id, id), sql`${groupBroadcasts.deletedAt} IS NULL`))
+      .returning({ id: groupBroadcasts.id });
+    return !!row;
   }
 }
 

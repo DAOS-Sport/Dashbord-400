@@ -19,13 +19,18 @@ export function mapGroupBroadcastToAnnouncementSummary(
     ? `群組公告（來自 ${facilityLabel} fan-out）`
     : `群組公告（${facilityLabel}）`;
 
+  const bffPriority =
+    row.priority === "urgent" ? "urgent" :
+    row.priority === "high" ? "high" :
+    "normal";
+
   return {
     id: `group-broadcast-${row.id}`,
     title: row.title,
     summary: row.geminiSummary ?? row.content.slice(0, 100),
     content: row.content,
     sourceLabel,
-    priority: "normal",
+    priority: bffPriority,
     type: "notice",
     isAcknowledged: false,
     isPinned: false,

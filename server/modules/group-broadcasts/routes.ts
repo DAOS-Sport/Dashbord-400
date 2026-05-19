@@ -40,6 +40,7 @@ async function runGeminiAsync(broadcastId: number, title: string, content: strin
       geminiSummary: result.summary ?? undefined,
       geminiStartAt: result.startAt ? new Date(result.startAt) : undefined,
       geminiEndAt: result.endAt ? new Date(result.endAt) : undefined,
+      geminiProcessedAt: new Date(),
     };
 
     if (result.isEvent) {
@@ -185,7 +186,81 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
     }
   });
 
-  // Supervisor: hard-delete
+  // LINE webhook receiver — receives raw LINE message events and creates group broadcasts
+  // Auth: INTERNAL_API_TOKEN bearer (same pattern as other internal endpoints)
+  app.post("/api/group-broadcasts/webhook", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization ?? "";
+      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+      const expectedToken = process.env.INTERNAL_API_TOKEN ?? process.env.LINE_BOT_ADMIN_TOKEN ?? "";
+      if (!token || token !== expectedToken) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const webhookSchema = z.object({
+        sourceGroupId: z.string().min(1),
+        senderName: z.string().optional(),
+        title: z.string().min(1).max(200),
+        content: z.string().min(1),
+        priority: z.enum(["normal", "high", "urgent"]).optional().default("normal"),
+        // The sending facility derived from LINE group mapping (caller responsibility)
+        facilityKey: z.string().min(1),
+      });
+
+      const parsed = webhookSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
+      }
+
+      const { sourceGroupId, senderName, title, content, priority, facilityKey } = parsed.data;
+      const targets = resolveBroadcastTargets(facilityKey);
+      const isFanOut = targets.length > 1;
+
+      const primaryRow = await storage.createGroupBroadcast({
+        facilityKey: targets[0],
+        sourceFacilityKey: facilityKey,
+        isFanOut: false,
+        parentId: null,
+        fanOutTargets: isFanOut ? targets : null,
+        title,
+        content,
+        createdBy: sourceGroupId,
+        createdByName: senderName ?? "LINE 群組",
+        sourceGroupId,
+        senderName: senderName ?? null,
+        priority,
+        geminiStatus: "pending",
+      });
+      const fanOutRows: typeof primaryRow[] = [];
+      for (const target of targets.slice(1)) {
+        const copy = await storage.createGroupBroadcast({
+          facilityKey: target,
+          sourceFacilityKey: facilityKey,
+          isFanOut: true,
+          parentId: primaryRow.id,
+          fanOutTargets: null,
+          title,
+          content,
+          createdBy: sourceGroupId,
+          createdByName: senderName ?? "LINE 群組",
+          sourceGroupId,
+          senderName: senderName ?? null,
+          priority,
+          geminiStatus: "pending",
+        });
+        fanOutRows.push(copy);
+      }
+
+      runGeminiAsync(primaryRow.id, title, content, facilityKey).catch(() => {});
+
+      res.status(201).json({ data: primaryRow, fanOut: fanOutRows, targets });
+    } catch (err) {
+      console.error("[group-broadcasts] webhook error:", err);
+      res.status(500).json({ message: "Webhook 處理失敗" });
+    }
+  });
+
+  // Supervisor: soft-delete
   app.delete("/api/group-broadcasts/:id", requireSupervisor, async (req, res) => {
     try {
       const id = Number(req.params.id);

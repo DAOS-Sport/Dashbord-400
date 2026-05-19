@@ -19,11 +19,15 @@ interface GroupBroadcast {
   content: string;
   createdBy: string;
   createdByName: string;
+  sourceGroupId: string | null;
+  senderName: string | null;
+  priority: string;
   geminiStatus: string;
   geminiIsEvent: boolean | null;
   geminiStartAt: string | null;
   geminiEndAt: string | null;
   geminiSummary: string | null;
+  geminiProcessedAt: string | null;
   candidateId: number | null;
   createdAt: string;
 }
@@ -37,6 +41,12 @@ const FACILITY_LABELS: Record<string, string> = {
 };
 
 const facilityLabel = (key: string) => FACILITY_LABELS[key] ?? key;
+
+const priorityMeta: Record<string, { label: string; cls: string }> = {
+  normal: { label: "一般", cls: "bg-[#eef2f6] text-[#536175]" },
+  high: { label: "重要", cls: "bg-[#fff3e6] text-[#d77a1f]" },
+  urgent: { label: "緊急", cls: "bg-[#ffe8eb] text-[#ff4964]" },
+};
 
 const geminiStatusMeta: Record<string, { label: string; cls: string }> = {
   pending: { label: "待分析", cls: "bg-[#eef2f6] text-[#637185]" },
@@ -283,6 +293,16 @@ export default function SupervisorGroupBroadcastsPage() {
                           <span className="rounded-[6px] bg-[#eef5ff] px-2 py-1 text-[10px] font-black text-[#2f6fe8]">
                             {facilityLabel(b.sourceFacilityKey)}
                           </span>
+                          {b.priority !== "normal" ? (
+                            <span className={cn("rounded-[6px] px-2 py-1 text-[10px] font-black", (priorityMeta[b.priority] ?? priorityMeta.normal).cls)}>
+                              {(priorityMeta[b.priority] ?? priorityMeta.normal).label}
+                            </span>
+                          ) : null}
+                          {b.sourceGroupId ? (
+                            <span className="inline-flex items-center gap-1 rounded-[6px] bg-[#f0fff7] px-2 py-1 text-[10px] font-black text-[#15935d]">
+                              LINE 群組
+                            </span>
+                          ) : null}
                           {isSanlu && b.fanOutTargets && b.fanOutTargets.length > 1 ? (
                             <span className="inline-flex items-center gap-1 rounded-[6px] bg-[#f3f0ff] px-2 py-1 text-[10px] font-black text-[#6947d8]">
                               <Users className="h-3 w-3" />
