@@ -6,12 +6,6 @@ import type { WorkbenchRole } from "@shared/auth/me";
 import { apiGet } from "@/shared/api/client";
 import { useAuthMe } from "@/shared/auth/session";
 import { cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface SearchResultItem {
   id: string;
@@ -79,6 +73,7 @@ export function WorkbenchGlobalSearch({
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
   const { data: session } = useAuthMe();
   const facilityKey = session?.activeFacility;
@@ -99,6 +94,9 @@ export function WorkbenchGlobalSearch({
         event.preventDefault();
         setOpen(true);
       }
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -106,10 +104,21 @@ export function WorkbenchGlobalSearch({
 
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 80);
+      setTimeout(() => inputRef.current?.focus(), 60);
     } else {
       setInputValue("");
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
   const handleSelect = (href: string) => {
@@ -120,118 +129,106 @@ export function WorkbenchGlobalSearch({
   const items = searchQuery.data?.items ?? [];
 
   return (
-    <>
+    <div ref={containerRef} className={cn("relative", className)}>
       <button
         type="button"
-        aria-label="全局搜尋 (Ctrl+K)"
-        onClick={() => setOpen(true)}
+        aria-label="搜尋 (Ctrl+K)"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
         data-testid="button-global-search"
-        className={cn(
-          "workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white md:bg-[#f0f4f8] md:text-[#10233f] lg:bg-[#f0f4f8] lg:text-[#10233f]",
-          className,
-        )}
+        className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white md:bg-[#f0f4f8] md:text-[#10233f] lg:bg-[#f0f4f8] lg:text-[#10233f]"
       >
         <Search className="h-4 w-4" />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[80dvh] w-[min(92vw,560px)] overflow-hidden rounded-[14px] p-0 shadow-[0_32px_80px_-40px_rgba(13,34,58,0.62)]">
-          <DialogHeader className="sr-only">
-            <DialogTitle>全局搜尋</DialogTitle>
-          </DialogHeader>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+10px)] z-[70] w-[min(92vw,440px)] overflow-hidden rounded-[12px] border border-[#dfe7ef] bg-white text-[#10233f] shadow-[0_24px_72px_-38px_rgba(15,34,58,0.62)]">
           <div className="flex items-center gap-3 border-b border-[#e6edf5] px-4 py-3">
             <Search className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
             <input
               ref={inputRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="搜尋公告、任務、模組、常見問題…"
+              placeholder="搜尋公告、任務、常見問題…"
               data-testid="input-global-search"
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-bold text-[#10233f] outline-none placeholder:text-[#9aa8ba]"
+              className="min-w-0 flex-1 bg-transparent text-[14px] font-bold text-[#10233f] outline-none placeholder:text-[#9aa8ba]"
             />
-            <div className="flex items-center gap-2">
-              <kbd className="hidden rounded-[5px] border border-[#dfe7ef] bg-[#f7f9fb] px-1.5 py-0.5 text-[10px] font-black text-[#8b9aae] sm:block">
-                ESC
-              </kbd>
-              {inputValue ? (
+            {inputValue ? (
+              <button
+                type="button"
+                aria-label="清除"
+                onClick={() => setInputValue("")}
+                className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-[#f2f6fa]"
+              >
+                <X className="h-3 w-3 text-[#8b9aae]" />
+              </button>
+            ) : null}
+          </div>
+
+          {!canSearch && (
+            <div className="px-4 py-5 text-center text-[12px] font-bold text-[#9aa8ba]">
+              輸入至少 2 個字元開始搜尋
+            </div>
+          )}
+
+          {canSearch && searchQuery.isFetching && !items.length && (
+            <div className="flex items-center justify-center gap-2 px-4 py-5 text-[12px] font-bold text-[#637185]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              搜尋中…
+            </div>
+          )}
+
+          {canSearch && !searchQuery.isFetching && !items.length && (
+            <div className="px-4 py-5 text-center text-[12px] font-bold text-[#9aa8ba]">
+              找不到「{debouncedQuery.trim()}」的相關結果
+            </div>
+          )}
+
+          {canSearch && items.length > 0 && (
+            <div className="max-h-[320px] overflow-y-auto p-2">
+              {items.map((item) => (
                 <button
+                  key={item.id}
                   type="button"
-                  aria-label="清除搜尋"
-                  onClick={() => setInputValue("")}
-                  className="grid h-7 w-7 place-items-center rounded-full hover:bg-[#f2f6fa]"
+                  onClick={() => handleSelect(item.href)}
+                  data-testid={`search-result-${item.id}`}
+                  className="flex w-full min-h-10 items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-[#f7f9fb]"
                 >
-                  <X className="h-3.5 w-3.5 text-[#8b9aae]" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="max-h-[calc(80dvh-60px)] overflow-y-auto">
-            {!canSearch && (
-              <div className="px-4 py-10 text-center text-[13px] font-bold text-[#9aa8ba]">
-                輸入至少 2 個字元開始搜尋
-              </div>
-            )}
-
-            {canSearch && searchQuery.isFetching && !items.length && (
-              <div className="flex items-center justify-center gap-2 px-4 py-10 text-[13px] font-bold text-[#637185]">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                搜尋中…
-              </div>
-            )}
-
-            {canSearch && !searchQuery.isFetching && !items.length && (
-              <div className="px-4 py-10 text-center text-[13px] font-bold text-[#9aa8ba]">
-                找不到符合「{debouncedQuery.trim()}」的結果
-              </div>
-            )}
-
-            {canSearch && items.length > 0 && (
-              <div className="p-2">
-                {items.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelect(item.href)}
-                    data-testid={`search-result-${item.id}`}
-                    className="flex w-full min-h-11 items-center gap-3 rounded-[8px] px-3 py-2 text-left hover:bg-[#f7f9fb]"
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-[6px] px-2 py-0.5 text-[10px] font-black",
+                      TYPE_COLORS[item.type] ?? "bg-[#f0f4f8] text-[#536175]",
+                    )}
                   >
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-[6px] px-2 py-0.5 text-[11px] font-black",
-                        TYPE_COLORS[item.type] ?? "bg-[#f0f4f8] text-[#536175]",
-                      )}
-                    >
-                      {TYPE_LABELS[item.type] ?? item.type}
+                    {TYPE_LABELS[item.type] ?? item.type}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-black text-[#10233f]">
+                      {item.title}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-black text-[#10233f]">
-                        {item.title}
+                    {item.summary ? (
+                      <span className="block truncate text-[11px] font-bold text-[#8b9aae]">
+                        {item.summary}
                       </span>
-                      {item.summary ? (
-                        <span className="block truncate text-[11px] font-bold text-[#8b9aae]">
-                          {item.summary}
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between border-t border-[#f0f4f8] px-4 py-2">
-              <span className="text-[10px] font-bold text-[#c4cdd6]">
-                {role === "employee" || role === "lifeguard"
-                  ? "搜尋範圍：公告、交辦、班表、捷徑、常見問題"
-                  : "搜尋範圍：系統模組登錄"}
-              </span>
-              <kbd className="rounded-[5px] border border-[#dfe7ef] bg-[#f7f9fb] px-1.5 py-0.5 text-[10px] font-black text-[#8b9aae]">
-                ⌘K
-              </kbd>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
             </div>
+          )}
+
+          <div className="flex items-center justify-between border-t border-[#f0f4f8] px-4 py-2">
+            <span className="text-[10px] font-bold text-[#c4cdd6]">
+              {role === "employee" || role === "lifeguard"
+                ? "公告・交辦・班表・常見問題"
+                : "系統模組登錄"}
+            </span>
+            <kbd className="rounded-[5px] border border-[#dfe7ef] bg-[#f7f9fb] px-1.5 py-0.5 text-[10px] font-black text-[#8b9aae]">
+              ⌘K
+            </kbd>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
