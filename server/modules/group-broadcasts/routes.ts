@@ -34,9 +34,10 @@ async function runGeminiAsync(broadcastId: number, originalText: string, targetF
       geminiProcessedAt: new Date(),
     };
 
-    // When Gemini detects an event, upsert announcement_candidates for EVERY target facility
-    // so all fan-out targets get campaign visibility in 活動檔期.
-    if (result.isEvent && targetFacilityKeys.length > 0) {
+    // When Gemini detects an event with extracted time/date fields, upsert announcement_candidates
+    // for EVERY target facility so all fan-out targets get campaign visibility in 活動檔期.
+    // We require at least startAt to be extracted — events without any date are not useful as campaigns.
+    if (result.isEvent && (result.startAt || result.endAt) && targetFacilityKeys.length > 0) {
       let firstCandidateId: number | undefined;
       for (const facilityKey of targetFacilityKeys) {
         const contentHash = Buffer.from(`group-broadcast:${broadcastId}:${facilityKey}`, "utf8").toString("base64");
