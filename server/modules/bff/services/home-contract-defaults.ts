@@ -37,12 +37,6 @@ export const defaultEmployeeShortcuts: ShortcutSummary[] = [
     href: "/employee/documents",
     tone: "cyan",
   },
-  {
-    id: "sticky-notes",
-    label: "個人工作貼",
-    href: "/employee/personal-note",
-    tone: "rose",
-  },
 ];
 
 export const defaultEmployeeDocumentLinks: DocumentSummary[] = [

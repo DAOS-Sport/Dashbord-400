@@ -8,7 +8,6 @@ import { registerBackendModules } from "../../modules/register";
 import { registerSystemRoutes } from "../../modules/system/routes";
 import { registerTelemetryRoutes } from "../../modules/telemetry/routes";
 import { registerModuleRegistryRoutes } from "../../modules/registry/moduleRegistryController";
-import { registerTaskRoutes } from "../../modules/tasks";
 import { registerHandoverRoutes } from "../../modules/handover";
 
 export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express) => {
@@ -20,7 +19,6 @@ export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express)
   registerTelemetryRoutes(app, container);
   registerSystemRoutes(app, container);
   registerModuleRegistryRoutes(app);
-  registerTaskRoutes(app, container);
   registerHandoverRoutes(app);
   registerBffRoutes(app, container);
   return container;

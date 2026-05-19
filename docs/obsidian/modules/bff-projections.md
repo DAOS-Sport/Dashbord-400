@@ -121,7 +121,7 @@ _沒有 route 綁定_
 ## Telemetry / Governance
 
 - Telemetry: pageView=no；cardClick=no；actionSubmit=no；auditRequired=no
-- Event types: 未登記
+- Event types: bff_projection_refresh, bff_cache_miss
 - Editable by: system
 - Readonly for: employee, supervisor
 - Requires approval: no

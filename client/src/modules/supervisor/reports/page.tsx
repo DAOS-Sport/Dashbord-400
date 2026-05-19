@@ -19,7 +19,7 @@ export default function SupervisorReportsPage() {
       ["metric", "value"],
       ["active_staff", dashboard?.staffing.data?.active ?? 0],
       ["pending_anomalies", dashboard?.pendingAnomalies.data?.length ?? 0],
-      ["incomplete_tasks", dashboard?.incompleteTasks.data?.length ?? 0],
+      ["incomplete_handovers", dashboard?.incompleteTasks.data?.length ?? 0],
       ["unconfirmed_announcements", dashboard?.announcementAcks.data?.unconfirmed ?? 0],
       ["ui_events", analytics?.totalEvents ?? 0],
       [],
@@ -43,7 +43,7 @@ export default function SupervisorReportsPage() {
   const metrics: readonly (readonly [label: string, value: number, Icon: LucideIcon, tone: string])[] = [
     ["在班人力", dashboard?.staffing.data?.active ?? 0, Users, "text-[#15935d]"],
     ["待審異常", dashboard?.pendingAnomalies.data?.length ?? 0, Activity, "text-[#ff4964]"],
-    ["未完成任務", dashboard?.incompleteTasks.data?.length ?? 0, ClipboardList, "text-[#10233f]"],
+    ["未完成交接", dashboard?.incompleteTasks.data?.length ?? 0, ClipboardList, "text-[#10233f]"],
     ["未確認公告", dashboard?.announcementAcks.data?.unconfirmed ?? 0, Megaphone, "text-[#ef7d22]"],
     ["UI 事件", analytics?.totalEvents ?? 0, BarChart3, "text-[#2f6fe8]"],
   ];

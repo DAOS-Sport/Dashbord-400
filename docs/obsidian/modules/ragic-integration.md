@@ -1,7 +1,7 @@
 ---
 module_id: ragic-integration
 label: "Ragic Integration"
-status: external
+status: partial
 domain: integration
 owner_role: SYSTEM_ADMIN
 source_of_truth: external
@@ -15,13 +15,13 @@ generated_at: 2026-05-18
 ## Module Intake Governance
 
 1. 角色：SYSTEM_ADMIN；可見角色 system, SYSTEM_ADMIN
-2. RAGIC / 資料庫：RAGIC：Employee identity, status, department, role grants.
-3. 功能 / 需求 / 用途：Ragic employee auth and HR source adapter. 狀態：external / 外部。
+2. RAGIC / 資料庫：RAGIC：Employee identity, status, department, role grants — cached every 5 min.
+3. 功能 / 需求 / 用途：Ragic employee auth and HR source adapter with unified in-memory cache (5-min refresh). 狀態：partial / 部分接線。
 
 ## Registry Snapshot
 
 - Module ID: `ragic-integration`
-- Status: external / 外部
+- Status: partial / 部分接線
 - Domain: `integration`
 - Source of truth: `external`
 - Homepage widget: no
@@ -33,7 +33,7 @@ generated_at: 2026-05-18
 ## 功能邏輯
 
 - 沒有獨立前端入口；由 BFF、背景工作或其他模組引用。
-- 沒有登記讀取 API；資料多半由其他 projection 或背景流程提供。
+- 讀取透過 `GET /api/bff/system/health-overview`。
 - 寫入透過 `POST /api/auth/ragic-login`。
 - 外部或基礎依賴：RAGIC。
 - 資料落點 / entity：`user_role_snapshots`。
@@ -53,14 +53,14 @@ generated_at: 2026-05-18
 - 非首頁卡片模組仍需在進入頁保留 loading、empty、error 與權限不足狀態。
 - 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
 - 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
-- 畫面資料應優先吃 BFF section / endpoint：`/api/auth/me`。
+- 畫面資料應優先吃 BFF section / endpoint：`/api/bff/system/health-overview`。
 - 有寫入操作；按鈕需具備 loading/disabled/error feedback，成功後需刷新對應 query 或 section。
 - UI telemetry：audit required。
 
 ## BFF 參照 / 修改關聯
 
-- 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
-- Section key / planned endpoint：plannedEndpoint=`/api/auth/me`。
+- BFF endpoint owner：`GET /api/bff/system/health-overview`。
+- Section key / planned endpoint：plannedEndpoint=`/api/bff/system/health-overview`。
 - 沒有 CRUD endpoint；BFF 可視為 read-only projection 或外部相容層。
 - 沒有 proxy / external API 邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
@@ -82,12 +82,13 @@ _沒有 route 綁定_
 | Method | Path | Kind | Status |
 | --- | --- | --- | --- |
 | POST | /api/auth/ragic-login | auth | legacy |
+| GET | /api/bff/system/health-overview | bff | partial |
 
 ### BFF Sections
 
 | Binding | Value |
 | --- | --- |
-| plannedEndpoint | /api/auth/me |
+| plannedEndpoint | /api/bff/system/health-overview |
 
 ### UI State Contract
 
@@ -108,16 +109,16 @@ _沒有 route 綁定_
 
 | Provider | Purpose | Status | Notes |
 | --- | --- | --- | --- |
-| RAGIC | Employee identity, status, department, role grants. | external |  |
+| RAGIC | Employee identity, status, department, role grants — cached every 5 min. | partial |  |
 
 ## Telemetry / Governance
 
 - Telemetry: pageView=no；cardClick=no；actionSubmit=no；auditRequired=yes
-- Event types: 未登記
+- Event types: ragic_cache_refresh, ragic_auth_success, ragic_auth_failure
 - Editable by: SYSTEM_ADMIN
 - Readonly for: system
 - Requires approval: no
-- Governance notes: External HR authority; local cache must not become stale permission truth.
+- Governance notes: External HR authority; RagicCacheService primes on server start and refreshes every 5 minutes.
 
 ## Legacy
 

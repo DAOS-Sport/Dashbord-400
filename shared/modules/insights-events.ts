@@ -26,10 +26,6 @@ export const moduleCompletionEvents: Record<string, ModuleCompletionEventBinding
     startEvent: "NAV_CLICK:handover",
     completionEvent: "OPERATIONAL_HANDOVER_CREATED",
   },
-  tasks: {
-    startEvent: "NAV_CLICK:tasks",
-    completionEvent: "TASK_CREATED",
-  },
 };
 
 export const calculateDeltaPct = (currentCount: number, previousCount: number) => {

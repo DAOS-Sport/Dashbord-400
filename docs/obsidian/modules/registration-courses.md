@@ -1,7 +1,7 @@
 ---
 module_id: registration-courses
 label: "報名 / 課程"
-status: planned
+status: partial
 domain: support
 owner_role: system
 source_of_truth: external
@@ -16,12 +16,12 @@ generated_at: 2026-05-18
 
 1. 角色：system；可見角色 employee
 2. RAGIC / 資料庫：不使用 Ragic；資料源為 external
-3. 功能 / 需求 / 用途：Registration and course entry placeholder; booking provider is not connected yet. 狀態：planned / 預留。
+3. 功能 / 需求 / 用途：Registration and course entry placeholder; booking provider is not connected yet. 狀態：partial / 部分接線。
 
 ## Registry Snapshot
 
 - Module ID: `registration-courses`
-- Status: planned / 預留
+- Status: partial / 部分接線
 - Domain: `support`
 - Source of truth: `external`
 - Homepage widget: yes
@@ -33,18 +33,18 @@ generated_at: 2026-05-18
 ## 功能邏輯
 
 - 入口從 `/employee/registration-courses` 進入，依角色 employee 顯示。
-- 沒有登記讀取 API；資料多半由其他 projection 或背景流程提供。
+- 讀取透過 `GET /api/bff/system/module-health/registration-courses`。
 - 目前沒有登記寫入 API；視為 read-only、external、planned 或 legacy surface。
 - 外部或基礎依賴：UNKNOWN。
-- 資料落點 / entity：`source_snapshots`。
+- 資料落點 / entity：`registration_courses`。
 
 ## 資料寫法 / 寫入規則
 
 - 資料權威：`external`。
-- 沒有 Postgres 寫入權威登記。
+- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`registration_courses`。
 - 沒有 projection 資料登記。
 - 沒有 telemetry 資料登記。
-- External 資料需經 adapter/proxy 正規化後進 BFF，不把外部 payload 直接暴露成 UI contract。
+- 沒有 external data binding。
 - 沒有寫入 API；新增寫入前必須先補 module intake governance 三欄。
 
 ## UI/UX 邏輯
@@ -59,7 +59,7 @@ generated_at: 2026-05-18
 
 ## BFF 參照 / 修改關聯
 
-- 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
+- BFF endpoint owner：`GET /api/bff/system/module-health/registration-courses`。
 - Section key / planned endpoint：employeeSectionKey=`registrationCourses`。
 - 沒有 CRUD endpoint；BFF 可視為 read-only projection 或外部相容層。
 - 沒有 proxy / external API 邊界。
@@ -69,7 +69,7 @@ generated_at: 2026-05-18
 
 - UI：確認 home-card / dashboard widget 的 loading / empty / degraded / error / disabled 狀態。
 - BFF：新增或調整欄位時，先改 server DTO / shared domain type，再改 page mapping。
-- 資料：確認 `source_snapshots` 的讀寫方向沒有繞過 owner module。
+- 資料：確認 `registration_courses` 的讀寫方向沒有繞過 owner module。
 - 整合：確認 UNKNOWN 的 fallback / unavailable 狀態有對應 UI。
 - 文件：改動後重跑 `npm run docs:obsidian`，讓本頁、BFF Reference Map 與 BFF 技術規範同步。
 
@@ -81,7 +81,9 @@ generated_at: 2026-05-18
 
 ## API / BFF
 
-_沒有 API 綁定_
+| Method | Path | Kind | Status |
+| --- | --- | --- | --- |
+| GET | /api/bff/system/module-health/registration-courses | bff | partial |
 
 ### BFF Sections
 
@@ -102,7 +104,7 @@ _沒有 API 綁定_
 
 | Table / Entity | Entity | Source | Status | Notes |
 | --- | --- | --- | --- | --- |
-| source_snapshots | future registration source snapshot | external | planned |  |
+| registration_courses | registration course stub | postgres | partial |  |
 
 ## Integrations
 

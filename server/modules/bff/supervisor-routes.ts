@@ -15,9 +15,7 @@ import {
 } from "./employee-home";
 import {
   buildStaffingSummary,
-  mapTaskSummary,
   openOperationalHandovers,
-  openTasks,
   withTimeout,
 } from "./employee-home-service";
 
@@ -59,16 +57,9 @@ export const registerSupervisorBffRoutes = (
         ? requestedActiveFacility
         : (facilityKeys[0] ?? "xinbei_pool");
       try {
-        const [allHandovers, allTasks, staffing] = await Promise.all([
+        const [allHandovers, staffing] = await Promise.all([
           withTimeout(
             storage.listOperationalHandovers({ limit: 300 }).catch(() => []),
-            1500,
-            [],
-          ),
-          withTimeout(
-            storage
-              .listTasks({ includeCancelled: false, limit: 300 })
-              .catch(() => []),
             1500,
             [],
           ),
@@ -92,21 +83,12 @@ export const registerSupervisorBffRoutes = (
         const scopedHandovers = allHandovers.filter((handover) =>
           facilityKeys.includes(handover.facilityKey),
         );
-        const scopedTasks = allTasks.filter((task) =>
-          facilityKeys.includes(task.facilityKey),
-        );
         const selectedHandovers = scopedHandovers
           .filter((handover) => handover.facilityKey === facilityKey)
-          .slice(0, 100);
-        const selectedTasks = scopedTasks
-          .filter((task) => task.facilityKey === facilityKey)
           .slice(0, 100);
         const facilityWork = facilityKeys.map((key) => {
           const facilityHandovers = scopedHandovers.filter(
             (handover) => handover.facilityKey === key,
-          );
-          const facilityTasks = scopedTasks.filter(
-            (task) => task.facilityKey === key,
           );
           const staffingRow = staffing.byFacility?.find(
             (row) => row.facilityKey === key,
@@ -122,15 +104,28 @@ export const registerSupervisorBffRoutes = (
             onShift: staffingRow?.onShift ?? 0,
             next: staffingRow?.next ?? 0,
             openHandovers: openOperationalHandovers(facilityHandovers).length,
-            incompleteTasks: openTasks(facilityTasks).length,
+            incompleteTasks: openOperationalHandovers(facilityHandovers).length,
             currentLead,
           };
         });
+        const incompleteHandovers = openOperationalHandovers(selectedHandovers).map((handover) => ({
+          id: String(handover.id),
+          title: handover.title,
+          content: handover.content,
+          status: handover.status === "done" ? "done" as const : "pending" as const,
+          priority: (handover.priority ?? "normal") as "low" | "normal" | "high",
+          dueAt: handover.dueAt?.toISOString() ?? null,
+          dueLabel: handover.dueAt ? handover.dueAt.toLocaleString("zh-TW") : undefined,
+          createdByName: handover.createdByName,
+          assignedToName: handover.assigneeName,
+          source: "supervisor" as const,
+          reportNote: handover.reportNote,
+        }));
         return res.json({
           ...dashboard,
           facilities: ok(facilityWork),
           staffing: ok(staffing),
-          incompleteTasks: ok(openTasks(selectedTasks).map(mapTaskSummary)),
+          incompleteTasks: ok(incompleteHandovers),
           handoverOverview: ok({
             open: openOperationalHandovers(selectedHandovers).length,
             confirmed: selectedHandovers.filter(

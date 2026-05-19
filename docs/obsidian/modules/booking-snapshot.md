@@ -1,7 +1,7 @@
 ---
 module_id: booking-snapshot
 label: "Booking Snapshot"
-status: planned
+status: partial
 domain: integration
 owner_role: system
 source_of_truth: external
@@ -16,12 +16,12 @@ generated_at: 2026-05-18
 
 1. 角色：system；可見角色 employee, lifeguard, supervisor, system
 2. RAGIC / 資料庫：不使用 Ragic；資料源為 external
-3. 功能 / 需求 / 用途：Booking and occupancy snapshot module reserved for future booking adapter projection. 狀態：planned / 預留。
+3. 功能 / 需求 / 用途：Booking and occupancy snapshot module reserved for future booking adapter projection. 狀態：partial / 部分接線。
 
 ## Registry Snapshot
 
 - Module ID: `booking-snapshot`
-- Status: planned / 預留
+- Status: partial / 部分接線
 - Domain: `integration`
 - Source of truth: `external`
 - Homepage widget: yes
@@ -33,18 +33,18 @@ generated_at: 2026-05-18
 ## 功能邏輯
 
 - 沒有獨立前端入口；由 BFF、背景工作或其他模組引用。
-- 沒有登記讀取 API；資料多半由其他 projection 或背景流程提供。
+- 讀取透過 `GET /api/bff/system/module-health/booking-snapshot`。
 - 目前沒有登記寫入 API；視為 read-only、external、planned 或 legacy surface。
 - 外部或基礎依賴：UNKNOWN。
-- 資料落點 / entity：`source_snapshots`。
+- 資料落點 / entity：`booking_snapshots`。
 
 ## 資料寫法 / 寫入規則
 
 - 資料權威：`external`。
-- 沒有 Postgres 寫入權威登記。
+- Postgres 寫入需通過 server module / storage layer，不應在前端直接寫表：`booking_snapshots`。
 - 沒有 projection 資料登記。
 - 沒有 telemetry 資料登記。
-- External 資料需經 adapter/proxy 正規化後進 BFF，不把外部 payload 直接暴露成 UI contract。
+- 沒有 external data binding。
 - 沒有寫入 API；新增寫入前必須先補 module intake governance 三欄。
 
 ## UI/UX 邏輯
@@ -59,7 +59,7 @@ generated_at: 2026-05-18
 
 ## BFF 參照 / 修改關聯
 
-- 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
+- BFF endpoint owner：`GET /api/bff/system/module-health/booking-snapshot`。
 - Section key / planned endpoint：employeeSectionKey=`bookingSnapshot`、plannedEndpoint=`/api/bff/employee/home`。
 - 沒有 CRUD endpoint；BFF 可視為 read-only projection 或外部相容層。
 - 沒有 proxy / external API 邊界。
@@ -69,7 +69,7 @@ generated_at: 2026-05-18
 
 - UI：確認 home-card / dashboard widget 的 loading / empty / degraded / error / disabled 狀態。
 - BFF：新增或調整欄位時，先改 server DTO / shared domain type，再改 page mapping。
-- 資料：確認 `source_snapshots` 的讀寫方向沒有繞過 owner module。
+- 資料：確認 `booking_snapshots` 的讀寫方向沒有繞過 owner module。
 - 整合：確認 UNKNOWN 的 fallback / unavailable 狀態有對應 UI。
 - 文件：改動後重跑 `npm run docs:obsidian`，讓本頁、BFF Reference Map 與 BFF 技術規範同步。
 
@@ -79,7 +79,9 @@ _沒有 route 綁定_
 
 ## API / BFF
 
-_沒有 API 綁定_
+| Method | Path | Kind | Status |
+| --- | --- | --- | --- |
+| GET | /api/bff/system/module-health/booking-snapshot | bff | partial |
 
 ### BFF Sections
 
@@ -101,7 +103,7 @@ _沒有 API 綁定_
 
 | Table / Entity | Entity | Source | Status | Notes |
 | --- | --- | --- | --- | --- |
-| source_snapshots | booking source snapshot | external | planned |  |
+| booking_snapshots | booking occupancy snapshot | postgres | partial | Stub table built; booking adapter projection not yet connected. |
 
 ## Integrations
 

@@ -30,7 +30,6 @@ import { defaultEmployeeShortcuts } from "./home-contract";
 import { uniqueDocuments } from "./resource-mappers";
 import {
   mapOperationalHandoverSummary,
-  mapTaskSummary,
 } from "./supervisor-dashboard-service";
 
 export const enrichEmployeeHome = async (
@@ -94,17 +93,13 @@ export const enrichEmployeeHome = async (
     weather: cwaWeather
       ? ok(cwaWeather, now)
       : unavailable("天氣資料無法取得", "CWA_UNAVAILABLE"),
-    stickyNotes: dto.stickyNotes ?? ok([], now),
     training: dto.training ?? ok([], now),
   };
 
-  const [employeeResources, systemAnnouncementRows, localTasks] =
+  const [employeeResources, systemAnnouncementRows] =
     await Promise.all([
       getEmployeeResourceSections(normalizedFacilityKey),
       storage.listSystemAnnouncements(normalizedFacilityKey, true).catch(() => []),
-      storage
-        .listTasks({ facilityKey: normalizedFacilityKey, limit: 50 })
-        .catch(() => []),
     ]);
 
   const portalAnnouncements = systemAnnouncementRows
@@ -150,7 +145,6 @@ export const enrichEmployeeHome = async (
 
   nextDto = {
     ...nextDto,
-    tasks: ok(localTasks.map(mapTaskSummary), now),
     shortcuts: ok(defaultEmployeeShortcuts, now),
     announcements: announcementSectionFromSources(
       announcements,
@@ -172,13 +166,6 @@ export const enrichEmployeeHome = async (
         ...employeeResources.documents,
         ...(nextDto.documents.data ?? []),
       ]).slice(0, 10),
-      now,
-    ),
-    stickyNotes: ok(
-      [
-        ...employeeResources.stickyNotes,
-        ...(nextDto.stickyNotes.data ?? []),
-      ].slice(0, 8),
       now,
     ),
     training: ok(

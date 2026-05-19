@@ -182,6 +182,10 @@ export const registerPortalHandoverRoutes = (
     }
   });
 
+  const linkedActionUrlSchema = z.string().max(2048).refine((value) => (
+    value.startsWith("/") || z.string().url().safeParse(value).success
+  ), "連結格式不正確");
+
   const operationalHandoverCreateBodySchema = z.object({
     facilityKey: z.string().min(1),
     title: z.string().min(1).max(120),
@@ -194,7 +198,7 @@ export const registerPortalHandoverRoutes = (
     assigneeEmployeeNumber: z.string().optional().nullable(),
     assigneeName: z.string().optional().nullable(),
     linkedActionType: z.string().optional().nullable(),
-    linkedActionUrl: z.string().url().optional().nullable(),
+    linkedActionUrl: linkedActionUrlSchema.optional().nullable(),
   });
 
   const operationalHandoverPatchBodySchema = z.object({
@@ -209,7 +213,7 @@ export const registerPortalHandoverRoutes = (
     assigneeEmployeeNumber: z.string().optional().nullable(),
     assigneeName: z.string().optional().nullable(),
     linkedActionType: z.string().optional().nullable(),
-    linkedActionUrl: z.string().url().optional().nullable(),
+    linkedActionUrl: linkedActionUrlSchema.optional().nullable(),
   });
 
   const operationalHandoverReportBodySchema = z.object({

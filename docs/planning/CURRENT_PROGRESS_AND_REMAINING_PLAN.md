@@ -1,6 +1,6 @@
 # Current Progress and Remaining Plan
 
-Date: 2026-05-07
+Date: 2026-05-19
 
 ## Product Scope Decision
 
@@ -29,17 +29,25 @@ Not in the near-term plan:
 
 Role homepage/navigation alignment is complete locally:
 
-- Employee navigation: 8 modules; homepage: 14 cards.
-- Supervisor navigation: 8 modules; homepage: 11 cards.
-- System navigation: 7 modules; homepage: 11 cards.
+- Employee navigation: 9 modules; homepage: 15 cards.
+- Supervisor navigation: 13 modules; homepage: 16 cards.
+- System navigation: 8 modules; homepage: 8 cards.
 - `npm run unit:modules` and `npm run dry-run` both pass with exact order checks.
 - Any remaining non-ready health rows are external-provider, background-governance, deprecated, or deployment-validation items; they are not promoted to fake ready state without real source data.
 
 Pre-launch final closure batch status:
 
-- Completed: personal-note owner policy, Q&A supervisor review, and unified not_connected/degraded frontend UX.
+- Completed: Q&A supervisor review, unified not_connected/degraded frontend UX, and work-item retirement prep.
 - Halted by explicit batch scope: announcement BFF policy, because the required owner file `server/modules/bff/routes.ts` was locked for this batch.
 - New deployment migration: `0007_qna_supervisor_review.sql`.
+- New retirement migration: `0014_retire_tasks_personal_note.sql`.
+
+Current retirement decision:
+
+- `tasks` is removed from active employee/supervisor workbench routes and backend module registration.
+- `personal-note` / `sticky_note` is removed from the active employee workbench.
+- Closure state is tracked in `docs/governance/MODULE_CLOSURE_MATRIX.md`.
+- Deployment is not closed until Replit/Neon applies `0014_retire_tasks_personal_note.sql` and confirms the legacy `tasks` table plus `sticky_note` rows are gone.
 
 ### Employee
 
@@ -48,11 +56,10 @@ Status: deployment-ready for core daily workflow.
 Ready:
 
 - Employee home dashboard
-- Handover / front desk tasks
+- Handover / front desk work items
 - Announcements read/acknowledge
 - Activity periods / course news
 - Common documents / Notion-like links
-- Personal notes / quick note drawer
 - Q&A knowledge base
 - Employee training reader
 
@@ -74,7 +81,6 @@ Ready:
 - `/supervisor` operations overview
 - `/supervisor/facilities` authorized facility and staffing view
 - `/supervisor/facilities/:facilityKey` facility detail view linked from dashboard and facility cards
-- `/supervisor/tasks` task management with right drawer
 - `/supervisor/announcements` manual publish, type, pinning, active, publish/expire time, LINE candidate review
 - `/supervisor/handover` kanban-style handover management without shift input
 - `/supervisor/training` training material management
@@ -120,8 +126,8 @@ Remaining:
 
 ```mermaid
 flowchart TD
-  Employee["Employee Core\nhome / handover / announcements / docs / notes / Q&A / training"]
-  Supervisor["Supervisor Core\nops overview / facilities / tasks / announcements / handover / training / anomalies / reports"]
+  Employee["Employee Core\nhome / handover / announcements / docs / Q&A / training"]
+  Supervisor["Supervisor Core\nops overview / facilities / announcements / handover / training / anomalies / reports"]
   System["System Governance\nhealth / telemetry / audit / raw inspector / integrations"]
   Registry["Module Registry\nstatic truth"]
   BFF["Role BFF\nemployee / supervisor / system DTO"]
@@ -142,8 +148,9 @@ flowchart TD
 ## Next Work Order
 
 1. Replit deployment verification.
-   - Apply migrations `0005` and `0006`.
+   - Apply migrations `0005`, `0006`, `0007`, and retirement migration `0014`.
    - Verify Q&A rows, announcement controls, training view telemetry, audit rows.
+   - Verify `tasks` table is gone and no `sticky_note` employee resources remain.
 
 2. System / IT production validation.
    - Use module health as the main control surface.
@@ -157,7 +164,7 @@ flowchart TD
 
 4. Employee final polish.
    - Confirm no homepage visual regression after navigation/card contract alignment.
-   - Validate common documents, notes, Q&A, and training on mobile.
+   - Validate common documents, Q&A, and training on mobile.
    - Validate provider-backed check-in, weather, booking/course, booking snapshot, and notifications after the real adapters are selected.
 
 5. Post-launch improvements.
@@ -173,5 +180,7 @@ flowchart TD
 - `module_configs` first-version UI
 - Supervisor-side module label/order editor
 - Multi-role layout builder
+- `tasks` module and `/api/tasks`
+- `personal-note` page and `sticky_note` resource flow
 
 These items should not be picked up by future agents unless a new product decision explicitly reopens them.

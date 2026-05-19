@@ -3,18 +3,12 @@ type EmployeeResourcePrivacyRow = {
   createdByEmployeeNumber: string | null;
 };
 
-export const isPersonalStickyNote = (row: EmployeeResourcePrivacyRow) => row.category === "sticky_note";
-
-export const canReadEmployeeResource = (row: EmployeeResourcePrivacyRow, ownerEmployeeNumber?: string | null) => {
-  if (!isPersonalStickyNote(row)) return true;
-  return Boolean(ownerEmployeeNumber && row.createdByEmployeeNumber === ownerEmployeeNumber);
-};
+export const canReadEmployeeResource = (_row: EmployeeResourcePrivacyRow, _ownerEmployeeNumber?: string | null) => true;
 
 export const canMutateEmployeeResource = (
   row: EmployeeResourcePrivacyRow,
   actor: { employeeNumber: string; isSupervisor?: boolean },
 ) => {
-  if (isPersonalStickyNote(row)) return row.createdByEmployeeNumber === actor.employeeNumber;
   return row.createdByEmployeeNumber === actor.employeeNumber || actor.isSupervisor === true;
 };
 

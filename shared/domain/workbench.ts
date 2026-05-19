@@ -24,7 +24,7 @@ export interface WeatherSummary {
   humidity: number;
 }
 
-export interface TaskSummary {
+export interface WorkItemSummary {
   id: string;
   title: string;
   content?: string | null;
@@ -96,6 +96,8 @@ export interface HandoverItemDto {
   createdAt: string;
   updatedAt: string;
   reportNote?: string | null;
+  linkedActionType?: string | null;
+  linkedActionUrl?: string | null;
 }
 
 export interface HandoverSummaryDto {
@@ -197,16 +199,6 @@ export interface DocumentSummary {
   source?: "employee_resource" | "system_link" | "quick_link";
 }
 
-export interface StickyNoteSummary {
-  id: string;
-  resourceId?: number;
-  title: string;
-  content: string;
-  authorName?: string | null;
-  createdAt: string;
-  scheduledAt?: string | null;
-}
-
 export interface TrainingSummary {
   id: string;
   resourceId?: number;
@@ -241,20 +233,17 @@ export interface EmployeeHomeDto {
   navigation?: NavigationModuleDto[];
   unreadCounts?: {
     announcements: number;
-    tasks: number;
     handovers: number;
   };
   facility: FacilitySummary;
   layout?: BffSection<WorkbenchWidgetLayoutItem[]>;
   weather: BffSection<WeatherSummary>;
-  tasks: BffSection<TaskSummary[]>;
   announcements: BffSection<AnnouncementSummary[]>;
   handover: BffSection<HandoverSummary[]>;
   shortcuts: BffSection<ShortcutSummary[]>;
   shifts: BffSection<ShiftSummary[]>;
   campaigns: BffSection<CampaignSummary[]>;
   documents: BffSection<DocumentSummary[]>;
-  stickyNotes: BffSection<StickyNoteSummary[]>;
   training: BffSection<TrainingSummary[]>;
 }
 
@@ -306,7 +295,7 @@ export interface SupervisorDashboardDto {
   facilities?: BffSection<SupervisorFacilityOverview[]>;
   staffing: BffSection<SupervisorStaffingSummary>;
   pendingAnomalies: BffSection<SupervisorAnomalySummary[]>;
-  incompleteTasks: BffSection<TaskSummary[]>;
+  incompleteTasks: BffSection<WorkItemSummary[]>;
   announcementAcks: BffSection<{ unconfirmed: number; totalRequired: number }>;
   handoverOverview: BffSection<{ open: number; confirmed: number }>;
   shifts: BffSection<ShiftSummary[]>;

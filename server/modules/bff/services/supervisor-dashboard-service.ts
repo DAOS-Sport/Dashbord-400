@@ -5,41 +5,10 @@ import {
 import type {
   HandoverSummary,
   StaffMemberSummary,
-  TaskSummary,
 } from "@shared/domain/workbench";
-import type { OperationalHandover, Task } from "@shared/schema";
+import type { OperationalHandover } from "@shared/schema";
 import type { AppContainer } from "../../../app/container";
 import { sourceUnavailable } from "../../../shared/integrations/source-status";
-
-export const taskStatusToSummaryStatus = (
-  status: string,
-): TaskSummary["status"] =>
-  status === "done"
-    ? "done"
-    : status === "in_progress"
-      ? "in_progress"
-      : "pending";
-
-export const mapTaskSummary = (task: Task): TaskSummary => ({
-  id: String(task.id),
-  title: task.title,
-  content: task.content,
-  status: taskStatusToSummaryStatus(task.status),
-  priority:
-    task.priority === "high" || task.priority === "low"
-      ? task.priority
-      : "normal",
-  dueLabel: task.dueAt
-    ? new Date(task.dueAt).toLocaleString("zh-TW")
-    : undefined,
-  dueAt: task.dueAt ? new Date(task.dueAt).toISOString() : null,
-  createdByName: task.createdByName,
-  assignedToName: task.assignedToName,
-  source:
-    task.source === "supervisor" || task.source === "system"
-      ? task.source
-      : "employee",
-});
 
 export const mapOperationalHandoverSummary = (
   handover: OperationalHandover,
@@ -91,9 +60,6 @@ export const openOperationalHandovers = (items: OperationalHandover[]) =>
   items.filter(
     (handover) => handover.status !== "done" && handover.status !== "cancelled",
   );
-
-export const openTasks = (items: Task[]) =>
-  items.filter((task) => task.status !== "done" && task.status !== "cancelled");
 
 export const buildStaffingSummary = async (
   container: AppContainer,

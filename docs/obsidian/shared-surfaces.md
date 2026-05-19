@@ -22,11 +22,11 @@
 
 | Provider | Registered Uses |
 | --- | --- |
-| POSTGRES | 47 |
+| POSTGRES | 45 |
 | LINE_BOT_ASSISTANT | 16 |
-| UNKNOWN | 13 |
+| UNKNOWN | 14 |
+| OBJECT_STORAGE | 10 |
 | RAGIC | 9 |
-| OBJECT_STORAGE | 9 |
 | SMART_SCHEDULE_MANAGER | 8 |
 | GMAIL_SMTP | 5 |
 | LOCAL_STORAGE | 1 |
@@ -37,9 +37,9 @@
 
 | Table / Entity | Module Owners |
 | --- | --- |
-| source_snapshots | [[modules/operations|operations]], [[modules/announcement-summary|announcement-summary]], [[modules/booking-snapshot|booking-snapshot]], [[modules/shift-reminder|shift-reminder]], [[modules/registration-courses|registration-courses]], [[modules/checkins|checkins]], [[modules/linebot-integration|linebot-integration]], [[modules/schedule-integration|schedule-integration]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
 | audit_logs | [[modules/system-control-center|system-control-center]], [[modules/system-operations|system-operations]], [[modules/system-insights|system-insights]], [[modules/system-governance|system-governance]], [[modules/announcement-review|announcement-review]], [[modules/anomalies|anomalies]], [[modules/portal-review|portal-review]], [[modules/telemetry-audit|telemetry-audit]] |
-| employee_resources | [[modules/employee-home|employee-home]], [[modules/campaigns-events|campaigns-events]], [[modules/personal-note|personal-note]], [[modules/activity-periods|activity-periods]], [[modules/portal-manage|portal-manage]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
+| source_snapshots | [[modules/operations|operations]], [[modules/announcement-summary|announcement-summary]], [[modules/shift-reminder|shift-reminder]], [[modules/checkins|checkins]], [[modules/linebot-integration|linebot-integration]], [[modules/schedule-integration|schedule-integration]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
+| employee_resources | [[modules/employee-home|employee-home]], [[modules/campaigns-events|campaigns-events]], [[modules/activity-periods|activity-periods]], [[modules/portal-manage|portal-manage]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | portal_events | [[modules/analytics|analytics]], [[modules/announcements|announcements]], [[modules/handover|handover]], [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
 | employee_home_projection | [[modules/dashboard|dashboard]], [[modules/employee-home|employee-home]], [[modules/portal-home|portal-home]], [[modules/bff-projections|bff-projections]] |
 | system_overview_projection | [[modules/dashboard|dashboard]], [[modules/system-dashboard|system-dashboard]], [[modules/system-observability|system-observability]], [[modules/bff-projections|bff-projections]] |
@@ -76,11 +76,10 @@
 
 | API | Module Owners |
 | --- | --- |
-| GET /api/portal/employee-resources | [[modules/campaigns-events|campaigns-events]], [[modules/personal-note|personal-note]], [[modules/activity-periods|activity-periods]], [[modules/portal-manage|portal-manage]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | GET /api/bff/employee/home | [[modules/dashboard|dashboard]], [[modules/employee-home|employee-home]], [[modules/portal-home|portal-home]], [[modules/employee-training|employee-training]], [[modules/bff-projections|bff-projections]] |
 | GET /api/bff/system/overview | [[modules/dashboard|dashboard]], [[modules/system-dashboard|system-dashboard]], [[modules/system-health|system-health]], [[modules/system-observability|system-observability]], [[modules/bff-projections|bff-projections]] |
+| GET /api/portal/employee-resources | [[modules/campaigns-events|campaigns-events]], [[modules/activity-periods|activity-periods]], [[modules/portal-manage|portal-manage]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | GET /api/bff/system/integration-overview | [[modules/system-watchdog|system-watchdog]], [[modules/system-health|system-health]], [[modules/system-observability|system-observability]], [[modules/integration-sync-jobs|integration-sync-jobs]] |
-| POST /api/portal/employee-resources | [[modules/campaigns-events|campaigns-events]], [[modules/personal-note|personal-note]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | GET /api/auth/me | [[modules/auth|auth]], [[modules/session-governance|session-governance]], [[modules/user-role-snapshots|user-role-snapshots]] |
 | POST /api/auth/active-facility | [[modules/auth|auth]], [[modules/facilities|facilities]], [[modules/session-governance|session-governance]] |
 | GET /api/bff/supervisor/dashboard | [[modules/dashboard|dashboard]], [[modules/supervisor-dashboard|supervisor-dashboard]], [[modules/bff-projections|bff-projections]] |
@@ -92,9 +91,8 @@
 | GET /api/announcement-candidates | [[modules/announcement-review|announcement-review]], [[modules/portal-review|portal-review]], [[modules/linebot-integration|linebot-integration]] |
 | POST /api/announcement-candidates/:id/approve | [[modules/announcement-review|announcement-review]], [[modules/portal-review|portal-review]], [[modules/linebot-integration|linebot-integration]] |
 | POST /api/announcement-candidates/:id/reject | [[modules/announcement-review|announcement-review]], [[modules/portal-review|portal-review]], [[modules/linebot-integration|linebot-integration]] |
+| POST /api/portal/employee-resources | [[modules/campaigns-events|campaigns-events]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | GET /api/portal/quick-links | [[modules/quick-links|quick-links]], [[modules/employee-settings|employee-settings]], [[modules/portal-manage|portal-manage]] |
-| PATCH /api/portal/employee-resources/:id | [[modules/personal-note|personal-note]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
-| DELETE /api/portal/employee-resources/:id | [[modules/personal-note|personal-note]], [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 | PATCH /api/portal/layout-settings | [[modules/employee-settings|employee-settings]], [[modules/portal-manage|portal-manage]], [[modules/widget-layout-settings|widget-layout-settings]] |
 | POST /api/auth/login | [[modules/auth|auth]], [[modules/legacy-users|legacy-users]] |
 | POST /api/auth/active-role | [[modules/auth|auth]], [[modules/session-governance|session-governance]] |
@@ -104,6 +102,7 @@
 | POST /api/work-logs/handover | [[modules/lifeguard-log|lifeguard-log]], [[modules/counter-log|counter-log]] |
 | GET /api/bff/system/watchdog-events | [[modules/system-watchdog|system-watchdog]], [[modules/watchdog-events|watchdog-events]] |
 | GET /api/admin/interview-users | [[modules/hr-audit|hr-audit]], [[modules/schedule-integration|schedule-integration]] |
+| GET /api/bff/system/health-overview | [[modules/system-health|system-health]], [[modules/ragic-integration|ragic-integration]] |
 | GET /api/facility-home/:groupId/announcements | [[modules/announcements|announcements]], [[modules/linebot-integration|linebot-integration]] |
 | GET /api/facility-home/:groupId/announcements/:id | [[modules/announcements|announcements]], [[modules/linebot-integration|linebot-integration]] |
 | POST /api/facility-home/:groupId/announcements/:id/ack | [[modules/announcements|announcements]], [[modules/linebot-integration|linebot-integration]] |
@@ -120,11 +119,14 @@
 | GET /api/facility-home/:groupId/home | [[modules/portal-home|portal-home]], [[modules/linebot-integration|linebot-integration]] |
 | GET /api/portal/layout-settings | [[modules/portal-manage|portal-manage]], [[modules/widget-layout-settings|widget-layout-settings]] |
 | POST /api/portal/events | [[modules/portal-analytics|portal-analytics]], [[modules/telemetry-audit|telemetry-audit]] |
+| PATCH /api/portal/employee-resources/:id | [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
+| DELETE /api/portal/employee-resources/:id | [[modules/employee-resources|employee-resources]], [[modules/employee-training|employee-training]] |
 
 ## BFF Sections And Endpoints
 
 | Module | Surface | Binding |
 | --- | --- | --- |
+| [[modules/auth|auth]] | system | auth |
 | [[modules/auth|auth]] | endpoint | /api/auth/me |
 | [[modules/dashboard|dashboard]] | employee | home |
 | [[modules/dashboard|dashboard]] | supervisor | dashboard |
@@ -190,10 +192,13 @@
 | [[modules/analytics|analytics]] | supervisor | reports |
 | [[modules/analytics|analytics]] | system | uiEventOverview |
 | [[modules/analytics|analytics]] | endpoint | /api/bff/system/ui-event-overview |
+| [[modules/operations|operations]] | supervisor | legacyOperations |
 | [[modules/operations|operations]] | endpoint | /api/bff/supervisor/dashboard |
 | [[modules/counter-log|counter-log]] | supervisor | counterLog |
 | [[modules/lane-rentals|lane-rentals]] | supervisor | laneRentals |
+| [[modules/courts|courts]] | employee | courts |
 | [[modules/courts|courts]] | supervisor | courts |
+| [[modules/courts|courts]] | endpoint | /api/courts/xinbei/stats |
 | [[modules/parking|parking]] | supervisor | parking |
 | [[modules/parking-vehicles|parking-vehicles]] | supervisor | parkingVehicles |
 | [[modules/parking-plans|parking-plans]] | supervisor | parkingPlans |
@@ -218,14 +223,14 @@
 | [[modules/announcement-summary|announcement-summary]] | endpoint | /api/announcement-dashboard/summary |
 | [[modules/system-announcements|system-announcements]] | employee | announcements |
 | [[modules/system-announcements|system-announcements]] | supervisor | announcements |
-| [[modules/tasks|tasks]] | employee | tasks |
-| [[modules/tasks|tasks]] | supervisor | incompleteTasks |
-| [[modules/tasks|tasks]] | endpoint | /api/bff/employee/home |
-| [[modules/tasks|tasks]] | endpoint | /api/bff/supervisor/dashboard |
 | [[modules/handover|handover]] | employee | handover |
 | [[modules/handover|handover]] | supervisor | handoverOverview |
+| [[modules/handover|handover]] | endpoint | /api/bff/employee/handover/list |
+| [[modules/handover|handover]] | endpoint | /api/bff/employee/handover/summary |
+| [[modules/handover|handover]] | endpoint | /api/bff/supervisor/dashboard |
 | [[modules/anomalies|anomalies]] | supervisor | pendingAnomalies |
 | [[modules/anomalies|anomalies]] | system | alerts |
+| [[modules/notification-recipients|notification-recipients]] | system | notificationRecipients |
 | [[modules/notification-recipients|notification-recipients]] | endpoint | /api/notification-recipients |
 | [[modules/campaigns-events|campaigns-events]] | employee | campaigns |
 | [[modules/booking-snapshot|booking-snapshot]] | employee | bookingSnapshot |
@@ -239,7 +244,6 @@
 | [[modules/notification-center|notification-center]] | supervisor | notifications |
 | [[modules/notification-center|notification-center]] | system | notifications |
 | [[modules/knowledge-base-qna|knowledge-base-qna]] | employee | qna |
-| [[modules/personal-note|personal-note]] | employee | stickyNotes |
 | [[modules/activity-periods|activity-periods]] | employee | events |
 | [[modules/registration-courses|registration-courses]] | employee | registrationCourses |
 | [[modules/checkins|checkins]] | employee | checkins |
@@ -248,8 +252,11 @@
 | [[modules/search|search]] | supervisor | search |
 | [[modules/search|search]] | system | search |
 | [[modules/weather-widget|weather-widget]] | employee | weather |
+| [[modules/group-broadcasts|group-broadcasts]] | employee | announcements |
+| [[modules/group-broadcasts|group-broadcasts]] | supervisor | groupBroadcasts |
 | [[modules/portal-home|portal-home]] | employee | home |
 | [[modules/portal-home|portal-home]] | endpoint | /api/bff/employee/home |
+| [[modules/portal-manage|portal-manage]] | supervisor | portalManage |
 | [[modules/portal-review|portal-review]] | supervisor | announcementReview |
 | [[modules/portal-analytics|portal-analytics]] | supervisor | portalAnalytics |
 | [[modules/portal-analytics|portal-analytics]] | system | portalAnalytics |
@@ -265,9 +272,15 @@
 | [[modules/schedule-integration|schedule-integration]] | supervisor | staffing |
 | [[modules/schedule-integration|schedule-integration]] | system | scheduleSnapshot |
 | [[modules/schedule-integration|schedule-integration]] | endpoint | /api/bff/system/schedule-snapshot |
-| [[modules/ragic-integration|ragic-integration]] | endpoint | /api/auth/me |
+| [[modules/ragic-integration|ragic-integration]] | endpoint | /api/bff/system/health-overview |
+| [[modules/gmail-integration|gmail-integration]] | system | gmailIntegration |
+| [[modules/file-upload-export|file-upload-export]] | system | fileUploadExport |
+| [[modules/legacy-users|legacy-users]] | system | legacyUsers |
+| [[modules/facilities|facilities]] | system | facilities |
 | [[modules/facilities|facilities]] | endpoint | /api/auth/me |
+| [[modules/session-governance|session-governance]] | system | sessionGovernance |
 | [[modules/session-governance|session-governance]] | endpoint | /api/auth/me |
+| [[modules/user-role-snapshots|user-role-snapshots]] | system | userRoleSnapshots |
 | [[modules/employee-resources|employee-resources]] | employee | documents |
 | [[modules/employee-resources|employee-resources]] | supervisor | settings |
 | [[modules/employee-training|employee-training]] | employee | training |

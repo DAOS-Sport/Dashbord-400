@@ -4,7 +4,6 @@ import {
   type NotificationRecipient, type InsertNotificationRecipient,
   type HandoverEntry, type InsertHandoverEntry,
   type OperationalHandover, type InsertOperationalHandover,
-  type Task, type InsertTask,
   type QuickLink, type InsertQuickLink,
   type EmployeeResource, type InsertEmployeeResource,
   type KnowledgeBaseQna, type InsertKnowledgeBaseQna,
@@ -38,7 +37,7 @@ import {
   type ParkingEventDay, type InsertParkingEventDay,
   type GroupBroadcast, type InsertGroupBroadcast,
   users, anomalyReports, notificationRecipients,
-  handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
+  handoverEntries, operationalHandovers, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
   classifierAnomalies,
   knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
@@ -94,20 +93,13 @@ export interface IStorage {
   }>): Promise<OperationalHandover | undefined>;
   deleteOperationalHandover(id: number): Promise<boolean>;
 
-  // Tasks / 員工任務
-  listTasks(opts: { facilityKey?: string; status?: string; userId?: string; includeCancelled?: boolean; limit?: number }): Promise<Task[]>;
-  getTaskById(id: number): Promise<Task | undefined>;
-  createTask(task: InsertTask): Promise<Task>;
-  updateTask(id: number, data: Partial<InsertTask & { completedAt: Date | null }>): Promise<Task | undefined>;
-  deleteTask(id: number): Promise<boolean>;
-
   // QuickLinks (主管維護)
   listQuickLinks(facilityKey?: string, includeInactive?: boolean): Promise<QuickLink[]>;
   createQuickLink(link: InsertQuickLink): Promise<QuickLink>;
   updateQuickLink(id: number, data: Partial<InsertQuickLink>): Promise<QuickLink | undefined>;
   deleteQuickLink(id: number): Promise<boolean>;
 
-  // Employee resources (員工自建入口 / 個人工作貼)
+  // Employee resources (員工自建活動 / 文件 / 公告 / 教材)
   listEmployeeResources(opts: { facilityKey?: string; category?: string; ownerEmployeeNumber?: string; limit?: number }): Promise<EmployeeResource[]>;
   createEmployeeResource(resource: InsertEmployeeResource): Promise<EmployeeResource>;
   updateEmployeeResource(id: number, data: Partial<InsertEmployeeResource>): Promise<EmployeeResource | undefined>;
@@ -476,43 +468,6 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
-  async listTasks(opts: { facilityKey?: string; status?: string; userId?: string; includeCancelled?: boolean; limit?: number }): Promise<Task[]> {
-    const conditions = [];
-    if (opts.facilityKey) conditions.push(eq(tasks.facilityKey, opts.facilityKey));
-    if (opts.status) conditions.push(eq(tasks.status, opts.status));
-    if (!opts.includeCancelled) conditions.push(sql`${tasks.status} <> 'cancelled'`);
-    if (opts.userId) {
-      conditions.push(or(eq(tasks.createdByUserId, opts.userId), eq(tasks.assignedToUserId, opts.userId), isNull(tasks.assignedToUserId))!);
-    }
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-    const query = where ? db.select().from(tasks).where(where) : db.select().from(tasks);
-    return query.orderBy(desc(tasks.dueAt), desc(tasks.createdAt)).limit(Math.min(opts.limit ?? 100, 300));
-  }
-
-  async getTaskById(id: number): Promise<Task | undefined> {
-    const [row] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
-    return row;
-  }
-
-  async createTask(task: InsertTask): Promise<Task> {
-    const [created] = await db.insert(tasks).values(task).returning();
-    return created;
-  }
-
-  async updateTask(id: number, data: Partial<InsertTask & { completedAt: Date | null }>): Promise<Task | undefined> {
-    const [updated] = await db
-      .update(tasks)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(tasks.id, id))
-      .returning();
-    return updated;
-  }
-
-  async deleteTask(id: number): Promise<boolean> {
-    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
-    return result.length > 0;
-  }
-
   async listQuickLinks(facilityKey?: string, includeInactive = false): Promise<QuickLink[]> {
     const conditions = [];
     if (!includeInactive) conditions.push(eq(quickLinks.isActive, true));
@@ -543,19 +498,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [];
     if (opts.facilityKey) conditions.push(eq(employeeResources.facilityKey, opts.facilityKey));
     if (opts.category) conditions.push(eq(employeeResources.category, opts.category));
-    if (opts.category === "sticky_note") {
-      if (opts.ownerEmployeeNumber) {
-        conditions.push(eq(employeeResources.createdByEmployeeNumber, opts.ownerEmployeeNumber));
-      } else {
-        conditions.push(sql`${employeeResources.category} <> 'sticky_note'`);
-      }
-    } else if (!opts.category) {
-      conditions.push(
-        opts.ownerEmployeeNumber
-          ? or(sql`${employeeResources.category} <> 'sticky_note'`, eq(employeeResources.createdByEmployeeNumber, opts.ownerEmployeeNumber))!
-          : sql`${employeeResources.category} <> 'sticky_note'`,
-      );
-    }
+    if (opts.ownerEmployeeNumber) conditions.push(eq(employeeResources.createdByEmployeeNumber, opts.ownerEmployeeNumber));
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const query = where ? db.select().from(employeeResources).where(where) : db.select().from(employeeResources);
     return query

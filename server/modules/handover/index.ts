@@ -1,11 +1,17 @@
 import type { Express, Request } from "express";
+import multer from "multer";
 import { z } from "zod";
 import type { BackendModule } from "../_shared/module";
 import { requireSession } from "../auth/context";
 import { storage } from "../../storage";
 import { env } from "../../shared/config/env";
+import { ALLOWED_IMAGE_MIME_TYPES, MAX_UPLOAD_BYTES, uploadFile } from "../../storage/object-storage";
 import type { HandoverItemDto, HandoverListDto, HandoverSummaryDto } from "@shared/domain/workbench";
 import type { InsertOperationalHandover, OperationalHandover } from "@shared/schema";
+
+const linkedActionUrlSchema = z.string().max(2048).refine((value) => (
+  value.startsWith("/") || z.string().url().safeParse(value).success
+), "連結格式不正確");
 
 const createHandoverSchema = z.object({
   facilityKey: z.string().min(1).optional(),
@@ -13,10 +19,24 @@ const createHandoverSchema = z.object({
   content: z.string().min(1, "內容不可為空").max(2000, "內容過長"),
   dueDate: z.string().min(1, "請指定到期日期"),
   priority: z.enum(["low", "normal", "high"]).optional(),
+  linkedActionType: z.enum(["image"]).optional().nullable(),
+  linkedActionUrl: linkedActionUrlSchema.optional().nullable(),
 });
 
 const replyHandoverSchema = z.object({
   reportNote: z.string().min(1, "回覆不可為空").max(1200, "回覆過長"),
+});
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+      cb(new Error(`不支援的檔案類型：${file.mimetype}`));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 const isDatabaseUnavailable = () => !env.databaseUrl;
@@ -54,6 +74,8 @@ const mapHandoverItem = (handover: OperationalHandover, now = new Date()): Hando
   createdAt: handover.createdAt?.toISOString?.() ?? new Date().toISOString(),
   updatedAt: handover.updatedAt?.toISOString?.() ?? new Date().toISOString(),
   reportNote: handover.reportNote,
+  linkedActionType: handover.linkedActionType,
+  linkedActionUrl: handover.linkedActionUrl,
 });
 
 const listFacilityHandovers = async (facilityKey: string) => {
@@ -82,6 +104,27 @@ const buildSummary = (items: HandoverItemDto[]): HandoverSummaryDto => {
 };
 
 export const registerHandoverRoutes = (app: Express) => {
+  app.post("/api/handover/image-upload", requireSession, imageUpload.single("image"), async (req, res, next) => {
+    try {
+      const facilityKey = typeof req.body?.facilityKey === "string" ? req.body.facilityKey : req.workbenchSession!.activeFacility;
+      if (!isGrantedFacility(req, facilityKey)) return res.status(403).json({ message: "Facility is not granted" });
+      if (!req.file) return res.status(400).json({ message: "請選擇圖片" });
+      const uploaded = await uploadFile({
+        buffer: req.file.buffer,
+        mime: req.file.mimetype || "application/octet-stream",
+        originalName: req.file.originalname || "handover-image",
+        folder: `work-logs/handover/${facilityKey}`,
+      });
+      return res.status(201).json(uploaded);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "圖片上傳失敗";
+      if (message.startsWith("不支援的檔案類型") || message.startsWith("檔案過大")) {
+        return res.status(400).json({ message });
+      }
+      return next(error);
+    }
+  });
+
   app.get("/api/bff/employee/handover/summary", requireSession, async (req, res, next) => {
     try {
       const facilityKey = req.workbenchSession!.activeFacility;
@@ -153,11 +196,12 @@ export const registerHandoverRoutes = (app: Express) => {
         claimedByName: null,
         createdByEmployeeNumber: req.workbenchSession!.userId,
         createdByName: req.workbenchSession!.displayName,
+        createdByRole: req.workbenchSession!.activeRole,
         reportedByEmployeeNumber: null,
         reportedByName: null,
         reportNote: null,
-        linkedActionType: null,
-        linkedActionUrl: null,
+        linkedActionType: input.linkedActionType ?? null,
+        linkedActionUrl: input.linkedActionUrl ?? null,
       };
       const created = await storage.createOperationalHandover(handover);
       await storage.recordPortalEvent({
@@ -167,7 +211,7 @@ export const registerHandoverRoutes = (app: Express) => {
         eventType: "handover_create",
         target: String(created.id),
         targetLabel: created.title,
-        metadata: JSON.stringify({ source: "employee-handover-api" }),
+        metadata: JSON.stringify({ source: "shared-handover-api", role: req.workbenchSession!.activeRole, hasImage: input.linkedActionType === "image" && Boolean(input.linkedActionUrl) }),
       }).catch(() => undefined);
       return res.status(201).json(mapHandoverItem(created));
     } catch (error) {

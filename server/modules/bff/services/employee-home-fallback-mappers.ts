@@ -4,7 +4,6 @@ import type {
   DocumentSummary,
   HandoverSummary,
   ShortcutSummary,
-  StickyNoteSummary,
   TrainingSummary,
 } from "@shared/domain/workbench";
 import type { OperationalHandover } from "@shared/schema";
@@ -59,9 +58,6 @@ export type FallbackEmployeeResource = {
 
 const formatDate = (value?: Date | string | null, fallback = "員工新增") =>
   value ? new Date(value).toLocaleDateString("zh-TW") : fallback;
-
-const toScheduledIso = (value?: Date | string | null) =>
-  value ? new Date(value).toISOString() : null;
 
 export const mapFallbackResourceAnnouncements = (
   resources: FallbackEmployeeResource[],
@@ -168,29 +164,3 @@ export const mapFallbackCampaigns = (
         effectiveRange: item.effectiveRange,
       })),
   ].slice(0, 10);
-
-export const mapFallbackStickyNotes = (
-  resources: FallbackEmployeeResource[],
-): StickyNoteSummary[] =>
-  resources
-    .filter((item) => item.category === "sticky_note")
-    .slice(0, 8)
-    .map((item) => ({
-      id: `sticky-${item.id}`,
-      resourceId: item.id,
-      title: item.title,
-      content: item.content || "",
-      authorName: item.createdByName,
-      createdAt: formatDate(item.createdAt, "今日"),
-      scheduledAt: toScheduledIso(item.scheduledAt),
-    }))
-    .sort((a, b) => {
-      const aScheduled = a.scheduledAt
-        ? Date.parse(a.scheduledAt)
-        : Number.POSITIVE_INFINITY;
-      const bScheduled = b.scheduledAt
-        ? Date.parse(b.scheduledAt)
-        : Number.POSITIVE_INFINITY;
-      if (aScheduled !== bScheduled) return aScheduled - bScheduled;
-      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
-    });

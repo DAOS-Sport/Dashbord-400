@@ -48,29 +48,6 @@ export const withEmployeeCreateMetadata = <T extends Record<string, unknown>>(
   facilityKey: (data.facilityKey as string | undefined) ?? actor.facilityKey,
 });
 
-export const withTaskCreateMetadata = <T extends Record<string, unknown>>(
-  data: T,
-  actor: ActorContext,
-  displayName: string,
-): T & {
-  source: Exclude<WorkbenchRole, "lifeguard">;
-  inputSource: MetadataSource;
-  createdByUserId: string;
-  createdByName: string;
-  createdByRole: WorkbenchRole;
-  updatedAt: Date;
-  facilityKey?: string;
-} => ({
-  ...data,
-  source: actor.role === "lifeguard" ? "employee" : actor.role,
-  inputSource: actor.source ?? "manual",
-  createdByUserId: actor.userId,
-  createdByName: displayName,
-  createdByRole: actor.role,
-  updatedAt: new Date(),
-  facilityKey: (data.facilityKey as string | undefined) ?? actor.facilityKey,
-});
-
 export const withUpdateMetadata = <T extends Record<string, unknown>>(
   data: T,
   actor: ActorContext,

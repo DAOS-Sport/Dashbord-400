@@ -28,11 +28,9 @@ import {
   mapFallbackHandovers,
   mapFallbackResourceAnnouncements,
   mapFallbackShortcuts,
-  mapFallbackStickyNotes,
   mapFallbackTraining,
 } from "./employee-home-fallback-mappers";
 import { mapScheduleShifts } from "./employee-shift-service";
-import { mapTaskSummary } from "./supervisor-dashboard-service";
 
 export const buildEmployeeHomeFallback = async (
   facilityKey: string,
@@ -45,7 +43,6 @@ export const buildEmployeeHomeFallback = async (
   const [
     handoversResult,
     operationalHandoversResult,
-    tasksResult,
     quickLinksResult,
     employeeResourcesResult,
     systemAnnouncementsResult,
@@ -59,7 +56,6 @@ export const buildEmployeeHomeFallback = async (
       facilityKey: normalizedFacilityKey,
       limit: 50,
     }),
-    storage.listTasks({ facilityKey: normalizedFacilityKey, limit: 50 }),
     storage.listQuickLinks(normalizedFacilityKey, false),
     storage.listEmployeeResources({
       facilityKey: normalizedFacilityKey,
@@ -89,8 +85,6 @@ export const buildEmployeeHomeFallback = async (
     operationalHandoversResult.status === "fulfilled"
       ? operationalHandoversResult.value
       : [];
-  const employeeTasks =
-    tasksResult.status === "fulfilled" ? tasksResult.value : [];
   const cwaWeather =
     cwaWeatherResult.status === "fulfilled" ? cwaWeatherResult.value : null;
   const quickLinks =
@@ -141,8 +135,6 @@ export const buildEmployeeHomeFallback = async (
     employeeResources,
     candidateAnnouncements,
   );
-  const stickyNotes = mapFallbackStickyNotes(employeeResources);
-
   const announcementsBeforeOverlay = uniqueAnnouncements([
     ...lineAnnouncements,
     ...resourceAnnouncements,
@@ -167,7 +159,6 @@ export const buildEmployeeHomeFallback = async (
     weather: cwaWeather
       ? ok(cwaWeather, now)
       : unavailable("天氣資料無法取得", "CWA_UNAVAILABLE"),
-    tasks: ok(employeeTasks.map(mapTaskSummary), now),
     announcements: announcementSectionFromSources(
       announcements,
       lineSource,
@@ -195,7 +186,6 @@ export const buildEmployeeHomeFallback = async (
           "CAMPAIGN_SOURCE_UNAVAILABLE",
         ),
     documents: ok(documents, now),
-    stickyNotes: ok(stickyNotes, now),
     training: ok(training, now),
   };
 };

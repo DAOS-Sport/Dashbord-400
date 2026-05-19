@@ -408,7 +408,7 @@ function FacilityOverviewGrid({
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[12px] font-black">
                 <span className="rounded-[8px] bg-[#f7f9fb] p-2">當班<br />{facility.onShift}</span>
                 <span className="rounded-[8px] bg-[#f7f9fb] p-2">交辦<br />{facility.openHandovers ?? 0}</span>
-                <span className="rounded-[8px] bg-[#f7f9fb] p-2">任務<br />{facility.incompleteTasks ?? 0}</span>
+                <span className="rounded-[8px] bg-[#f7f9fb] p-2">未完成<br />{facility.incompleteTasks ?? 0}</span>
               </div>
 
               {/* Shift breakdown */}
@@ -511,9 +511,8 @@ const shiftLabel: Record<string, string> = {
 };
 
 const supervisorQuickActions: FloatingQuickActionItem[] = [
-  { label: "任務指派", helper: "新增或調整今日交辦", href: "/supervisor/tasks", Icon: ClipboardList },
+  { label: "櫃台交接", helper: "新增或調整今日交辦", href: "/supervisor/handover", Icon: ClipboardList },
   { label: "公告發布", helper: "推送場館公告", href: "/supervisor/announcements", Icon: Megaphone },
-  { label: "櫃台交接", helper: "查看交接紀錄", href: "/supervisor/handover", Icon: CheckSquare },
   { label: "異常審核", helper: "處理待審核事件", href: "/supervisor/anomalies", Icon: AlertCircle },
   { label: "營運報表", helper: "開啟統計與匯出", href: "/supervisor/reports", Icon: CalendarDays },
 ];
@@ -758,7 +757,7 @@ export default function SupervisorDashboardPage() {
   ]);
 
   return (
-    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、交辦、任務與公告確認狀態" role="supervisor">
+    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、櫃台交接與公告確認狀態" role="supervisor">
       {sessionLoading || !canLoadSupervisorDashboard ? (
         <div className="rounded-[8px] bg-white p-6 text-[14px] font-bold text-[#637185]">正在切換主管權限...</div>
       ) : isError ? (

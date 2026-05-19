@@ -1,7 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
@@ -22,7 +21,6 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  StickyNote,
 } from "lucide-react";
 import type {
   AnnouncementSummary,
@@ -33,8 +31,6 @@ import type {
   HandoverSummary,
   ShiftBoardDto,
   ShiftSummary,
-  StickyNoteSummary,
-  TaskSummary,
 } from "@shared/domain/workbench";
 import type { NavigationModuleDto } from "@shared/modules";
 import type { BffSection } from "@shared/bff/envelope";
@@ -71,10 +67,7 @@ import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@/lib/court-utils";
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
 
-const quickNoteDraftKey = "junsi.cms.employee.quick-note-draft.v1";
-
 const employeeHomeQuickActions: FloatingQuickActionItem[] = [
-  { label: "任務管理", helper: "查看與完成今日任務", href: "/employee/tasks", Icon: ListChecks },
   { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Bell },
   { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
   { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: ShieldCheck },
@@ -179,7 +172,6 @@ type EmployeeHomeSlotKey =
   | "shifts"
   | "events"
   | "documents"
-  | "stickyNotes"
   | "courts"
   | "tutoringToday";
 
@@ -451,37 +443,6 @@ function Hero({
         </div>
       )}
     </div>
-  );
-}
-
-function TasksCard({ tasks }: { tasks: TaskSummary[] }) {
-  const activeTasks = tasks.filter((task) => task.status !== "done");
-  return (
-    <WorkbenchCard className="h-full p-5">
-      <SectionTitle title="今日任務" eyebrow="Tasks" actionHref="/employee/tasks" />
-      {activeTasks.length > 0 ? (
-        <div className="space-y-3">
-          {activeTasks.slice(0, 4).map((task) => (
-            <Link key={`task-${task.id}`} href="/employee/tasks" className="block rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-black text-[#10233f]">{task.title}</p>
-                  <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">
-                    {task.assignedToName ? `指派：${task.assignedToName}` : task.createdByName ? `建立：${task.createdByName}` : "員工任務"}
-                    {task.dueLabel ? ` · ${task.dueLabel}` : ""}
-                  </p>
-                </div>
-                <span className={cn("shrink-0 rounded-full px-2 py-1 text-[10px] font-black", task.priority === "high" ? "bg-[#ffe8eb] text-[#ff4964]" : "bg-[#eef2f6] text-[#637185]")}>
-                  {task.priority === "high" ? "高" : task.priority === "low" ? "低" : "一般"}
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">目前沒有待辦任務。</div>
-      )}
-    </WorkbenchCard>
   );
 }
 
@@ -834,7 +795,7 @@ function AddResourceForm({
   urlPlaceholder,
   onCreated,
 }: {
-  category: "event" | "document" | "sticky_note";
+  category: "event" | "document";
   facilityKey: string;
   titlePlaceholder: string;
   contentPlaceholder: string;
@@ -851,7 +812,6 @@ function AddResourceForm({
       title,
       content: content.trim() || undefined,
       url: url.trim() || undefined,
-      isPinned: category === "sticky_note",
     }),
     onSuccess: () => {
       setTitle("");
@@ -948,32 +908,6 @@ function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; 
         </div>
       ))}
     </div>
-  );
-}
-
-function StickyNotesCard({ notes, facilityKey, onCreated }: { notes: StickyNoteSummary[]; facilityKey: string; onCreated: () => void }) {
-  return (
-    <WorkbenchCard className="h-full p-5">
-      <SectionTitle title="個人工作貼" eyebrow="Personal" action="員工自建" />
-      <div className="space-y-3">
-        <AddResourceForm
-          category="sticky_note"
-          facilityKey={facilityKey}
-          titlePlaceholder="個人工作貼標題"
-          contentPlaceholder="提醒內容"
-          onCreated={onCreated}
-        />
-        {notes.map((note) => (
-          <div key={note.id} className="rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3">
-            <p className="text-[13px] font-black text-[#10233f]">{note.title}</p>
-            <p className="mt-1 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
-            {note.scheduledAt ? <p className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
-            <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
-            <EmployeeResourceActions resourceId={note.resourceId} title={note.title} content={note.content} scheduledAt={note.scheduledAt} onChanged={onCreated} showScheduledAtField />
-          </div>
-        ))}
-      </div>
-    </WorkbenchCard>
   );
 }
 
@@ -1078,225 +1012,6 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
           <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增常用文件。</div>
         )}
       </div>
-    </WorkbenchCard>
-  );
-}
-
-function StickyNoteComposer({
-  facilityKey,
-  notes,
-  onClose,
-  onCreated,
-}: {
-  facilityKey: string;
-  notes: StickyNoteSummary[];
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const [portalTarget] = useState<HTMLElement | null>(() => (typeof document === "undefined" ? null : document.body));
-  const [draft, setDraft] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return window.localStorage.getItem(quickNoteDraftKey) ?? "";
-  });
-  const [scheduledDate, setScheduledDate] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("");
-  const [savedMessage, setSavedMessage] = useState("");
-  const canSubmit = draft.trim().length > 0;
-  const scheduledAt = toOptionalIso(scheduledDate, scheduledTime);
-  const mutation = useMutation({
-    mutationFn: () => {
-      const content = draft.trim();
-      const firstLine = content.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "個人工作貼";
-      return createEmployeeResource({
-        facilityKey,
-        category: "sticky_note",
-        title: firstLine.slice(0, 60),
-        content,
-        isPinned: true,
-        scheduledAt,
-      });
-    },
-    onSuccess: () => {
-      setDraft("");
-      setScheduledDate("");
-      setScheduledTime("");
-      setSavedMessage("已新增，可繼續記下一則。");
-      if (typeof window !== "undefined") window.localStorage.removeItem(quickNoteDraftKey);
-      window.setTimeout(() => setSavedMessage(""), 1800);
-      onCreated();
-    },
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (draft.trim()) window.localStorage.setItem(quickNoteDraftKey, draft);
-    else window.localStorage.removeItem(quickNoteDraftKey);
-  }, [draft]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  useLayoutEffect(() => {
-    if (typeof window === "undefined" || !portalTarget) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    textareaRef.current?.focus({ preventScroll: true });
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
-    };
-  }, [portalTarget]);
-
-  const composer = (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="快速新增個人工作貼">
-      <button type="button" aria-label="關閉個人工作貼新增視窗" className="absolute inset-0 cursor-default" onClick={onClose} />
-      <aside className="fixed bottom-0 right-0 top-0 z-[51] flex h-dvh w-full max-w-[420px] shrink-0 flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
-        <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
-          <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">快速個人工作貼</h2>
-            <p className="text-[12px] font-bold text-[#8b9aae]">先記下來，稍後再整理。</p>
-          </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[#637185]" aria-label="關閉">
-            ×
-          </button>
-        </div>
-        <div data-quick-note-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
-          <div className="rounded-[12px] border border-[#f0dfaa] bg-[#fffdf0] p-4 shadow-[0_20px_50px_-42px_rgba(15,34,58,0.4)]">
-            <label className="sr-only" htmlFor="quick-note-draft">今天要記什麼</label>
-            <p className="mb-2 text-[12px] font-black text-[#7a6b45]">內容</p>
-            <textarea
-              id="quick-note-draft"
-              name="quick-note-draft"
-              ref={textareaRef}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSubmit && !mutation.isPending) {
-                  event.preventDefault();
-                  mutation.mutate();
-                }
-              }}
-              className="min-h-[220px] w-full resize-none rounded-[10px] border border-[#eadba8] bg-white/80 p-4 text-[15px] font-bold leading-7 text-[#10233f] outline-none focus:border-[#d3b95f]"
-            />
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-[12px] font-black text-[#7a6b45]">
-                日期
-                <input
-                  name="quick-note-date"
-                  type="date"
-                  value={scheduledDate}
-                  onChange={(event) => setScheduledDate(event.target.value)}
-                  className="min-h-10 rounded-[8px] border border-[#eadba8] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none focus:border-[#d3b95f]"
-                />
-              </label>
-              <label className="grid gap-1 text-[12px] font-black text-[#7a6b45]">
-                時間
-                <input
-                  name="quick-note-time"
-                  type="time"
-                  value={scheduledTime}
-                  onChange={(event) => setScheduledTime(event.target.value)}
-                  className="min-h-10 rounded-[8px] border border-[#eadba8] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none focus:border-[#d3b95f]"
-                />
-              </label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <span />
-              <button
-                type="button"
-                disabled={!canSubmit || mutation.isPending}
-                onClick={() => mutation.mutate()}
-                className="min-h-10 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50"
-              >
-                {mutation.isPending ? "新增中…" : "新增個人工作貼"}
-              </button>
-            </div>
-            {savedMessage ? <p className="mt-2 text-[12px] font-black text-[#15935d]" role="status">{savedMessage}</p> : null}
-            {mutation.isError ? <p className="mt-2 text-[12px] font-bold text-[#ff4964]" role="alert">新增失敗，請確認資料庫連線後再試。</p> : null}
-          </div>
-
-          <div className="mt-7 flex items-center justify-between gap-3">
-            <h3 className="text-[15px] font-black text-[#10233f]">最近個人工作貼</h3>
-            <Link href="/employee/personal-note" className="text-[12px] font-black text-[#007166]" onClick={onClose}>查看全部</Link>
-          </div>
-          <div className="mt-3 space-y-2">
-            {notes.length ? notes.slice(0, 5).map((note) => (
-              <article key={note.id} className="rounded-[10px] border border-[#f0dfaa] bg-[#fff9df] p-3">
-                <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
-                <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
-                {note.scheduledAt ? <p className="mt-2 text-[11px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
-              </article>
-            )) : (
-              <div className="rounded-[8px] bg-[#f7f9fb] p-6 text-center text-[13px] font-bold text-[#637185]">尚未新增個人工作貼。</div>
-            )}
-          </div>
-        </div>
-      </aside>
-    </div>
-  );
-
-  return portalTarget ? createPortal(composer, portalTarget) : null;
-}
-
-function CompactStickyNotesCard({ notes, facilityKey, onChanged }: { notes: StickyNoteSummary[]; facilityKey: string; onChanged: () => void }) {
-  const [composerOpen, setComposerOpen] = useState(false);
-  return (
-    <WorkbenchCard className="h-full p-5">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-bold text-[#10233f]">個人工作貼</h2>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Personal</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => setComposerOpen(true)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
-            新增
-            <span aria-hidden>＋</span>
-          </button>
-          <Link href="/employee/personal-note" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
-            查看全部
-            <span aria-hidden>→</span>
-          </Link>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {notes.length ? notes.slice(0, 3).map((note) => (
-          <button key={note.id} type="button" onClick={() => setComposerOpen(true)} className="block w-full rounded-[8px] border border-[#f0dfaa] bg-[#fff9df] p-3 text-left hover:bg-[#fff4c8]">
-            <p className="truncate text-[13px] font-black text-[#10233f]">{note.title}</p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-5 text-[#536175]">{note.content}</p>
-            {note.scheduledAt ? <p className="mt-2 inline-flex rounded-full bg-white px-2 py-1 text-[10px] font-black text-[#9a7a1d]">{formatShortDateTime(note.scheduledAt)}</p> : null}
-            <p className="mt-2 text-[10px] font-bold text-[#9a7a1d]">{note.authorName || "員工"} · {note.createdAt}</p>
-          </button>
-        )) : (
-          <button type="button" onClick={() => setComposerOpen(true)} className="w-full rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae] hover:bg-[#f3f6f9]">
-            尚未新增個人工作貼。
-          </button>
-        )}
-      </div>
-      {composerOpen ? (
-        <StickyNoteComposer
-          facilityKey={facilityKey}
-          notes={notes}
-          onClose={() => setComposerOpen(false)}
-          onCreated={onChanged}
-        />
-      ) : null}
     </WorkbenchCard>
   );
 }
@@ -1941,17 +1656,8 @@ function EmployeeHomeContent() {
               </motion.div>
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("courts") && courtSchools.length ? (
-                  <div className="h-full lg:col-span-8">
+                  <div className="h-full lg:col-span-12">
                     <CourtsScrollCard schools={courtSchools} onOpenDrawer={() => setCourtsDrawerOpen(true)} />
-                  </div>
-                ) : null}
-                {homeSlots.isEnabled("stickyNotes") ? (
-                  <div className="h-full lg:col-span-4">
-                    <CompactStickyNotesCard
-                      notes={data.stickyNotes.data ?? []}
-                      facilityKey={data.facility.key}
-                      onChanged={() => queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] })}
-                    />
                   </div>
                 ) : null}
               </motion.div>

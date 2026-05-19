@@ -2,7 +2,6 @@ import type {
   AnnouncementSummary,
   CampaignSummary,
   DocumentSummary,
-  StickyNoteSummary,
   TrainingSummary,
 } from "@shared/domain/workbench";
 import { storage } from "../../../storage";
@@ -54,29 +53,6 @@ export const getEmployeeResourceSections = async (facilityKey: string) => {
       sortOrder: item.sortOrder,
       source: "employee_resource" as const,
     }));
-  const stickyNotes: StickyNoteSummary[] = resources
-    .filter((item) => item.category === "sticky_note")
-    .map((item) => ({
-      id: `sticky-${item.id}`,
-      resourceId: item.id,
-      title: item.title,
-      content: item.content || "",
-      authorName: item.createdByName,
-      createdAt: item.createdAt
-        ? new Date(item.createdAt).toLocaleDateString("zh-TW")
-        : "今日",
-      scheduledAt: item.scheduledAt ? item.scheduledAt.toISOString() : null,
-    }))
-    .sort((a, b) => {
-      const aScheduled = a.scheduledAt
-        ? Date.parse(a.scheduledAt)
-        : Number.POSITIVE_INFINITY;
-      const bScheduled = b.scheduledAt
-        ? Date.parse(b.scheduledAt)
-        : Number.POSITIVE_INFINITY;
-      if (aScheduled !== bScheduled) return aScheduled - bScheduled;
-      return Date.parse(b.createdAt) - Date.parse(a.createdAt);
-    });
   const training: TrainingSummary[] = resources
     .filter((item) => item.category === "training")
     .map(mapTrainingResource);
@@ -88,7 +64,6 @@ export const getEmployeeResourceSections = async (facilityKey: string) => {
     announcements,
     campaigns,
     documents: mergedDocuments,
-    stickyNotes,
     training,
   };
 };

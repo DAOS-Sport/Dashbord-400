@@ -53,14 +53,14 @@ generated_at: 2026-05-18
 - 非首頁卡片模組仍需在進入頁保留 loading、empty、error 與權限不足狀態。
 - 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
 - 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
-- 畫面資料應優先吃 BFF section / endpoint：`/api/auth/me`。
+- 畫面資料應優先吃 BFF section / endpoint：`sessionGovernance`、`/api/auth/me`。
 - 有寫入操作；按鈕需具備 loading/disabled/error feedback，成功後需刷新對應 query 或 section。
 - UI telemetry：audit required。
 
 ## BFF 參照 / 修改關聯
 
 - 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
-- Section key / planned endpoint：plannedEndpoint=`/api/auth/me`。
+- Section key / planned endpoint：systemSectionKey=`sessionGovernance`、plannedEndpoint=`/api/auth/me`。
 - 沒有 CRUD endpoint；BFF 可視為 read-only projection 或外部相容層。
 - 沒有 proxy / external API 邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
@@ -89,6 +89,7 @@ _沒有 route 綁定_
 
 | Binding | Value |
 | --- | --- |
+| systemSectionKey | sessionGovernance |
 | plannedEndpoint | /api/auth/me |
 
 ### UI State Contract

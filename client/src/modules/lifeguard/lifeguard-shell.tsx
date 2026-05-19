@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bell, BookOpen, CalendarDays, Camera, ClipboardList, Droplets, GraduationCap, Home, LifeBuoy, LogOut, Menu, PackageSearch, Waves, X } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, Camera, ClipboardList, Droplets, GraduationCap, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { BrandLockup } from "@/shared/brand";
@@ -22,6 +22,7 @@ const iconByKey: Record<string, LucideIcon> = {
   waves: Waves,
   "package-search": PackageSearch,
   "calendar-days": CalendarDays,
+  "message-square-text": MessageSquareText,
 };
 
 const primaryNav = [
@@ -35,6 +36,7 @@ const primaryNav = [
 ];
 
 const secondaryNav = [
+  { id: "handover", label: "交接任務", href: "/lifeguard/handover", Icon: MessageSquareText },
   { id: "lifeguard-log", label: "救生員日誌", href: "/lifeguard/log", Icon: LifeBuoy },
   { id: "announcements", label: "群組公告", href: "/employee/announcements", Icon: Bell },
   { id: "employee-training", label: "員工教材", href: "/employee/training", Icon: GraduationCap },

@@ -114,14 +114,12 @@ const normalizeFacilityHome = (facilityKey: string, raw: unknown): EmployeeHomeD
       statusLabel: "營運中",
     },
     weather: { status: "unavailable", data: null, meta: { fallbackReason: "天氣資料未由外部來源提供" } },
-    tasks: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
     announcements: { status: "ok", data: announcements, meta: { lastSyncAt: new Date().toISOString() } },
     handover: { status: "ok", data: handover, meta: { lastSyncAt: new Date().toISOString() } },
     shortcuts: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
     shifts: { status: "ok", data: shifts, meta: { lastSyncAt: new Date().toISOString() } },
     campaigns: { status: "ok", data: campaigns, meta: { lastSyncAt: new Date().toISOString() } },
     documents: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
-    stickyNotes: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
     training: { status: "ok", data: [], meta: { lastSyncAt: new Date().toISOString() } },
   };
 };

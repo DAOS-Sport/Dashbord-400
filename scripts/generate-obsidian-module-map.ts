@@ -980,6 +980,7 @@ ${table(["File", "Current h1", "Required Fix"], titleRows, "沒有 hardcoded h1 
 
 | Area | Evidence | Intended Fix |
 | --- | --- | --- |
+| Work-item retirement deploy | \`migrations/0014_retire_tasks_personal_note.sql\` drops the legacy \`tasks\` table and deletes \`employee_resources.category='sticky_note'\`; \`scripts/post-merge.sh\` applies it through \`scripts/apply-db-retirement-migrations.cjs\`. | On Replit deploy, verify postMerge sees \`NEON_DATABASE_URL\` or \`DATABASE_URL\`, then confirm \`tasks\` table is gone and no sticky-note rows remain. |
 | Employee home file size | \`client/src/modules/employee/home/employee-home-page.tsx\` is > 2k lines and owns UI, DTO mapping, state, and fallback rendering. | Extract stable sections into domain files without changing layout behavior. |
 | System route file size | \`server/modules/system/routes.ts\` still owns control center, watchdog, integration overview, insights, schedule snapshot, and internal webhook endpoints. | Continue with governance, watchdog, insights, schedule snapshot, and internal webhook route extraction by module. |
 | Governance docs drift | Older governance docs still name removed observer modules such as \`system-topology\`. | Point those references to \`system-governance\` tabs or archive them. |

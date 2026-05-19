@@ -35,13 +35,13 @@ export const attachEmployeeHomeContract = (
     },
   };
   const todayTasks = sectionToCard(
-    "tasks",
-    "今日任務",
+    "handover",
+    "今日交接",
     10,
-    "/employee/tasks",
-    dto.tasks,
-    "今日沒有任務。",
-    "任務模組已註冊，但資料來源尚未接線。",
+    "/employee/handover",
+    dto.handover,
+    "今日沒有交接事項。",
+    "櫃台交接資料暫時無法取得。",
   );
   const handover = sectionToCard(
     "handover",
@@ -150,7 +150,6 @@ export const attachEmployeeHomeContract = (
     quickSearch: {
       placeholder: "搜尋模組、公告、交接、班表或 Q&A",
       enabledModules: [
-        "tasks",
         "handover",
         "announcements",
         "shift-reminder",
@@ -176,8 +175,6 @@ export const attachEmployeeHomeContract = (
       announcements: (dto.announcements.data ?? []).filter(
         (item) => item.priority === "required" && !item.isAcknowledged,
       ).length,
-      tasks: (dto.tasks.data ?? []).filter((item) => item.status !== "done")
-        .length,
       handovers: (dto.handover.data ?? []).filter(
         (item) => item.status !== "confirmed" && item.status !== "completed",
       ).length,

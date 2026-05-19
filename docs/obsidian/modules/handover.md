@@ -16,7 +16,7 @@ generated_at: 2026-05-18
 
 1. 角色：supervisor；可見角色 employee, lifeguard, supervisor
 2. RAGIC / 資料庫：不使用 Ragic；資料源為 postgres
-3. 功能 / 需求 / 用途：Legacy handover notes plus operational handover assignment/reporting flow. 狀態：implemented / 已接線。
+3. 功能 / 需求 / 用途：Facility-scoped shared handover task surface for counter, lifeguard, and supervisor roles. 狀態：implemented / 已接線。
 
 ## Registry Snapshot
 
@@ -26,16 +26,16 @@ generated_at: 2026-05-18
 - Source of truth: `postgres`
 - Homepage widget: yes
 - Visibility: homepage_widget, detail_page, portal_page
-- Priority: {"employee":5,"supervisor":3}
+- Priority: {"employee":4,"supervisor":3}
 
 
 
 ## 功能邏輯
 
-- 入口從 `/portal/:facilityKey/handover`、`/employee/handover`、`/supervisor/handover` 進入，依角色 employee、lifeguard、supervisor 顯示。
+- 入口從 `/portal/:facilityKey/handover`、`/employee/handover`、`/lifeguard/handover`、`/supervisor/handover` 進入，依角色 employee、lifeguard、supervisor 顯示。
 - 讀取透過 `GET /api/portal/handovers`、`GET /api/bff/employee/handover/summary`、`GET /api/bff/employee/handover/list`、`GET /api/portal/operational-handovers`、`GET /api/facility-home/:groupId/handover`。
-- 寫入透過 `POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`PATCH /api/handover/:id/complete`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
-- 外部或基礎依賴：POSTGRES、SMART_SCHEDULE_MANAGER。
+- 寫入透過 `POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`POST /api/handover/image-upload`、`PATCH /api/handover/:id/read`、`PATCH /api/handover/:id/reply`、`PATCH /api/handover/:id/complete`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
+- 外部或基礎依賴：POSTGRES、OBJECT_STORAGE、SMART_SCHEDULE_MANAGER。
 - 資料落點 / entity：`handover_entries`、`operational_handovers`、`portal_events`。
 
 ## 資料寫法 / 寫入規則
@@ -45,23 +45,23 @@ generated_at: 2026-05-18
 - 沒有 projection 資料登記。
 - Telemetry / audit 資料採 append-only 或事件式寫入，避免覆寫歷史：`portal_events`。
 - 沒有 external data binding。
-- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`PATCH /api/handover/:id/complete`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
+- 寫入 API 需保留權限檢查、審計或狀態切換語意：`POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`POST /api/handover/image-upload`、`PATCH /api/handover/:id/read`、`PATCH /api/handover/:id/reply`、`PATCH /api/handover/:id/complete`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
 
 ## UI/UX 邏輯
 
 - Surface model：home-card / dashboard widget；UI density：mobile-first、touch target 優先、資訊分段顯示。
 - 首頁卡片需支援 ready / empty / stale / degraded / unavailable 狀態，不用顏色作為唯一提示。
-- 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
-- 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
-- 畫面資料應優先吃 BFF section / endpoint：`handover`、`handoverOverview`。
+- Registry uiStates：`loading`、`ready`、`empty`、`error`、`disabled`；freshness=`realtime`。
+- 跨 section 視覺最小單元：`DenseRow`、`StatCard`。
+- 畫面資料應優先吃 BFF section / endpoint：`handover`、`handoverOverview`、`/api/bff/employee/handover/list`、`/api/bff/employee/handover/summary`、`/api/bff/supervisor/dashboard`。
 - 有寫入操作；按鈕需具備 loading/disabled/error feedback，成功後需刷新對應 query 或 section。
-- UI telemetry：page view、action submit。
+- UI telemetry：page view、card click、action submit。
 
 ## BFF 參照 / 修改關聯
 
 - BFF endpoint owner：`GET /api/bff/employee/handover/summary`、`GET /api/bff/employee/handover/list`。
-- Section key / planned endpoint：employeeSectionKey=`handover`、supervisorSectionKey=`handoverOverview`。
-- 寫入後 BFF 需要刷新或重算的 CRUD endpoint：`GET /api/portal/handovers`、`POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`PATCH /api/handover/:id/complete`、`GET /api/portal/operational-handovers`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
+- Section key / planned endpoint：employeeSectionKey=`handover`、supervisorSectionKey=`handoverOverview`、plannedEndpoint=`/api/bff/employee/handover/list`、plannedEndpoint=`/api/bff/employee/handover/summary`、plannedEndpoint=`/api/bff/supervisor/dashboard`。
+- 寫入後 BFF 需要刷新或重算的 CRUD endpoint：`GET /api/portal/handovers`、`POST /api/portal/handovers`、`DELETE /api/portal/handovers/:id`、`POST /api/handover`、`PATCH /api/handover/:id/read`、`PATCH /api/handover/:id/reply`、`PATCH /api/handover/:id/complete`、`GET /api/portal/operational-handovers`、`POST /api/portal/operational-handovers`、`PATCH /api/portal/operational-handovers/:id`、`PATCH /api/portal/operational-handovers/:id/report`、`DELETE /api/portal/operational-handovers/:id`。
 - Proxy / external 邊界：`GET /api/facility-home/:groupId/handover`；前端不得繞過此邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
 
@@ -70,7 +70,7 @@ generated_at: 2026-05-18
 - UI：確認 home-card / dashboard widget 的 loading / empty / degraded / error / disabled 狀態。
 - BFF：新增或調整欄位時，先改 server DTO / shared domain type，再改 page mapping。
 - 資料：確認 `handover_entries`、`operational_handovers`、`portal_events` 的讀寫方向沒有繞過 owner module。
-- 整合：確認 POSTGRES、SMART_SCHEDULE_MANAGER 的 fallback / unavailable 狀態有對應 UI。
+- 整合：確認 POSTGRES、OBJECT_STORAGE、SMART_SCHEDULE_MANAGER 的 fallback / unavailable 狀態有對應 UI。
 - 文件：改動後重跑 `npm run docs:obsidian`，讓本頁、BFF Reference Map 與 BFF 技術規範同步。
 
 ## Routes
@@ -79,6 +79,7 @@ generated_at: 2026-05-18
 | --- | --- | --- | --- |
 | /portal/:facilityKey/handover | employee | legacy_portal | legacy |
 | /employee/handover | employee | employee | implemented |
+| /lifeguard/handover | lifeguard | lifeguard | implemented |
 | /supervisor/handover | supervisor | supervisor | implemented |
 
 ## API / BFF
@@ -89,6 +90,9 @@ generated_at: 2026-05-18
 | POST | /api/portal/handovers | crud | implemented |
 | DELETE | /api/portal/handovers/:id | crud | implemented |
 | POST | /api/handover | crud | implemented |
+| POST | /api/handover/image-upload | upload | implemented |
+| PATCH | /api/handover/:id/read | crud | implemented |
+| PATCH | /api/handover/:id/reply | crud | implemented |
 | PATCH | /api/handover/:id/complete | crud | implemented |
 | GET | /api/bff/employee/handover/summary | bff | implemented |
 | GET | /api/bff/employee/handover/list | bff | implemented |
@@ -105,15 +109,18 @@ generated_at: 2026-05-18
 | --- | --- |
 | employeeSectionKey | handover |
 | supervisorSectionKey | handoverOverview |
+| plannedEndpoint | /api/bff/employee/handover/list |
+| plannedEndpoint | /api/bff/employee/handover/summary |
+| plannedEndpoint | /api/bff/supervisor/dashboard |
 
 ### UI State Contract
 
 | Field | Value |
 | --- | --- |
-| uiStates | 未登記 |
-| freshness | 未登記 |
-| uiStateSourceFiles | 未登記 |
-| sharedComponents | 未登記 |
+| uiStates | loading, ready, empty, error, disabled |
+| freshness | realtime |
+| uiStateSourceFiles | `client/src/modules/employee/handover/page.tsx`<br>`client/src/modules/supervisor/handover/page.tsx`<br>`client/src/modules/supervisor/dashboard-page.tsx` |
+| sharedComponents | `DenseRow`, `StatCard` |
 
 ## Data
 
@@ -128,16 +135,17 @@ generated_at: 2026-05-18
 | Provider | Purpose | Status | Notes |
 | --- | --- | --- | --- |
 | POSTGRES | Local handover persistence. | implemented |  |
+| OBJECT_STORAGE | Handover image record uploads. | implemented |  |
 | SMART_SCHEDULE_MANAGER | Optional assignee resolution from schedule export. | partial |  |
 
 ## Telemetry / Governance
 
-- Telemetry: pageView=yes；cardClick=no；actionSubmit=yes；auditRequired=no
-- Event types: handover_create, handover_report, handover_claim
-- Editable by: employee, supervisor
+- Telemetry: pageView=yes；cardClick=yes；actionSubmit=yes；auditRequired=no
+- Event types: handover_create, handover_report, handover_claim, handover_complete, handover_reply, handover_delete
+- Editable by: employee, lifeguard, supervisor
 - Readonly for: 未登記
 - Requires approval: no
-- Governance notes: Employee can create/report scoped items; supervisor governs operational assignments.
+- Governance notes: 交接任務是舊任務與舊個人記事退役後唯一工作事項頁；counter/employee, lifeguard, and supervisor share operational_handovers by facilityKey.
 
 ## Legacy
 

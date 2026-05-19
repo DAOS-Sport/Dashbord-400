@@ -1,15 +1,16 @@
 # Module Completion Matrix
 
-Date: 2026-05-07
+Date: 2026-05-19
 
 This matrix is role-first. Each row separates user-facing function status from backend logic status so the project does not confuse UI presence with production readiness.
+
+Lifecycle closure is tracked in `docs/governance/MODULE_CLOSURE_MATRIX.md`. Retired modules are not active completion targets.
 
 ## Employee
 
 | moduleId | 中文名稱 | 完成度 | 功能狀態 | 邏輯狀態 | 問題 | 修復策略 |
 | --- | --- | ---: | --- | --- | --- | --- |
 | employee-home | 員工首頁 | 80% | 完成：首頁載入、核心卡片 DTO、navigation DTO | 完成：BFF fallback 不因單一資料源 500 | 舊 UI section 與新 HomeCardDto 並存 | 下一輪收斂前端只讀 HomeCardDto |
-| tasks | 今日任務 / 交班事項 | 80% | 完成：員工新增、編輯自建、刪除自建、完成指派任務 | 完成：`/api/tasks`、同館權限、tasks table schema | 需在部署 DB 跑 migration | 執行 migration 後補 API 情境測試 |
 | handover | 櫃台交接 / 櫃台交辦 | 95% | 完成：員工首頁卡、drawer、新增、pending 依剩餘時間排序、已完成查詢、標記已讀、回覆補充、刪除、標記完成 | 完成：`server/modules/handover`、`/api/handover`、`/api/bff/employee/handover/*`、同館權限 | 主管 legacy portal API 仍保留 | 下一輪補 handover API 情境測試與 supervisor namespace 收斂 |
 | announcements | 群組重要公告 | 80% | 完成：搜尋、閱讀、已讀確認 | 部分完成：ack table/API/BFF 已接，發布審核仍分散 | LINE candidate 與 local announcement 尚未統一 policy；final closure batch 因 `server/modules/bff/routes.ts` 鎖定而 halt | 解鎖 BFF route 後補 announcement BFF policy |
 | quick-links | 快速操作 | 80% | 完成：首頁 shortcuts、更多入口、主管維護 | 完成：Postgres `quick_links` | 缺完整 telemetry event | 補 NAV/CARD event dashboard |
@@ -18,7 +19,6 @@ This matrix is role-first. Each row separates user-facing function status from b
 | search | 快速搜尋 | 70% | 部分完成：搜尋模組名稱/關鍵字與員工 Q&A | 部分完成：`/api/search/global` registry-backed stub；`/api/bff/employee/search` 已接 Q&A table | 尚未完整全文搜尋所有模組 | 下一輪擴到 announcements/handover/shifts full-text |
 | checkins | 點名 / 打卡 | 40% | 完成：員工導航與首頁卡片入口已註冊；route 顯示統一 NotConnectedCard 與既有系統入口 | 未完成：尚未有正式 DTO/API | 資料來源未定，不能假造打卡資料 | 接正式 attendance BFF contract |
 | knowledge-base-qna | 相關問題詢問 | 90% | 完成：員工 Q&A 資料庫頁、新增後 pending、review status badge、主管 `/supervisor/qna-review` approve/reject | 完成：`knowledge_base_qna` review columns、CRUD API、supervisor review BFF、`QNA_APPROVED` / `QNA_REJECTED` audit、員工首頁搜尋只讀 approved | Replit migration `0007` 與 audit row 尚需部署驗證 | 部署套用 migration 後跑三角色 Q&A journey |
-| personal-note | 個人記事 | 85% | 完成：個人記事頁改讀 owner-filtered sticky_note endpoint | 完成：storage/API owner policy；sticky_note 只能讀/改自己的，主管也不能讀改他人個人筆記 | Employee home BFF 檔案本批鎖定，首頁摘要 owner injection 留 follow-up | 解鎖 BFF route 後讓首頁 sticky summary 傳入 session owner |
 | activity-periods | 活動檔期 | 70% | 完成：正式 `/employee/activity-periods` 深藍卡片頁、分類 filter、empty state | 部分完成：沿用 employee home campaigns BFF，尚未有專屬 BFF policy | 來源混合 | 收斂到 campaigns-events DTO |
 | registration-courses | 報名 / 課程 | 40% | 完成：員工首頁卡片入口已註冊，route 顯示統一 NotConnectedCard；主管端角色合約已移除避免無頁面入口 | 未完成：booking provider 未接 | 無正式課程資料，不能假造課程 | 接 booking adapter |
 
@@ -26,8 +26,7 @@ This matrix is role-first. Each row separates user-facing function status from b
 
 | moduleId | 中文名稱 | 完成度 | 功能狀態 | 邏輯狀態 | 問題 | 修復策略 |
 | --- | --- | ---: | --- | --- | --- | --- |
-| supervisor-dashboard | 主管儀表板 | 96% | 完成：主管首頁、BFF 摘要、全視窗自適應 shell、收斂後主管導覽、場館 overview 卡片、現在當班人員抽屜 | 完成：授權場館 overview + staffing/tasks/handover fallback；當班抽屜以 `staffing.currentOnDuty` 依館別/職位/人員分層 | 單館 detail 完整員工視角留 post-launch | 上線後補 facility detail |
-| tasks | 任務管理 | 95% | 完成：主管派發、編輯、完成、取消、刪除；新增任務改為右側 drawer | 完成：同館權限、5W1H metadata、audit 與 `/api/tasks` | 部署 DB 需驗證 | Replit 實測 task lifecycle |
+| supervisor-dashboard | 主管儀表板 | 96% | 完成：主管首頁、BFF 摘要、全視窗自適應 shell、收斂後主管導覽、場館 overview 卡片、現在當班人員抽屜 | 完成：授權場館 overview + staffing/handover/work-log fallback；當班抽屜以 `staffing.currentOnDuty` 依館別/職位/人員分層 | 單館 detail 完整員工視角留 post-launch | 上線後補 facility detail |
 | handover | 交接管理 | 95% | 完成：主管交接頁與 API；建立交辦不再要求固定班別 | 完成：operational handover table，後端自動補 targetDate/targetShiftLabel 舊 schema 欄位 | 舊 API 仍在 portal namespace | 上線後搬入 module route |
 | announcements | 公告管理 | 95% | 完成：手動發布、類型、置頂、啟用/停用、發布/下架時間、候選審核 | 完成：system_announcements + audit；員工 BFF 讀取 pinned/type/time | 需部署套用 `0006` | Replit 驗證 system_announcements CRUD |
 | anomalies | 異常審核 | 90% | 完成：異常列表、搜尋、處理/重開、刪除 | 完成：resolve metadata + audit | routes.ts 偏肥 | 上線後拆 module route |
@@ -45,7 +44,7 @@ This matrix is role-first. Each row separates user-facing function status from b
 | telemetry-audit | 操作稽核 | 78% | 完成：ui-events/client-error/module-events、domain writes audit caller、大量 system audit visibility | 部分完成：DB-backed `ui_events` / `client_errors` / `audit_logs` repository 已存在，system-only `/api/audit/logs` 可查最新 audit rows | OpenTelemetry SDK 與 trace/metric/log taxonomy 未正式接；Replit DB row 尚需實測 | Replit 驗證 audit rows，下一輪補 trace/metric/log correlation |
 | raw-inspector | Raw Inspector | 80% | 完成：system-only route、後端白名單 proxy、查詢 audit log、client 不再直打任意目標 | 完成：health 驗證 supervisor 不可見；server-side query scope 已收斂到 shared whitelist | 正式 raw data policy 與 Replit audit row 仍需部署驗收 | Replit 驗證 RAW_INSPECTOR_QUERY audit row 與 forbidden target |
 | integrations | 整合監控 | 60% | 部分完成：integration overview | 部分完成：adapter health | sync job runner 未接 | 接 sync_job_runs writer |
-| module-registry | 模組註冊中心 | 90% | 完成：registry/navigation/home-layout/health API；debug registry endpoints 已加 system role + system governance permission；三角色首頁/導航順序已由 smoke/unit 固定 | 完成：descriptor/policy/smoke；目前 43 modules / 51 descriptors | `portal-manage`, `gmail-integration`, `file-upload-export`, `legacy-users`, `user-role-snapshots`, `widget-layout-settings` 為背景/外部/暫停項目 | Replit 驗證 debug registry guard 與 no-BFF policy |
+| module-registry | 模組註冊中心 | 90% | 完成：registry/navigation/home-layout/health API；debug registry endpoints 已加 system role + system governance permission；三角色首頁/導航順序已由 smoke/unit 固定 | 完成：descriptor/policy/smoke；目前 78 modules / 78 descriptors | `widget-layout-settings` 為已接受 background/deprecated no-BFF 項目 | Replit 驗證 debug registry guard 與 no-BFF policy |
 
 ## SYSTEM_ADMIN
 
@@ -55,10 +54,17 @@ This matrix is role-first. Each row separates user-facing function status from b
 | hr-audit | HR 權限稽核 | 40% | 部分完成：頁面與 registry | 未完成：正式稽核流程 | Ragic truth 外部 | 建 sync + audit writer |
 | module-settings | 模組設定 | paused | 已暫停：不列入近期施工與上線範圍 | 未完成：DB persistence 不再作為當前目標 | 產品需求未收斂，避免做出半套設定器 | 未來若重啟，需先重寫 UX 規格與權限 ADR |
 
+## Retired / Removed From Active Surface
+
+| moduleId | lifecycle | reason | closure requirement |
+| --- | --- | --- | --- |
+| tasks | retired / deploy-pending | Dedicated task route/table has been removed from the current workbench surface; operational work is handled by handover, counter-log, and work-log flows. | Replit/Neon must apply `0014_retire_tasks_personal_note.sql` and confirm the `tasks` table is gone. |
+| personal-note | retired / deploy-pending | Sticky notes were removed from the active employee workbench; employee resources remain for documents/events/training. | Replit/Neon must confirm `employee_resources.category='sticky_note'` rows are gone and no UI path recreates them. |
+
 ## Role Summary
 
 | role | ready modules | unfinished modules | main blocker |
 | --- | ---: | ---: | --- |
-| employee | 17 | 7 | core workflow ready；navigation 8 and homepage cards 14 are aligned/tested；remaining rows are provider-backed or external validation |
-| supervisor | 21 | 9 | deployment-ready；navigation 8 and homepage cards 11 are aligned/tested；remaining rows are background/external or post-launch validation |
-| system | 19 | 17 | navigation 7 and homepage cards 11 are aligned/tested；remaining rows are observability DB validation, integration sourceStatus, and background governance |
+| employee | local-ready | deploy-pending providers | active workbench excludes retired `tasks` and `personal-note`; remaining rows are provider-backed or external validation |
+| supervisor | local-ready | deploy-pending providers | active workbench excludes retired `tasks`; remaining rows are background/external or post-launch validation |
+| system | local-ready | observability/integration proof | remaining rows are observability DB validation, integration sourceStatus, and background governance |

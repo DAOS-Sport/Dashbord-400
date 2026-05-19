@@ -123,7 +123,7 @@ assert(
   getNavigationModules("employee")
     .map((item) => item.id)
     .join(",") ===
-    "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
+    "employee-home,announcements,handover,activity-periods,employee-resources,employee-training,lifeguard-lost-and-found,courts,knowledge-base-qna",
   `employee navigation order changed: ${getNavigationModules("employee")
     .map((item) => item.id)
     .join(",")}`,
@@ -132,7 +132,7 @@ assert(
   getHomeLayoutCards("employee")
     .map((item) => item.moduleId)
     .join(",") ===
-    "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
+    "employee-home,announcements,handover,activity-periods,employee-resources,employee-training,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
   `employee home card order changed: ${getHomeLayoutCards("employee")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -159,7 +159,7 @@ assert(
   getNavigationModules("supervisor")
     .map((item) => item.id)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
+    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
   `supervisor navigation order changed: ${getNavigationModules("supervisor")
     .map((item) => item.id)
     .join(",")}`,
@@ -186,7 +186,7 @@ assert(
   getWorkbenchRoutes("supervisor")
     .map((item) => item.moduleId)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
+    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics",
   "supervisor route manifest must match sidebar order",
 );
 assert(
@@ -238,7 +238,7 @@ assert(
   getHomeLayoutCards("supervisor")
     .map((item) => item.moduleId)
     .join(",") ===
-    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,tasks,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
+    "supervisor-dashboard,facilities,parking,counter-log,lane-rentals,courts,announcements,announcement-groups,supervisor-lifeguard-overview,handover,employee-training,anomalies,analytics,booking-snapshot,notification-center,search",
   `supervisor home card order changed: ${getHomeLayoutCards("supervisor")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -392,10 +392,6 @@ const employeeHomeMockSource = readFileSync(
   join(repoRoot, "server", "modules", "bff", "employee-home.ts"),
   "utf8",
 );
-const supervisorTasksPage = readFileSync(
-  join(repoRoot, "client", "src", "modules", "supervisor", "tasks", "page.tsx"),
-  "utf8",
-);
 const supervisorPeoplePage = readFileSync(
   join(
     repoRoot,
@@ -459,10 +455,6 @@ const legacyRoutes = [
 ]
   .map((file) => readFileSync(join(repoRoot, file), "utf8"))
   .join("\n");
-const taskRoutes = readFileSync(
-  join(repoRoot, "server", "modules", "tasks", "index.ts"),
-  "utf8",
-);
 const storageSource = readFileSync(
   join(repoRoot, "server", "storage.ts"),
   "utf8",
@@ -512,7 +504,7 @@ assert(
   "employee BFF enrich path must merge active supervisor-published system announcements",
 );
 assert(
-  /uniqueAnnouncements\(\s*\[\s*\.\.\.lineAnnouncementsResult\.announcements,\s*\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(
+  /uniqueAnnouncements\(\s*\[\s*\.\.\.groupBroadcastAnnouncements,\s*\.\.\.lineAnnouncementsResult\.announcements,\s*\.\.\.employeeResources\.announcements,\s*\.\.\.portalAnnouncements/.test(
     bffRoutes,
   ),
   "employee BFF announcements must merge LINE group announcements, employee announcements, and portal system announcements",
@@ -778,16 +770,16 @@ assert(
   "employee home must not render the today tasks card",
 );
 assert(
-  /homeSlots\.isEnabled\("handover"\)[\s\S]*homeSlots\.isEnabled\("tutoringToday"\)[\s\S]*homeSlots\.isEnabled\("announcements"\)[\s\S]*homeSlots\.isEnabled\("shifts"\)[\s\S]*homeSlots\.isEnabled\("events"\)[\s\S]*homeSlots\.isEnabled\("documents"\)[\s\S]*homeSlots\.isEnabled\("courts"\)[\s\S]*homeSlots\.isEnabled\("stickyNotes"\)/.test(
+  /homeSlots\.isEnabled\("handover"\)[\s\S]*homeSlots\.isEnabled\("tutoringToday"\)[\s\S]*homeSlots\.isEnabled\("announcements"\)[\s\S]*homeSlots\.isEnabled\("shifts"\)[\s\S]*homeSlots\.isEnabled\("events"\)[\s\S]*homeSlots\.isEnabled\("documents"\)[\s\S]*homeSlots\.isEnabled\("courts"\)/.test(
     employeeHomePageSource,
   ),
   "employee home slots must render in the GitHub fixed dashboard order",
 );
 assert(
-  /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-8[\s\S]*<CourtsScrollCard schools=\{courtSchools\} onOpenDrawer=\{\(\) => setCourtsDrawerOpen\(true\)\} \/>/.test(
+  /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-12[\s\S]*<CourtsScrollCard schools=\{courtSchools\} onOpenDrawer=\{\(\) => setCourtsDrawerOpen\(true\)\} \/>/.test(
     employeeHomePageSource,
   ),
-  "employee courts scroll strip must render only for court-enabled facilities and span two desktop grid blocks",
+  "employee courts scroll strip must render only for court-enabled facilities and span the retired personal-note row",
 );
 const employeeCourtsVisibilitySource = readFileSync(
   join(
@@ -1070,9 +1062,9 @@ assert(
   "supervisor facilities page must render a facility detail mode",
 );
 assert(
-  supervisorTasksPage.includes("setCreateOpen(true)") &&
-    supervisorTasksPage.includes("supervisor-drawer"),
-  "supervisor tasks page must use a right-side create drawer",
+  supervisorHandoverPage.includes("建立交辦事項") &&
+    supervisorHandoverPage.includes("createSupervisorHandover"),
+  "supervisor handover page must remain the supervisor work-item create flow",
 );
 assert(
   supervisorPeoplePage.includes("selectedFacilityKey") &&
@@ -1273,32 +1265,12 @@ assert(
   "training view report must normalize numeric payload ids",
 );
 assert(
-  taskRoutes.includes("withTaskCreateMetadata"),
-  "task create route must use task create metadata helper",
-);
-assert(
-  taskRoutes.includes("assignedByUserId: manager"),
-  "task supervisor assignment must record assignedByUserId",
-);
-assert(
-  taskRoutes.includes("assignedAt: manager"),
-  "task supervisor assignment must record assignedAt",
-);
-assert(
-  /storage\.updateTask\(id,\s*withUpdateMetadata/.test(taskRoutes),
-  "task update routes must use update metadata",
-);
-assert(
   domainWriteMetadata.includes("withCreateMetadata"),
   "domain write metadata helper must expose withCreateMetadata",
 );
 assert(
   domainWriteMetadata.includes("withEmployeeCreateMetadata"),
   "domain write metadata helper must expose employee resource create metadata",
-);
-assert(
-  domainWriteMetadata.includes("withTaskCreateMetadata"),
-  "domain write metadata helper must expose task create metadata",
 );
 assert(
   domainWriteMetadata.includes("withUpdateMetadata"),
@@ -1327,10 +1299,6 @@ assert(
 assert(
   legacyRoutes.includes("withEmployeeCreateMetadata(parsed.data"),
   "employee_resources create route must use employee create metadata",
-);
-assert(
-  legacyRoutes.includes('isPrivate: body.category === "sticky_note"'),
-  "sticky_note resources must default to private at create",
 );
 assert(
   /storage\.updateEmployeeResource\(id,\s*withUpdateMetadata/.test(
@@ -1541,13 +1509,6 @@ assertAuditAction(
   legacyRoutes,
   'app.delete("/api/portal/knowledge-base-qna/:id"',
   "KNOWLEDGE_QNA_DELETED",
-);
-assertAuditAction(taskRoutes, 'app.post("/api/tasks"', "TASK_CREATED");
-assertAuditAction(taskRoutes, 'app.patch("/api/tasks/:id"', "TASK_UPDATED");
-assertAuditAction(
-  taskRoutes,
-  'app.patch("/api/tasks/:id/status"',
-  "TASK_STATUS_UPDATED",
 );
 
 console.log("Module smoke checks passed");

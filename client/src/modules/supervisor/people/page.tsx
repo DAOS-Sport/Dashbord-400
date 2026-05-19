@@ -115,7 +115,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
               {[
                 ["ACTIVE 當班", `${selectedFacility.onShift} / ${selectedFacility.active}`, "text-[#15935d]"],
                 ["HANDOVER 交辦", selectedFacility.openHandovers, "text-[#0d2a50]"],
-                ["TASKS 任務", selectedFacility.incompleteTasks, "text-[#ef7d22]"],
+                ["HANDOVER 未完成", selectedFacility.incompleteTasks, "text-[#ef7d22]"],
                 ["NEXT 下一班", selectedFacility.next, "text-[#2f6fe8]"],
               ].map(([label, value, color]) => (
                 <div key={label} className="border-b border-r border-[#edf1f6] p-4 last:border-r-0 md:border-b-0">
@@ -157,7 +157,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-[15px] font-black text-[#10233f]">授權場館詳細資訊</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">這裡承載各館數字、當班主理人、交辦與任務狀況；首頁場館牌卡只作為入口。</p>
+                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">這裡承載各館數字、當班主理人與櫃台交接狀況；首頁場館牌卡只作為入口。</p>
               </div>
               <button
                 type="button"
@@ -216,7 +216,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                       <p className="mt-1 text-[24px] font-black text-[#0d2a50]">{facility.openHandovers}</p>
                     </div>
                     <div className="border-r border-[#edf1f6] p-4">
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">Tasks</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">Open</p>
                       <p className="mt-1 text-[24px] font-black text-[#ef7d22]">{facility.incompleteTasks}</p>
                     </div>
                     <div className="p-4">

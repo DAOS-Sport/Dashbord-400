@@ -11,7 +11,6 @@ import { portalModule } from "./portal";
 import { registryModule } from "./registry";
 import { schedulesModule } from "./schedules";
 import { systemModule } from "./system";
-import { tasksModule } from "./tasks";
 import { telemetryModule } from "./telemetry";
 import { usersModule } from "./users";
 
@@ -23,7 +22,6 @@ export const backendModules: BackendModule[] = [
   anomaliesModule,
   schedulesModule,
   checkinsModule,
-  tasksModule,
   dashboardModule,
   telemetryModule,
   systemModule,

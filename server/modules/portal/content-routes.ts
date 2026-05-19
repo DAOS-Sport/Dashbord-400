@@ -187,7 +187,7 @@ export const registerPortalContentRoutes = (
     }
   });
 
-  // -------- Portal: Employee Resources (員工自建活動 / 文件 / 個人工作貼) --------
+  // -------- Portal: Employee Resources (員工自建活動 / 文件 / 公告 / 教材) --------
   const employeeResourceDatabaseUnavailable = () => ({
     message: "資料庫尚未連線，請在部署環境設定 NEON_DATABASE_URL 或 DATABASE_URL 後使用員工資源寫入功能。",
     code: "DATABASE_NOT_CONNECTED",
@@ -223,7 +223,7 @@ export const registerPortalContentRoutes = (
         ...body,
         createdByEmployeeNumber: caller.employeeNumber,
         createdByName: caller.name,
-        isPrivate: body.category === "sticky_note" ? body.isPrivate ?? true : body.isPrivate,
+        isPrivate: body.isPrivate,
       });
       if (!parsed.success) return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       if (!canAccessFacility(req, parsed.data.facilityKey)) return res.status(403).json({ message: "無此館別權限" });

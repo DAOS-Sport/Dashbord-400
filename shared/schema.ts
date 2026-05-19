@@ -223,48 +223,6 @@ export const insertOperationalHandoverSchema = createInsertSchema(operationalHan
 export type InsertOperationalHandover = z.infer<typeof insertOperationalHandoverSchema>;
 export type OperationalHandover = typeof operationalHandovers.$inferSelect;
 
-export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
-  facilityKey: text("facility_key").notNull(),
-  title: text("title").notNull(),
-  content: text("content"),
-  priority: text("priority").default("normal").notNull(),
-  status: text("status").default("pending").notNull(),
-  source: text("source").default("employee").notNull(),
-  inputSource: text("input_source").default("manual").notNull(),
-  createdByUserId: text("created_by_user_id").notNull(),
-  createdByName: text("created_by_name").notNull(),
-  createdByRole: text("created_by_role"),
-  updatedBy: text("updated_by"),
-  assignedToUserId: text("assigned_to_user_id"),
-  assignedToName: text("assigned_to_name"),
-  assignedByUserId: text("assigned_by_user_id"),
-  assignedAt: timestamp("assigned_at"),
-  dueAt: timestamp("due_at"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const insertTaskSchema = createInsertSchema(tasks).omit({
-  id: true,
-  completedAt: true,
-  createdAt: true,
-  updatedAt: true,
-}).extend({
-  facilityKey: z.string().min(1),
-  title: z.string().min(1, "標題不可為空").max(140, "標題過長"),
-  content: z.string().max(2000, "內容過長").optional().nullable(),
-  priority: z.enum(["low", "normal", "high"]).default("normal"),
-  status: z.enum(["pending", "in_progress", "done", "cancelled"]).default("pending"),
-  source: z.enum(["employee", "supervisor", "system"]).default("employee"),
-  inputSource: metadataSourceSchema.optional(),
-  createdByRole: workbenchRoleSchema.optional().nullable(),
-});
-
-export type InsertTask = z.infer<typeof insertTaskSchema>;
-export type Task = typeof tasks.$inferSelect;
-
 export const quickLinks = pgTable("quick_links", {
   id: serial("id").primaryKey(),
   facilityKey: text("facility_key"),
@@ -333,7 +291,7 @@ export const insertEmployeeResourceSchema = createInsertSchema(employeeResources
   updatedAt: true,
 }).extend({
   facilityKey: z.string().min(1),
-  category: z.enum(["event", "document", "sticky_note", "announcement", "training"]),
+  category: z.enum(["event", "document", "announcement", "training"]),
   title: z.string().min(1, "標題不可為空").max(120, "標題過長"),
   subCategory: z.string().max(60, "分類過長").optional().nullable(),
   content: z.string().max(1000, "內容過長").optional().nullable(),

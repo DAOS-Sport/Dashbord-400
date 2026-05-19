@@ -53,14 +53,14 @@ generated_at: 2026-05-18
 - 非首頁卡片模組仍需在進入頁保留 loading、empty、error 與權限不足狀態。
 - 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
 - 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
-- 沒有 BFF binding 時，UI 不應直接新增外部 fetch；先補 BFF contract 或標成 legacy/background。
+- 畫面資料應優先吃 BFF section / endpoint：`portalManage`。
 - 有寫入操作；按鈕需具備 loading/disabled/error feedback，成功後需刷新對應 query 或 section。
 - UI telemetry：page view、action submit、audit required。
 
 ## BFF 參照 / 修改關聯
 
 - 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
-- 沒有 section key；若要進首頁或 dashboard，需要先補 section key / planned endpoint。
+- Section key / planned endpoint：supervisorSectionKey=`portalManage`。
 - 寫入後 BFF 需要刷新或重算的 CRUD endpoint：`GET /api/portal/quick-links`、`GET /api/portal/employee-resources`、`GET /api/portal/system-announcements`。
 - 沒有 proxy / external API 邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
@@ -91,7 +91,9 @@ generated_at: 2026-05-18
 
 ### BFF Sections
 
-_沒有 BFF section 綁定_
+| Binding | Value |
+| --- | --- |
+| supervisorSectionKey | portalManage |
 
 ### UI State Contract
 

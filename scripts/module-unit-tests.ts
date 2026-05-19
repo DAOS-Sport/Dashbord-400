@@ -132,7 +132,6 @@ const acceptedBackgroundPending = new Set([
   "ragic-integration",
   "schedule-integration",
   "system-announcements",
-  "tasks",
   "session-governance",
   "user-role-snapshots",
   "widget-layout-settings",
@@ -143,12 +142,12 @@ const runEmployeeModuleTests = () => {
   const cards = getHomeLayoutCards("employee", rolePermissions.employee);
   assert(
     navigation.map((item) => item.id).join(",") ===
-      "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna",
+      "employee-home,announcements,handover,activity-periods,employee-resources,employee-training,lifeguard-lost-and-found,courts,knowledge-base-qna",
     `employee navigation mismatch: ${navigation.map((item) => item.id).join(",")}`,
   );
   assert(
     cards.map((item) => item.moduleId).join(",") ===
-      "employee-home,tasks,announcements,handover,activity-periods,employee-resources,employee-training,personal-note,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
+      "employee-home,announcements,handover,activity-periods,employee-resources,employee-training,lifeguard-lost-and-found,courts,knowledge-base-qna,shift-reminder,booking-snapshot,notification-center,weather-widget,registration-courses,search",
     `employee home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   navigation.forEach((item) =>
@@ -234,13 +233,13 @@ const runEmployeeModuleTests = () => {
   );
   sourceMatches(
     "client/src/modules/employee/home/employee-home-page.tsx",
-    /homeSlots\.isEnabled\("handover"\)[\s\S]*homeSlots\.isEnabled\("tutoringToday"\)[\s\S]*homeSlots\.isEnabled\("announcements"\)[\s\S]*homeSlots\.isEnabled\("shifts"\)[\s\S]*homeSlots\.isEnabled\("events"\)[\s\S]*homeSlots\.isEnabled\("documents"\)[\s\S]*homeSlots\.isEnabled\("courts"\)[\s\S]*homeSlots\.isEnabled\("stickyNotes"\)/,
+    /homeSlots\.isEnabled\("handover"\)[\s\S]*homeSlots\.isEnabled\("tutoringToday"\)[\s\S]*homeSlots\.isEnabled\("announcements"\)[\s\S]*homeSlots\.isEnabled\("shifts"\)[\s\S]*homeSlots\.isEnabled\("events"\)[\s\S]*homeSlots\.isEnabled\("documents"\)[\s\S]*homeSlots\.isEnabled\("courts"\)/,
     "employee home slots must render in the GitHub fixed dashboard order",
   );
   sourceMatches(
     "client/src/modules/employee/home/employee-home-page.tsx",
-    /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-8[\s\S]*<CourtsScrollCard schools=\{courtSchools\} onOpenDrawer=\{\(\) => setCourtsDrawerOpen\(true\)\} \/>/,
-    "employee courts scroll strip must render only for court-enabled facilities and span two desktop grid blocks",
+    /homeSlots\.isEnabled\("courts"\) && courtSchools\.length[\s\S]*lg:col-span-12[\s\S]*<CourtsScrollCard schools=\{courtSchools\} onOpenDrawer=\{\(\) => setCourtsDrawerOpen\(true\)\} \/>/,
+    "employee courts scroll strip must render only for court-enabled facilities and span the retired personal-note row",
   );
   sourceIncludes(
     "client/src/modules/employee/courts-visibility.ts",
@@ -372,7 +371,6 @@ const runSupervisorModuleTests = () => {
     "counter-log",
     "lane-rentals",
     "courts",
-    "tasks",
     "announcements",
     "announcement-groups",
     "supervisor-lifeguard-overview",
@@ -558,9 +556,9 @@ const runSupervisorModuleTests = () => {
     "dashboard must keep on-duty drawer",
   );
   sourceIncludes(
-    "client/src/modules/supervisor/tasks/page.tsx",
-    "supervisor-drawer",
-    "tasks must use right drawer create flow",
+    "client/src/modules/supervisor/handover/page.tsx",
+    "建立交辦事項",
+    "handover must remain the supervisor work-item create flow",
   );
   sourceIncludes(
     "client/src/modules/supervisor/announcements/page.tsx",
@@ -1547,10 +1545,10 @@ const runCanonicalFacilityKeyTests = () => {
   );
 };
 
-const runPersonalNoteOwnerPolicyTests = () => {
+const runEmployeeResourcePolicyTests = () => {
   const rows = [
-    { id: 1, category: "sticky_note", createdByEmployeeNumber: "A001" },
-    { id: 2, category: "sticky_note", createdByEmployeeNumber: "B002" },
+    { id: 1, category: "document", createdByEmployeeNumber: "A001" },
+    { id: 2, category: "event", createdByEmployeeNumber: "B002" },
     { id: 3, category: "document", createdByEmployeeNumber: "B002" },
   ];
   const employeeA = filterEmployeeResourcesForCaller(rows, "A001")
@@ -1560,26 +1558,26 @@ const runPersonalNoteOwnerPolicyTests = () => {
     .map((item) => item.id)
     .join(",");
   assert(
-    employeeA === "1,3",
-    `employee A sticky-note visibility leaked: ${employeeA}`,
+    employeeA === "1,2,3",
+    `employee resource visibility changed: ${employeeA}`,
   );
   assert(
-    employeeB === "2,3",
-    `employee B sticky-note visibility leaked: ${employeeB}`,
+    employeeB === "1,2,3",
+    `employee resource visibility changed: ${employeeB}`,
   );
   assert(
-    !canMutateEmployeeResource(rows[1], {
+    canMutateEmployeeResource(rows[1], {
       employeeNumber: "A001",
       isSupervisor: true,
     }),
-    "supervisor must not mutate another user's sticky_note",
+    "supervisor may mutate shared employee resources",
   );
   assert(
     canMutateEmployeeResource(rows[0], {
       employeeNumber: "A001",
       isSupervisor: true,
     }),
-    "supervisor may mutate only their own sticky_note",
+    "resource owner may mutate their own resource",
   );
   sourceIncludes(
     "server/storage.ts",
@@ -1589,12 +1587,7 @@ const runPersonalNoteOwnerPolicyTests = () => {
   sourceIncludes(
     "server/modules/portal/content-routes.ts",
     "canMutateEmployeeResource(existing, caller)",
-    "employee resource mutations must enforce sticky-note owner policy",
-  );
-  sourceIncludes(
-    "client/src/modules/employee/personal-note/page.tsx",
-    'fetchEmployeeResources(facilityKey, "sticky_note"',
-    "personal-note page must query owner-filtered sticky_note endpoint",
+    "employee resource mutations must enforce owner/supervisor policy",
   );
 };
 
@@ -1742,7 +1735,7 @@ runTelemetryAuditTests();
 runRegistryGuardTests();
 runSystemReadEndpointAuthTests();
 runCanonicalFacilityKeyTests();
-runPersonalNoteOwnerPolicyTests();
+runEmployeeResourcePolicyTests();
 runQnaReviewPolicyTests();
 runNotConnectedUxTests();
 runUnfinishedModulePolicyTests();

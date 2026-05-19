@@ -8,7 +8,6 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
-  ClipboardList,
   ChevronDown,
   FileText,
   GraduationCap,
@@ -58,7 +57,6 @@ const iconByKey: Record<string, LucideIcon> = {
 };
 
 const employeeQuickActions: FloatingQuickActionItem[] = [
-  { label: "任務管理", helper: "新增或完成自己的任務", href: "/employee/tasks", Icon: ClipboardList },
   { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Megaphone },
   { label: "櫃台交接", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
   { label: "異常回報", helper: "進入點名/打卡異常入口", href: "/employee/checkins", Icon: AlertCircle },

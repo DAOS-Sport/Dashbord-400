@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Bell, CheckCircle2, ClipboardCheck, FileText, Megaphone, Plus, Search, StickyNote } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, ClipboardCheck, FileText, Megaphone, Plus, Search } from "lucide-react";
 import {
   ActionButton,
   ContentCard,
@@ -98,7 +98,7 @@ export default function DesignSystemShowcase() {
         <DemoSection title="EmptyState + LoadingState">
           <div className="grid gap-4 md:grid-cols-3">
             <EmptyState title="尚未設定交辦事項" description="請新增交辦事項" action={<ActionButton size="sm">新增交辦事項</ActionButton>} />
-            <EmptyState variant="inline" icon={<StickyNote className="h-5 w-5" />} title="尚無個人工作貼" />
+            <EmptyState variant="inline" icon={<ClipboardCheck className="h-5 w-5" />} title="尚無櫃台交接" />
             <LoadingState variant="panel" message="資料載入中" />
           </div>
         </DemoSection>

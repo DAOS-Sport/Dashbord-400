@@ -13,7 +13,7 @@ export interface EmployeeSearchResultDTO {
 export interface EmployeeResourceDTO {
   id: number;
   facilityKey: string;
-  category: "event" | "document" | "sticky_note" | "announcement" | "training";
+  category: "event" | "document" | "announcement" | "training";
   subCategory: string | null;
   title: string;
   content: string | null;
@@ -79,24 +79,6 @@ export interface OperationalHandoverDTO {
   updatedAt: string;
 }
 
-export interface EmployeeTaskDTO {
-  id: number;
-  facilityKey: string;
-  title: string;
-  content: string | null;
-  priority: "low" | "normal" | "high";
-  status: "pending" | "in_progress" | "done" | "cancelled";
-  source: "employee" | "supervisor" | "system";
-  createdByUserId: string;
-  createdByName: string;
-  assignedToUserId: string | null;
-  assignedToName: string | null;
-  dueAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
 
 export interface EmployeeCourtReservationPreview {
@@ -129,6 +111,8 @@ export const createEmployeeFrontDeskHandover = (input: {
   content: string;
   dueDate: string;
   priority?: "low" | "normal" | "high";
+  linkedActionType?: string | null;
+  linkedActionUrl?: string | null;
 }) => apiPost<HandoverItemDto>("/api/handover", input);
 
 export const completeEmployeeFrontDeskHandover = (id: string) =>
@@ -164,7 +148,7 @@ export const createEmployeeHandover = (facilityKey: string, content: string) =>
 
 export const createEmployeeResource = (input: {
   facilityKey: string;
-  category: "event" | "document" | "sticky_note" | "announcement" | "training";
+  category: "event" | "document" | "announcement" | "training";
   subCategory?: string | null;
   title: string;
   content?: string;
@@ -250,32 +234,6 @@ export const fetchEmployeeOperationalHandovers = (facilityKey: string) =>
 
 export const reportEmployeeOperationalHandover = (id: number, input: { status: "claimed" | "in_progress" | "reported" | "done"; reportNote?: string }) =>
   apiPatch<OperationalHandoverDTO>(`/api/portal/operational-handovers/${id}/report`, input);
-
-export const fetchEmployeeTasks = (facilityKey: string) =>
-  apiGet<{ items: EmployeeTaskDTO[] }>(`/api/tasks?facilityKey=${encodeURIComponent(facilityKey)}&limit=100`);
-
-export const createEmployeeTask = (input: {
-  facilityKey: string;
-  title: string;
-  content?: string | null;
-  priority: "low" | "normal" | "high";
-  assignedToUserId?: string | null;
-  assignedToName?: string | null;
-  dueAt?: string | null;
-}) => apiPost<EmployeeTaskDTO>("/api/tasks", input);
-
-export const updateEmployeeTask = (id: number, input: Partial<{
-  title: string;
-  content: string | null;
-  priority: "low" | "normal" | "high";
-  dueAt: string | null;
-  status: "pending" | "in_progress" | "done" | "cancelled";
-}>) => apiPatch<EmployeeTaskDTO>(`/api/tasks/${id}`, input);
-
-export const updateEmployeeTaskStatus = (id: number, status: "pending" | "in_progress" | "done" | "cancelled") =>
-  apiPatch<EmployeeTaskDTO>(`/api/tasks/${id}/status`, { status });
-
-export const deleteEmployeeTask = (id: number) => apiDelete<{ ok: boolean }>(`/api/tasks/${id}`);
 
 export const acknowledgeEmployeeAnnouncement = (id: string, facilityKey: string) =>
   apiPost<{ id: number; announcementId: string; facilityKey: string; userId: string; employeeName: string; acknowledgedAt: string }>(

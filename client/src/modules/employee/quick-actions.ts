@@ -7,7 +7,6 @@ import {
   ClipboardCheck,
   FileText,
   MessageSquareText,
-  StickyNote,
   Wrench,
 } from "lucide-react";
 import type { ShortcutSummary } from "@shared/domain/workbench";
@@ -28,7 +27,6 @@ const shortcutIconsById: Record<string, LucideIcon> = {
   announcements: Bell,
   events: CalendarDays,
   documents: FileText,
-  "sticky-notes": StickyNote,
   qna: BookOpen,
 };
 
@@ -59,7 +57,6 @@ export const employeeShortcutCandidates: ShortcutSummary[] = [
   { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
   { id: "events", label: "活動檔期", href: getPrimaryRoute("activity-periods", "employee") ?? "/employee/activity-periods", tone: "amber" },
   { id: "documents", label: "常用文件", href: getPrimaryRoute("employee-resources", "employee") ?? "/employee/documents", tone: "cyan" },
-  { id: "sticky-notes", label: "個人工作貼", href: getPrimaryRoute("personal-note", "employee") ?? "/employee/personal-note", tone: "rose" },
   { id: "qna", label: "相關問題詢問", href: getPrimaryRoute("knowledge-base-qna", "employee") ?? "/employee/qna", tone: "violet" },
 ];
 

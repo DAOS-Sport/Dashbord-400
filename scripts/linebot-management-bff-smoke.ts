@@ -23,6 +23,27 @@ const createSmokeSession = (role: WorkbenchRole) => ({
   lastActive: nowIso(),
 });
 
+const mockRagicEmployees = [
+  {
+    userId: "U1",
+    lineUserId: "U1",
+    employeeNumber: "E001",
+    displayName: "測試主管",
+    phone: "0912000000",
+    department: "測試部",
+    grantedFacilities: ["xinbei_pool"],
+  },
+];
+
+const mockRagicEmployeeSlot = () => ({
+  data: mockRagicEmployees,
+  source: "mock-ragic-h01",
+  lastPrimedAt: new Date(),
+  lastAttemptAt: new Date(),
+  lastRefreshSucceededAt: new Date(),
+  error: null,
+});
+
 const listen = async (server: Server) =>
   new Promise<string>((resolve) => {
     server.listen(0, "127.0.0.1", () => {
@@ -172,17 +193,7 @@ const createBffApp = async () => {
     integrations: {
       ragicAuth: {
         listActiveEmployees: async () => ({
-          data: [
-            {
-              userId: "U1",
-              lineUserId: "U1",
-              employeeNumber: "E001",
-              displayName: "測試主管",
-              phone: "0912000000",
-              department: "測試部",
-              grantedFacilities: ["xinbei_pool"],
-            },
-          ],
+          data: mockRagicEmployees,
           meta: { source: "mock-ragic-h01", status: "ok", lastSyncAt: nowIso() },
         }),
       },
@@ -190,6 +201,11 @@ const createBffApp = async () => {
     repositories: {
       telemetry: {
         recordAudit: async () => undefined,
+      },
+    },
+    services: {
+      ragicCache: {
+        getEmployees: mockRagicEmployeeSlot,
       },
     },
   } as any);

@@ -15,13 +15,11 @@ export interface WorkbenchRouteDescriptor {
 
 export const workbenchRoutes = [
   { moduleId: "employee-home", label: "首頁", iconKey: "home", role: "employee", primaryPath: "/employee", shell: "employee" },
-  { moduleId: "tasks", label: "任務管理", iconKey: "clipboard-check", role: "employee", primaryPath: "/employee/tasks", shell: "employee" },
   { moduleId: "announcements", label: "群組公告", iconKey: "bell", role: "employee", primaryPath: "/employee/announcements", shell: "employee" },
-  { moduleId: "handover", label: "櫃台交接", iconKey: "message-square-text", role: "employee", primaryPath: "/employee/handover", shell: "employee" },
+  { moduleId: "handover", label: "交接任務", iconKey: "message-square-text", role: "employee", primaryPath: "/employee/handover", shell: "employee" },
   { moduleId: "activity-periods", label: "活動檔期/課程快訊", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/activity-periods", shell: "employee" },
   { moduleId: "employee-resources", label: "常用文件", iconKey: "file-text", role: "employee", primaryPath: "/employee/documents", shell: "employee" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "employee", primaryPath: "/employee/training", shell: "employee" },
-  { moduleId: "personal-note", label: "個人工作貼", iconKey: "file-text", role: "employee", primaryPath: "/employee/personal-note", shell: "employee" },
   { moduleId: "lifeguard-lost-and-found", label: "失物招領", iconKey: "package-search", role: "employee", primaryPath: "/employee/lost-and-found", shell: "employee" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/courts/xinbei", shell: "employee" },
   { moduleId: "knowledge-base-qna", label: "相關問題詢問", iconKey: "book-open", role: "employee", primaryPath: "/employee/qna", shell: "employee" },
@@ -34,6 +32,7 @@ export const workbenchRoutes = [
   { moduleId: "lifeguard-lost-and-found", label: "失物招領登記", iconKey: "package-search", role: "lifeguard", primaryPath: "/lifeguard/lost-and-found", shell: "lifeguard" },
   { moduleId: "lifeguard-lane-rentals", label: "水道租借狀態", iconKey: "calendar-days", role: "lifeguard", primaryPath: "/lifeguard/lane-rentals", shell: "lifeguard" },
   { moduleId: "lifeguard-log", label: "救生員日誌", iconKey: "lifebuoy", role: "lifeguard", primaryPath: "/lifeguard/log", shell: "lifeguard" },
+  { moduleId: "handover", label: "交接任務", iconKey: "message-square-text", role: "lifeguard", primaryPath: "/lifeguard/handover", shell: "lifeguard" },
   { moduleId: "announcements", label: "群組公告", iconKey: "bell", role: "lifeguard", primaryPath: "/employee/announcements", shell: "lifeguard" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "lifeguard", primaryPath: "/employee/training", shell: "lifeguard" },
   { moduleId: "knowledge-base-qna", label: "相關問題詢問", iconKey: "book-open", role: "lifeguard", primaryPath: "/employee/qna", shell: "lifeguard" },
@@ -44,11 +43,10 @@ export const workbenchRoutes = [
   { moduleId: "counter-log", label: "櫃台日誌", iconKey: "clipboard-check", role: "supervisor", primaryPath: "/supervisor/counter-log/submissions", legacyPath: "/admin/counter-logs/submissions", shell: "supervisor" },
   { moduleId: "lane-rentals", label: "水道租借", iconKey: "waves", role: "supervisor", primaryPath: "/supervisor/lane-rentals", legacyPath: "/admin/lane-rentals", shell: "supervisor" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "supervisor", primaryPath: "/supervisor/courts/xinbei", legacyPath: "/courts/xinbei", shell: "supervisor" },
-  { moduleId: "tasks", label: "任務管理", iconKey: "clipboard-check", role: "supervisor", primaryPath: "/supervisor/tasks", shell: "supervisor" },
   { moduleId: "announcements", label: "公告管理", iconKey: "megaphone", role: "supervisor", primaryPath: "/supervisor/announcements", legacyPath: "/announcements", shell: "supervisor" },
   { moduleId: "announcement-groups", label: "公告群組綁定", iconKey: "message-square-warning", role: "supervisor", primaryPath: "/supervisor/announcement-groups", legacyPath: "/admin/announcement-groups", shell: "supervisor" },
   { moduleId: "supervisor-lifeguard-overview", label: "救生紀錄總覽", iconKey: "lifebuoy", role: "supervisor", primaryPath: "/supervisor/lifeguard-overview", shell: "supervisor" },
-  { moduleId: "handover", label: "櫃台交接", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
+  { moduleId: "handover", label: "交接任務", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/training", shell: "supervisor" },
   { moduleId: "anomalies", label: "異常審核", iconKey: "shield-check", role: "supervisor", primaryPath: "/supervisor/anomalies", legacyPath: "/anomaly-reports", shell: "supervisor" },
   { moduleId: "analytics", label: "報表", iconKey: "gauge", role: "supervisor", primaryPath: "/supervisor/reports", legacyPath: "/analytics", shell: "supervisor" },
@@ -77,6 +75,9 @@ export const getRedirectForLegacyPath = (pathname: string): string | undefined =
   if (normalized === "/operations") return "/supervisor";
   if (normalized === "/anomaly-reports") return "/supervisor/anomalies";
   if (normalized === "/announcements" || normalized === "/announcements/summary") return "/supervisor/announcements";
+  if (normalized === "/employee/tasks" || normalized === "/employee/personal-note") return "/employee/handover";
+  if (normalized === "/supervisor/tasks") return "/supervisor/handover";
+  if (normalized === "/lifeguard/tasks") return "/lifeguard/handover";
   if (normalized === "/system-health" || normalized === "/system/health" || normalized === "/system/alerts" || normalized === "/system/integrations") return "/system/watchdog";
   if (normalized === "/system/function-relations" || normalized === "/system/audit" || normalized === "/system/training-views" || normalized === "/system/topology") return "/system/governance";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";

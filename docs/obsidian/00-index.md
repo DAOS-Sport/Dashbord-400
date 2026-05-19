@@ -9,8 +9,8 @@
 | Item | Value |
 | --- | --- |
 | Current architecture score | 80 / 100 |
-| Registered modules | 79 |
-| Architecture grouped modules | 79 / 79 |
+| Registered modules | 78 |
+| Architecture grouped modules | 78 / 78 |
 | Suspicious unbound modules | 0 |
 | Generated date | 2026-05-18 |
 
@@ -32,11 +32,11 @@
 | Status | Count |
 | --- | --- |
 | deprecated | 1 |
-| external | 2 |
+| external | 1 |
 | implemented | 29 |
 | legacy | 11 |
-| partial | 32 |
-| planned | 4 |
+| partial | 35 |
+| planned | 1 |
 
 ### Domain
 
@@ -46,7 +46,7 @@
 | derived | 9 |
 | integration | 8 |
 | legacy | 4 |
-| support | 25 |
+| support | 24 |
 | system | 16 |
 
 ### Source Of Truth
@@ -56,7 +56,7 @@
 | external | 16 |
 | legacy | 4 |
 | none | 2 |
-| postgres | 37 |
+| postgres | 36 |
 | private | 1 |
 | projection | 8 |
 | telemetry | 11 |
@@ -71,16 +71,16 @@
 | [[modules/dashboard|dashboard]] | Dashboard | implemented | employee, lifeguard, supervisor, system | workbench | yes |
 | [[modules/employee-home|employee-home]] | 員工首頁 | implemented | employee | workbench | yes |
 | [[modules/facilities|facilities]] | Facilities | partial | employee, lifeguard, supervisor, system | api-only | yes |
-| [[modules/legacy-users|legacy-users]] | Legacy Users | legacy | system, SYSTEM_ADMIN | api-only | no |
+| [[modules/legacy-users|legacy-users]] | Legacy Users | legacy | system, SYSTEM_ADMIN | api-only | yes |
 | [[modules/lifeguard-home|lifeguard-home]] | 救生首頁 | partial | lifeguard | workbench | yes |
 | [[modules/session-governance|session-governance]] | Session Governance | partial | system, SYSTEM_ADMIN | api-only | yes |
 | [[modules/supervisor-dashboard|supervisor-dashboard]] | 主管儀表板 | partial | supervisor | workbench | yes |
 | [[modules/system-dashboard|system-dashboard]] | 系統總覽 | legacy | system, SYSTEM_ADMIN | workbench | yes |
-| [[modules/user-role-snapshots|user-role-snapshots]] | User Role Snapshots | partial | system, SYSTEM_ADMIN | api-only | no |
+| [[modules/user-role-snapshots|user-role-snapshots]] | User Role Snapshots | partial | system, SYSTEM_ADMIN | api-only | yes |
 
 ## 員工內容與日常工作
 
-員工首頁、活動、文件、教材、個人工作貼、場租查看與日常資料卡。
+員工首頁、活動、文件、教材、場租查看與日常資料卡。
 
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
@@ -90,9 +90,9 @@
 | [[modules/employee-resources|employee-resources]] | Employee Resources | implemented | employee, lifeguard, supervisor | workbench | yes |
 | [[modules/employee-settings|employee-settings]] | 員工設定 | partial | employee | workbench | yes |
 | [[modules/employee-training|employee-training]] | Employee Training | partial | employee, lifeguard, supervisor, system | workbench | yes |
-| [[modules/personal-note|personal-note]] | 個人工作貼 | partial | employee, lifeguard | workbench | yes |
+| [[modules/group-broadcasts|group-broadcasts]] | 群組重要公告 | implemented | employee, lifeguard, supervisor, system | workbench | yes |
 | [[modules/quick-links|quick-links]] | Quick Links | implemented | employee, lifeguard, supervisor | workbench | yes |
-| [[modules/registration-courses|registration-courses]] | 報名 / 課程 | planned | employee | workbench | yes |
+| [[modules/registration-courses|registration-courses]] | 報名 / 課程 | partial | employee | workbench | yes |
 | [[modules/search|search]] | 快速搜尋 | partial | employee, lifeguard, supervisor, system | workbench | yes |
 
 ## 救生作業與稽核
@@ -129,7 +129,6 @@
 | [[modules/parking-payments|parking-payments]] | Parking Payments | implemented | supervisor, system | workbench | yes |
 | [[modules/parking-plans|parking-plans]] | Parking Plans | implemented | supervisor, system | workbench | yes |
 | [[modules/parking-vehicles|parking-vehicles]] | Parking Vehicles | implemented | supervisor, system | workbench | yes |
-| [[modules/tasks|tasks]] | Tasks | implemented | employee, lifeguard, supervisor | workbench | yes |
 
 ## 公告、通知與知識
 
@@ -142,7 +141,7 @@
 | [[modules/announcement-summary|announcement-summary]] | Announcement Summary | partial | supervisor, system | legacy-route | yes |
 | [[modules/announcements|announcements]] | Announcements | implemented | employee, lifeguard, supervisor, system | workbench | yes |
 | [[modules/knowledge-base-qna|knowledge-base-qna]] | 相關問題詢問 | partial | employee, lifeguard, supervisor | workbench | yes |
-| [[modules/notification-center|notification-center]] | Notification Center | planned | employee, lifeguard, supervisor, system | background | yes |
+| [[modules/notification-center|notification-center]] | Notification Center | partial | employee, lifeguard, supervisor, system | api-only | yes |
 | [[modules/notification-recipients|notification-recipients]] | Notification Recipients | implemented | system, supervisor | legacy-route | yes |
 | [[modules/system-announcements|system-announcements]] | System Announcements | implemented | employee, lifeguard, supervisor, system | workbench | yes |
 
@@ -174,11 +173,11 @@ LINE Bot、排班、Ragic、Gmail、同步工作與外部資料源接線。
 
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
-| [[modules/booking-snapshot|booking-snapshot]] | Booking Snapshot | planned | employee, lifeguard, supervisor, system | background | yes |
-| [[modules/gmail-integration|gmail-integration]] | Gmail SMTP Integration | partial | system | api-only | no |
+| [[modules/booking-snapshot|booking-snapshot]] | Booking Snapshot | partial | employee, lifeguard, supervisor, system | api-only | yes |
+| [[modules/gmail-integration|gmail-integration]] | Gmail SMTP Integration | partial | system | api-only | yes |
 | [[modules/integration-sync-jobs|integration-sync-jobs]] | Integration Sync Jobs | legacy | system, SYSTEM_ADMIN | workbench | yes |
 | [[modules/linebot-integration|linebot-integration]] | LINE Bot Assistant Integration | external | system, supervisor | api-only | yes |
-| [[modules/ragic-integration|ragic-integration]] | Ragic Integration | external | system, SYSTEM_ADMIN | api-only | yes |
+| [[modules/ragic-integration|ragic-integration]] | Ragic Integration | partial | system, SYSTEM_ADMIN | api-only | yes |
 | [[modules/schedule-integration|schedule-integration]] | Smart Schedule Integration | partial | system, supervisor, employee, lifeguard | api-only | yes |
 | [[modules/shift-reminder|shift-reminder]] | Shift Reminder | partial | employee, lifeguard, supervisor | workbench | yes |
 | [[modules/weather-widget|weather-widget]] | 天氣卡片 | implemented | employee | api-only | yes |
@@ -189,9 +188,9 @@ LINE Bot、排班、Ragic、Gmail、同步工作與外部資料源接線。
 
 | Module | Label | Status | Roles | Entry | BFF |
 | --- | --- | --- | --- | --- | --- |
-| [[modules/file-upload-export|file-upload-export]] | File Upload and Export | legacy | system, supervisor | api-only | no |
+| [[modules/file-upload-export|file-upload-export]] | File Upload and Export | legacy | system, supervisor | api-only | yes |
 | [[modules/portal-analytics|portal-analytics]] | Portal Analytics | implemented | supervisor, system | workbench | yes |
 | [[modules/portal-home|portal-home]] | Portal Home | legacy | employee, lifeguard | legacy-route | yes |
-| [[modules/portal-manage|portal-manage]] | Portal Manage | partial | supervisor, system | legacy-route | no |
+| [[modules/portal-manage|portal-manage]] | Portal Manage | partial | supervisor, system | legacy-route | yes |
 | [[modules/portal-review|portal-review]] | Portal Review | partial | supervisor, system | legacy-route | yes |
 | [[modules/widget-layout-settings|widget-layout-settings]] | Widget Layout Settings | deprecated | system | api-only | no |

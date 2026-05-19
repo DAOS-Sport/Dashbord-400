@@ -5,7 +5,6 @@ export type SearchItem = {
   type:
     | "announcement"
     | "handover"
-    | "task"
     | "shift"
     | "shortcut"
     | "document"
@@ -43,13 +42,6 @@ export const buildEmployeeSearchItems = (
       summary: item.content || item.dueLabel || item.authorName || "",
       href: "/employee/handover",
     })),
-    ...(home.tasks.data ?? []).map((item) => ({
-      id: `task-${item.id}`,
-      type: "task" as const,
-      title: item.title,
-      summary: item.dueLabel || item.reportNote || item.status,
-      href: "/employee/tasks",
-    })),
     ...(home.shifts.data ?? []).map((item) => ({
       id: `shift-${item.id}`,
       type: "shift" as const,
@@ -77,13 +69,6 @@ export const buildEmployeeSearchItems = (
       title: item.title,
       summary: item.description || item.updatedAt,
       href: item.url || "/employee/documents",
-    })),
-    ...(home.stickyNotes.data ?? []).map((item) => ({
-      id: `sticky-note-${item.id}`,
-      type: "document" as const,
-      title: item.title,
-      summary: item.content,
-      href: "/employee",
     })),
     ...(home.training.data ?? []).map((item) => ({
       id: `training-${item.id}`,

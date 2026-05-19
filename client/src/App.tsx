@@ -39,13 +39,11 @@ import EmployeeHomePage from "@/modules/employee/home/employee-home-page";
 import EmployeeActivityPeriodsPage from "@/modules/employee/activity-periods/page";
 import EmployeeAnnouncementsPage from "@/modules/employee/announcements/page";
 import EmployeeDocumentsPage from "@/modules/employee/documents/page";
-import EmployeeHandoverPage from "@/modules/employee/handover/page";
+import EmployeeHandoverPage, { LifeguardHandoverPage } from "@/modules/employee/handover/page";
 import EmployeeMorePage from "@/modules/employee/more/page";
-import EmployeePersonalNotePage from "@/modules/employee/personal-note/page";
 import EmployeeQnaPage from "@/modules/employee/qna/page";
 import EmployeeShiftPage from "@/modules/employee/shift/page";
 import EmployeeSettingsPage from "@/modules/employee/settings/page";
-import EmployeeTasksPage from "@/modules/employee/tasks/page";
 import EmployeeTrainingPage from "@/modules/employee/training/page";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import LifeguardHomePage from "@/modules/lifeguard/home/page";
@@ -60,7 +58,6 @@ import SupervisorPeoplePage from "@/modules/supervisor/people/page";
 import SupervisorHandoverPage from "@/modules/supervisor/handover/page";
 import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
 import SupervisorReportsPage from "@/modules/supervisor/reports/page";
-import SupervisorTasksPage from "@/modules/supervisor/tasks/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
 import SupervisorLifeguardOverviewPage from "@/modules/supervisor/lifeguard-overview/page";
 import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
@@ -282,9 +279,6 @@ function WorkbenchRouter() {
       <Route path="/courts">
         <Redirect to="/supervisor/courts/xinbei" />
       </Route>
-      <Route path="/supervisor/tasks">
-        <SupervisorTasksPage />
-      </Route>
       <Route path="/supervisor/announcements">
         <SupervisorAnnouncementsPage />
       </Route>
@@ -327,6 +321,9 @@ function WorkbenchRouter() {
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/lifeguard/log">
         <LifeguardLogPage />
+      </Route>
+      <Route path="/lifeguard/handover">
+        <LifeguardHandoverPage />
       </Route>
       <Route path="/lifeguard/water-quality">
         <LifeguardOperationDetailPage moduleId="water-quality" />
@@ -417,9 +414,6 @@ function WorkbenchRouter() {
       <Route path="/employee/courts">
         <Redirect to="/employee/courts/xinbei" />
       </Route>
-      <Route path="/employee/tasks">
-        <EmployeeTasksPage />
-      </Route>
       <Route path="/employee/announcements">
         <EmployeeAnnouncementsPage />
       </Route>
@@ -443,9 +437,6 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/training">
         <EmployeeTrainingPage />
-      </Route>
-      <Route path="/employee/personal-note">
-        <EmployeePersonalNotePage />
       </Route>
       <Route path="/employee/qna">
         <EmployeeQnaPage />

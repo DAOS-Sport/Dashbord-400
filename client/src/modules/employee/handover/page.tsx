@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Clock3, MessageSquareText, Plus, RefreshCw, Search, Send, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock3, ImagePlus, MessageSquareText, Plus, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 import type { HandoverItemDto } from "@shared/domain/workbench";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
+import { LifeguardShell } from "@/modules/lifeguard/lifeguard-shell";
 import { useAuthMe } from "@/shared/auth/session";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +41,32 @@ const priorityClass: Record<HandoverPriority, string> = {
   normal: "bg-[#eef2f6] text-[#536175]",
   low: "bg-[#fff6e7] text-[#d27a16]",
   high: "bg-[#ffe8eb] text-[#ff4964]",
+};
+
+const statusMetricClass = {
+  normal: "text-[#0d2a50]",
+  low: "text-[#ef7d22]",
+  high: "text-[#ff4964]",
+  completed: "text-[#15935d]",
+};
+
+const uploadHandoverImage = async (file: File, facilityKey: string): Promise<string> => {
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("facilityKey", facilityKey);
+  const response = await fetch("/api/handover/image-upload", {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload.message === "string" ? payload.message : "圖片上傳失敗");
+  }
+  if (typeof payload.url !== "string") {
+    throw new Error("圖片上傳回傳格式不正確");
+  }
+  return payload.url;
 };
 
 const formatTime = (value: string) =>
@@ -99,6 +126,7 @@ function HandoverRow({
   const priority = item.priority ?? "normal";
   const dueMeta = dueMetaFor(item);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const hasImageRecord = item.linkedActionType === "image" && Boolean(item.linkedActionUrl);
   return (
     <article className="border-b border-dashed border-[#cfd9e5] px-4 py-4 last:border-b-0">
       <div className="flex gap-3">
@@ -130,6 +158,19 @@ function HandoverRow({
               <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#8b9aae]">補充紀錄</p>
               <p className="mt-1 whitespace-pre-wrap text-[12px] font-bold leading-5 text-[#637185]">{item.reportNote}</p>
             </div>
+          ) : null}
+          {hasImageRecord ? (
+            <figure className="mt-3 overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-[#f7f9fb]">
+              <img
+                src={item.linkedActionUrl ?? ""}
+                alt={`${item.title} 圖片紀錄`}
+                loading="lazy"
+                className="max-h-72 w-full bg-white object-contain"
+              />
+              <figcaption className="border-t border-[#edf2f7] px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-[#8b9aae]">
+                圖片紀錄
+              </figcaption>
+            </figure>
           ) : null}
           {isReplying && isPending ? (
             <div className="mt-3 rounded-[10px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
@@ -200,7 +241,7 @@ function HandoverRow({
   );
 }
 
-export default function EmployeeHandoverPage() {
+function HandoverPageContent({ shell }: { shell: "employee" | "lifeguard" }) {
   const { data: session } = useAuthMe();
   const facilityKey = session?.activeFacility ?? "xinbei_pool";
   const queryClient = useQueryClient();
@@ -211,8 +252,17 @@ export default function EmployeeHandoverPage() {
   const [content, setContent] = useState("");
   const [dueDate, setDueDate] = useState(defaultDueDateTime);
   const [priority, setPriority] = useState<HandoverPriority>("normal");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [replyingId, setReplyingId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+    };
+  }, [imagePreviewUrl]);
 
   const handoverQuery = useQuery({
     queryKey: ["/api/bff/employee/handover/list", facilityKey],
@@ -225,20 +275,32 @@ export default function EmployeeHandoverPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: () => createEmployeeFrontDeskHandover({
-      facilityKey,
-      title: title.trim() || content.trim().slice(0, 48) || "新增交接",
-      content: content.trim(),
-      dueDate: new Date(dueDate).toISOString(),
-      priority,
-    }),
+    mutationFn: async () => {
+      setImageUploadError(null);
+      const imageUrl = imageFile ? await uploadHandoverImage(imageFile, facilityKey) : null;
+      return createEmployeeFrontDeskHandover({
+        facilityKey,
+        title: title.trim() || content.trim().slice(0, 48) || "新增交接",
+        content: content.trim(),
+        dueDate: new Date(dueDate).toISOString(),
+        priority,
+        linkedActionType: imageUrl ? "image" : null,
+        linkedActionUrl: imageUrl,
+      });
+    },
     onSuccess: () => {
       setTitle("");
       setContent("");
       setDueDate(defaultDueDateTime());
       setPriority("normal");
+      setImageFile(null);
+      setImagePreviewUrl(null);
+      setImageUploadError(null);
       trackEvent("ACTION_SUBMIT", { moduleId: "handover", actionType: "handover-create" });
       invalidateHandovers();
+    },
+    onError: (error) => {
+      setImageUploadError(error instanceof Error ? error.message : "圖片或交接新增失敗");
     },
   });
 
@@ -276,6 +338,29 @@ export default function EmployeeHandoverPage() {
     },
   });
 
+  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setImageUploadError("只能上傳圖片檔");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setImageUploadError("圖片大小不可超過 10MB");
+      return;
+    }
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setImageUploadError(null);
+  };
+
+  const clearImage = () => {
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    setImageUploadError(null);
+  };
+
   const items = handoverQuery.data?.items ?? [];
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -286,15 +371,37 @@ export default function EmployeeHandoverPage() {
     return byTab.filter((item) => `${item.createdBy} ${item.title} ${item.content} ${item.reportNote ?? ""}`.toLowerCase().includes(normalized));
   }, [items, query, tab]);
 
-  const pendingCount = items.filter((item) => item.status === "pending" || item.status === "expired").length;
+  const openItems = items.filter((item) => item.status === "pending" || item.status === "expired");
+  const normalCount = openItems.filter((item) => (item.priority ?? "normal") === "normal").length;
+  const reminderCount = openItems.filter((item) => item.priority === "low").length;
+  const highPriorityCount = openItems.filter((item) => item.priority === "high").length;
+  const completedCount = items.filter((item) => item.status === "completed").length;
+  const pendingCount = openItems.length;
+  const statusMetrics = [
+    { label: "一般", value: normalCount, className: statusMetricClass.normal },
+    { label: "提醒", value: reminderCount, className: statusMetricClass.low },
+    { label: "優先", value: highPriorityCount, className: statusMetricClass.high },
+    { label: "已完成", value: completedCount, className: statusMetricClass.completed },
+  ];
+
+  const Shell = shell === "lifeguard" ? LifeguardShell : EmployeeShell;
 
   return (
-    <EmployeeShell title="櫃台交接列表" subtitle={`本日 ${items.length} 則`}>
-      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-        <section className="rounded-[8px] border border-[#dfe7ef] bg-white shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
+    <Shell title="交接任務" subtitle={`本日 ${items.length} 則 · 依館別共用`}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {statusMetrics.map((metric) => (
+            <section key={metric.label} className="rounded-[8px] border border-[#dfe7ef] bg-white px-4 py-4 shadow-sm">
+              <p className="text-[12px] font-bold text-[#637185]">{metric.label}</p>
+              <p className={cn("mt-2 text-[24px] font-black leading-none", metric.className)}>{metric.value}</p>
+            </section>
+          ))}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+          <section className="rounded-[8px] border border-[#dfe7ef] bg-white shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f7] px-4 py-4">
             <div>
-              <h2 className="text-[18px] font-black text-[#10233f]">櫃台交接列表</h2>
+              <h2 className="text-[18px] font-black text-[#10233f]">交接任務列表</h2>
               <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">未完成依剩餘時間近到遠排序</p>
             </div>
             <button onClick={() => handoverQuery.refetch()} className="workbench-focus inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
@@ -318,7 +425,7 @@ export default function EmployeeHandoverPage() {
           </div>
           <div className="min-h-[420px]">
             {handoverQuery.isLoading ? (
-              <div className="p-6 text-[13px] font-bold text-[#637185]">載入櫃台交接中...</div>
+              <div className="p-6 text-[13px] font-bold text-[#637185]">載入交接任務中...</div>
             ) : filtered.length ? (
               filtered.map((item) => (
                 <HandoverRow
@@ -349,17 +456,17 @@ export default function EmployeeHandoverPage() {
               <div className="grid min-h-[360px] place-items-center p-6 text-center">
                 <div>
                   <MessageSquareText className="mx-auto h-10 w-10 text-[#9aa8ba]" />
-                  <p className="mt-3 text-[15px] font-black text-[#10233f]">{tab === "pending" ? "尚未設定交接事項" : "查無已完成交接"}</p>
+              <p className="mt-3 text-[15px] font-black text-[#10233f]">{tab === "pending" ? "尚未設定交接任務" : "查無已完成交接"}</p>
                   <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">資料會依館別與目前登入員工權限回傳。</p>
                 </div>
               </div>
             )}
           </div>
-        </section>
+          </section>
 
-        <aside className="h-fit rounded-[8px] border border-[#dfe7ef] bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
+          <aside className="h-fit rounded-[8px] border border-[#dfe7ef] bg-white p-5 shadow-[0_18px_40px_-34px_rgba(15,34,58,0.45)]">
           <div className="border-l-4 border-[#16b6b1] pl-3">
-            <h2 className="text-[18px] font-black text-[#10233f]">新增交接</h2>
+            <h2 className="text-[18px] font-black text-[#10233f]">新增交接任務</h2>
             <p className="mt-1 text-[12px] font-bold text-[#637185]">作者：{session?.displayName ?? "員工"} · 場館：{facilityKey}</p>
           </div>
           <label className="mt-4 block text-[12px] font-black text-[#536175]" htmlFor="handover-title">
@@ -399,21 +506,52 @@ export default function EmployeeHandoverPage() {
               ))}
             </div>
           </div>
+          <div className="mt-5 border-t border-[#dfe7ef] pt-4">
+            <p className="mb-2 text-[12px] font-black text-[#637185]">圖片紀錄</p>
+            {imagePreviewUrl ? (
+              <div className="overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-[#f7f9fb]">
+                <img src={imagePreviewUrl} alt="交接圖片預覽" className="max-h-52 w-full bg-white object-contain" />
+                <div className="flex items-center justify-between gap-2 border-t border-[#edf2f7] px-3 py-2">
+                  <p className="min-w-0 truncate text-[12px] font-bold text-[#536175]">{imageFile?.name}</p>
+                  <button type="button" onClick={clearImage} className="inline-flex min-h-8 items-center gap-1 rounded-[7px] border border-[#ffc6cf] bg-white px-2 text-[12px] font-black text-[#ff4964]">
+                    <X className="h-3.5 w-3.5" />
+                    移除
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex min-h-20 cursor-pointer flex-col items-center justify-center gap-2 rounded-[8px] border border-dashed border-[#9aa8ba] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-black text-[#536175]">
+                <ImagePlus className="h-5 w-5 text-[#16b6b1]" />
+                上傳交接圖片
+                <input type="file" accept="image/*" className="sr-only" onChange={handleImageChange} />
+              </label>
+            )}
+            {imageUploadError ? <p className="mt-2 text-[12px] font-bold text-[#ff4964]">{imageUploadError}</p> : null}
+          </div>
           <div className="mt-5 flex justify-end gap-2">
-            <button type="button" onClick={() => { setTitle(""); setContent(""); }} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-4 text-[12px] font-black text-[#536175]">
+            <button type="button" onClick={() => { setTitle(""); setContent(""); clearImage(); }} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-4 text-[12px] font-black text-[#536175]">
               取消
             </button>
             <button type="button" disabled={!content.trim() || !dueDate || createMutation.isPending} onClick={() => createMutation.mutate()} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white disabled:opacity-50">
               <Plus className="h-4 w-4" />
-              {createMutation.isPending ? "送出中..." : "送出"}
+              {createMutation.isPending ? (imageFile ? "上傳並送出..." : "送出中...") : "送出"}
             </button>
           </div>
           {createMutation.isError ? <p className="mt-3 text-[12px] font-bold text-[#ff4964]">新增失敗，請確認資料來源或稍後再試。</p> : null}
           {(completeMutation.isPending || readMutation.isPending || replyMutation.isPending || deleteMutation.isPending) ? (
             <p className="mt-3 inline-flex items-center gap-2 text-[12px] font-bold text-[#637185]"><CheckCircle2 className="h-4 w-4" />處理中...</p>
           ) : null}
-        </aside>
+          </aside>
+        </div>
       </div>
-    </EmployeeShell>
+    </Shell>
   );
+}
+
+export function LifeguardHandoverPage() {
+  return <HandoverPageContent shell="lifeguard" />;
+}
+
+export default function EmployeeHandoverPage() {
+  return <HandoverPageContent shell="employee" />;
 }

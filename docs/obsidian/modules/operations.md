@@ -53,14 +53,14 @@ generated_at: 2026-05-18
 - 非首頁卡片模組仍需在進入頁保留 loading、empty、error 與權限不足狀態。
 - 尚未登記 uiStates / freshness；此缺口會由 `npm run check:ui-states` 列入 cleanup-backlog。
 - 尚未登記 shared component；若同 DTO 被多個 section 使用，Phase A 必須抽 shared visual unit。
-- 畫面資料應優先吃 BFF section / endpoint：`/api/bff/supervisor/dashboard`。
+- 畫面資料應優先吃 BFF section / endpoint：`legacyOperations`、`/api/bff/supervisor/dashboard`。
 - 目前 read-only 或背景型；若新增互動寫入，先補 registry API、BFF contract、audit/telemetry。
 - UI telemetry：page view。
 
 ## BFF 參照 / 修改關聯
 
 - 沒有 BFF endpoint owner；若 UI 需要新資料，優先新增 BFF 讀取端點而非 page-local fetch。
-- Section key / planned endpoint：plannedEndpoint=`/api/bff/supervisor/dashboard`。
+- Section key / planned endpoint：supervisorSectionKey=`legacyOperations`、plannedEndpoint=`/api/bff/supervisor/dashboard`。
 - 沒有 CRUD endpoint；BFF 可視為 read-only projection 或外部相容層。
 - Proxy / external 邊界：`GET /api/admin/overview`；前端不得繞過此邊界。
 - 修改此模組時同步檢查：module registry、BFF DTO、role shell / route、query invalidation、telemetry/audit、[[../bff-reference-map|BFF Reference Map]]、[[../bff-technical-spec|BFF 技術規範]]。
@@ -89,6 +89,7 @@ generated_at: 2026-05-18
 
 | Binding | Value |
 | --- | --- |
+| supervisorSectionKey | legacyOperations |
 | plannedEndpoint | /api/bff/supervisor/dashboard |
 
 ### UI State Contract

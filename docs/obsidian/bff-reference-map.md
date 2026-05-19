@@ -16,7 +16,7 @@
 
 | Module | Label | Binding | Roles | UI Surface |
 | --- | --- | --- | --- | --- |
-| [[modules/auth|auth]] | Authentication and Session | plannedEndpoint: `/api/auth/me` | employee, lifeguard, supervisor, system, SYSTEM_ADMIN | system governance surface |
+| [[modules/auth|auth]] | Authentication and Session | systemSectionKey: `auth`<br>plannedEndpoint: `/api/auth/me` | employee, lifeguard, supervisor, system, SYSTEM_ADMIN | system governance surface |
 | [[modules/dashboard|dashboard]] | Dashboard | employeeSectionKey: `home`<br>supervisorSectionKey: `dashboard`<br>systemSectionKey: `overview`<br>plannedEndpoint: `/api/bff/employee/home`<br>plannedEndpoint: `/api/bff/supervisor/dashboard`<br>plannedEndpoint: `/api/bff/system/overview` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/employee-home|employee-home]] | 員工首頁 | employeeSectionKey: `home`<br>plannedEndpoint: `/api/bff/employee/home` | employee | home-card / dashboard widget |
 | [[modules/lifeguard-home|lifeguard-home]] | 救生首頁 | employeeSectionKey: `lifeguardHome`<br>plannedEndpoint: `/api/bff/lifeguard/home` | lifeguard | home-card / dashboard widget |
@@ -40,10 +40,10 @@
 | [[modules/supervisor-lifeguard-overview|supervisor-lifeguard-overview]] | 救生紀錄總覽 | supervisorSectionKey: `lifeguardOverview`<br>plannedEndpoint: `/api/bff/supervisor/lifeguard-overview` | supervisor, system | role detail page |
 | [[modules/system-function-relations|system-function-relations]] | 當前功能關係 | systemSectionKey: `functionRelations` | system, SYSTEM_ADMIN | role detail page |
 | [[modules/analytics|analytics]] | Analytics | supervisorSectionKey: `reports`<br>systemSectionKey: `uiEventOverview`<br>plannedEndpoint: `/api/bff/system/ui-event-overview` | supervisor, system | admin management surface |
-| [[modules/operations|operations]] | Operations | plannedEndpoint: `/api/bff/supervisor/dashboard` | system, supervisor | admin management surface |
+| [[modules/operations|operations]] | Operations | supervisorSectionKey: `legacyOperations`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | system, supervisor | admin management surface |
 | [[modules/counter-log|counter-log]] | Counter Log | supervisorSectionKey: `counterLog` | supervisor, system | home-card / dashboard widget |
 | [[modules/lane-rentals|lane-rentals]] | Lane Rentals | supervisorSectionKey: `laneRentals` | supervisor, system | home-card / dashboard widget |
-| [[modules/courts|courts]] | Courts | supervisorSectionKey: `courts` | employee, supervisor, system | home-card / dashboard widget |
+| [[modules/courts|courts]] | Courts | employeeSectionKey: `courts`<br>supervisorSectionKey: `courts`<br>plannedEndpoint: `/api/courts/xinbei/stats` | employee, supervisor, system | home-card / dashboard widget |
 | [[modules/parking|parking]] | Parking Management | supervisorSectionKey: `parking` | supervisor, system | home-card / dashboard widget |
 | [[modules/parking-vehicles|parking-vehicles]] | Parking Vehicles | supervisorSectionKey: `parkingVehicles` | supervisor, system | admin management surface |
 | [[modules/parking-plans|parking-plans]] | Parking Plans | supervisorSectionKey: `parkingPlans` | supervisor, system | admin management surface |
@@ -57,33 +57,37 @@
 | [[modules/announcement-review|announcement-review]] | Announcement Review | supervisorSectionKey: `announcementReview`<br>plannedEndpoint: `/api/announcement-candidates` | supervisor, system | admin management surface |
 | [[modules/announcement-summary|announcement-summary]] | Announcement Summary | supervisorSectionKey: `announcementSummary`<br>plannedEndpoint: `/api/announcement-dashboard/summary` | supervisor, system | admin management surface |
 | [[modules/system-announcements|system-announcements]] | System Announcements | employeeSectionKey: `announcements`<br>supervisorSectionKey: `announcements` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
-| [[modules/tasks|tasks]] | Tasks | employeeSectionKey: `tasks`<br>supervisorSectionKey: `incompleteTasks`<br>plannedEndpoint: `/api/bff/employee/home`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | employee, lifeguard, supervisor | home-card / dashboard widget |
-| [[modules/handover|handover]] | 櫃台交接 | employeeSectionKey: `handover`<br>supervisorSectionKey: `handoverOverview` | employee, lifeguard, supervisor | home-card / dashboard widget |
+| [[modules/handover|handover]] | 櫃台交接 | employeeSectionKey: `handover`<br>supervisorSectionKey: `handoverOverview`<br>plannedEndpoint: `/api/bff/employee/handover/list`<br>plannedEndpoint: `/api/bff/employee/handover/summary`<br>plannedEndpoint: `/api/bff/supervisor/dashboard` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/anomalies|anomalies]] | Anomalies | supervisorSectionKey: `pendingAnomalies`<br>systemSectionKey: `alerts` | supervisor, system | home-card / dashboard widget |
-| [[modules/notification-recipients|notification-recipients]] | Notification Recipients | plannedEndpoint: `/api/notification-recipients` | system, supervisor | admin management surface |
+| [[modules/notification-recipients|notification-recipients]] | Notification Recipients | systemSectionKey: `notificationRecipients`<br>plannedEndpoint: `/api/notification-recipients` | system, supervisor | admin management surface |
 | [[modules/campaigns-events|campaigns-events]] | Campaigns and Events | employeeSectionKey: `campaigns` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/booking-snapshot|booking-snapshot]] | Booking Snapshot | employeeSectionKey: `bookingSnapshot`<br>plannedEndpoint: `/api/bff/employee/home` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/shift-reminder|shift-reminder]] | Shift Reminder | employeeSectionKey: `shifts`<br>supervisorSectionKey: `shifts`<br>systemSectionKey: `scheduleSnapshot`<br>plannedEndpoint: `/api/bff/system/schedule-snapshot` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/quick-links|quick-links]] | Quick Links | employeeSectionKey: `shortcuts` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/notification-center|notification-center]] | Notification Center | employeeSectionKey: `notifications`<br>supervisorSectionKey: `notifications`<br>systemSectionKey: `notifications` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/knowledge-base-qna|knowledge-base-qna]] | 相關問題詢問 | employeeSectionKey: `qna` | employee, lifeguard, supervisor | home-card / dashboard widget |
-| [[modules/personal-note|personal-note]] | 個人工作貼 | employeeSectionKey: `stickyNotes` | employee, lifeguard | home-card / dashboard widget |
 | [[modules/activity-periods|activity-periods]] | 活動檔期 / 課程快訊 | employeeSectionKey: `events` | employee, supervisor | home-card / dashboard widget |
 | [[modules/registration-courses|registration-courses]] | 報名 / 課程 | employeeSectionKey: `registrationCourses` | employee | home-card / dashboard widget |
 | [[modules/checkins|checkins]] | 點名 / 報到 | employeeSectionKey: `checkins` | employee | home-card / dashboard widget |
 | [[modules/employee-settings|employee-settings]] | 員工設定 | employeeSectionKey: `settings` | employee | role detail page |
 | [[modules/search|search]] | 快速搜尋 | employeeSectionKey: `search`<br>supervisorSectionKey: `search`<br>systemSectionKey: `search` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/weather-widget|weather-widget]] | 天氣卡片 | employeeSectionKey: `weather` | employee | home-card / dashboard widget |
+| [[modules/group-broadcasts|group-broadcasts]] | 群組重要公告 | employeeSectionKey: `announcements`<br>supervisorSectionKey: `groupBroadcasts` | employee, lifeguard, supervisor, system | home-card / dashboard widget |
 | [[modules/portal-home|portal-home]] | Portal Home | employeeSectionKey: `home`<br>plannedEndpoint: `/api/bff/employee/home` | employee, lifeguard | home-card / dashboard widget |
+| [[modules/portal-manage|portal-manage]] | Portal Manage | supervisorSectionKey: `portalManage` | supervisor, system | admin management surface |
 | [[modules/portal-review|portal-review]] | Portal Review | supervisorSectionKey: `announcementReview` | supervisor, system | legacy portal surface |
 | [[modules/portal-analytics|portal-analytics]] | Portal Analytics | supervisorSectionKey: `portalAnalytics`<br>systemSectionKey: `portalAnalytics` | supervisor, system | legacy portal surface |
 | [[modules/system-observability|system-observability]] | System Observability | systemSectionKey: `observability`<br>plannedEndpoint: `/api/bff/system/overview` | system, SYSTEM_ADMIN | home-card / dashboard widget |
 | [[modules/telemetry-audit|telemetry-audit]] | Telemetry and Audit | systemSectionKey: `audit`<br>plannedEndpoint: `/api/bff/system/ui-event-overview` | system, SYSTEM_ADMIN | admin management surface |
 | [[modules/linebot-integration|linebot-integration]] | LINE Bot Assistant Integration | plannedEndpoint: `/api/bff/employee/home`<br>plannedEndpoint: `/api/bff/system/line-bot/service-status`<br>plannedEndpoint: `/api/bff/system/line-bot/service-status/snapshots`<br>plannedEndpoint: `/api/internal/service-health` | system, supervisor | system governance surface |
 | [[modules/schedule-integration|schedule-integration]] | Smart Schedule Integration | employeeSectionKey: `shifts`<br>supervisorSectionKey: `staffing`<br>systemSectionKey: `scheduleSnapshot`<br>plannedEndpoint: `/api/bff/system/schedule-snapshot` | system, supervisor, employee, lifeguard | system governance surface |
-| [[modules/ragic-integration|ragic-integration]] | Ragic Integration | plannedEndpoint: `/api/auth/me` | system, SYSTEM_ADMIN | system governance surface |
-| [[modules/facilities|facilities]] | Facilities | plannedEndpoint: `/api/auth/me` | employee, lifeguard, supervisor, system | background service |
-| [[modules/session-governance|session-governance]] | Session Governance | plannedEndpoint: `/api/auth/me` | system, SYSTEM_ADMIN | system governance surface |
+| [[modules/ragic-integration|ragic-integration]] | Ragic Integration | plannedEndpoint: `/api/bff/system/health-overview` | system, SYSTEM_ADMIN | system governance surface |
+| [[modules/gmail-integration|gmail-integration]] | Gmail SMTP Integration | systemSectionKey: `gmailIntegration` | system | system governance surface |
+| [[modules/file-upload-export|file-upload-export]] | File Upload and Export | systemSectionKey: `fileUploadExport` | system, supervisor | admin management surface |
+| [[modules/legacy-users|legacy-users]] | Legacy Users | systemSectionKey: `legacyUsers` | system, SYSTEM_ADMIN | system governance surface |
+| [[modules/facilities|facilities]] | Facilities | systemSectionKey: `facilities`<br>plannedEndpoint: `/api/auth/me` | employee, lifeguard, supervisor, system | background service |
+| [[modules/session-governance|session-governance]] | Session Governance | systemSectionKey: `sessionGovernance`<br>plannedEndpoint: `/api/auth/me` | system, SYSTEM_ADMIN | system governance surface |
+| [[modules/user-role-snapshots|user-role-snapshots]] | User Role Snapshots | systemSectionKey: `userRoleSnapshots` | system, SYSTEM_ADMIN | system governance surface |
 | [[modules/employee-resources|employee-resources]] | Employee Resources | employeeSectionKey: `documents`<br>supervisorSectionKey: `settings` | employee, lifeguard, supervisor | home-card / dashboard widget |
 | [[modules/employee-training|employee-training]] | Employee Training | employeeSectionKey: `training` | employee, lifeguard, supervisor, system | admin management surface |
 | [[modules/watchdog-events|watchdog-events]] | Watchdog Events | systemSectionKey: `watchdogEvents`<br>plannedEndpoint: `/api/bff/system/watchdog-events` | system, SYSTEM_ADMIN | home-card / dashboard widget |
@@ -148,12 +152,16 @@
 | `GET /api/bff/system/integration-overview` | [[modules/system-health|system-health]] | implemented | `health`<br>`/api/bff/system/health-overview`<br>`/api/bff/system/integration-overview` | `integration_error_logs`<br>`sync_job_runs` |
 | `GET /api/bff/system/overview` | [[modules/system-health|system-health]] | partial | `health`<br>`/api/bff/system/health-overview`<br>`/api/bff/system/integration-overview` | `integration_error_logs`<br>`sync_job_runs` |
 | `GET /api/integrations/announcement-groups/messages` | [[modules/announcement-groups|announcement-groups]] | implemented | `announcements`<br>`announcementGroups`<br>`/api/bff/employee/home`<br>`/api/integrations/announcement-groups/messages` | `facility_announcement_groups` |
-| `GET /api/bff/employee/handover/summary` | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview` | `handover_entries`<br>`operational_handovers`<br>`portal_events` |
-| `GET /api/bff/employee/handover/list` | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview` | `handover_entries`<br>`operational_handovers`<br>`portal_events` |
+| `GET /api/bff/employee/handover/summary` | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` | `handover_entries`<br>`operational_handovers`<br>`portal_events` |
+| `GET /api/bff/employee/handover/list` | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` | `handover_entries`<br>`operational_handovers`<br>`portal_events` |
+| `GET /api/bff/system/module-health/booking-snapshot` | [[modules/booking-snapshot|booking-snapshot]] | partial | `bookingSnapshot`<br>`/api/bff/employee/home` | `booking_snapshots` |
 | `GET /api/bff/employee/shifts/today` | [[modules/shift-reminder|shift-reminder]] | partial | `shifts`<br>`shifts`<br>`scheduleSnapshot`<br>`/api/bff/system/schedule-snapshot` | `source_snapshots` |
 | `GET /api/bff/system/schedule-snapshot` | [[modules/shift-reminder|shift-reminder]] | partial | `shifts`<br>`shifts`<br>`scheduleSnapshot`<br>`/api/bff/system/schedule-snapshot` | `source_snapshots` |
+| `GET /api/bff/system/module-health/notification-center` | [[modules/notification-center|notification-center]] | partial | `notifications`<br>`notifications`<br>`notifications` | `notification_hub` |
 | `GET /api/bff/employee/search` | [[modules/knowledge-base-qna|knowledge-base-qna]] | partial | `qna` | `knowledge_base_qna` |
+| `GET /api/bff/system/module-health/registration-courses` | [[modules/registration-courses|registration-courses]] | partial | `registrationCourses` | `registration_courses` |
 | `GET /api/search/global` | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` | `MODULE_REGISTRY` |
+| `GET /api/group-broadcasts` | [[modules/group-broadcasts|group-broadcasts]] | implemented | `announcements`<br>`groupBroadcasts` | `group_broadcasts` |
 | `GET /api/bff/employee/home` | [[modules/portal-home|portal-home]] | partial | `home`<br>`/api/bff/employee/home` | `employee_home_projection` |
 | `GET /api/bff/system/overview` | [[modules/system-observability|system-observability]] | partial | `observability`<br>`/api/bff/system/overview` | `system_overview_projection`<br>`integration_error_logs`<br>`bff_latency_logs` |
 | `GET /api/bff/system/integration-overview` | [[modules/system-observability|system-observability]] | implemented | `observability`<br>`/api/bff/system/overview` | `system_overview_projection`<br>`integration_error_logs`<br>`bff_latency_logs` |
@@ -164,6 +172,7 @@
 | `GET /api/internal/service-health` | [[modules/linebot-integration|linebot-integration]] | partial | `/api/bff/employee/home`<br>`/api/bff/system/line-bot/service-status`<br>`/api/bff/system/line-bot/service-status/snapshots`<br>`/api/internal/service-health` | `source_snapshots` |
 | `GET /api/internal/service-health/snapshots` | [[modules/linebot-integration|linebot-integration]] | partial | `/api/bff/employee/home`<br>`/api/bff/system/line-bot/service-status`<br>`/api/bff/system/line-bot/service-status/snapshots`<br>`/api/internal/service-health` | `source_snapshots` |
 | `GET /api/bff/system/schedule-snapshot` | [[modules/schedule-integration|schedule-integration]] | partial | `shifts`<br>`staffing`<br>`scheduleSnapshot`<br>`/api/bff/system/schedule-snapshot` | `source_snapshots`<br>`sync_job_runs` |
+| `GET /api/bff/system/health-overview` | [[modules/ragic-integration|ragic-integration]] | partial | `/api/bff/system/health-overview` | `user_role_snapshots` |
 | `GET /api/bff/employee/home` | [[modules/employee-training|employee-training]] | partial | `training` | `employee_resources` |
 | `GET /api/bff/system/watchdog-events` | [[modules/watchdog-events|watchdog-events]] | implemented | `watchdogEvents`<br>`/api/bff/system/watchdog-events` | `watchdog_events` |
 | `GET /api/bff/employee/home` | [[modules/bff-projections|bff-projections]] | partial | `home`<br>`dashboard`<br>`overview` | `employee_home_projection`<br>`supervisor_dashboard_projection`<br>`system_overview_projection` |
@@ -175,8 +184,8 @@
 
 | Route | Role | Module | Status | BFF Binding |
 | --- | --- | --- | --- | --- |
-| `/portal/login` | employee | [[modules/auth|auth]] | partial | `/api/auth/me` |
-| `/login` | system | [[modules/auth|auth]] | partial | `/api/auth/me` |
+| `/portal/login` | employee | [[modules/auth|auth]] | partial | `auth`<br>`/api/auth/me` |
+| `/login` | system | [[modules/auth|auth]] | partial | `auth`<br>`/api/auth/me` |
 | `/` | system | [[modules/dashboard|dashboard]] | implemented | `home`<br>`dashboard`<br>`overview`<br>`/api/bff/employee/home`<br>`/api/bff/supervisor/dashboard`<br>`/api/bff/system/overview` |
 | `/employee` | employee | [[modules/dashboard|dashboard]] | implemented | `home`<br>`dashboard`<br>`overview`<br>`/api/bff/employee/home`<br>`/api/bff/supervisor/dashboard`<br>`/api/bff/system/overview` |
 | `/employee/home` | employee | [[modules/dashboard|dashboard]] | implemented | `home`<br>`dashboard`<br>`overview`<br>`/api/bff/employee/home`<br>`/api/bff/supervisor/dashboard`<br>`/api/bff/system/overview` |
@@ -218,7 +227,7 @@
 | `/system/function-relations` | system | [[modules/system-function-relations|system-function-relations]] | implemented | `functionRelations` |
 | `/analytics` | system | [[modules/analytics|analytics]] | implemented | `reports`<br>`uiEventOverview`<br>`/api/bff/system/ui-event-overview` |
 | `/supervisor/reports` | supervisor | [[modules/analytics|analytics]] | partial | `reports`<br>`uiEventOverview`<br>`/api/bff/system/ui-event-overview` |
-| `/operations` | system | [[modules/operations|operations]] | legacy | `/api/bff/supervisor/dashboard` |
+| `/operations` | system | [[modules/operations|operations]] | legacy | `legacyOperations`<br>`/api/bff/supervisor/dashboard` |
 | `/supervisor/counter-log/submissions` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
 | `/supervisor/counter-log/daily-templates` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
 | `/supervisor/counter-log/assigned-tasks` | supervisor | [[modules/counter-log|counter-log]] | partial | `counterLog` |
@@ -231,21 +240,21 @@
 | `/supervisor/lane-rentals` | supervisor | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
 | `/supervisor/lane-rentals` | system | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
 | `/admin/lane-rentals` | system | [[modules/lane-rentals|lane-rentals]] | implemented | `laneRentals` |
-| `/employee/courts/xinbei` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/employee/courts/:school` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/employee/courts/:school/week` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/employee/courts/:school/month` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/employee/courts/:school/search` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/employee/courts/:school/admin` | employee | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/xinbei` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/:school` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/:school/week` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/:school/month` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/:school/search` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/:school/admin` | supervisor | [[modules/courts|courts]] | partial | `courts` |
-| `/supervisor/courts/xinbei` | system | [[modules/courts|courts]] | partial | `courts` |
-| `/courts/xinbei` | system | [[modules/courts|courts]] | partial | `courts` |
-| `/courts/sanchong` | system | [[modules/courts|courts]] | partial | `courts` |
+| `/employee/courts/xinbei` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/employee/courts/:school` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/employee/courts/:school/week` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/employee/courts/:school/month` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/employee/courts/:school/search` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/employee/courts/:school/admin` | employee | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/xinbei` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/:school` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/:school/week` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/:school/month` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/:school/search` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/:school/admin` | supervisor | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/supervisor/courts/xinbei` | system | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/courts/xinbei` | system | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
+| `/courts/sanchong` | system | [[modules/courts|courts]] | partial | `courts`<br>`courts`<br>`/api/courts/xinbei/stats` |
 | `/supervisor/parking` | supervisor | [[modules/parking|parking]] | implemented | `parking` |
 | `/supervisor/parking` | system | [[modules/parking|parking]] | implemented | `parking` |
 | `/admin/parking/dashboard` | system | [[modules/parking|parking]] | implemented | `parking` |
@@ -281,15 +290,14 @@
 | `/announcements/summary` | system | [[modules/announcement-summary|announcement-summary]] | implemented | `announcementSummary`<br>`/api/announcement-dashboard/summary` |
 | `/portal/:facilityKey/manage` | employee | [[modules/system-announcements|system-announcements]] | partial | `announcements`<br>`announcements` |
 | `/supervisor/announcements` | supervisor | [[modules/system-announcements|system-announcements]] | implemented | `announcements`<br>`announcements` |
-| `/employee/tasks` | employee | [[modules/tasks|tasks]] | implemented | `tasks`<br>`incompleteTasks`<br>`/api/bff/employee/home`<br>`/api/bff/supervisor/dashboard` |
-| `/supervisor/tasks` | supervisor | [[modules/tasks|tasks]] | implemented | `tasks`<br>`incompleteTasks`<br>`/api/bff/employee/home`<br>`/api/bff/supervisor/dashboard` |
-| `/portal/:facilityKey/handover` | employee | [[modules/handover|handover]] | legacy | `handover`<br>`handoverOverview` |
-| `/employee/handover` | employee | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview` |
-| `/supervisor/handover` | supervisor | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview` |
+| `/portal/:facilityKey/handover` | employee | [[modules/handover|handover]] | legacy | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
+| `/employee/handover` | employee | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
+| `/lifeguard/handover` | lifeguard | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
+| `/supervisor/handover` | supervisor | [[modules/handover|handover]] | implemented | `handover`<br>`handoverOverview`<br>`/api/bff/employee/handover/list`<br>`/api/bff/employee/handover/summary`<br>`/api/bff/supervisor/dashboard` |
 | `/anomaly-reports` | system | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
 | `/supervisor/anomalies` | supervisor | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
 | `/system/alerts` | system | [[modules/anomalies|anomalies]] | implemented | `pendingAnomalies`<br>`alerts` |
-| `/anomaly-reports` | system | [[modules/notification-recipients|notification-recipients]] | partial | `/api/notification-recipients` |
+| `/anomaly-reports` | system | [[modules/notification-recipients|notification-recipients]] | partial | `notificationRecipients`<br>`/api/notification-recipients` |
 | `/portal/:facilityKey/campaigns` | employee | [[modules/campaigns-events|campaigns-events]] | legacy | `campaigns` |
 | `/employee/announcements` | employee | [[modules/campaigns-events|campaigns-events]] | partial | `campaigns` |
 | `/portal/:facilityKey/shift` | employee | [[modules/shift-reminder|shift-reminder]] | legacy | `shifts`<br>`shifts`<br>`scheduleSnapshot`<br>`/api/bff/system/schedule-snapshot` |
@@ -298,8 +306,6 @@
 | `/employee/more` | employee | [[modules/quick-links|quick-links]] | partial | `shortcuts` |
 | `/employee/qna` | employee | [[modules/knowledge-base-qna|knowledge-base-qna]] | partial | `qna` |
 | `/supervisor/qna-review` | supervisor | [[modules/knowledge-base-qna|knowledge-base-qna]] | partial | `qna` |
-| `/employee/personal-note` | employee | [[modules/personal-note|personal-note]] | partial | `stickyNotes` |
-| `/employee/more` | employee | [[modules/personal-note|personal-note]] | partial | `stickyNotes` |
 | `/employee/activity-periods` | employee | [[modules/activity-periods|activity-periods]] | partial | `events` |
 | `/employee/activity-periods/:id` | employee | [[modules/activity-periods|activity-periods]] | partial | `events` |
 | `/portal/:facilityKey/campaigns` | employee | [[modules/activity-periods|activity-periods]] | partial | `events` |
@@ -309,9 +315,10 @@
 | `/supervisor/facilities` | supervisor | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` |
 | `/supervisor/facilities/:facilityKey` | supervisor | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` |
 | `/supervisor/people` | supervisor | [[modules/search|search]] | partial | `search`<br>`search`<br>`search` |
+| `/supervisor/group-broadcasts` | supervisor | [[modules/group-broadcasts|group-broadcasts]] | implemented | `announcements`<br>`groupBroadcasts` |
 | `/portal` | employee | [[modules/portal-home|portal-home]] | legacy | `home`<br>`/api/bff/employee/home` |
 | `/portal/:facilityKey` | employee | [[modules/portal-home|portal-home]] | legacy | `home`<br>`/api/bff/employee/home` |
-| `/portal/:facilityKey/manage` | employee | [[modules/portal-manage|portal-manage]] | partial | - |
+| `/portal/:facilityKey/manage` | employee | [[modules/portal-manage|portal-manage]] | partial | `portalManage` |
 | `/portal/:facilityKey/review` | employee | [[modules/portal-review|portal-review]] | partial | `announcementReview` |
 | `/portal/:facilityKey/analytics` | employee | [[modules/portal-analytics|portal-analytics]] | legacy | `portalAnalytics`<br>`portalAnalytics` |
 | `/system/audit` | system | [[modules/portal-analytics|portal-analytics]] | partial | `portalAnalytics`<br>`portalAnalytics` |
