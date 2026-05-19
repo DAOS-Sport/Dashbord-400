@@ -1902,38 +1902,34 @@ export const groupBroadcasts = pgTable(
   "group_broadcasts",
   {
     id: serial("id").primaryKey(),
-    facilityKey: text("facility_key").notNull(),
-    sourceFacilityKey: text("source_facility_key").notNull(),
-    isFanOut: boolean("is_fan_out").default(false).notNull(),
-    parentId: integer("parent_id"),
-    fanOutTargets: text("fan_out_targets").array(),
-    title: text("title").notNull(),
-    content: text("content").notNull(),
-    createdBy: text("created_by").notNull(),
-    createdByName: text("created_by_name").notNull(),
-    // LINE webhook fields (null for manual supervisor-composed broadcasts)
+    // Source: which LINE group / facility sent this message
     sourceGroupId: text("source_group_id"),
-    senderName: text("sender_name"),
+    sourceFacilityKey: text("source_facility_key").notNull(),
+    // Fan-out targets (1-N facilities this message is broadcast to)
+    targetFacilityKeys: text("target_facility_keys").array().notNull(),
+    // Raw LINE message text (Gemini extracts title from this)
+    originalText: text("original_text").notNull(),
+    // Gemini-generated fields (null until Gemini runs)
+    title: text("title"),
+    summary: text("summary"),
     // Priority: 'normal' | 'high' | 'urgent'
     priority: text("priority").default("normal").notNull(),
+    // Sender info
+    senderName: text("sender_name"),
     // Gemini analysis
     geminiStatus: text("gemini_status").default("pending").notNull(),
-    geminiIsEvent: boolean("gemini_is_event"),
-    geminiStartAt: timestamp("gemini_start_at"),
-    geminiEndAt: timestamp("gemini_end_at"),
-    geminiSummary: text("gemini_summary"),
+    isEvent: boolean("is_event"),
+    startAt: timestamp("start_at"),
+    endAt: timestamp("end_at"),
     geminiProcessedAt: timestamp("gemini_processed_at"),
     candidateId: integer("candidate_id"),
-    // Soft delete
-    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
-    facilityKeyIdx: index("group_broadcasts_facility_key_idx").on(table.facilityKey),
     sourceFacilityIdx: index("group_broadcasts_source_facility_idx").on(table.sourceFacilityKey),
     createdAtIdx: index("group_broadcasts_created_at_idx").on(table.createdAt),
-    parentIdIdx: index("group_broadcasts_parent_id_idx").on(table.parentId),
+    sourceGroupIdx: index("group_broadcasts_source_group_idx").on(table.sourceGroupId),
   }),
 );
 
@@ -1941,9 +1937,13 @@ export const insertGroupBroadcastSchema = createInsertSchema(groupBroadcasts).om
   id: true,
   createdAt: true,
   updatedAt: true,
-  deletedAt: true,
   geminiProcessedAt: true,
   candidateId: true,
+  title: true,
+  summary: true,
+  isEvent: true,
+  startAt: true,
+  endAt: true,
 });
 
 export type InsertGroupBroadcast = z.infer<typeof insertGroupBroadcastSchema>;

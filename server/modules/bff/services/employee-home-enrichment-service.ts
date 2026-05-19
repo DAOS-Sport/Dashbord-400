@@ -115,7 +115,7 @@ export const enrichEmployeeHome = async (
   const candidateFilterBreakdown = candidateImportantResult.filterBreakdown;
 
   const groupBroadcastAnnouncements = groupBroadcastRows.map((row) =>
-    mapGroupBroadcastToAnnouncementSummary(row, now),
+    mapGroupBroadcastToAnnouncementSummary(row),
   );
 
   const announcementsBeforeOverlay = uniqueAnnouncements([

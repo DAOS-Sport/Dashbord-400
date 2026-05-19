@@ -78,6 +78,7 @@ export const MODULE_IDS = [
   "watchdog-events",
   "bff-projections",
   "integration-sync-jobs",
+  "group-broadcasts",
 ] as const;
 
 export type ModuleId = typeof MODULE_IDS[number];

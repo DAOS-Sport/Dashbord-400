@@ -587,7 +587,7 @@ export const contentModules: ModuleDefinition[] = [
     data: [
       { table: "group_broadcasts", entity: "group broadcast record", source: "postgres", status: implemented },
     ],
-    integrations: [{ provider: "GEMINI", purpose: "Detect events in broadcast content; auto-insert into announcement_candidates.", status: partial }],
+    integrations: [{ provider: "UNKNOWN", purpose: "Gemini 2.0 Flash: detect events in broadcast content; auto-insert into announcement_candidates.", status: partial }],
     bff: { employeeSectionKey: "announcements", supervisorSectionKey: "groupBroadcasts" },
     telemetry: { trackPageView: true, trackActionSubmit: true, eventTypes: ["group_broadcast_create", "group_broadcast_delete"] },
     governance: { ownerRole: "supervisor", editableBy: ["supervisor", "system"], readonlyFor: ["employee", "lifeguard"], requiresApproval: false, notes: "三蘆區 fan-out automatically distributes to xinbei_pool, salu_counter, sanmin_pool. GOOGLE_API_KEY required for Gemini; gracefully skips if absent." },

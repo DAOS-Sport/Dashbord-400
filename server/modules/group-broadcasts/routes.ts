@@ -1,12 +1,8 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "../../db";
-import {
-  announcementCandidates,
-  groupBroadcasts,
-  insertGroupBroadcastSchema,
-} from "@shared/schema";
+import { announcementCandidates, groupBroadcasts } from "@shared/schema";
 import { storage } from "../../storage";
 import { resolveBroadcastTargets } from "./fan-out";
 import { analyzeGroupBroadcastWithGemini } from "./gemini-service";
@@ -18,46 +14,43 @@ interface GroupBroadcastRouteDeps {
   requireSupervisor: AuthMiddleware;
 }
 
-const createSchema = z.object({
-  facilityKey: z.string().min(1),
-  title: z.string().min(1).max(200),
-  content: z.string().min(1),
-});
-
-async function runGeminiAsync(broadcastId: number, title: string, content: string, facilityKey: string) {
+async function runGeminiAsync(broadcastId: number, originalText: string, targetFacilityKeys: string[]) {
   try {
-    await storage.updateGroupBroadcast(broadcastId, { geminiStatus: "processing" });
-    const result = await analyzeGroupBroadcastWithGemini(title, content);
+    await storage.updateGroupBroadcastGemini(broadcastId, { geminiStatus: "processing" });
+    const result = await analyzeGroupBroadcastWithGemini(originalText);
 
     if (!result) {
-      await storage.updateGroupBroadcast(broadcastId, { geminiStatus: "skipped" });
+      await storage.updateGroupBroadcastGemini(broadcastId, { geminiStatus: "skipped" });
       return;
     }
 
-    const geminiUpdate: Parameters<typeof storage.updateGroupBroadcast>[1] = {
+    const geminiUpdate: Parameters<typeof storage.updateGroupBroadcastGemini>[1] = {
       geminiStatus: "done",
-      geminiIsEvent: result.isEvent,
-      geminiSummary: result.summary ?? undefined,
-      geminiStartAt: result.startAt ? new Date(result.startAt) : undefined,
-      geminiEndAt: result.endAt ? new Date(result.endAt) : undefined,
+      title: result.title,
+      priority: result.priority,
+      isEvent: result.isEvent,
+      summary: result.summary ?? undefined,
+      startAt: result.startAt ? new Date(result.startAt) : undefined,
+      endAt: result.endAt ? new Date(result.endAt) : undefined,
       geminiProcessedAt: new Date(),
     };
 
     if (result.isEvent) {
-      const contentHash = Buffer.from(`group-broadcast:${broadcastId}:${facilityKey}`, "utf8").toString("base64");
+      const primaryFacility = targetFacilityKeys[0] ?? "unknown";
+      const contentHash = Buffer.from(`group-broadcast:${broadcastId}:${primaryFacility}`, "utf8").toString("base64");
       const [candidate] = await db
         .insert(announcementCandidates)
         .values({
           sourceMessageId: `gb-${broadcastId}`,
-          groupId: `group-broadcast:${facilityKey}`,
+          groupId: `group-broadcast:${primaryFacility}`,
           contentHash,
-          originalText: content,
-          title,
-          summary: result.summary ?? content.slice(0, 80),
+          originalText,
+          title: result.title,
+          summary: result.summary ?? originalText.slice(0, 80),
           candidateType: "campaign",
           status: "approved",
           confidence: 0.85,
-          facility: facilityKey,
+          facility: primaryFacility,
           startAt: result.startAt ? new Date(result.startAt) : undefined,
           endAt: result.endAt ? new Date(result.endAt) : undefined,
           detectedAt: new Date(),
@@ -65,8 +58,8 @@ async function runGeminiAsync(broadcastId: number, title: string, content: strin
         .onConflictDoUpdate({
           target: announcementCandidates.contentHash,
           set: {
-            title,
-            summary: result.summary ?? content.slice(0, 80),
+            title: result.title,
+            summary: result.summary ?? originalText.slice(0, 80),
             startAt: result.startAt ? new Date(result.startAt) : undefined,
             endAt: result.endAt ? new Date(result.endAt) : undefined,
             updatedAt: new Date(),
@@ -77,10 +70,10 @@ async function runGeminiAsync(broadcastId: number, title: string, content: strin
       geminiUpdate.candidateId = candidate?.id;
     }
 
-    await storage.updateGroupBroadcast(broadcastId, geminiUpdate);
+    await storage.updateGroupBroadcastGemini(broadcastId, geminiUpdate);
   } catch (err) {
     console.warn("[group-broadcasts] Gemini async failed:", err instanceof Error ? err.message : String(err));
-    await storage.updateGroupBroadcast(broadcastId, { geminiStatus: "failed" }).catch(() => {});
+    await storage.updateGroupBroadcastGemini(broadcastId, { geminiStatus: "failed" }).catch(() => {});
   }
 }
 
@@ -111,7 +104,7 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
     }
   });
 
-  // Supervisor: list ALL broadcasts (admin view) — facility filter optional, keyed by sourceFacilityKey
+  // Supervisor: list ALL broadcasts (admin view) — optional filter by sourceFacilityKey
   app.get("/api/group-broadcasts/admin", requireSupervisor, async (req, res) => {
     try {
       const sourceFacilityKey = typeof req.query.sourceFacilityKey === "string" ? req.query.sourceFacilityKey : undefined;
@@ -126,141 +119,67 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
     }
   });
 
-  // Supervisor: create broadcast (with fan-out)
-  app.post("/api/group-broadcasts", requireSupervisor, async (req, res) => {
+  // POST /api/group-broadcasts — accepts raw LINE message data; fan-out applied; Gemini async
+  // Auth: INTERNAL_API_TOKEN bearer (webhook from LINE Bot) OR supervisor session
+  app.post("/api/group-broadcasts", async (req, res) => {
+    // Auth: accept either bearer token (webhook/automated) or supervisor session cookie
+    const authHeader = req.headers.authorization ?? "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const expectedToken = process.env.INTERNAL_API_TOKEN ?? process.env.LINE_BOT_ADMIN_TOKEN ?? "";
+    const isBearerAuthed = bearerToken.length > 0 && bearerToken === expectedToken;
+
+    const session = (req as any).session ?? (req as any).employeeSession;
+    const isSupervisorSession =
+      Array.isArray(session?.grantedRoles)
+        ? session.grantedRoles.includes("supervisor") || session.grantedRoles.includes("system")
+        : false;
+
+    if (!isBearerAuthed && !isSupervisorSession) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     try {
-      const session = (req as any).session ?? (req as any).employeeSession;
-      const parsed = createSchema.safeParse(req.body);
+      const postSchema = z.object({
+        // Source LINE group (required for webhook ingestion, optional for manual entry)
+        sourceGroupId: z.string().optional(),
+        senderName: z.string().optional(),
+        // Which facility the message originates from — fan-out logic applied from here
+        sourceFacilityKey: z.string().min(1),
+        // Raw LINE message text — Gemini will extract title/priority from this
+        originalText: z.string().min(1),
+        // Optional priority override; Gemini may update this
+        priority: z.enum(["normal", "high", "urgent"]).optional().default("normal"),
+      });
+
+      const parsed = postSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
       }
 
-      const { facilityKey, title, content } = parsed.data;
-      const createdBy = session?.employeeNumber ?? session?.userId ?? "unknown";
-      const createdByName = session?.name ?? session?.employeeName ?? "主管";
+      const { sourceGroupId, senderName, sourceFacilityKey, originalText, priority } = parsed.data;
+      const targetFacilityKeys = resolveBroadcastTargets(sourceFacilityKey);
 
-      const targets = resolveBroadcastTargets(facilityKey);
-      const isFanOut = targets.length > 1;
-
-      const primaryRow = await storage.createGroupBroadcast({
-        facilityKey: targets[0],
-        sourceFacilityKey: facilityKey,
-        isFanOut: false,
-        parentId: null,
-        fanOutTargets: isFanOut ? targets : null,
-        title,
-        content,
-        createdBy,
-        createdByName,
+      const row = await storage.createGroupBroadcast({
+        sourceGroupId: sourceGroupId ?? null,
+        sourceFacilityKey,
+        targetFacilityKeys,
+        originalText,
+        senderName: senderName ?? null,
+        priority,
         geminiStatus: "pending",
       });
 
-      const fanOutRows: typeof primaryRow[] = [];
-      for (const target of targets.slice(1)) {
-        const copy = await storage.createGroupBroadcast({
-          facilityKey: target,
-          sourceFacilityKey: facilityKey,
-          isFanOut: true,
-          parentId: primaryRow.id,
-          fanOutTargets: null,
-          title,
-          content,
-          createdBy,
-          createdByName,
-          geminiStatus: "pending",
-        });
-        fanOutRows.push(copy);
-      }
+      // Fire-and-forget Gemini analysis
+      runGeminiAsync(row.id, originalText, targetFacilityKeys).catch(() => {});
 
-      // Fire-and-forget Gemini analysis on primary only
-      runGeminiAsync(primaryRow.id, title, content, facilityKey).catch(() => {});
-
-      res.status(201).json({
-        data: primaryRow,
-        fanOut: fanOutRows,
-        targets,
-      });
+      res.status(201).json({ data: row, targets: targetFacilityKeys });
     } catch (err) {
       console.error("[group-broadcasts] create error:", err);
       res.status(500).json({ message: "建立群組廣播失敗" });
     }
   });
 
-  // LINE webhook receiver — receives raw LINE message events and creates group broadcasts
-  // Auth: INTERNAL_API_TOKEN bearer (same pattern as other internal endpoints)
-  app.post("/api/group-broadcasts/webhook", async (req, res) => {
-    try {
-      const authHeader = req.headers.authorization ?? "";
-      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-      const expectedToken = process.env.INTERNAL_API_TOKEN ?? process.env.LINE_BOT_ADMIN_TOKEN ?? "";
-      if (!token || token !== expectedToken) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      const webhookSchema = z.object({
-        sourceGroupId: z.string().min(1),
-        senderName: z.string().optional(),
-        title: z.string().min(1).max(200),
-        content: z.string().min(1),
-        priority: z.enum(["normal", "high", "urgent"]).optional().default("normal"),
-        // The sending facility derived from LINE group mapping (caller responsibility)
-        facilityKey: z.string().min(1),
-      });
-
-      const parsed = webhookSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return res.status(400).json({ message: "資料格式錯誤", errors: parsed.error.flatten() });
-      }
-
-      const { sourceGroupId, senderName, title, content, priority, facilityKey } = parsed.data;
-      const targets = resolveBroadcastTargets(facilityKey);
-      const isFanOut = targets.length > 1;
-
-      const primaryRow = await storage.createGroupBroadcast({
-        facilityKey: targets[0],
-        sourceFacilityKey: facilityKey,
-        isFanOut: false,
-        parentId: null,
-        fanOutTargets: isFanOut ? targets : null,
-        title,
-        content,
-        createdBy: sourceGroupId,
-        createdByName: senderName ?? "LINE 群組",
-        sourceGroupId,
-        senderName: senderName ?? null,
-        priority,
-        geminiStatus: "pending",
-      });
-      const fanOutRows: typeof primaryRow[] = [];
-      for (const target of targets.slice(1)) {
-        const copy = await storage.createGroupBroadcast({
-          facilityKey: target,
-          sourceFacilityKey: facilityKey,
-          isFanOut: true,
-          parentId: primaryRow.id,
-          fanOutTargets: null,
-          title,
-          content,
-          createdBy: sourceGroupId,
-          createdByName: senderName ?? "LINE 群組",
-          sourceGroupId,
-          senderName: senderName ?? null,
-          priority,
-          geminiStatus: "pending",
-        });
-        fanOutRows.push(copy);
-      }
-
-      runGeminiAsync(primaryRow.id, title, content, facilityKey).catch(() => {});
-
-      res.status(201).json({ data: primaryRow, fanOut: fanOutRows, targets });
-    } catch (err) {
-      console.error("[group-broadcasts] webhook error:", err);
-      res.status(500).json({ message: "Webhook 處理失敗" });
-    }
-  });
-
-  // Supervisor: soft-delete
+  // Supervisor: hard-delete
   app.delete("/api/group-broadcasts/:id", requireSupervisor, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -268,15 +187,6 @@ export function registerGroupBroadcastRoutes(app: Express, deps: GroupBroadcastR
 
       const row = await storage.getGroupBroadcastById(id);
       if (!row) return res.status(404).json({ message: "找不到此廣播" });
-
-      // Also delete fan-out copies if deleting primary
-      if (!row.isFanOut && row.fanOutTargets && row.fanOutTargets.length > 1) {
-        const copies = await storage.listGroupBroadcasts({ sourceFacilityKey: row.sourceFacilityKey, limit: 100 });
-        const copyIds = copies.filter((r) => r.parentId === id).map((r) => r.id);
-        for (const copyId of copyIds) {
-          await storage.deleteGroupBroadcast(copyId);
-        }
-      }
 
       const deleted = await storage.deleteGroupBroadcast(id);
       if (!deleted) return res.status(404).json({ message: "刪除失敗" });

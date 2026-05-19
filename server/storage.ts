@@ -247,7 +247,7 @@ export interface IStorage {
   listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]>;
   getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined>;
   createGroupBroadcast(input: InsertGroupBroadcast): Promise<GroupBroadcast>;
-  updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined>;
+  updateGroupBroadcastGemini(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "isEvent" | "startAt" | "endAt" | "summary" | "title" | "priority" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined>;
   deleteGroupBroadcast(id: number): Promise<boolean>;
 
   // Lane rentals (水道租借)
@@ -1685,11 +1685,13 @@ export class DatabaseStorage implements IStorage {
 
   // Group Broadcasts
   async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number; offset?: number }): Promise<GroupBroadcast[]> {
-    const conditions: ReturnType<typeof eq>[] = [sql`${groupBroadcasts.deletedAt} IS NULL` as any];
-    if (opts.facilityKey) conditions.push(eq(groupBroadcasts.facilityKey, opts.facilityKey));
+    const conditions: ReturnType<typeof eq>[] = [];
+    if (opts.facilityKey) {
+      conditions.push(sql`${groupBroadcasts.targetFacilityKeys} @> ARRAY[${opts.facilityKey}]::text[]` as ReturnType<typeof eq>);
+    }
     if (opts.sourceFacilityKey) conditions.push(eq(groupBroadcasts.sourceFacilityKey, opts.sourceFacilityKey));
     const base = db.select().from(groupBroadcasts);
-    const filtered = base.where(and(...conditions));
+    const filtered = conditions.length > 0 ? base.where(and(...conditions)) : base;
     const ordered = filtered.orderBy(desc(groupBroadcasts.createdAt));
     const paged = opts.offset ? ordered.offset(opts.offset) : ordered;
     return opts.limit ? paged.limit(opts.limit) : paged;
@@ -1705,18 +1707,14 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
-  async updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined> {
+  async updateGroupBroadcastGemini(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "isEvent" | "startAt" | "endAt" | "summary" | "title" | "priority" | "geminiProcessedAt" | "candidateId">>): Promise<GroupBroadcast | undefined> {
     const [row] = await db.update(groupBroadcasts).set({ ...data, updatedAt: new Date() }).where(eq(groupBroadcasts.id, id)).returning();
     return row;
   }
 
   async deleteGroupBroadcast(id: number): Promise<boolean> {
-    // Soft delete
-    const [row] = await db.update(groupBroadcasts)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(groupBroadcasts.id, id), sql`${groupBroadcasts.deletedAt} IS NULL`))
-      .returning({ id: groupBroadcasts.id });
-    return !!row;
+    const result = await db.delete(groupBroadcasts).where(eq(groupBroadcasts.id, id)).returning({ id: groupBroadcasts.id });
+    return result.length > 0;
   }
 }
 

@@ -10,23 +10,18 @@ import { cn } from "@/lib/utils";
 
 interface GroupBroadcast {
   id: number;
-  facilityKey: string;
-  sourceFacilityKey: string;
-  isFanOut: boolean;
-  parentId: number | null;
-  fanOutTargets: string[] | null;
-  title: string;
-  content: string;
-  createdBy: string;
-  createdByName: string;
   sourceGroupId: string | null;
-  senderName: string | null;
+  sourceFacilityKey: string;
+  targetFacilityKeys: string[];
+  originalText: string;
+  title: string | null;
+  summary: string | null;
   priority: string;
+  senderName: string | null;
   geminiStatus: string;
-  geminiIsEvent: boolean | null;
-  geminiStartAt: string | null;
-  geminiEndAt: string | null;
-  geminiSummary: string | null;
+  isEvent: boolean | null;
+  startAt: string | null;
+  endAt: string | null;
   geminiProcessedAt: string | null;
   candidateId: number | null;
   createdAt: string;
@@ -81,12 +76,12 @@ async function fetchAdminBroadcasts(sourceFacilityKey?: string): Promise<{ data:
   return res.json() as Promise<{ data: GroupBroadcast[] }>;
 }
 
-async function createBroadcast(payload: { facilityKey: string; title: string; content: string }) {
-  return apiRequest("/api/group-broadcasts", { method: "POST", body: JSON.stringify(payload) });
+async function createBroadcast(payload: { sourceFacilityKey: string; originalText: string; priority?: string }) {
+  return apiRequest("POST", "/api/group-broadcasts", payload);
 }
 
 async function deleteBroadcast(id: number) {
-  return apiRequest(`/api/group-broadcasts/${id}`, { method: "DELETE" });
+  return apiRequest("DELETE", `/api/group-broadcasts/${id}`);
 }
 
 export default function SupervisorGroupBroadcastsPage() {
@@ -97,9 +92,9 @@ export default function SupervisorGroupBroadcastsPage() {
   const [filterSource, setFilterSource] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [form, setForm] = useState({
-    facilityKey: activeFacilityKey,
-    title: "",
-    content: "",
+    sourceFacilityKey: activeFacilityKey,
+    originalText: "",
+    priority: "normal",
   });
 
   const broadcastsQuery = useQuery({
@@ -111,7 +106,7 @@ export default function SupervisorGroupBroadcastsPage() {
     mutationFn: createBroadcast,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/group-broadcasts/admin"] });
-      setForm({ facilityKey: activeFacilityKey, title: "", content: "" });
+      setForm({ sourceFacilityKey: activeFacilityKey, originalText: "", priority: "normal" });
       setComposerOpen(false);
     },
   });
@@ -124,19 +119,20 @@ export default function SupervisorGroupBroadcastsPage() {
   });
 
   const broadcasts = broadcastsQuery.data?.data ?? [];
-  const primaryBroadcasts = broadcasts.filter((b) => !b.isFanOut);
+  const isFanOutBroadcast = (b: GroupBroadcast) => b.targetFacilityKeys.length > 1;
 
   const handleCreate = () => {
-    if (!form.title.trim() || !form.content.trim()) return;
+    if (!form.originalText.trim()) return;
     createMutation.mutate({
-      facilityKey: form.facilityKey,
-      title: form.title.trim(),
-      content: form.content.trim(),
+      sourceFacilityKey: form.sourceFacilityKey,
+      originalText: form.originalText.trim(),
+      priority: form.priority as "normal" | "high" | "urgent",
     });
   };
 
   const handleDelete = (b: GroupBroadcast) => {
-    if (!window.confirm(`確定要刪除「${b.title}」？若為三蘆區廣播，所有 fan-out 副本也會一併刪除。`)) return;
+    const displayTitle = b.title ?? b.originalText.slice(0, 30);
+    if (!window.confirm(`確定要刪除「${displayTitle}」？此操作無法復原。`)) return;
     deleteMutation.mutate(b.id);
   };
 
@@ -144,7 +140,7 @@ export default function SupervisorGroupBroadcastsPage() {
     <RoleShell
       role="supervisor"
       title="群組重要公告"
-      subtitle="主管可發布廣播至指定場館；三蘆區自動 fan-out 至新北高中、三重商工、三民高中。Gemini 自動偵測活動並寫入候選池。"
+      subtitle="接收 LINE 群組廣播並自動 fan-out；Gemini 自動萃取標題、優先級，偵測活動並寫入候選池。"
     >
       <div className="space-y-4">
         {/* Toolbar */}
@@ -174,7 +170,7 @@ export default function SupervisorGroupBroadcastsPage() {
             className="workbench-focus inline-flex min-h-10 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[13px] font-black text-white"
           >
             <Plus className="h-4 w-4" />
-            發布廣播
+            手動發布
           </button>
         </div>
 
@@ -184,16 +180,17 @@ export default function SupervisorGroupBroadcastsPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.08em] text-[#007166]">New Broadcast</p>
-                <h2 className="mt-1 text-[18px] font-black">發布群組廣播</h2>
+                <h2 className="mt-1 text-[18px] font-black">手動發布群組廣播</h2>
+                <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">Gemini 將自動萃取標題與優先級，無需手動填寫。</p>
               </div>
             </div>
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="text-[12px] font-black text-[#536175]">發送場館</span>
+                  <span className="text-[12px] font-black text-[#536175]">來源場館</span>
                   <select
-                    value={form.facilityKey}
-                    onChange={(e) => setForm((f) => ({ ...f, facilityKey: e.target.value }))}
+                    value={form.sourceFacilityKey}
+                    onChange={(e) => setForm((f) => ({ ...f, sourceFacilityKey: e.target.value }))}
                     data-testid="select-facility"
                     className="mt-2 min-h-11 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[14px] font-black outline-none focus:border-[#2f6fe8]"
                   >
@@ -201,7 +198,7 @@ export default function SupervisorGroupBroadcastsPage() {
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
-                  {form.facilityKey === "salu_counter" ? (
+                  {form.sourceFacilityKey === "salu_counter" ? (
                     <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-[#2f6fe8]">
                       <Radio className="h-3.5 w-3.5" />
                       三蘆區：自動 fan-out 至新北高中、三重商工、三民高中
@@ -209,24 +206,27 @@ export default function SupervisorGroupBroadcastsPage() {
                   ) : null}
                 </label>
                 <label className="block">
-                  <span className="text-[12px] font-black text-[#536175]">廣播標題</span>
-                  <input
-                    value={form.title}
-                    onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                    placeholder="公告標題（最多 200 字）"
-                    data-testid="input-title"
-                    className="mt-2 min-h-11 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[14px] font-bold outline-none focus:border-[#2f6fe8]"
-                  />
+                  <span className="text-[12px] font-black text-[#536175]">優先級（可選，Gemini 會自動判斷）</span>
+                  <select
+                    value={form.priority}
+                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
+                    data-testid="select-priority"
+                    className="mt-2 min-h-11 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[14px] font-black outline-none focus:border-[#2f6fe8]"
+                  >
+                    <option value="normal">一般</option>
+                    <option value="high">重要</option>
+                    <option value="urgent">緊急</option>
+                  </select>
                 </label>
               </div>
               <label className="block">
-                <span className="text-[12px] font-black text-[#536175]">廣播內容</span>
+                <span className="text-[12px] font-black text-[#536175]">廣播原文（LINE 訊息內容）</span>
                 <textarea
-                  value={form.content}
-                  onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-                  placeholder="內容（Gemini 將自動分析是否為活動/課程）"
-                  rows={5}
-                  data-testid="input-content"
+                  value={form.originalText}
+                  onChange={(e) => setForm((f) => ({ ...f, originalText: e.target.value }))}
+                  placeholder="貼入 LINE 群組訊息原文，Gemini 將自動分析標題、優先級，並偵測是否為活動/課程"
+                  rows={6}
+                  data-testid="input-original-text"
                   className="mt-2 w-full resize-y rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-3 text-[14px] font-bold leading-6 outline-none focus:border-[#2f6fe8]"
                 />
               </label>
@@ -234,7 +234,7 @@ export default function SupervisorGroupBroadcastsPage() {
                 <button
                   type="button"
                   onClick={handleCreate}
-                  disabled={!form.title.trim() || !form.content.trim() || createMutation.isPending}
+                  disabled={!form.originalText.trim() || createMutation.isPending}
                   data-testid="button-submit-broadcast"
                   className="inline-flex min-h-11 items-center gap-2 rounded-[8px] bg-[#0d2a50] px-5 text-[13px] font-black text-white disabled:opacity-60"
                 >
@@ -252,10 +252,10 @@ export default function SupervisorGroupBroadcastsPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: "主播廣播", value: primaryBroadcasts.length, cls: "text-[#2f6fe8]" },
-            { label: "Fan-out 副本", value: broadcasts.filter((b) => b.isFanOut).length, cls: "text-[#6947d8]" },
-            { label: "Gemini 偵測活動", value: broadcasts.filter((b) => b.geminiIsEvent).length, cls: "text-[#15935d]" },
-            { label: "三蘆區廣播", value: broadcasts.filter((b) => b.sourceFacilityKey === "salu_counter" && !b.isFanOut).length, cls: "text-[#ef7d22]" },
+            { label: "廣播總數", value: broadcasts.length, cls: "text-[#2f6fe8]" },
+            { label: "三蘆區廣播", value: broadcasts.filter(isFanOutBroadcast).length, cls: "text-[#6947d8]" },
+            { label: "Gemini 偵測活動", value: broadcasts.filter((b) => b.isEvent).length, cls: "text-[#15935d]" },
+            { label: "LINE 群組來源", value: broadcasts.filter((b) => b.sourceGroupId).length, cls: "text-[#ef7d22]" },
           ].map(({ label, value, cls }) => (
             <WorkbenchCard key={label} className="p-4">
               <p className={cn("text-[24px] font-black", cls)}>{value}</p>
@@ -275,16 +275,18 @@ export default function SupervisorGroupBroadcastsPage() {
             <DreamLoader compact label="載入廣播記錄" />
           ) : broadcastsQuery.isError ? (
             <div className="p-8 text-center text-[13px] font-bold text-[#ff4964]">讀取失敗</div>
-          ) : primaryBroadcasts.length === 0 ? (
+          ) : broadcasts.length === 0 ? (
             <div className="p-8 text-center">
               <Megaphone className="mx-auto h-10 w-10 text-[#c7d2de]" />
               <p className="mt-3 text-[14px] font-black text-[#8b9aae]">尚無廣播記錄</p>
             </div>
           ) : (
             <ul className="divide-y divide-dashed divide-[#d8e2ee]">
-              {primaryBroadcasts.map((b) => {
+              {broadcasts.map((b) => {
                 const geminiMeta = geminiStatusMeta[b.geminiStatus] ?? geminiStatusMeta.pending;
-                const isSanlu = b.sourceFacilityKey === "salu_counter";
+                const isSanlu = isFanOutBroadcast(b);
+                const pm = priorityMeta[b.priority] ?? priorityMeta.normal;
+                const displayTitle = b.title ?? b.originalText.slice(0, 60);
                 return (
                   <li key={b.id} className="px-5 py-4" data-testid={`row-broadcast-${b.id}`}>
                     <div className="flex items-start justify-between gap-3">
@@ -294,8 +296,8 @@ export default function SupervisorGroupBroadcastsPage() {
                             {facilityLabel(b.sourceFacilityKey)}
                           </span>
                           {b.priority !== "normal" ? (
-                            <span className={cn("rounded-[6px] px-2 py-1 text-[10px] font-black", (priorityMeta[b.priority] ?? priorityMeta.normal).cls)}>
-                              {(priorityMeta[b.priority] ?? priorityMeta.normal).label}
+                            <span className={cn("rounded-[6px] px-2 py-1 text-[10px] font-black", pm.cls)}>
+                              {pm.label}
                             </span>
                           ) : null}
                           {b.sourceGroupId ? (
@@ -303,38 +305,41 @@ export default function SupervisorGroupBroadcastsPage() {
                               LINE 群組
                             </span>
                           ) : null}
-                          {isSanlu && b.fanOutTargets && b.fanOutTargets.length > 1 ? (
+                          {isSanlu ? (
                             <span className="inline-flex items-center gap-1 rounded-[6px] bg-[#f3f0ff] px-2 py-1 text-[10px] font-black text-[#6947d8]">
                               <Users className="h-3 w-3" />
-                              Fan-out × {b.fanOutTargets.length}
+                              Fan-out × {b.targetFacilityKeys.length}
                             </span>
                           ) : null}
                           <span className={cn("rounded-[6px] px-2 py-1 text-[10px] font-black", geminiMeta.cls)}>
                             <Sparkles className="mr-1 inline h-3 w-3" />
                             {geminiMeta.label}
                           </span>
-                          {b.geminiIsEvent ? (
+                          {b.isEvent ? (
                             <span className="rounded-[6px] bg-[#eaf8ef] px-2 py-1 text-[10px] font-black text-[#15935d]">
                               活動偵測 ✓
                             </span>
                           ) : null}
                           <span className="text-[11px] font-bold text-[#8b9aae]">{toDisplayTime(b.createdAt)}</span>
-                          <span className="text-[11px] font-bold text-[#8b9aae]">by {b.createdByName}</span>
+                          {b.senderName ? (
+                            <span className="text-[11px] font-bold text-[#8b9aae]">by {b.senderName}</span>
+                          ) : null}
                         </div>
-                        <h3 className="mt-2 text-[15px] font-black text-[#10233f]">{b.title}</h3>
+                        {/* Title: shown once Gemini extracts it; fallback to truncated originalText */}
+                        <h3 className="mt-2 text-[15px] font-black text-[#10233f]">{displayTitle}</h3>
                         <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[13px] font-medium leading-6 text-[#3a4658]">
-                          {b.content}
+                          {b.originalText}
                         </p>
-                        {b.geminiSummary ? (
+                        {b.summary ? (
                           <p className="mt-2 rounded-[6px] bg-[#f7f9fb] px-3 py-2 text-[12px] font-bold text-[#536175]">
                             <Sparkles className="mr-1 inline h-3 w-3 text-[#6947d8]" />
-                            Gemini 摘要：{b.geminiSummary}
+                            Gemini 摘要：{b.summary}
                           </p>
                         ) : null}
-                        {isSanlu && b.fanOutTargets && b.fanOutTargets.length > 1 ? (
+                        {isSanlu ? (
                           <div className="mt-2 flex flex-wrap gap-1">
                             <span className="text-[11px] font-black text-[#8b9aae]">Fan-out 目標：</span>
-                            {b.fanOutTargets.map((fk) => (
+                            {b.targetFacilityKeys.map((fk) => (
                               <span key={fk} className="rounded-[4px] bg-[#eef2f6] px-2 py-0.5 text-[10px] font-black text-[#536175]">
                                 {facilityLabel(fk)}
                               </span>

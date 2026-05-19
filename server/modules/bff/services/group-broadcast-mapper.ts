@@ -11,33 +11,35 @@ const FACILITY_LABELS: Record<string, string> = {
 
 export function mapGroupBroadcastToAnnouncementSummary(
   row: GroupBroadcast,
-  now: string,
 ): AnnouncementSummary {
   const facilityLabel = FACILITY_LABELS[row.sourceFacilityKey] ?? row.sourceFacilityKey;
-  const isFanOut = row.isFanOut;
+  const isFanOut = row.targetFacilityKeys.length > 1;
   const sourceLabel = isFanOut
-    ? `群組公告（來自 ${facilityLabel} fan-out）`
+    ? `群組公告（來自 ${facilityLabel} 三蘆區廣播）`
     : `群組公告（${facilityLabel}）`;
 
   const bffPriority =
-    row.priority === "urgent" ? "urgent" :
+    row.priority === "urgent" ? "required" :
     row.priority === "high" ? "high" :
     "normal";
 
+  // Use Gemini-extracted title if available, fallback to first 60 chars of original text
+  const displayTitle = row.title ?? row.originalText.slice(0, 60);
+
   return {
     id: `group-broadcast-${row.id}`,
-    title: row.title,
-    summary: row.geminiSummary ?? row.content.slice(0, 100),
-    content: row.content,
+    title: displayTitle,
+    summary: row.summary ?? row.originalText.slice(0, 100),
+    content: row.originalText,
     sourceLabel,
     priority: bffPriority,
     type: "notice",
     isAcknowledged: false,
     isPinned: false,
     publishedAt: row.createdAt.toISOString?.() ?? String(row.createdAt),
-    scheduledAt: null,
-    deadlineLabel: null,
-    effectiveRange: null,
-    acknowledgedAt: null,
+    scheduledAt: undefined,
+    deadlineLabel: undefined,
+    effectiveRange: "",
+    acknowledgedAt: undefined,
   };
 }
