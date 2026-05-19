@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { requireSession } from "../auth/context";
 import {
   getCampaignAnnouncements,
-  getImportantAnnouncements,
+  getImportantAnnouncementsWithBreakdown,
 } from "./widget-service";
 
 // Resolve facilityKey from query param or session, then verify access.
@@ -48,8 +48,9 @@ export function registerAnnouncementWidgetRoutes(app: Express): void {
           20,
         );
 
-        const data = await getImportantAnnouncements(facilityKey, role, limit);
-        return res.json({ data, total: data.length, facilityKey });
+        const { data, filterBreakdown } = await getImportantAnnouncementsWithBreakdown(facilityKey, role, limit);
+        const sourceStatus = { filterBreakdown };
+        return res.json({ data, total: data.length, facilityKey, sourceStatus });
       } catch (err) {
         return next(err);
       }

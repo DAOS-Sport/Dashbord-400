@@ -511,6 +511,21 @@ export default function SupervisorAnnouncementsPage() {
           ))}
         </div>
 
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[8px] border border-[#dfe7ef] bg-[#f7f9fb] px-4 py-3 text-[12px] font-bold text-[#536175]">
+          <span>
+            上游待審核：
+            <span className="ml-1 font-black text-[#ef7d22]">{summaryQuery.data?.pendingReviewCount ?? 0} 筆</span>
+            <span className="ml-1 text-[11px] font-medium text-[#8b9aae]">（LINE Bot 回報）</span>
+          </span>
+          <span className="hidden text-[#dfe7ef] sm:inline">|</span>
+          <span>
+            本地可審核：
+            <span className="ml-1 font-black text-[#2f6fe8]">{candidatesQuery.data?.total ?? 0} 筆</span>
+            <span className="ml-1 text-[11px] font-medium text-[#8b9aae]">（本系統同步候選）</span>
+          </span>
+          <span className="ml-auto hidden text-[11px] font-medium text-[#8b9aae] lg:inline">兩個數字來源不同，差異屬正常現象</span>
+        </div>
+
         <ManualAnnouncementPanel
           facilityKey={facilityKey}
           items={systemAnnouncementsQuery.data?.items ?? []}
@@ -568,6 +583,9 @@ export default function SupervisorAnnouncementsPage() {
               <h2 className="text-[15px] font-black">候選列表</h2>
               <span className="text-[12px] font-bold text-[#8b9aae]">{candidatesQuery.data?.total ?? candidates.length} 筆</span>
             </div>
+            <p className="mb-3 text-[11px] font-bold text-[#8b9aae]">
+              顯示本地同步候選（{filters.status ? STATUS_LABELS[filters.status] ?? filters.status : "全部狀態"}），共 {candidatesQuery.data?.total ?? candidates.length} 筆；上游口徑見上方統計列
+            </p>
             <div className="space-y-3">
               {candidatesQuery.isLoading ? (
                 <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185]">載入公告候選...</div>

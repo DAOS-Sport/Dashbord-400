@@ -12,7 +12,7 @@ import { storage } from "../../../storage";
 import { readFacilityLineAnnouncements } from "../../announcement-groups/service";
 import {
   getCampaignAnnouncements,
-  getImportantAnnouncements,
+  getImportantAnnouncementsWithBreakdown,
   getLastSyncStatus,
 } from "../../announcements/widget-service";
 
@@ -47,7 +47,7 @@ export const enrichEmployeeHome = async (
   const [
     layoutSetting,
     cwaWeather,
-    candidateImportant,
+    candidateImportantResult,
     candidateCampaigns,
     lineAnnouncementsResult,
   ] =
@@ -60,8 +60,8 @@ export const enrichEmployeeHome = async (
         })
         .catch(() => null),
       fetchCwaWeather().catch(() => null),
-      getImportantAnnouncements(normalizedFacilityKey, role, 5).catch(
-        () => [],
+      getImportantAnnouncementsWithBreakdown(normalizedFacilityKey, role, 5).catch(
+        () => ({ data: [] as import("@shared/domain/workbench").AnnouncementSummary[], filterBreakdown: { upstreamTotal: 0, approvedTotal: 0, qualityFiltered: 0, scopeFiltered: 0, displayableTotal: 0 } }),
       ),
       getCampaignAnnouncements(normalizedFacilityKey, 5).catch(() => []),
       readFacilityLineAnnouncements({
@@ -108,6 +108,9 @@ export const enrichEmployeeHome = async (
     .slice(0, 8)
     .map((item) => mapSystemAnnouncementSummary(item, now));
 
+  const candidateImportant = candidateImportantResult.data;
+  const candidateFilterBreakdown = candidateImportantResult.filterBreakdown;
+
   const announcementsBeforeOverlay = uniqueAnnouncements([
     ...lineAnnouncementsResult.announcements,
     ...employeeResources.announcements,
@@ -145,6 +148,7 @@ export const enrichEmployeeHome = async (
       announcements,
       lineSourceStatus,
       now,
+      candidateFilterBreakdown,
     ),
     // Widget B (課程活動): candidate campaigns prepended to employee resource events
     campaigns: ok(

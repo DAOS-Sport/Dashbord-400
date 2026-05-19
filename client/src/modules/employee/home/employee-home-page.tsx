@@ -752,8 +752,15 @@ function HandoverDrawer({
 }
 
 function AnnouncementCard({ announcements, source }: { announcements: AnnouncementSummary[]; source?: BffSection<AnnouncementSummary[]> }) {
+  const filterBreakdown = source?.meta.filterBreakdown;
   const sourceMessage = (() => {
-    if (source?.status !== "unavailable" && source?.status !== "degraded") return "目前沒有需要優先閱讀的群組公告。";
+    if (source?.status !== "unavailable" && source?.status !== "degraded") {
+      if (filterBreakdown && filterBreakdown.upstreamTotal > 0) {
+        const filtered = filterBreakdown.qualityFiltered + filterBreakdown.scopeFiltered;
+        return `上游有 ${filterBreakdown.upstreamTotal} 筆公告，${filtered > 0 ? `其中 ${filtered} 筆因品質或範圍篩選排除，` : ""}目前無符合顯示條件的公告。`;
+      }
+      return "目前沒有需要優先閱讀的群組公告。";
+    }
     const reason = source.meta.fallbackReason ?? "";
     if (/TOKEN|LINE_BOT|ADMIN|API/i.test(reason)) return "公告來源暫時無法同步，請先以主管公告頁確認最新資訊。";
     return reason || "公告來源暫時無法同步，請稍後再試。";

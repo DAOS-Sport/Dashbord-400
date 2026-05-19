@@ -2,11 +2,14 @@ import { createHash } from "crypto";
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { announcementCandidates, type AnnouncementCandidate } from "@shared/schema";
 import { findFacilityLineGroup } from "@shared/domain/facilities";
+import type { AnnouncementFilterBreakdown } from "@shared/bff/envelope";
 import type { AnnouncementSummary, CampaignSummary } from "@shared/domain/workbench";
 import { env } from "../../shared/config/env";
 import { fetchJsonIfAvailable } from "../bff/services/announcement-fetch-service";
 import { asArray, readText } from "../bff/services/resource-mappers";
 import { db } from "../../db";
+
+export type { AnnouncementFilterBreakdown };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -35,7 +38,11 @@ interface ResultCacheEntry<T> {
   expiresAt: number;
 }
 
-const importantResultCache = new Map<string, ResultCacheEntry<AnnouncementSummary[]>>();
+interface ImportantCacheEntry extends ResultCacheEntry<AnnouncementSummary[]> {
+  filterBreakdown: AnnouncementFilterBreakdown;
+}
+
+const importantResultCache = new Map<string, ImportantCacheEntry>();
 const campaignResultCache = new Map<string, ResultCacheEntry<CampaignSummary[]>>();
 
 function makeImportantKey(facilityKey: string, role: string | undefined, limit: number): string {
@@ -272,19 +279,51 @@ async function syncAllToDb(rows: Record<string, unknown>[], facilityKey: string)
 
 // ─── Public widget queries ────────────────────────────────────────────────────
 
-export async function getImportantAnnouncements(
-  facilityKey: string,
-  role?: string,
-  limit = 5,
-): Promise<AnnouncementSummary[]> {
-  // Check result cache first (30s TTL)
-  const cacheKey = makeImportantKey(facilityKey, role, limit);
-  const cached = importantResultCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
+function buildImportantSummary(r: AnnouncementCandidate, now: Date): AnnouncementSummary {
+  const rank = priorityRank(r.priority);
+  const nowMs = Date.now();
+  const isExpiringSoon =
+    r.endAt != null &&
+    r.endAt.getTime() > nowMs &&
+    r.endAt.getTime() - nowMs <= EXPIRING_SOON_MS;
+  return {
+    id: `candidate-${r.id}`,
+    externalReferenceId: r.sourceMessageId,
+    title: r.title,
+    summary: r.summary,
+    priority: rank === 0 ? "required" : rank === 1 ? "high" : "normal",
+    type: r.candidateType === "rule" ? "sop" : "notice",
+    isPinned: rank === 0,
+    effectiveRange: formatEffectiveRange(r.startAt, r.detectedAt, r.endAt),
+    publishedAt:
+      r.detectedAt?.toISOString() ??
+      r.startAt?.toISOString() ??
+      now.toISOString(),
+    createdAt: r.detectedAt?.toISOString() ?? now.toISOString(),
+    sourceType: "candidate",
+    sourceLabel: "AI分類",
+    sourceRefId: r.sourceMessageId ?? null,
+    deadlineLabel: isExpiringSoon ? "即將結束" : undefined,
+    isExpiringSoon,
+  };
+}
 
-  // Trigger sync (throttled internally)
+async function fetchAndBuildImportant(
+  facilityKey: string,
+  role: string | undefined,
+  limit: number,
+): Promise<{ data: AnnouncementSummary[]; filterBreakdown: AnnouncementFilterBreakdown }> {
   await syncCandidatesFromLineBotApi(facilityKey).catch(() => {});
-  if (!env.databaseUrl) return [];
+
+  const emptyBreakdown: AnnouncementFilterBreakdown = {
+    upstreamTotal: 0,
+    approvedTotal: 0,
+    qualityFiltered: 0,
+    scopeFiltered: 0,
+    displayableTotal: 0,
+  };
+
+  if (!env.databaseUrl) return { data: [], filterBreakdown: emptyBreakdown };
 
   const now = new Date();
   const rows = await db
@@ -292,7 +331,6 @@ export async function getImportantAnnouncements(
     .from(announcementCandidates)
     .where(
       and(
-        // Include facility-specific rows AND global/null-scope rows
         or(isNull(announcementCandidates.facility), eq(announcementCandidates.facility, facilityKey)),
         inArray(announcementCandidates.candidateType, [...IMPORTANT_TYPES]),
         inArray(announcementCandidates.status, [...APPROVED_STATUSES]),
@@ -302,46 +340,60 @@ export async function getImportantAnnouncements(
     .orderBy(desc(announcementCandidates.detectedAt))
     .limit(limit * 5);
 
-  const result = rows
-    .filter(isDisplayableCandidate)
-    .filter((r) => matchesScopeAndRole(r, role, facilityKey))
-    .sort(
-      (a, b) =>
-        priorityRank(a.priority) - priorityRank(b.priority) ||
-        (b.detectedAt?.getTime() ?? 0) - (a.detectedAt?.getTime() ?? 0),
-    )
-    .slice(0, limit)
-    .map((r): AnnouncementSummary => {
-      const rank = priorityRank(r.priority);
-      const nowMs = Date.now();
-      const isExpiringSoon =
-        r.endAt != null &&
-        r.endAt.getTime() > nowMs &&
-        r.endAt.getTime() - nowMs <= EXPIRING_SOON_MS;
-      return {
-        id: `candidate-${r.id}`,
-        externalReferenceId: r.sourceMessageId,
-        title: r.title,
-        summary: r.summary,
-        priority: rank === 0 ? "required" : rank === 1 ? "high" : "normal",
-        type: r.candidateType === "rule" ? "sop" : "notice",
-        isPinned: rank === 0,
-        effectiveRange: formatEffectiveRange(r.startAt, r.detectedAt, r.endAt),
-        publishedAt:
-          r.detectedAt?.toISOString() ??
-          r.startAt?.toISOString() ??
-          now.toISOString(),
-        createdAt: r.detectedAt?.toISOString() ?? now.toISOString(),
-        sourceType: "candidate",
-        sourceLabel: "AI分類",
-        sourceRefId: r.sourceMessageId ?? null,
-        deadlineLabel: isExpiringSoon ? "即將結束" : undefined,
-        isExpiringSoon,
-      };
-    });
+  const upstreamTotal = rows.length;
+  const approvedTotal = upstreamTotal;
 
-  importantResultCache.set(cacheKey, { data: result, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
+  const qualityPassed = rows.filter(isDisplayableCandidate);
+  const qualityFiltered = upstreamTotal - qualityPassed.length;
+
+  const scopePassed = qualityPassed.filter((r) => matchesScopeAndRole(r, role, facilityKey));
+  const scopeFiltered = qualityPassed.length - scopePassed.length;
+
+  const sorted = scopePassed.sort(
+    (a, b) =>
+      priorityRank(a.priority) - priorityRank(b.priority) ||
+      (b.detectedAt?.getTime() ?? 0) - (a.detectedAt?.getTime() ?? 0),
+  );
+  const sliced = sorted.slice(0, limit);
+  const data = sliced.map((r) => buildImportantSummary(r, now));
+
+  const filterBreakdown: AnnouncementFilterBreakdown = {
+    upstreamTotal,
+    approvedTotal,
+    qualityFiltered,
+    scopeFiltered,
+    displayableTotal: data.length,
+  };
+
+  return { data, filterBreakdown };
+}
+
+export async function getImportantAnnouncementsWithBreakdown(
+  facilityKey: string,
+  role?: string,
+  limit = 5,
+): Promise<{ data: AnnouncementSummary[]; filterBreakdown: AnnouncementFilterBreakdown }> {
+  const cacheKey = makeImportantKey(facilityKey, role, limit);
+  const cached = importantResultCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { data: cached.data, filterBreakdown: cached.filterBreakdown };
+  }
+
+  const result = await fetchAndBuildImportant(facilityKey, role, limit);
+  importantResultCache.set(cacheKey, {
+    data: result.data,
+    filterBreakdown: result.filterBreakdown,
+    expiresAt: Date.now() + RESULT_CACHE_TTL_MS,
+  });
   return result;
+}
+
+export async function getImportantAnnouncements(
+  facilityKey: string,
+  role?: string,
+  limit = 5,
+): Promise<AnnouncementSummary[]> {
+  return (await getImportantAnnouncementsWithBreakdown(facilityKey, role, limit)).data;
 }
 
 export async function getCampaignAnnouncements(
