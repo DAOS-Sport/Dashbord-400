@@ -42,6 +42,7 @@ import { RoleSwitcher } from "@/modules/workbench/role-switcher";
 import { EmployeeFloatingQuickActions } from "@/modules/employee/employee-floating-quick-actions";
 import { EmployeeFacilitySwitcher } from "@/modules/employee/employee-facility-switcher";
 import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
+import { WorkbenchGlobalSearch } from "@/modules/workbench/workbench-global-search";
 import {
   createEmployeeResource,
   createEmployeeFrontDeskHandover,
@@ -308,7 +309,7 @@ function TopBar({
 }) {
   return (
     <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white md:bg-white/90 md:text-[#10233f] md:backdrop-blur-xl">
-      <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3 md:px-6">
+      <div className="flex h-14 w-full items-center justify-between gap-3 px-3 md:px-6">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -320,10 +321,11 @@ function TopBar({
             <Menu className="h-5 w-5" />
           </button>
         </div>
-        <div className="hidden justify-center md:flex">
-          <RoleSwitcher visualActiveRole="employee" />
-        </div>
-        <div className="flex justify-end">
+        <div className="flex items-center gap-2">
+          <div className="hidden md:block">
+            <RoleSwitcher visualActiveRole="employee" />
+          </div>
+          <WorkbenchGlobalSearch role="employee" />
           <WorkbenchNotificationBell role="employee" />
         </div>
       </div>
@@ -1552,7 +1554,6 @@ function LoadingState() {
 }
 
 function EmployeeHomeContent() {
-  const [searchQuery, setSearchQuery] = useState("");
   const [handoverDrawerOpen, setHandoverDrawerOpen] = useState(false);
   const [courtsDrawerOpen, setCourtsDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1567,12 +1568,6 @@ function EmployeeHomeContent() {
   const courtSchools = useMemo(() => getEmployeeCourtSchoolsForFacility(data?.facility.key, data?.facility.name), [data?.facility.key, data?.facility.name]);
   const handoverPayload = isHandoverHomePayload(data?.homeCards?.handover.payload) ? data?.homeCards?.handover.payload : undefined;
   const shiftBoard = isShiftBoardPayload(data?.homeCards?.shiftReminder.payload) ? data?.homeCards?.shiftReminder.payload : undefined;
-  const searchQueryResult = useQuery({
-    queryKey: ["/api/bff/employee/search", data?.facility.key, searchQuery],
-    queryFn: () => searchEmployeeWorkbench(searchQuery, data?.facility.key),
-    enabled: Boolean(data?.facility.key && searchQuery.trim().length >= 2),
-  });
-
   if (isLoading) return <LoadingState />;
 
   if (error || !data) {
@@ -1595,17 +1590,6 @@ function EmployeeHomeContent() {
           <TopBar sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed((current) => !current)} />
           <main className="min-h-0 w-full flex-1 overflow-y-auto px-4 py-6 pb-24 sm:px-6 md:px-6 md:py-7">
             <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="mx-auto max-w-[1760px] space-y-4">
-              <motion.div variants={riseIn}>
-                {homeSlots.isEnabled("search") ? (
-                  <Hero
-                    home={data}
-                    searchQuery={searchQuery}
-                    onSearchQueryChange={setSearchQuery}
-                    searchResults={searchQueryResult.data?.items ?? []}
-                    isSearching={searchQueryResult.isFetching}
-                  />
-                ) : null}
-              </motion.div>
               <motion.div variants={riseIn} className="grid items-stretch gap-4 lg:grid-cols-12">
                 {homeSlots.isEnabled("handover") ? (
                   <div className="h-full lg:col-span-4">
