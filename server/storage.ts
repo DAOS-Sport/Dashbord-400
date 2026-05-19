@@ -36,6 +36,7 @@ import {
   type ParkingContract, type InsertParkingContract,
   type ParkingPayment, type InsertParkingPayment,
   type ParkingEventDay, type InsertParkingEventDay,
+  type GroupBroadcast, type InsertGroupBroadcast,
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, tasks, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
   classifierAnomalies,
@@ -46,6 +47,7 @@ import {
   lifeguardWaterQualityLogs, lifeguardCoachDiveLogs, lifeguardCleanupLogs, lifeguardLostAndFound,
   laneRentals,
   parkingPlans, parkingVehicles, parkingContracts, parkingPayments, parkingEventDays,
+  groupBroadcasts,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, inArray, and, or, isNull, gte, lte, sql, ilike } from "drizzle-orm";
@@ -240,6 +242,13 @@ export interface IStorage {
     disposedByUserId?: string | null;
     disposedReason?: string | null;
   }): Promise<LifeguardLostAndFound | undefined>;
+
+  // Group Broadcasts (群組重要公告)
+  listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number }): Promise<GroupBroadcast[]>;
+  getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined>;
+  createGroupBroadcast(input: InsertGroupBroadcast): Promise<GroupBroadcast>;
+  updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "candidateId">>): Promise<GroupBroadcast | undefined>;
+  deleteGroupBroadcast(id: number): Promise<boolean>;
 
   // Lane rentals (水道租借)
   listLaneRentals(opts: { facilityKey: string; bookingDate?: string; status?: string }): Promise<LaneRental[]>;
@@ -1671,6 +1680,39 @@ export class DatabaseStorage implements IStorage {
 
   async deleteLaneRental(id: number): Promise<boolean> {
     const result = await db.delete(laneRentals).where(eq(laneRentals.id, id)).returning({ id: laneRentals.id });
+    return result.length > 0;
+  }
+
+  // Group Broadcasts
+  async listGroupBroadcasts(opts: { facilityKey?: string; sourceFacilityKey?: string; limit?: number }): Promise<GroupBroadcast[]> {
+    const conditions = [];
+    if (opts.facilityKey) conditions.push(eq(groupBroadcasts.facilityKey, opts.facilityKey));
+    if (opts.sourceFacilityKey) conditions.push(eq(groupBroadcasts.sourceFacilityKey, opts.sourceFacilityKey));
+    const base = db.select().from(groupBroadcasts);
+    const filtered = conditions.length > 0
+      ? base.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      : base;
+    const ordered = filtered.orderBy(desc(groupBroadcasts.createdAt));
+    return opts.limit ? ordered.limit(opts.limit) : ordered;
+  }
+
+  async getGroupBroadcastById(id: number): Promise<GroupBroadcast | undefined> {
+    const [row] = await db.select().from(groupBroadcasts).where(eq(groupBroadcasts.id, id));
+    return row;
+  }
+
+  async createGroupBroadcast(input: InsertGroupBroadcast): Promise<GroupBroadcast> {
+    const [row] = await db.insert(groupBroadcasts).values({ ...input, updatedAt: new Date() }).returning();
+    return row;
+  }
+
+  async updateGroupBroadcast(id: number, data: Partial<Pick<GroupBroadcast, "geminiStatus" | "geminiIsEvent" | "geminiStartAt" | "geminiEndAt" | "geminiSummary" | "candidateId">>): Promise<GroupBroadcast | undefined> {
+    const [row] = await db.update(groupBroadcasts).set({ ...data, updatedAt: new Date() }).where(eq(groupBroadcasts.id, id)).returning();
+    return row;
+  }
+
+  async deleteGroupBroadcast(id: number): Promise<boolean> {
+    const result = await db.delete(groupBroadcasts).where(eq(groupBroadcasts.id, id)).returning({ id: groupBroadcasts.id });
     return result.length > 0;
   }
 }

@@ -564,4 +564,32 @@ export const contentModules: ModuleDefinition[] = [
     telemetry: { trackCardClick: true },
     governance: { ownerRole: "system", editableBy: ["system"], readonlyFor: ["employee"], notes: "CWA_API_KEY must be set. Gracefully degrades to unavailable when key is missing or API times out." },
   },
+{
+    id: "group-broadcasts",
+    label: "群組重要公告",
+    description: "Supervisor-posted group broadcasts with 三蘆區 fan-out and Gemini 2.0 Flash event detection. Auto-inserts detected events into announcement_candidates.",
+    domainType: "core",
+    status: implemented,
+    visibleRoles: ["employee", "lifeguard", "supervisor", "system"],
+    visibility: ["homepage_widget", "detail_page", "admin_page"],
+    sourceOfTruth: "postgres",
+    homepageWidget: true,
+    priority: { employee: 3, supervisor: 5 },
+    routes: [
+      roleRoute("supervisor", "/supervisor/group-broadcasts"),
+    ],
+    apis: [
+      api("GET", "/api/group-broadcasts", "bff"),
+      api("POST", "/api/group-broadcasts", "crud"),
+      api("GET", "/api/group-broadcasts/admin", "crud"),
+      api("DELETE", "/api/group-broadcasts/:id", "crud"),
+    ],
+    data: [
+      { table: "group_broadcasts", entity: "group broadcast record", source: "postgres", status: implemented },
+    ],
+    integrations: [{ provider: "GEMINI", purpose: "Detect events in broadcast content; auto-insert into announcement_candidates.", status: partial }],
+    bff: { employeeSectionKey: "announcements", supervisorSectionKey: "groupBroadcasts" },
+    telemetry: { trackPageView: true, trackActionSubmit: true, eventTypes: ["group_broadcast_create", "group_broadcast_delete"] },
+    governance: { ownerRole: "supervisor", editableBy: ["supervisor", "system"], readonlyFor: ["employee", "lifeguard"], requiresApproval: false, notes: "三蘆區 fan-out automatically distributes to xinbei_pool, salu_counter, sanmin_pool. GOOGLE_API_KEY required for Gemini; gracefully skips if absent." },
+  },
 ];

@@ -94,5 +94,8 @@ export async function registerRoutes(
 
   registerPortalContentRoutes(app, container, { requireEmployee, requireSupervisor });
 
+  const { registerGroupBroadcastRoutes } = await import("./modules/group-broadcasts/routes");
+  registerGroupBroadcastRoutes(app, { requireEmployee, requireSupervisor });
+
   return httpServer;
 }

@@ -37,6 +37,7 @@ export const TOPOLOGY_NODES: TopologyNode[] = [
   { id: "work-logs", label: "日誌模組", type: "module", group: "employee", description: "救生員 & 櫃台 daily/assigned/recurring/water-quality", route: "/admin/work-logs", status: "active" },
   { id: "announcement-groups", label: "公告群組", type: "module", group: "announcements", description: "LINE group binding + overlay (pin/hide/note)", route: "/supervisor/announcement-groups", status: "active" },
   { id: "announcement-classifier", label: "公告分類器", type: "module", group: "announcements", description: "AI candidate review + approve/reject workflow", route: "/announcements", status: "active" },
+  { id: "group-broadcasts", label: "群組重要公告", type: "module", group: "announcements", description: "主管廣播 + 三蘆區 fan-out + Gemini 活動偵測", route: "/supervisor/group-broadcasts", status: "active" },
 ];
 
 export const TOPOLOGY_EDGES: TopologyEdge[] = [
@@ -59,6 +60,8 @@ export const TOPOLOGY_EDGES: TopologyEdge[] = [
   { id: "announcement-groups-bot", source: "announcement-groups", target: "line-bot", label: "messages" },
   { id: "announcement-groups-db", source: "announcement-groups", target: "postgres", label: "bindings" },
   { id: "announcement-classifier-bot", source: "announcement-classifier", target: "line-bot", label: "candidates" },
+  { id: "group-broadcasts-db", source: "group-broadcasts", target: "postgres", label: "read/write" },
+  { id: "group-broadcasts-candidates", source: "group-broadcasts", target: "announcement-classifier", label: "event upsert", dashed: true },
 ];
 
 export const TOPOLOGY_GROUP_LABELS: Record<string, string> = {

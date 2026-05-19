@@ -1897,3 +1897,42 @@ export const bookingSnapshots = pgTable("booking_snapshots", {
 
 export type BookingSnapshot = typeof bookingSnapshots.$inferSelect;
 export type InsertBookingSnapshot = typeof bookingSnapshots.$inferInsert;
+
+export const groupBroadcasts = pgTable(
+  "group_broadcasts",
+  {
+    id: serial("id").primaryKey(),
+    facilityKey: text("facility_key").notNull(),
+    sourceFacilityKey: text("source_facility_key").notNull(),
+    isFanOut: boolean("is_fan_out").default(false).notNull(),
+    parentId: integer("parent_id"),
+    fanOutTargets: text("fan_out_targets").array(),
+    title: text("title").notNull(),
+    content: text("content").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdByName: text("created_by_name").notNull(),
+    geminiStatus: text("gemini_status").default("pending").notNull(),
+    geminiIsEvent: boolean("gemini_is_event"),
+    geminiStartAt: timestamp("gemini_start_at"),
+    geminiEndAt: timestamp("gemini_end_at"),
+    geminiSummary: text("gemini_summary"),
+    candidateId: integer("candidate_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    facilityKeyIdx: index("group_broadcasts_facility_key_idx").on(table.facilityKey),
+    sourceFacilityIdx: index("group_broadcasts_source_facility_idx").on(table.sourceFacilityKey),
+    createdAtIdx: index("group_broadcasts_created_at_idx").on(table.createdAt),
+    parentIdIdx: index("group_broadcasts_parent_id_idx").on(table.parentId),
+  }),
+);
+
+export const insertGroupBroadcastSchema = createInsertSchema(groupBroadcasts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertGroupBroadcast = z.infer<typeof insertGroupBroadcastSchema>;
+export type GroupBroadcast = typeof groupBroadcasts.$inferSelect;

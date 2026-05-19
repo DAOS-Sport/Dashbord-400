@@ -46,6 +46,8 @@ export const env = {
   ragicFacilitySheet: read("RAGIC_FACILITY_SHEET") || "/ragicforms4/7",
   sessionCookieName: read("SESSION_COOKIE_NAME") || "workbench_sid",
   sessionTtlSeconds: Number(read("SESSION_TTL_SECONDS") || 60 * 60 * 8),
+  googleApiKey: read("GOOGLE_API_KEY"),
+  groupBroadcastGeminiModel: read("GROUP_BROADCAST_GEMINI_MODEL") || "gemini-2.0-flash",
 } as const;
 
 export const isProduction = env.nodeEnv === "production";

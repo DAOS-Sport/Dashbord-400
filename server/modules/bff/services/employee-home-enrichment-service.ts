@@ -15,6 +15,7 @@ import {
   getImportantAnnouncementsWithBreakdown,
   getLastSyncStatus,
 } from "../../announcements/widget-service";
+import { mapGroupBroadcastToAnnouncementSummary } from "./group-broadcast-mapper";
 
 import {
   announcementSectionFromSources,
@@ -50,6 +51,7 @@ export const enrichEmployeeHome = async (
     candidateImportantResult,
     candidateCampaigns,
     lineAnnouncementsResult,
+    groupBroadcastRows,
   ] =
     await Promise.all([
       storage
@@ -80,6 +82,7 @@ export const enrichEmployeeHome = async (
           errorMessage: "LINE 公告群組讀取失敗",
         },
       })),
+      storage.listGroupBroadcasts({ facilityKey: normalizedFacilityKey, limit: 8 }).catch(() => []),
     ]);
 
   let nextDto: EmployeeHomeDto = {
@@ -111,7 +114,12 @@ export const enrichEmployeeHome = async (
   const candidateImportant = candidateImportantResult.data;
   const candidateFilterBreakdown = candidateImportantResult.filterBreakdown;
 
+  const groupBroadcastAnnouncements = groupBroadcastRows.map((row) =>
+    mapGroupBroadcastToAnnouncementSummary(row, now),
+  );
+
   const announcementsBeforeOverlay = uniqueAnnouncements([
+    ...groupBroadcastAnnouncements,
     ...lineAnnouncementsResult.announcements,
     ...employeeResources.announcements,
     ...portalAnnouncements,

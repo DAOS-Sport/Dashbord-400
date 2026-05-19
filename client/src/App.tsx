@@ -53,6 +53,7 @@ import LifeguardLogPage from "@/modules/lifeguard/log/page";
 import { EmployeeLostAndFoundPage, LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
+import SupervisorGroupBroadcastsPage from "@/modules/supervisor/group-broadcasts/page";
 import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
 import SupervisorAnomaliesPage from "@/modules/supervisor/anomalies/page";
 import SupervisorPeoplePage from "@/modules/supervisor/people/page";
@@ -289,6 +290,9 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/supervisor/announcement-groups">
         <SupervisorAnnouncementGroupsPage />
+      </Route>
+      <Route path="/supervisor/group-broadcasts">
+        <SupervisorGroupBroadcastsPage />
       </Route>
       <Route path="/supervisor/anomalies">
         <SupervisorAnomaliesPage />

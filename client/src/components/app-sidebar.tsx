@@ -23,6 +23,7 @@ import {
   Tags,
   Wallet,
   Waves,
+  Megaphone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,6 +46,7 @@ const navItems = [
   { title: "跨館資源監控", url: "/operations", icon: Building2, group: "營運管理" },
   { title: "公告審核中心", url: "/announcements", icon: FileText, group: "公告歸納" },
   { title: "公告分析總覽", url: "/announcements/summary", icon: BarChart3, group: "公告歸納" },
+  { title: "群組重要公告", url: "/supervisor/group-broadcasts", icon: Megaphone, group: "公告歸納" },
   { title: "每日固定事項", url: "/admin/work-logs/daily-templates", icon: ClipboardList, group: "救生員日誌" },
   { title: "主管交辦任務", url: "/admin/work-logs/assigned-tasks", icon: ListChecks, group: "救生員日誌" },
   { title: "每週循環任務", url: "/admin/work-logs/recurring-templates", icon: CalendarRange, group: "救生員日誌" },
