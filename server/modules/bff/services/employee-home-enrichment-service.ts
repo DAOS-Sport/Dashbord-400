@@ -127,7 +127,7 @@ export const enrichEmployeeHome = async (
 
   const announcements = (
     await applyAnnouncementOverlays(announcementsBeforeOverlay)
-  ).slice(0, 10);
+  ).slice(0, 100);
 
   const widgetSyncStatus = getLastSyncStatus(normalizedFacilityKey);
   const lineSourceStatus =
@@ -158,14 +158,14 @@ export const enrichEmployeeHome = async (
         ...candidateCampaigns,
         ...employeeResources.campaigns,
         ...(nextDto.campaigns.data ?? []),
-      ].slice(0, 10),
+      ].slice(0, 50),
       now,
     ),
     documents: ok(
       uniqueDocuments([
         ...employeeResources.documents,
         ...(nextDto.documents.data ?? []),
-      ]).slice(0, 10),
+      ]).slice(0, 50),
       now,
     ),
     training: ok(
