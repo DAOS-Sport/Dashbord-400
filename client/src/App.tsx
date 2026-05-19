@@ -63,6 +63,7 @@ import SystemInsightsPage from "@/modules/system/insights/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemOperationsPage from "@/modules/system/operations/page";
 import SystemProjectMonitoringPage from "@/modules/system/project-monitoring/page";
+import SystemProjectOverviewPage from "@/modules/system/project-overview/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
@@ -374,6 +375,7 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
+      <Route path="/system/project-overview" component={SystemProjectOverviewPage} />
       <Route path="/system/overview" component={SystemControlCenterPage} />
       <Route path="/system" component={SystemControlCenterPage} />
       <Route path="/employee/courts/:school/week">
