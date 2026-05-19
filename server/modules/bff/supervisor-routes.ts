@@ -5,7 +5,6 @@ import {
 } from "@shared/domain/facilities";
 import type { Express } from "express";
 import type { AppContainer } from "../../app/container";
-import { listRagicH05FacilityCandidates } from "../../integrations/ragic/facility-adapter";
 import { ok } from "../../shared/bff/section";
 import { env } from "../../shared/config/env";
 import { storage } from "../../storage";
@@ -42,13 +41,9 @@ export const registerSupervisorBffRoutes = (
       const grantedFacilityKeys = session.grantedFacilities.length
         ? session.grantedFacilities
         : facilityLineGroups.map((facility) => facility.facilityKey);
-      const ragicFacilities = await withTimeout(
-        listRagicH05FacilityCandidates().catch(() => undefined),
-        1200,
-        undefined,
-      );
+      const facilitiesSlot = container.services.ragicCache.getFacilities();
       const ragicOtFacilityKeys = new Set(
-        (ragicFacilities?.data ?? []).map((facility) => facility.facilityKey),
+        (facilitiesSlot.data ?? []).map((facility) => facility.facilityKey),
       );
       const filteredFacilityKeys = ragicOtFacilityKeys.size
         ? grantedFacilityKeys.filter((facilityKey) =>

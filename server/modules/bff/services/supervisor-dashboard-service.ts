@@ -100,21 +100,6 @@ export const buildStaffingSummary = async (
   facilityKeys: string[],
 ) => {
   const now = Date.now();
-  const emptyEmployees = sourceUnavailable<
-    NonNullable<
-      Awaited<
-        ReturnType<
-          AppContainer["integrations"]["ragicAuth"]["listActiveEmployees"]
-        >
-      >["data"]
-    >
-  >(
-    "ragic-auth",
-    "Ragic employees timed out for supervisor dashboard.",
-    "RAGIC_TIMEOUT",
-  ) as Awaited<
-    ReturnType<AppContainer["integrations"]["ragicAuth"]["listActiveEmployees"]>
-  >;
   const emptyShifts = sourceUnavailable<
     NonNullable<
       Awaited<
@@ -128,21 +113,17 @@ export const buildStaffingSummary = async (
   ) as Awaited<
     ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>
   >;
-  const [employeeResult, ...shiftResults] = await Promise.all([
-    withTimeout(
-      container.integrations.ragicAuth.listActiveEmployees(),
-      1500,
-      emptyEmployees,
-    ),
-    ...facilityKeys.map((facilityKey) =>
+  const employeesSlot = container.services.ragicCache.getEmployees();
+  const shiftResults = await Promise.all(
+    facilityKeys.map((facilityKey) =>
       withTimeout(
         container.integrations.schedule.listTodayShifts(facilityKey),
         1500,
         emptyShifts,
       ),
     ),
-  ]);
-  const employees = employeeResult.data ?? [];
+  );
+  const employees = employeesSlot.data ?? [];
   const activeEmployees: StaffMemberSummary[] = employees
     .filter(
       (employee) =>

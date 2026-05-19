@@ -1,7 +1,7 @@
 import type { RagicEmployeeRecord } from "../integrations/ragic/auth-adapter";
 import type { FacilityCandidateDto } from "@shared/auth/me";
 import { createRagicAuthAdapter } from "../integrations/ragic";
-import { listRagicH05FacilityCandidates } from "../integrations/ragic/facility-adapter";
+import { listRagicH05FacilityCandidates, registerFacilityCache } from "../integrations/ragic/facility-adapter";
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const STALE_THRESHOLD_MS = REFRESH_INTERVAL_MS * 2.5;
@@ -69,7 +69,7 @@ class RagicCacheService {
   private async refreshFacilities(): Promise<void> {
     const attemptedAt = new Date();
     try {
-      const result = await listRagicH05FacilityCandidates();
+      const result = await listRagicH05FacilityCandidates(true);
       if (result.data) {
         this.facilities = {
           data: result.data,
@@ -124,6 +124,12 @@ class RagicCacheService {
   }
 
   start(): void {
+    if (this.timer) return;
+
+    registerFacilityCache(() =>
+      this.facilities.data ? { data: this.facilities.data, source: this.facilities.source } : null,
+    );
+
     void Promise.all([this.refreshEmployees(), this.refreshFacilities()]).then(() => {
       const s = this.status();
       console.log(`[RagicCache] primed: ${s.employees.count} employees (${s.employees.source}), ${s.facilities.count} facilities (${s.facilities.source})`);

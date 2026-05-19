@@ -5,7 +5,7 @@ import { clearSessionCookie, getSessionIdFromCookie, setSessionCookie } from "./
 import { attachSession, requireSession } from "./context";
 import { createSessionFromAuthUser, createMemorySessionStore, hasRole } from "./session-store";
 import { toCanonicalFacilityKey } from "@shared/facility/canonical-keys";
-import { listRagicH05FacilityCandidates, localFacilityCandidates } from "../../integrations/ragic/facility-adapter";
+import { localFacilityCandidates } from "../../integrations/ragic/facility-adapter";
 import { mockRagicAuthAdapter } from "../../integrations/ragic/mock-auth-adapter";
 
 const workbenchRoles: readonly WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
@@ -58,13 +58,11 @@ export const registerAuthRoutes = (app: Express, container: AppContainer) => {
         lastSyncedAt: cacheSlot.lastPrimedAt?.toISOString(),
       };
     } else {
-      const result = await listRagicH05FacilityCandidates();
-      sourceItems = result.data ?? localFacilityCandidates(session.grantedFacilities);
+      sourceItems = localFacilityCandidates(session.grantedFacilities);
       sourceStatus = {
-        connected: Boolean(result.data),
-        source: result.meta.source,
-        lastSyncedAt: result.meta.lastSyncAt,
-        errorMessage: result.data ? undefined : result.meta.fallbackReason,
+        connected: false,
+        source: "local-fallback",
+        errorMessage: "Ragic facilities cache not yet primed",
       };
     }
 

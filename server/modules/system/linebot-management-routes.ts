@@ -604,27 +604,12 @@ const ragicCandidates = async (container: AppContainer): Promise<{ items: RagicC
     };
   }
 
-  try {
-    const result = await container.integrations.ragicAuth.listActiveEmployees();
-    if (!result.data) {
-      return { items: [], sourceStatus: "degraded", source: result.meta.source, note: result.meta.fallbackReason ?? "Ragic H01 unavailable." };
-    }
-    return {
-      items: result.data.map((employee) => ({
-        lineUserId: employee.lineUserId ?? employee.userId ?? "",
-        employeeNumber: employee.employeeNumber ?? employee.userId ?? null,
-        displayName: employee.displayName,
-        phone: employee.phone ?? null,
-        department: employee.department ?? employee.departments?.join(", ") ?? null,
-        source: result.meta.source,
-      })),
-      sourceStatus: "ready",
-      source: result.meta.source,
-      note: "Ragic H01 employee source loaded (cache miss, direct fetch).",
-    };
-  } catch (error) {
-    return { items: [], sourceStatus: "degraded", source: "ragic-h01", note: error instanceof Error ? error.message : "Ragic H01 unavailable." };
-  }
+  return {
+    items: [],
+    sourceStatus: "degraded",
+    source: "ragic-cache",
+    note: "Ragic employee cache not yet primed; retry shortly.",
+  };
 };
 
 const normalizeCompare = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, "").toLowerCase();

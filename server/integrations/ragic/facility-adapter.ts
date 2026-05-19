@@ -82,7 +82,19 @@ export const localFacilityCandidates = (
       source,
     }));
 
-export const listRagicH05FacilityCandidates = async (): Promise<SourceResult<FacilityCandidateDto[]>> => {
+type FacilityCacheGetter = () => { data: FacilityCandidateDto[]; source: string } | null;
+let _facilityCache: FacilityCacheGetter | null = null;
+
+export const registerFacilityCache = (getter: FacilityCacheGetter): void => {
+  _facilityCache = getter;
+};
+
+export const listRagicH05FacilityCandidates = async (bypassModuleCache = false): Promise<SourceResult<FacilityCandidateDto[]>> => {
+  if (!bypassModuleCache && _facilityCache) {
+    const cached = _facilityCache();
+    if (cached) return sourceOk(cached.source, cached.data);
+  }
+
   if (env.ragicAdapterMode === "mock") {
     return sourceOk("mock-ragic-h05", localFacilityCandidates(facilityLineGroups.map((facility) => facility.facilityKey), "mock-ragic-h05"));
   }
