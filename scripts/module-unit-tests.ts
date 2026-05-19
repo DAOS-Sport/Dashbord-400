@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkbenchRole } from "../shared/auth/me";
 import {
@@ -88,8 +88,6 @@ const rolePermissions = {
     "employee:resources:read",
     "employee:qna:read",
     "lifeguard:home:read",
-    "lifeguard:log:read",
-    "lifeguard:log:write",
     "workbench:search",
   ],
   supervisor: ["supervisor:dashboard:read", "workbench:search"],
@@ -184,13 +182,13 @@ const runEmployeeModuleTests = () => {
   );
   sourceIncludes(
     "client/src/modules/employee/home/employee-home-page.tsx",
-    "FloatingQuickActionsPanel",
-    "employee home must render the fixed floating quick actions panel from GitHub layout",
+    "EmployeeFloatingQuickActions",
+    "employee home must render the account-bound floating quick actions panel",
   );
   sourceIncludes(
-    "client/src/modules/employee/home/employee-home-page.tsx",
-    "employeeHomeQuickActions",
-    "employee home quick actions must use employee-safe destinations",
+    "client/src/modules/employee/employee-floating-quick-actions.tsx",
+    "fetchEmployeeWorkbenchPreferences",
+    "employee floating quick actions must load account-bound preferences",
   );
   assert(
     !read("client/src/modules/employee/home/employee-home-page.tsx").includes(
@@ -546,8 +544,8 @@ const runSupervisorModuleTests = () => {
   );
   sourceIncludes(
     "client/src/modules/supervisor/handover/page.tsx",
-    "建立交辦事項",
-    "handover must remain the supervisor work-item create flow",
+    "建立交接事項",
+    "handover must remain the supervisor handoff create flow",
   );
   sourceIncludes(
     "client/src/modules/supervisor/announcements/page.tsx",
@@ -575,7 +573,6 @@ const runLifeguardModuleTests = () => {
     "lifeguard-lane-issues",
     "lifeguard-lost-and-found",
     "lifeguard-lane-rentals",
-    "lifeguard-log",
     "handover",
   ];
   assert(
@@ -584,7 +581,7 @@ const runLifeguardModuleTests = () => {
   );
   assert(
     cards.map((item) => item.moduleId).join(",") ===
-      "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover,search",
+      "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,handover,search",
     `lifeguard home cards mismatch: ${cards.map((item) => item.moduleId).join(",")}`,
   );
   expected.forEach((id) =>
@@ -621,10 +618,9 @@ const runLifeguardModuleTests = () => {
     /app\.get\(\s*"\/api\/bff\/lifeguard\/home",\s*requireRole\(\s*"lifeguard",\s*"system"\s*\)/,
     "lifeguard home BFF must require lifeguard or system role",
   );
-  sourceIncludes(
-    "client/src/App.tsx",
-    "/lifeguard/log",
-    "lifeguard log page must be routed",
+  assert(
+    !read("client/src/App.tsx").includes("/lifeguard/log"),
+    "lifeguard log page must be removed from App routes",
   );
   [
     "/lifeguard/water-quality",
@@ -645,20 +641,9 @@ const runLifeguardModuleTests = () => {
     "LifeguardShell",
     "lifeguard operation detail pages must use LifeguardShell",
   );
-  sourceIncludes(
-    "client/src/modules/lifeguard/log/page.tsx",
-    "/api/work-logs/handover",
-    "lifeguard log page must write via work-log endpoint",
-  );
-  sourceIncludes(
-    "client/src/modules/lifeguard/log/page.tsx",
-    "currentShiftInTaipei",
-    "lifeguard log must derive shift from Taipei time",
-  );
-  sourceIncludes(
-    "client/src/modules/lifeguard/log/page.tsx",
-    "無可用場館",
-    "lifeguard log must not fallback to a hardcoded facility",
+  assert(
+    !existsSync(join(repoRoot, "client/src/modules/lifeguard/log/page.tsx")),
+    "lifeguard log page file must be removed from the workbench",
   );
   sourceIncludes(
     "client/src/modules/lifeguard/operation-modules.ts",
@@ -759,7 +744,6 @@ const runCanonicalModuleRegistrationTests = () => {
     "parking-event-days",
     "lane-rentals",
     "courts",
-    "lifeguard-log",
     "lifeguard-water-quality",
     "lifeguard-coach-dive",
     "lifeguard-cleanup",
@@ -865,9 +849,14 @@ const runSystemModuleTests = () => {
     "system-operations",
     "system-insights",
     "system-governance",
+    "system-cms-monitoring",
     "linebot-management",
     "helper-status",
     "line-whitelist",
+    "system-schedule-control",
+    "system-schedule-monitoring",
+    "system-collab-course-control",
+    "system-collab-course-monitoring",
   ];
   assert(
     navigation.map((item) => item.id).join(",") === expected.join(","),
@@ -931,6 +920,22 @@ const runSystemModuleTests = () => {
         card.routePath === "/system/line-whitelist",
     ),
     "line whitelist card must route to /system/line-whitelist",
+  );
+  assert(
+    cards.some(
+      (card) =>
+        card.moduleId === "system-schedule-monitoring" &&
+        card.routePath === "/system/schedule/status",
+    ),
+    "schedule monitoring card must route to /system/schedule/status",
+  );
+  assert(
+    cards.some(
+      (card) =>
+        card.moduleId === "system-collab-course-monitoring" &&
+        card.routePath === "/system/collab-course/status",
+    ),
+    "collab course monitoring card must route to /system/collab-course/status",
   );
   const health = getModuleHealth("system", rolePermissions.system);
   expected.forEach((id) =>
@@ -1061,10 +1066,9 @@ const runSystemModuleTests = () => {
     ),
     "system control center must not use supervisor-facing copy",
   );
-  sourceIncludes(
-    "client/src/modules/workbench/role-shell.tsx",
-    "todayLabel",
-    "workbench shell must render a dynamic date label",
+  assert(
+    !read("client/src/modules/workbench/role-shell.tsx").includes("todayLabel"),
+    "workbench shell must not render the retired page-header date chip",
   );
   assert(
     !read("client/src/modules/workbench/role-shell.tsx").includes("2026/04/23"),

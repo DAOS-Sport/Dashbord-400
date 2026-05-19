@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarDays, LifeBuoy, PackageSearch, Pencil } from "lucide-react";
+import { ArrowLeft, CalendarDays, PackageSearch, Pencil } from "lucide-react";
 import { Link } from "wouter";
 import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import { FacilityGate } from "@/shared/auth/facility-gate";
@@ -362,18 +362,6 @@ function LifeguardOperationDetailContent({ moduleId }: { moduleId: LifeguardOper
       {moduleId === "lane-issues" ? <LaneIssuesPage /> : null}
       {moduleId === "lost-and-found" ? <LostAndFoundPage /> : null}
       {moduleId === "lane-rentals" ? <LaneRentalsPage /> : null}
-
-      <WorkbenchCard className="mt-4 p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-[16px] font-black text-[#10233f]">完整救生員日誌</h2>
-            <p className="mt-1 text-[12px] font-medium leading-5 text-[#637185]">原本日誌流程仍保留，可查看交接、日報與既有工作日誌。</p>
-          </div>
-          <Link href="/lifeguard/log" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[10px] bg-[#0d2a50] px-4 text-[12px] font-black text-white">
-            <LifeBuoy className="h-4 w-4" />前往日誌
-          </Link>
-        </div>
-      </WorkbenchCard>
     </LifeguardShell>
   );
 }

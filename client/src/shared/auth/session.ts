@@ -16,7 +16,10 @@ export const useLogin = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: LoginRequestDto) => apiPost<AuthMeDto>("/api/auth/login", input),
-    onSuccess: (session) => queryClient.setQueryData(authMeKey, session),
+    onSuccess: (session) => {
+      queryClient.setQueryData(authMeKey, session);
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/workbench/notifications"] });
+    },
   });
 };
 
@@ -33,7 +36,10 @@ export const useSwitchRole = () => {
   return useMutation({
     mutationFn: (activeRole: WorkbenchRole) =>
       apiPost<AuthMeDto>("/api/auth/active-role", { activeRole } satisfies SwitchRoleRequestDto),
-    onSuccess: (session) => queryClient.setQueryData(authMeKey, session),
+    onSuccess: (session) => {
+      queryClient.setQueryData(authMeKey, session);
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/workbench/notifications"] });
+    },
   });
 };
 
@@ -47,6 +53,7 @@ export const useSwitchFacility = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/home"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bff/lifeguard/home"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/workbench/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/work-logs/today"] });
     },
   });

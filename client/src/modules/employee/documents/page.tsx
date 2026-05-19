@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ExternalLink, FileText, Link as LinkIcon, Pencil, Plus, Search } from "lucide-react";
+import type { ShortcutSummary } from "@shared/domain/workbench";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
-import { createEmployeeResource, fetchEmployeeHome, updateEmployeeResource } from "@/modules/employee/home/api";
+import { createEmployeeResource, fetchEmployeeHome, fetchEmployeeWorkbenchPreferences, updateEmployeeResource, updateEmployeeWorkbenchPreferences } from "@/modules/employee/home/api";
 import { EmployeeResourceActions } from "@/modules/employee/resources/employee-resource-actions";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
+import { employeeShortcutCandidates, employeeShortcutLimit } from "@/modules/employee/quick-actions";
 
 const defaultDocumentCategoryOptions = ["文件", "表單", "規則", "課程", "其他"];
 type DocumentSortMode = "custom" | "name" | "category" | "recent";
@@ -29,6 +31,11 @@ export default function EmployeeDocumentsPage() {
   });
   const facilityKey = homeQuery.data?.facility.key ?? "xinbei_pool";
   const documents = homeQuery.data?.documents.data ?? [];
+  const preferenceQuery = useQuery({
+    queryKey: ["/api/bff/employee/workbench-preferences", "documents"],
+    queryFn: fetchEmployeeWorkbenchPreferences,
+    staleTime: 60_000,
+  });
   const [query, setQuery] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -172,6 +179,20 @@ export default function EmployeeDocumentsPage() {
     },
   });
 
+  const quickActionMutation = useMutation({
+    mutationFn: (shortcut: ShortcutSummary) => {
+      const current = preferenceQuery.data?.quickActions?.length ? preferenceQuery.data.quickActions : employeeShortcutCandidates;
+      if (current.some((item) => item.id === shortcut.id)) {
+        return updateEmployeeWorkbenchPreferences({ quickActions: current, preferredFacilityKey: preferenceQuery.data?.preferredFacilityKey });
+      }
+      const next = [...current, shortcut].slice(0, employeeShortcutLimit);
+      return updateEmployeeWorkbenchPreferences({ quickActions: next, preferredFacilityKey: preferenceQuery.data?.preferredFacilityKey });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/employee/workbench-preferences"] });
+    },
+  });
+
   const startEdit = (doc: typeof documents[number]) => {
     if (!doc.resourceId) return;
     setEditingResourceId(doc.resourceId);
@@ -179,6 +200,20 @@ export default function EmployeeDocumentsPage() {
     setContent(doc.description ?? "");
     setUrl(doc.url ?? "");
     setSubCategory(doc.subCategory || "文件");
+  };
+
+  const addDocumentToQuickActions = (doc: typeof documents[number]) => {
+    if (!doc.url) return;
+    quickActionMutation.mutate({
+      id: `document-${doc.resourceId ?? doc.id}`,
+      label: doc.title,
+      helper: doc.subCategory || "常用文件",
+      href: doc.url,
+      tone: "cyan",
+      sourceType: "document",
+      resourceId: doc.resourceId,
+      facilityScoped: true,
+    });
   };
 
   return (
@@ -278,6 +313,17 @@ export default function EmployeeDocumentsPage() {
                     <span className="w-fit rounded-full bg-[#eef5ff] px-3 py-1 text-[11px] font-black text-[#1f6fd1]">{doc.subCategory || "文件"}</span>
                     <p className="line-clamp-2 text-[12px] font-bold leading-5 text-[#637185]">{doc.description || "無備註"}</p>
                     <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                      {doc.url ? (
+                        <button
+                          type="button"
+                          aria-label={`加入快速入口 ${doc.title}`}
+                          onClick={() => addDocumentToQuickActions(doc)}
+                          disabled={quickActionMutation.isPending}
+                          className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] border border-[#c7ead8] bg-white text-[#15935d] hover:bg-[#eefaf5] disabled:opacity-45"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      ) : null}
                       {doc.resourceId ? (
                         <>
                           <button

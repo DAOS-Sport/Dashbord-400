@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { AlertTriangle, ChevronLeft, Clock, KeyRound, ListChecks, RadioTower, Server, ShieldCheck, WifiOff } from "lucide-react";
+import { AlertTriangle, Clock, KeyRound, ListChecks, RadioTower, Server, ShieldCheck, WifiOff } from "lucide-react";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { fetchHelperStatus } from "@/modules/system/control-center/api";
 import { fetchLineBotServiceStatus, fetchLineBotServiceStatusSnapshots, type LineBotServiceItem } from "@/modules/system/line-whitelist/api";
+import { fetchLineXbsStatus } from "@/modules/system/project-monitoring/api";
 import { cn } from "@/lib/utils";
+import type { LinebotManagementStatus } from "@shared/system/linebot-management-contract";
 
 const sections = [
   { key: "overview", label: "總覽控制台", icon: ShieldCheck },
@@ -52,6 +54,22 @@ const runtimeStatusClass = (status?: string) => {
 const runtimeServiceName = (service: LineBotServiceItem) => service.name ?? service.service ?? "unknown-service";
 const runtimeServiceMessage = (service: LineBotServiceItem) => service.message ?? service.note ?? "尚無細節";
 
+const lineXbsStatusLabel = (status: LinebotManagementStatus) => {
+  if (status === "ready") return "正常";
+  if (status === "degraded") return "降級";
+  if (status === "error") return "錯誤";
+  return "等待資料源";
+};
+
+const lineXbsStatusClass = (status: LinebotManagementStatus) =>
+  status === "ready"
+    ? "bg-[#e9f8df] text-[#188249]"
+    : status === "degraded"
+      ? "bg-[#fff6e7] text-[#9b6a00]"
+      : status === "error"
+        ? "bg-[#ffe8eb] text-[#dc2626]"
+        : "bg-[#eef2f6] text-[#536175]";
+
 export default function SystemHelperStatusPage() {
   const [section, setSection] = useState<typeof sections[number]["key"]>("overview");
   const statusQuery = useQuery({
@@ -71,8 +89,15 @@ export default function SystemHelperStatusPage() {
     enabled: section === "push",
     retry: 1,
   });
+  const lineXbsQuery = useQuery({
+    queryKey: ["/api/bff/system/lineXBS-status"],
+    queryFn: fetchLineXbsStatus,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
   const data = statusQuery.data;
   const missingRequired = data?.summary.missingRequiredEnv.length ?? 0;
+  const lineXbsGroups = lineXbsQuery.data?.groups ?? [];
   const runtimeServices = useMemo(() => {
     const raw = lineBotStatusQuery.data as { services?: LineBotServiceItem[]; message?: string } | undefined;
     return Array.isArray(raw?.services) ? raw.services : [];
@@ -102,14 +127,14 @@ export default function SystemHelperStatusPage() {
   return (
     <RoleShell role="system" title="400LINE 服務監控" subtitle="LINE BOT ASSISTANT GOVERNANCE">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-helper-status-page">
-        <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-          <ChevronLeft className="h-4 w-4" />
-          回控制中心
-        </Link>
-
         {statusQuery.isError ? (
           <div className="rounded-[8px] border border-[#ffc7cf] bg-[#fff7f8] p-3 text-[13px] font-black text-[#dc2626]">
             400LINE 服務監控資料載入失敗。
+          </div>
+        ) : null}
+        {lineXbsQuery.isError ? (
+          <div className="rounded-[8px] border border-[#ffc7cf] bg-[#fff7f8] p-3 text-[13px] font-black text-[#dc2626]">
+            400LINE 分類監控資料載入失敗。
           </div>
         ) : null}
 
@@ -132,6 +157,32 @@ export default function SystemHelperStatusPage() {
             );
           })}
         </div>
+
+        <WorkbenchCard className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-black text-[#10233f]">分類式 400LINE 健康狀態</h2>
+              <p className="mt-1 text-[12px] font-bold text-[#637185]">
+                由 CMS BFF 讀取 400LINE contract 或 legacy API，再依執行環境、公告動作、授權名單、館別群組分類。
+              </p>
+            </div>
+            {lineXbsQuery.data ? <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-black", lineXbsStatusClass(lineXbsQuery.data.status))}>{lineXbsStatusLabel(lineXbsQuery.data.status)}</span> : null}
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {lineXbsGroups.map((group) => (
+              <button key={group.key} type="button" onClick={() => setSection("trace")} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 text-left hover:border-[#2dd4bf]">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[13px] font-black text-[#10233f]">{group.label}</p>
+                  <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", lineXbsStatusClass(group.status))}>{lineXbsStatusLabel(group.status)}</span>
+                </div>
+                <p className="mt-2 text-[12px] font-bold text-[#637185]">{group.items.length} 項檢查 · {group.apiReadiness.filter((item) => item.status === "ready").length} 個 API ready</p>
+              </button>
+            ))}
+            {lineXbsQuery.isLoading ? (
+              <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 text-[13px] font-bold text-[#637185]">分類監控載入中...</div>
+            ) : null}
+          </div>
+        </WorkbenchCard>
 
         <div className="grid gap-3 lg:grid-cols-[220px_1fr]">
           <WorkbenchCard className="p-2">
@@ -299,18 +350,60 @@ export default function SystemHelperStatusPage() {
             ) : null}
 
             {section === "trace" ? (
-              <div className="grid gap-3 xl:grid-cols-2">
+              <div className="grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
                 <WorkbenchCard className="p-4">
-                  <h2 className="text-[16px] font-black text-[#10233f]">訊息流 Tail</h2>
-                  <div className="mt-3 rounded-[8px] bg-[#0f1b3d] p-4 font-mono text-[12px] leading-6 text-[#d9e4ef]">
-                    [LIVE] 等待 GET /api/lineXBS/trace/decisions 串接<br />
-                    rule_matched / hard_excluded / needs_ai_review 會顯示於此。
+                  <h2 className="text-[16px] font-black text-[#10233f]">分類動作追蹤</h2>
+                  <div className="mt-3 grid gap-2">
+                    {lineXbsGroups.map((group) => (
+                      <section key={group.key} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[13px] font-black text-[#10233f]">{group.label}</p>
+                            <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">{group.items.length} 個檢查項目</p>
+                          </div>
+                          <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", lineXbsStatusClass(group.status))}>{lineXbsStatusLabel(group.status)}</span>
+                        </div>
+                        <div className="mt-3 grid gap-2">
+                          {group.items.map((item) => (
+                            <div key={item.id} className="rounded-[6px] bg-white p-2">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <p className="text-[12px] font-black text-[#10233f]">{item.label}</p>
+                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", lineXbsStatusClass(item.status))}>{lineXbsStatusLabel(item.status)}</span>
+                              </div>
+                              <p className="mt-1 text-[11px] font-bold leading-5 text-[#637185]">{item.message}</p>
+                              <p className="mt-1 font-mono text-[10px] font-black text-[#8b9aae]">{item.sourcePath}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                    {!lineXbsQuery.isLoading && !lineXbsGroups.length ? (
+                      <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-[13px] font-bold text-[#637185]">尚未取得 400LINE 分類監控資料。</div>
+                    ) : null}
                   </div>
                 </WorkbenchCard>
                 <WorkbenchCard className="p-4">
-                  <h2 className="text-[16px] font-black text-[#10233f]">錯誤 Log</h2>
-                  <div className="mt-3 rounded-[8px] bg-[#fff7f8] p-4 text-[13px] font-bold text-[#a23a48]">
-                    尚未收到 400LINE error_event push。接線後依 source / level / 時間範圍過濾。
+                  <h2 className="text-[16px] font-black text-[#10233f]">API Readiness / 事件</h2>
+                  <div className="mt-3 space-y-2">
+                    {(lineXbsQuery.data?.apiReadiness ?? []).slice(0, 10).map((item, index) => (
+                      <div key={`${item.path}-${index}`} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="font-mono text-[11px] font-black text-[#10233f]">{item.path}</p>
+                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", lineXbsStatusClass(item.status))}>{lineXbsStatusLabel(item.status)}</span>
+                        </div>
+                        <p className="mt-1 text-[11px] font-bold leading-5 text-[#637185]">{item.label} · {item.note}</p>
+                      </div>
+                    ))}
+                    {lineXbsGroups.flatMap((group) => group.events).slice(0, 6).map((event) => (
+                      <div key={event.id} className="rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3">
+                        <p className="text-[11px] font-black text-[#c2410c]">{event.severity}</p>
+                        <p className="mt-1 text-[12px] font-bold text-[#9a3412]">{event.message}</p>
+                        <p className="mt-1 text-[10px] font-black text-[#c2410c]">{new Date(event.occurredAt).toLocaleString("zh-TW")}</p>
+                      </div>
+                    ))}
+                    {!lineXbsQuery.isLoading && !(lineXbsQuery.data?.apiReadiness ?? []).length ? (
+                      <p className="text-[12px] font-bold text-[#8b9aae]">尚無 API readiness 紀錄。</p>
+                    ) : null}
                   </div>
                 </WorkbenchCard>
               </div>

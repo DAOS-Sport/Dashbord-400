@@ -21,6 +21,7 @@ import { registerLinebotManagementRoutes } from "./linebot-management-routes";
 import { registerLineWhitelistRoutes } from "./line-whitelist-routes";
 import { registerModuleHealthRoutes } from "./module-health-routes";
 import { registerSystemOperationsRoutes } from "./operations-routes";
+import { registerProjectMonitoringRoutes } from "./project-monitoring-routes";
 
 const readInternalToken = (req: Request) => {
   const auth = Array.isArray(req.headers.authorization) ? req.headers.authorization[0] : req.headers.authorization;
@@ -123,6 +124,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
   registerLineWhitelistRoutes(app, container);
   registerModuleHealthRoutes(app, container);
   registerSystemOperationsRoutes(app, container);
+  registerProjectMonitoringRoutes(app, container);
 
   app.get("/api/bff/system/control-center", requireSession, requireRole("system"), async (_req, res) => {
     if (controlCenterCache && controlCenterCache.expiresAt > Date.now()) {

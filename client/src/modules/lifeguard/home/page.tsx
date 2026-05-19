@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { HomeCardDto } from "@shared/modules";
-import { ArrowRight, CalendarDays, Camera, CheckCircle2, ClipboardList, Droplets, LifeBuoy, MapPin, PackageSearch, Waves, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Camera, CheckCircle2, ClipboardList, Droplets, MapPin, PackageSearch, Waves, X } from "lucide-react";
 import { Link } from "wouter";
 import { apiGet } from "@/shared/api/client";
 import { FacilityGate } from "@/shared/auth/facility-gate";
@@ -208,7 +208,7 @@ function MobileLifeguardHome({
       />
       <MobilePrimaryActionCard module={lostModule} cta="新增失物" subtitle="拾獲物品拍照、定位與登記" />
 
-      <section className="grid grid-cols-4 gap-2">
+      <section className="grid grid-cols-3 gap-2">
         <Link href={laneIssueModule.href} className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
           <Waves className="mb-1 h-5 w-5 text-[#5134b0]" />
           水道事項
@@ -216,10 +216,6 @@ function MobileLifeguardHome({
         <Link href={laneRentalModule.href} className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
           <CalendarDays className="mb-1 h-5 w-5 text-[#536175]" />
           租借狀態
-        </Link>
-        <Link href="/lifeguard/log" className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
-          <LifeBuoy className="mb-1 h-5 w-5 text-[#1f6fd1]" />
-          完整日誌
         </Link>
         <Link href="/lifeguard/handover" className="workbench-focus flex min-h-[56px] flex-col items-center justify-center rounded-full border border-[#dfe7ef] bg-white px-2 text-[13px] font-black text-[#10233f]">
           <ClipboardList className="mb-1 h-5 w-5 text-[#007166]" />
@@ -251,7 +247,7 @@ function LifeguardHomeContent() {
   const desktopCards = useMemo(() => lifeguardOperationModules, []);
 
   return (
-    <LifeguardShell title="救生員工作台" subtitle="今日救生作業、照片回傳、交辦與日誌從這裡進入。">
+    <LifeguardShell title="救生員工作台" subtitle="今日救生作業、照片回傳與現場紀錄從這裡進入。">
       {isLoading ? (
         <div className="rounded-[8px] bg-white p-6 text-[13px] font-bold text-[#637185]">載入救生工作台...</div>
       ) : (
@@ -306,17 +302,6 @@ function LifeguardHomeContent() {
               })}
             </div>
             <FloatingQuickActionsPanel eyebrow="Floating Actions" title="今日救生作業" items={lifeguardQuickActions} tone="green" />
-            <WorkbenchCard className="p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-[16px] font-black text-[#10233f]">完整救生員日誌</h2>
-                  <p className="mt-1 text-[12px] font-medium leading-5 text-[#637185]">需要查看今日進度、交接紀錄與原本日誌流程時，仍從這裡進入。</p>
-                </div>
-                <Link href="/lifeguard/log" className="workbench-focus inline-flex min-h-10 items-center justify-center rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white">
-                  前往完整日誌
-                </Link>
-              </div>
-            </WorkbenchCard>
             {selectedModule ? <LifeguardOperationDrawer module={selectedModule} onClose={() => setSelectedModuleId(null)} /> : null}
           </div>
         </>

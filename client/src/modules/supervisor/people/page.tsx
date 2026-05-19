@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Camera, CheckCircle2, ClipboardList, Clock3, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
-import type { StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
+import type { StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -106,6 +106,36 @@ function ModuleBlock({ title, items, empty }: { title: string; items: Supervisor
   );
 }
 
+function FrontDeskModules({ modules, fallbackItems }: { modules?: SupervisorFacilityFrontDeskModuleDto[]; fallbackItems: SupervisorFacilityModuleItemDto[] }) {
+  const visibleModules = modules?.length
+    ? modules
+    : [{
+        id: "handover" as const,
+        label: "交接事項",
+        status: fallbackItems.length ? "ready" as const : "empty" as const,
+        count: fallbackItems.length,
+        items: fallbackItems,
+      }];
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0d2a50]">Front Desk</p>
+            <h2 className="mt-1 text-[16px] font-black text-[#10233f]">櫃台端模組狀態</h2>
+          </div>
+          <span className="rounded-full bg-[#eef2f6] px-3 py-1 text-[11px] font-black text-[#637185]">{visibleModules.length} 項</span>
+        </div>
+        <div className="grid gap-3">
+          {visibleModules.map((module) => (
+            <ModuleBlock key={module.id} title={module.label} items={module.items} empty={`目前沒有${module.label}資料。`} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type SupervisorPeoplePageProps = {
   facilityKey?: string;
 };
@@ -156,7 +186,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
     <RoleShell
       role="supervisor"
       title={detailMode ? selectedFacility?.facilityName ?? "場館詳細" : "場館狀態"}
-      subtitle={detailMode ? "FACILITY DETAIL · 櫃台交辦與救生作業狀態" : "FACILITY STATUS · 授權館別、當班人員、下一班與模組概況。"}
+      subtitle={detailMode ? "FACILITY DETAIL · 櫃台交接、場租、公告活動與救生作業狀態" : "FACILITY STATUS · 授權館別、當班人員、下一班與模組概況。"}
     >
       <div className="space-y-4">
         {dashboardQuery.isLoading ? (
@@ -182,7 +212,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-[15px] font-black text-[#10233f]">授權場館詳細資訊</h2>
-                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">每張卡只保留館別、當班、下一班、櫃台交辦與救生水質狀態。</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">每張卡只保留館別、當班、下一班、櫃台交接與救生水質狀態。</p>
                 </div>
                 <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 lg:w-80">
                   <Search className="h-4 w-4 shrink-0 text-[#8b9aae]" />
@@ -224,7 +254,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                         <p className="truncate text-[11px] text-[#637185]">{nextPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
                       </div>
                       <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">櫃台交辦事項</p>
+                        <p className="text-[#8b9aae]">櫃台交接事項</p>
                         <p className="mt-1 text-[20px] text-[#0d2a50]">{facility.openHandovers ?? 0}</p>
                         <p className="text-[11px] text-[#637185]">未完成 {facility.incompleteTasks ?? 0}</p>
                       </div>
@@ -236,7 +266,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                     </div>
                     <div className="border-t border-[#edf1f6] bg-[#f8fafc] px-4 py-3 text-right">
                       <Link href={getFacilityDetailHref(facility.facilityKey)} className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
-                        查看模組概況
+                        查看場館狀態
                       </Link>
                     </div>
                   </WorkbenchCard>
@@ -268,7 +298,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                 {[
                   ["當班", selectedFacility.onShift, "text-[#15935d]"],
                   ["下一班", selectedFacility.next, "text-[#2f6fe8]"],
-                  ["櫃台交辦", selectedFacility.openHandovers ?? 0, "text-[#0d2a50]"],
+                  ["櫃台交接", selectedFacility.openHandovers ?? 0, "text-[#0d2a50]"],
                   ["救生水質", selectedFacility.lifeguardWaterQualityCount ?? 0, "text-[#007166]"],
                 ].map(([label, value, color]) => (
                   <div key={String(label)} className="border-b border-r border-[#edf1f6] p-4 last:border-r-0 md:border-b-0">
@@ -287,7 +317,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
             {detailQuery.isLoading ? <div className="rounded-[8px] bg-white p-5 text-[13px] font-bold text-[#637185]">載入單館模組概況中...</div> : null}
             {detailQuery.data ? (
               <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                <ModuleBlock title="櫃台交辦事項" items={detailQuery.data.frontDesk.items} empty="目前沒有櫃台交辦事項。" />
+                <FrontDeskModules modules={detailQuery.data.frontDesk.modules} fallbackItems={detailQuery.data.frontDesk.items} />
                 <div className="grid gap-4">
                   <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">

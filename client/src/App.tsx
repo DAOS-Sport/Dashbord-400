@@ -41,7 +41,6 @@ import EmployeeSettingsPage from "@/modules/employee/settings/page";
 import EmployeeTrainingPage from "@/modules/employee/training/page";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
 import LifeguardHomePage from "@/modules/lifeguard/home/page";
-import LifeguardLogPage from "@/modules/lifeguard/log/page";
 import { EmployeeLostAndFoundPage, LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
 import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
 import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
@@ -63,6 +62,7 @@ import SystemLineWhitelistPage from "@/modules/system/line-whitelist/page";
 import SystemInsightsPage from "@/modules/system/insights/page";
 import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemOperationsPage from "@/modules/system/operations/page";
+import SystemProjectMonitoringPage from "@/modules/system/project-monitoring/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
@@ -297,9 +297,6 @@ function WorkbenchRouter() {
         <SupervisorQnaReviewPage />
       </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
-      <Route path="/lifeguard/log">
-        <LifeguardLogPage />
-      </Route>
       <Route path="/lifeguard/handover">
         <LifeguardHandoverPage />
       </Route>
@@ -346,6 +343,21 @@ function WorkbenchRouter() {
       <Route path="/system/helper-status" component={SystemHelperStatusPage} />
       <Route path="/system/lineXBS-status" component={SystemHelperStatusPage} />
       <Route path="/system/line-whitelist" component={SystemLineWhitelistPage} />
+      <Route path="/system/400cms/status">
+        <SystemProjectMonitoringPage projectKey="400cms" mode="status" />
+      </Route>
+      <Route path="/system/schedule/status">
+        <SystemProjectMonitoringPage projectKey="schedule" mode="status" />
+      </Route>
+      <Route path="/system/schedule">
+        <SystemProjectMonitoringPage projectKey="schedule" mode="control" />
+      </Route>
+      <Route path="/system/collab-course/status">
+        <SystemProjectMonitoringPage projectKey="collab-course" mode="status" />
+      </Route>
+      <Route path="/system/collab-course">
+        <SystemProjectMonitoringPage projectKey="collab-course" mode="control" />
+      </Route>
       <Route path="/system/health" component={SystemDashboardPage} />
       <Route path="/system/function-relations">
         <SystemFunctionRelationsPage />
@@ -676,16 +688,6 @@ function App() {
 }
 
 function LoginRedirector() {
-  const { data: session, isLoading } = useAuthMe();
-
-  if (isLoading) {
-    return <WorkbenchLoginPage />;
-  }
-
-  if (session) {
-    return <Redirect to={roleHomePath[session.activeRole]} />;
-  }
-
   return <WorkbenchLoginPage />;
 }
 

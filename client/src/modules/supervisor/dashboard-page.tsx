@@ -390,7 +390,7 @@ function FacilityOverviewGrid({
               {/* Stats row */}
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[12px] font-black">
                 <span className="rounded-[8px] bg-[#f7f9fb] p-2">當班<br />{facility.onShift}</span>
-                <span className="rounded-[8px] bg-[#f7f9fb] p-2">交辦<br />{facility.openHandovers ?? 0}</span>
+                <span className="rounded-[8px] bg-[#f7f9fb] p-2">交接<br />{facility.openHandovers ?? 0}</span>
                 <span className="rounded-[8px] bg-[#f7f9fb] p-2">未完成<br />{facility.incompleteTasks ?? 0}</span>
               </div>
 
@@ -481,7 +481,7 @@ function FacilityOverviewGrid({
 }
 
 const supervisorQuickActions: FloatingQuickActionItem[] = [
-  { label: "交辦事項", helper: "新增或調整今日交辦", href: "/supervisor/handover", Icon: ClipboardList },
+  { label: "交接事項", helper: "新增或調整今日交接", href: "/supervisor/handover", Icon: ClipboardList },
   { label: "公告發布", helper: "推送場館公告", href: "/supervisor/announcements", Icon: Megaphone },
   { label: "場館狀態", helper: "查看場館與當班摘要", href: "/supervisor/facilities", Icon: CalendarDays },
 ];
@@ -672,7 +672,7 @@ export default function SupervisorDashboardPage() {
   ]);
 
   return (
-    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、交辦事項與公告確認狀態" role="supervisor">
+    <RoleShell title="今日營運總覽" subtitle="OPERATIONS OVERVIEW · 授權場館營運、交接事項與公告確認狀態" role="supervisor">
       {sessionLoading || !canLoadSupervisorDashboard ? (
         <div className="rounded-[8px] bg-white p-6 text-[14px] font-bold text-[#637185]">正在切換主管權限...</div>
       ) : isError ? (
@@ -722,9 +722,9 @@ export default function SupervisorDashboardPage() {
             items={[
               { label: "營運人力", value: `${data.staffing.data?.active ?? 0} / ${data.staffing.data?.total ?? 0}`, helper: `在班 ${data.staffing.data?.onShift ?? 0} 人　缺班 ${data.staffing.data?.absent ?? 0} 人`, icon: Users, tone: "green" },
               { label: "待處理異常", value: data.pendingAnomalies.data?.length ?? 0, helper: "已移入 system surface", icon: AlertCircle, tone: "red" },
-              { label: "未完成交辦", value: data.incompleteTasks.data?.length ?? 0, helper: "待回報 / 待完成", icon: ClipboardList, tone: "navy", href: "/supervisor/handover" },
+              { label: "未完成交接", value: data.incompleteTasks.data?.length ?? 0, helper: "待回報 / 待完成", icon: ClipboardList, tone: "navy", href: "/supervisor/handover" },
               { label: "未確認公告", value: data.announcementAcks.data?.unconfirmed ?? 0, helper: "需補強通知", icon: Megaphone, tone: "amber", href: "/supervisor/announcements" },
-              { label: "剩餘交辦", value: data.handoverOverview.data?.open ?? 0, helper: "提醒 / 服務 / 櫃台", icon: CheckSquare, tone: "blue", href: "/supervisor/handover" },
+              { label: "剩餘交接", value: data.handoverOverview.data?.open ?? 0, helper: "提醒 / 服務 / 櫃台", icon: CheckSquare, tone: "blue", href: "/supervisor/handover" },
             ]}
           />
 
@@ -754,7 +754,7 @@ export default function SupervisorDashboardPage() {
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <WorkbenchCard className="p-5">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-[15px] font-black">未完成交辦 Top 5</h2>
+                <h2 className="text-[15px] font-black">未完成交接 Top 5</h2>
                 <button className="workbench-focus rounded-[8px] px-2 py-1 text-[11px] font-black text-[#007166]">查看全部 →</button>
               </div>
               <div className="space-y-2">
@@ -769,7 +769,7 @@ export default function SupervisorDashboardPage() {
                   </div>
                 )) : (
                   <div className="grid min-h-[132px] place-items-center rounded-[8px] bg-[#fbfcfd] text-center text-[13px] font-bold text-[#637185]">
-                    目前沒有未完成交辦。
+                    目前沒有未完成交接。
                   </div>
                 )}
               </div>

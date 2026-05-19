@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardCheck, FileText, ImagePlus, MessageSquarePlus, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, FileText, ImagePlus, MapPin, MessageSquarePlus, RefreshCw, Search, X } from "lucide-react";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { useAuthMe } from "@/shared/auth/session";
@@ -35,10 +35,24 @@ const handoverColumns = [
   { key: "done", title: "已完成", statuses: ["done", "cancelled"] },
 ] as const;
 
+const statusFilterOptions = [
+  { value: "all", label: "全部狀態" },
+  { value: "pending", label: "待處理" },
+  { value: "claimed", label: "已認領" },
+  { value: "in_progress", label: "進行中" },
+  { value: "reported", label: "已回報" },
+  { value: "done", label: "已完成" },
+  { value: "cancelled", label: "已取消" },
+];
+
 export default function SupervisorHandoverPage() {
   const { data: session } = useAuthMe();
-  const facilityKey = session?.activeFacility ?? "xinbei_pool";
+  const activeFacility = session?.activeFacility ?? "xinbei_pool";
   const queryClient = useQueryClient();
+  const [facilityFilter, setFacilityFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [keyword, setKeyword] = useState("");
+  const [targetFacility, setTargetFacility] = useState(activeFacility);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dueAt, setDueAt] = useState("");
@@ -48,21 +62,25 @@ export default function SupervisorHandoverPage() {
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
 
   useEffect(() => {
+    setTargetFacility(activeFacility);
+  }, [activeFacility]);
+
+  useEffect(() => {
     return () => {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
 
   const handoversQuery = useQuery({
-    queryKey: ["/api/portal/operational-handovers", facilityKey],
-    queryFn: () => fetchSupervisorHandovers(facilityKey),
+    queryKey: ["/api/bff/supervisor/handovers", facilityFilter, statusFilter, keyword],
+    queryFn: () => fetchSupervisorHandovers({ facilityKey: facilityFilter, status: statusFilter, q: keyword }),
   });
   const createMutation = useMutation({
     mutationFn: async () => {
       setImageUploadError(null);
-      const imageUrl = imageFile ? await uploadSupervisorHandoverImage(imageFile, facilityKey) : null;
+      const imageUrl = imageFile ? await uploadSupervisorHandoverImage(imageFile, targetFacility) : null;
       return createSupervisorHandover({
-        facilityKey,
+        facilityKey: targetFacility,
         title: title.trim(),
         content: content.trim(),
         dueAt: dueAt ? new Date(dueAt).toISOString() : null,
@@ -79,7 +97,7 @@ export default function SupervisorHandoverPage() {
       setImageFile(null);
       setImagePreviewUrl(null);
       setImageUploadError(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/operational-handovers", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/handovers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
     },
     onError: (error) => {
@@ -89,11 +107,12 @@ export default function SupervisorHandoverPage() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: "claimed" | "in_progress" | "reported" | "done" | "cancelled" }) => updateSupervisorHandover(id, { status } as any),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/portal/operational-handovers", facilityKey] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/handovers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/bff/supervisor/dashboard"] });
     },
   });
   const handovers = handoversQuery.data?.items ?? [];
+  const facilities = handoversQuery.data?.facilities ?? (session?.grantedFacilities ?? []).map((facilityKey) => ({ facilityKey, facilityName: facilityKey }));
   const openItems = handovers.filter((item) => item.status !== "done" && item.status !== "cancelled");
   const normalCount = openItems.filter((item) => item.priority === "normal").length;
   const reminderCount = openItems.filter((item) => item.priority === "low").length;
@@ -135,7 +154,7 @@ export default function SupervisorHandoverPage() {
   );
 
   return (
-    <RoleShell role="supervisor" title="交辦事項" subtitle="主管、救生、櫃台共用同館別交辦資料；依館別隔離，不綁固定班別，避免污染班表來源。">
+    <RoleShell role="supervisor" title="交接事項" subtitle="主管可查看授權館別的交接事項，依館別篩選並建立指定場館交接。">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {statusMetrics.map((metric) => (
@@ -153,13 +172,25 @@ export default function SupervisorHandoverPage() {
                 <MessageSquarePlus className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-[15px] font-black">新增交辦事項</h2>
+                <h2 className="text-[15px] font-black">新增交接事項</h2>
                 <p className="text-[12px] font-bold text-[#8b9aae]">依館別同步給主管、救生與櫃台查看。</p>
               </div>
             </div>
             <div className="grid gap-3">
               <label className="grid gap-1 text-[12px] font-black text-[#536175]">
-                交辦標題
+                目標館別
+                <select
+                  value={targetFacility}
+                  onChange={(event) => setTargetFacility(event.target.value)}
+                  className="min-h-11 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold outline-none focus:border-[#2f6fe8]"
+                >
+                  {facilities.map((facility) => (
+                    <option key={facility.facilityKey} value={facility.facilityKey}>{facility.facilityName}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[12px] font-black text-[#536175]">
+                交接標題
                 <input value={title} onChange={(event) => setTitle(event.target.value)} className="min-h-11 rounded-[8px] border border-[#dfe7ef] px-3 text-[14px] font-bold outline-none focus:border-[#2f6fe8]" />
               </label>
               <label className="grid gap-1 text-[12px] font-black text-[#536175]">
@@ -167,7 +198,7 @@ export default function SupervisorHandoverPage() {
                 <input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="min-h-11 rounded-[8px] border border-[#dfe7ef] px-3 text-[13px] font-bold" />
               </label>
               <label className="grid gap-1 text-[12px] font-black text-[#536175]">
-                交辦內容
+                交接內容
                 <textarea value={content} onChange={(event) => setContent(event.target.value)} className="min-h-40 w-full rounded-[8px] border border-[#dfe7ef] bg-white p-3 text-[14px] font-bold leading-6 outline-none focus:border-[#2f6fe8]" />
               </label>
               <div>
@@ -210,21 +241,49 @@ export default function SupervisorHandoverPage() {
               className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-4 text-[13px] font-black text-white disabled:opacity-50"
             >
               <ClipboardCheck className="h-4 w-4" />
-              {createMutation.isPending ? (imageFile ? "上傳並送出中" : "送出中") : "建立交辦事項"}
+              {createMutation.isPending ? (imageFile ? "上傳並送出中" : "送出中") : "建立交接事項"}
             </button>
           </WorkbenchCard>
 
           <WorkbenchCard className="p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-[15px] font-black">交接看板</h2>
-              <button onClick={() => handoversQuery.refetch()} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-                <RefreshCw className={cn("h-4 w-4", handoversQuery.isFetching && "animate-spin")} />
-                重新整理
-              </button>
+            <div className="mb-4 grid gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[15px] font-black">交接看板</h2>
+                <button onClick={() => handoversQuery.refetch()} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
+                  <RefreshCw className={cn("h-4 w-4", handoversQuery.isFetching && "animate-spin")} />
+                  重新整理
+                </button>
+              </div>
+              <div className="grid gap-2 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
+                <label className="grid gap-1 text-[11px] font-black text-[#637185]">
+                  館別
+                  <select value={facilityFilter} onChange={(event) => setFacilityFilter(event.target.value)} className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold text-[#10233f]">
+                    <option value="all">全部館別</option>
+                    {facilities.map((facility) => (
+                      <option key={facility.facilityKey} value={facility.facilityKey}>{facility.facilityName}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-[11px] font-black text-[#637185]">
+                  狀態
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold text-[#10233f]">
+                    {statusFilterOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid gap-1 text-[11px] font-black text-[#637185]">
+                  搜尋
+                  <span className="flex min-h-10 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3">
+                    <Search className="h-4 w-4 shrink-0 text-[#8b9aae]" />
+                    <input value={keyword} onChange={(event) => setKeyword(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold text-[#10233f] outline-none" placeholder="標題、內容、人員或館別" />
+                  </span>
+                </label>
+              </div>
             </div>
             <div className="grid gap-3 lg:grid-cols-3">
               {handoversQuery.isLoading ? (
-                <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185] lg:col-span-3">載入交辦事項中...</div>
+                <div className="rounded-[8px] bg-[#fbfcfd] p-4 text-[13px] font-bold text-[#637185] lg:col-span-3">載入交接事項中...</div>
               ) : handovers.length > 0 ? (
                 grouped.map((column) => (
                   <section key={column.key} className="rounded-[12px] border border-[#e5e8ec] bg-[#f8fafc] p-3">
@@ -240,6 +299,7 @@ export default function SupervisorHandoverPage() {
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="break-words text-[13px] font-black text-[#10233f]">{item.title}</p>
+                                <SupervisorPill tone="blue">{item.facilityName || item.facilityKey}</SupervisorPill>
                                 <SupervisorPill tone="gray">{item.status}</SupervisorPill>
                                 <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-black", priorityClass[item.priority])}>
                                   {priorityOptions.find((option) => option.value === item.priority)?.label ?? "一般"}
@@ -247,6 +307,10 @@ export default function SupervisorHandoverPage() {
                                 {item.dueAt ? <SupervisorPill tone="blue">到期 {new Date(item.dueAt).toLocaleString("zh-TW")}</SupervisorPill> : null}
                               </div>
                               <p className="mt-2 line-clamp-3 whitespace-pre-wrap break-words text-[12px] font-bold leading-5 text-[#536175]">{item.content}</p>
+                              <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-[#8b9aae]">
+                                <MapPin className="h-3.5 w-3.5" />
+                                {item.facilityName || item.facilityKey}
+                              </p>
                               {item.reportNote ? <p className="mt-2 rounded-[8px] bg-[#f8fafc] p-2 text-[12px] font-bold text-[#637185]">員工回報：{item.reportNote}</p> : null}
                               {item.linkedActionType === "image" && item.linkedActionUrl ? (
                                 <figure className="mt-3 overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-[#f7f9fb]">
@@ -271,7 +335,7 @@ export default function SupervisorHandoverPage() {
                   </section>
                 ))
               ) : (
-                <SupervisorEmptyState icon={CheckCircle2} title="目前沒有交辦事項" description="建立後會同步出現在同館別主管、救生與櫃台端。" className="lg:col-span-3" />
+                <SupervisorEmptyState icon={CheckCircle2} title="目前沒有交接事項" description="建立後會同步出現在指定館別的主管、救生與櫃台端。" className="lg:col-span-3" />
               )}
             </div>
           </WorkbenchCard>

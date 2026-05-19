@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { WorkbenchRole } from "../shared/auth/me";
 import {
@@ -141,7 +141,7 @@ assert(
   getNavigationModules("lifeguard")
     .map((item) => item.id)
     .join(",") ===
-    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover",
+    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,handover",
   `lifeguard navigation order changed: ${getNavigationModules("lifeguard")
     .map((item) => item.id)
     .join(",")}`,
@@ -150,7 +150,7 @@ assert(
   getHomeLayoutCards("lifeguard")
     .map((item) => item.moduleId)
     .join(",") ===
-    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,lifeguard-log,handover,search",
+    "lifeguard-home,lifeguard-water-quality,lifeguard-coach-dive,lifeguard-cleanup,lifeguard-lane-issues,lifeguard-lost-and-found,lifeguard-lane-rentals,handover,search",
   `lifeguard home card order changed: ${getHomeLayoutCards("lifeguard")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -237,7 +237,7 @@ assert(
   getNavigationModules("system")
     .map((item) => item.id)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,linebot-management,helper-status,line-whitelist",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,system-cms-monitoring,linebot-management,helper-status,line-whitelist,system-schedule-control,system-schedule-monitoring,system-collab-course-control,system-collab-course-monitoring",
   `system navigation order changed: ${getNavigationModules("system")
     .map((item) => item.id)
     .join(",")}`,
@@ -246,7 +246,7 @@ assert(
   getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,linebot-management,helper-status,line-whitelist",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,system-cms-monitoring,linebot-management,helper-status,line-whitelist,system-schedule-control,system-schedule-monitoring,system-collab-course-control,system-collab-course-monitoring",
   `system home card order changed: ${getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",")}`,
@@ -522,8 +522,8 @@ assert(
   "lifeguard BFF home route must be registered",
 );
 assert(
-  appRoutes.includes("/lifeguard/log"),
-  "lifeguard log route must be registered",
+  !appRoutes.includes("/lifeguard/log"),
+  "lifeguard log route must be removed from the workbench",
 );
 assert(
   appRoutes.includes("/supervisor/parking/event-days"),
@@ -578,7 +578,6 @@ for (const id of [
   "parking-event-days",
   "lane-rentals",
   "courts",
-  "lifeguard-log",
   "lifeguard-water-quality",
   "lifeguard-coach-dive",
   "lifeguard-cleanup",
@@ -659,17 +658,9 @@ assert(
   facilityGateSource.includes("無可用場館"),
   "facility gate must render no-facility state",
 );
-const lifeguardLogPage = readFileSync(
-  join(repoRoot, "client", "src", "modules", "lifeguard", "log", "page.tsx"),
-  "utf8",
-);
 assert(
-  lifeguardLogPage.includes("currentShiftInTaipei"),
-  "lifeguard log must derive current shift",
-);
-assert(
-  !lifeguardLogPage.includes('"xinbei_pool"'),
-  "lifeguard log must not fallback to xinbei_pool",
+  !existsSync(join(repoRoot, "client", "src", "modules", "lifeguard", "log", "page.tsx")),
+  "lifeguard log page file must be removed from the workbench",
 );
 const workLogRoutes = readFileSync(
   join(repoRoot, "server", "modules", "work-logs", "routes.ts"),
@@ -714,8 +705,16 @@ const employeeHomePageSource = readFileSync(
   "utf8",
 );
 assert(
-  employeeHomePageSource.includes("FloatingQuickActionsPanel"),
-  "employee home must render the fixed floating quick actions panel from GitHub layout",
+  employeeHomePageSource.includes("EmployeeFloatingQuickActions"),
+  "employee home must render the account-bound floating quick actions panel",
+);
+const employeeFloatingQuickActionsSource = readFileSync(
+  join(repoRoot, "client", "src", "modules", "employee", "employee-floating-quick-actions.tsx"),
+  "utf8",
+);
+assert(
+  employeeFloatingQuickActionsSource.includes("fetchEmployeeWorkbenchPreferences"),
+  "employee floating quick actions must load account-bound preferences",
 );
 assert(
   !employeeHomePageSource.includes("QuickEntryStrip"),
@@ -853,8 +852,8 @@ assert(
   "desktop supervisor/system sidebar width must follow supervisor design token width",
 );
 assert(
-  roleShellSource.includes("todayLabel"),
-  "workbench shell must render a dynamic date label",
+  !roleShellSource.includes("todayLabel"),
+  "workbench shell must not render the retired page-header date chip",
 );
 assert(
   !roleShellSource.includes("2026/04/23"),
@@ -1033,9 +1032,9 @@ assert(
   "supervisor facilities page must render a facility detail mode",
 );
 assert(
-  supervisorHandoverPage.includes("建立交辦事項") &&
+  supervisorHandoverPage.includes("建立交接事項") &&
     supervisorHandoverPage.includes("createSupervisorHandover"),
-  "supervisor handover page must remain the supervisor work-item create flow",
+  "supervisor handover page must remain the supervisor handoff create flow",
 );
 assert(
   supervisorPeoplePage.includes("routeFacilityKey") &&

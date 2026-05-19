@@ -31,7 +31,6 @@ export const workbenchRoutes = [
   { moduleId: "lifeguard-lane-issues", label: "水道事項", iconKey: "waves", role: "lifeguard", primaryPath: "/lifeguard/lane-issues", shell: "lifeguard" },
   { moduleId: "lifeguard-lost-and-found", label: "失物招領登記", iconKey: "package-search", role: "lifeguard", primaryPath: "/lifeguard/lost-and-found", shell: "lifeguard" },
   { moduleId: "lifeguard-lane-rentals", label: "水道租借狀態", iconKey: "calendar-days", role: "lifeguard", primaryPath: "/lifeguard/lane-rentals", shell: "lifeguard" },
-  { moduleId: "lifeguard-log", label: "救生員日誌", iconKey: "lifebuoy", role: "lifeguard", primaryPath: "/lifeguard/log", shell: "lifeguard" },
   { moduleId: "handover", label: "交辦事項", iconKey: "message-square-text", role: "lifeguard", primaryPath: "/lifeguard/handover", shell: "lifeguard" },
 
   { moduleId: "supervisor-dashboard", label: "營運總覽", iconKey: "home", role: "supervisor", primaryPath: "/supervisor", legacyPath: "/", shell: "supervisor" },
@@ -41,7 +40,7 @@ export const workbenchRoutes = [
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "supervisor", primaryPath: "/supervisor/courts/xinbei", legacyPath: "/courts/xinbei", shell: "supervisor" },
   { moduleId: "announcements", label: "公告管理", iconKey: "megaphone", role: "supervisor", primaryPath: "/supervisor/announcements", legacyPath: "/announcements", shell: "supervisor" },
   { moduleId: "announcement-groups", label: "公告群組綁定", iconKey: "message-square-warning", role: "supervisor", primaryPath: "/supervisor/announcement-groups", legacyPath: "/admin/announcement-groups", shell: "supervisor" },
-  { moduleId: "handover", label: "交辦事項", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
+  { moduleId: "handover", label: "交接事項", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/training", shell: "supervisor" },
 
   { moduleId: "system-control-center", label: "控制中心", iconKey: "gauge", role: "system", primaryPath: "/system", shell: "system" },
@@ -49,9 +48,14 @@ export const workbenchRoutes = [
   { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
   { moduleId: "system-governance", label: "治理面", iconKey: "network", role: "system", primaryPath: "/system/governance", shell: "system" },
+  { moduleId: "system-cms-monitoring", label: "400CMS 服務監控", iconKey: "server", role: "system", primaryPath: "/system/400cms/status", shell: "system" },
   { moduleId: "linebot-management", label: "400LINE 管理", iconKey: "bot", role: "system", primaryPath: "/system/linebot-management", shell: "system" },
   { moduleId: "helper-status", label: "服務監控", iconKey: "server", role: "system", primaryPath: "/system/lineXBS-status", shell: "system" },
   { moduleId: "line-whitelist", label: "白名單", iconKey: "users", role: "system", primaryPath: "/system/line-whitelist", shell: "system" },
+  { moduleId: "system-schedule-control", label: "班表控制中心", iconKey: "calendar-days", role: "system", primaryPath: "/system/schedule", shell: "system" },
+  { moduleId: "system-schedule-monitoring", label: "班表服務監控", iconKey: "server", role: "system", primaryPath: "/system/schedule/status", shell: "system" },
+  { moduleId: "system-collab-course-control", label: "偕同課控制中心", iconKey: "graduation-cap", role: "system", primaryPath: "/system/collab-course", shell: "system" },
+  { moduleId: "system-collab-course-monitoring", label: "偕同課服務監控", iconKey: "server", role: "system", primaryPath: "/system/collab-course/status", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
 
 export const getWorkbenchRoutes = (role: WorkbenchRole): WorkbenchRouteDescriptor[] =>

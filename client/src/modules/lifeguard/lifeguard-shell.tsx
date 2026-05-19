@@ -3,8 +3,10 @@ import type { LucideIcon } from "lucide-react";
 import { Bell, CalendarDays, Camera, ClipboardList, Droplets, Home, LifeBuoy, LogOut, Menu, MessageSquareText, PackageSearch, Waves, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
+import { WorkbenchFacilitySwitcher } from "@/modules/workbench/workbench-facility-switcher";
+import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
 import { BrandLockup } from "@/shared/brand";
-import { useAuthMe, useLogout, useSwitchFacility } from "@/shared/auth/session";
+import { useAuthMe, useLogout } from "@/shared/auth/session";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { cn } from "@/lib/utils";
@@ -35,7 +37,6 @@ const primaryNav = [
 
 const secondaryNav = [
   { id: "handover", label: "交辦事項", href: "/lifeguard/handover", Icon: MessageSquareText },
-  { id: "lifeguard-log", label: "救生員日誌", href: "/lifeguard/log", Icon: LifeBuoy },
 ];
 
 const currentShiftLabel = () => {
@@ -47,30 +48,6 @@ const currentShiftLabel = () => {
 
 const isActivePath = (location: string, href: string) =>
   href === "/lifeguard" ? location === href : location === href || location.startsWith(`${href}/`);
-
-function FacilitySwitcher({ className }: { className?: string }) {
-  const { data: session } = useAuthMe();
-  const switchFacility = useSwitchFacility();
-  const granted = session?.grantedFacilities ?? [];
-  const facilityLabels = useFacilityLabelMap(granted);
-  if (!granted.length) return null;
-  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : granted[0];
-
-  return (
-    <select
-      value={activeFacility}
-      onChange={(event) => switchFacility.mutate(event.target.value)}
-      className={cn("min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f]", className)}
-      aria-label="切換救生場館"
-    >
-      {granted.map((facilityKey) => (
-        <option key={facilityKey} value={facilityKey}>
-          {facilityLabels.getFacilityName(facilityKey)}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 function MobileDrawer({
   open,
@@ -115,7 +92,7 @@ function MobileDrawer({
           <div className="space-y-3">
             <div>
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">場館</p>
-              <FacilitySwitcher className="min-h-[48px] w-full text-[14px]" />
+              <WorkbenchFacilitySwitcher compact tone="lifeguard" className="min-h-[48px] w-full text-[14px]" />
             </div>
             <div>
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">角色</p>
@@ -175,7 +152,7 @@ function MobileMoreDrawer({
   if (!open) return null;
   const moreItems = [
     ...lifeguardOperationModules.map((module) => ({ id: module.id, label: module.label, href: module.href, Icon: module.Icon, helper: module.helper })),
-    ...secondaryNav.map((item) => ({ ...item, helper: "交辦與日誌" })),
+    ...secondaryNav.map((item) => ({ ...item, helper: "交接追蹤" })),
   ];
 
   return (
@@ -186,7 +163,7 @@ function MobileMoreDrawer({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-[18px] font-black text-[#10233f]">更多救生入口</p>
-            <p className="mt-1 text-[13px] font-bold text-[#637185]">水道、租借、交辦與日誌</p>
+            <p className="mt-1 text-[13px] font-bold text-[#637185]">水道、租借、作業紀錄</p>
           </div>
           <button type="button" onClick={onClose} className="workbench-focus grid h-12 w-12 place-items-center rounded-[12px] bg-[#f2f6fa]" aria-label="關閉">
             <X className="h-5 w-5" />
@@ -282,7 +259,6 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
               );
             })}
             <div className="my-2 border-t border-white/10" />
-            <p className="px-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#8fb2ce]">交辦與日誌</p>
             {secondaryNav.map((item) => {
               const active = isActivePath(location, item.href);
               return (
@@ -301,33 +277,30 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
               );
             })}
           </nav>
+          <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
+            <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
+              <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-bold">{userName}</p>
+                <p className="truncate text-[11px] text-[#b6c7d9]">{session?.userId || "未登入"} · 救生員</p>
+              </div>
+            </div>
+          </div>
         </aside>
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white lg:bg-white/[0.92] lg:text-[#10233f]">
-            <div className="flex h-16 w-full items-center justify-between px-2 lg:h-14 lg:px-6">
-              <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-3">
+            <div className="grid h-16 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-2 lg:h-14 lg:px-6">
+              <div className="flex min-w-0 items-center gap-2 lg:gap-3">
                 <button aria-label="開啟選單" onClick={() => setMobileMenuOpen(true)} className="workbench-focus grid h-14 w-14 shrink-0 place-items-center rounded-[14px] bg-white/10 lg:hidden">
                   <Menu className="h-6 w-6" />
                 </button>
-                <Link href="/lifeguard" className="hidden h-8 w-8 place-items-center rounded-[8px] border border-[#e2e9f2] bg-white text-[#8b9aae] lg:grid" aria-label="回救生首頁">
-                  <Home className="h-4 w-4" />
-                </Link>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-black leading-5 lg:max-w-[280px] lg:text-[13px] lg:text-[#10233f]">值勤中 · {facilityName}</p>
-                  <p className="truncate text-[12px] font-bold leading-5 text-[#c9d7e6] lg:hidden">{shiftName} · {userName}</p>
-                  <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] lg:block">LIFEGUARD</p>
-                </div>
+                <WorkbenchFacilitySwitcher tone="lifeguard" className="w-[172px] max-w-[54vw]" />
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <div className="hidden md:block">
-                  <FacilitySwitcher />
-                </div>
-                <div className="hidden lg:block">
-                  <RoleSwitcher visualActiveRole="lifeguard" />
-                </div>
-                <button aria-label="通知" className="workbench-focus relative grid h-14 w-14 place-items-center rounded-[14px] bg-white/10 lg:h-10 lg:w-10 lg:rounded-full lg:bg-[#f0f4f8] lg:text-[#10233f]">
-                  <Bell className="h-5 w-5 lg:h-4 lg:w-4" />
-                </button>
+              <div className="hidden justify-center lg:flex">
+                <RoleSwitcher visualActiveRole="lifeguard" />
+              </div>
+              <div className="flex justify-end">
+                <WorkbenchNotificationBell role="lifeguard" />
               </div>
             </div>
           </header>

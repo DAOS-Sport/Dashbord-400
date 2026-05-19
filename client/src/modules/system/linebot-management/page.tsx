@@ -5,7 +5,6 @@ import {
   Activity,
   Bell,
   Bot,
-  ChevronLeft,
   Database,
   ListChecks,
   RadioTower,
@@ -186,17 +185,6 @@ export default function SystemLinebotManagementPage() {
   return (
     <RoleShell role="system" title="400LINE 管理" subtitle="LINE BOT ASSISTANT GOVERNANCE">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-linebot-management-page">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-            <ChevronLeft className="h-4 w-4" />
-            回控制中心
-          </Link>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/system/lineXBS-status" className="rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-2 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]">服務監控舊頁</Link>
-            <Link href="/system/line-whitelist" className="rounded-[8px] border border-[#dfe7ef] bg-white px-3 py-2 text-[12px] font-black text-[#536175] hover:bg-[#f3f6fb]">白名單舊頁</Link>
-          </div>
-        </div>
-
         <WorkbenchCard className="p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

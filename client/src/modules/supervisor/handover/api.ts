@@ -1,8 +1,19 @@
 import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 import type { OperationalHandoverDTO } from "@/modules/employee/home/api";
 
-export const fetchSupervisorHandovers = (facilityKey: string) =>
-  apiGet<{ items: OperationalHandoverDTO[] }>(`/api/portal/operational-handovers?facilityKey=${encodeURIComponent(facilityKey)}&limit=100`);
+export type SupervisorHandoverItemDTO = OperationalHandoverDTO & { facilityName?: string };
+
+export const fetchSupervisorHandovers = (input: { facilityKey?: string; status?: string; q?: string }) => {
+  const params = new URLSearchParams();
+  params.set("facilityKey", input.facilityKey || "all");
+  if (input.status && input.status !== "all") params.set("status", input.status);
+  if (input.q?.trim()) params.set("q", input.q.trim());
+  return apiGet<{
+    items: SupervisorHandoverItemDTO[];
+    facilities: Array<{ facilityKey: string; facilityName: string }>;
+    summaryByFacility: Array<{ facilityKey: string; facilityName: string; open: number; total: number }>;
+  }>(`/api/bff/supervisor/handovers?${params.toString()}`);
+};
 
 export const createSupervisorHandover = (input: {
   facilityKey: string;

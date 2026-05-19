@@ -1,10 +1,12 @@
 import { facilityLabel } from "@shared/domain/facilities";
+import type { ShortcutSummary } from "@shared/domain/workbench";
 import {
   getHomeLayoutCards,
   getModuleDescriptorsByRole,
   getNavigationModules,
 } from "@shared/modules";
 import type { Express } from "express";
+import { z } from "zod";
 import type { AppContainer } from "../../app/container";
 import { env } from "../../shared/config/env";
 import { storage } from "../../storage";
@@ -17,6 +19,7 @@ import {
   buildEmployeeHomeFallback,
   buildEmployeeSearchItems,
   buildShiftBoardFromSummaries,
+  defaultEmployeeShortcuts,
   enrichEmployeeHome,
   filterShiftSummariesForFacility,
   mapScheduleShifts,
@@ -24,6 +27,77 @@ import {
   uniqueAnnouncements,
   type SearchItem,
 } from "./employee-home-service";
+
+const employeeWorkbenchPreferenceKey = "employee.workbench";
+const shortcutToneSchema = z.enum(["blue", "green", "amber", "violet", "rose", "cyan"]);
+const shortcutSourceTypeSchema = z.enum(["module", "document", "custom"]);
+const shortcutSummarySchema = z.object({
+  id: z.string().min(1).max(160),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1).max(2048),
+  tone: shortcutToneSchema,
+  helper: z.string().max(120).optional(),
+  sourceType: shortcutSourceTypeSchema.optional(),
+  resourceId: z.number().int().positive().optional(),
+  facilityScoped: z.boolean().optional(),
+});
+
+const employeeWorkbenchPreferenceSchema = z.object({
+  quickActions: z.array(shortcutSummarySchema).max(7).optional(),
+  preferredFacilityKey: z.string().min(1).nullable().optional(),
+});
+
+const normalizeShortcut = (item: ShortcutSummary): ShortcutSummary => ({
+  id: item.id,
+  label: item.label,
+  href: item.href,
+  tone: item.tone,
+  helper: item.helper,
+  sourceType: item.sourceType ?? "module",
+  resourceId: item.resourceId,
+  facilityScoped: Boolean(item.facilityScoped),
+});
+
+const buildEmployeeQuickActionCandidates = async (facilityKey: string): Promise<ShortcutSummary[]> => {
+  const documentRows = await storage
+    .listEmployeeResources({ facilityKey, category: "document", limit: 100 })
+    .catch(() => []);
+  const documentShortcuts: ShortcutSummary[] = documentRows
+    .filter((item) => Boolean(item.url?.trim()))
+    .map((item) => ({
+      id: `document-${item.id}`,
+      label: item.title,
+      helper: item.subCategory || "常用文件",
+      href: item.url || "/employee/documents",
+      tone: "cyan",
+      sourceType: "document",
+      resourceId: item.id,
+      facilityScoped: true,
+    }));
+  return [
+    ...defaultEmployeeShortcuts.map((item) => normalizeShortcut({ ...item, sourceType: "module", facilityScoped: false })),
+    ...documentShortcuts,
+  ];
+};
+
+const mergeStoredQuickActions = (candidates: ShortcutSummary[], stored: ShortcutSummary[] | undefined): ShortcutSummary[] => {
+  const byId = new Map(candidates.map((item) => [item.id, item]));
+  const merged: ShortcutSummary[] = [];
+  for (const item of stored ?? []) {
+    const candidate = byId.get(item.id);
+    if (!candidate && item.sourceType !== "custom") continue;
+    merged.push(normalizeShortcut({
+      ...(candidate ?? item),
+      tone: item.tone ?? candidate?.tone ?? "blue",
+      href: item.href || candidate?.href || "/employee",
+    }));
+  }
+  for (const candidate of candidates) {
+    if (merged.length >= 7) break;
+    if (!merged.some((item) => item.id === candidate.id)) merged.push(normalizeShortcut(candidate));
+  }
+  return merged.slice(0, 7);
+};
 
 export const registerEmployeeBffRoutes = (
   app: Express,
@@ -114,6 +188,83 @@ export const registerEmployeeBffRoutes = (
       "EMPLOYEE_HOME_ANNOUNCEMENTS_PREVIEWED",
     );
     return res.json(attachEmployeeHomeContract(acknowledgedHome, req));
+  });
+
+  app.get("/api/bff/employee/quick-action-candidates", requireSession, async (req, res) => {
+    const session = req.workbenchSession!;
+    const requestedFacilityKey =
+      typeof req.query.facilityKey === "string"
+        ? req.query.facilityKey
+        : undefined;
+    const facility = resolveSessionFacilityKey(session, requestedFacilityKey);
+    if (!facility.ok) return res.status(facility.status).json({ message: facility.message });
+    const candidates = await buildEmployeeQuickActionCandidates(facility.facilityKey);
+    return res.json({ items: candidates });
+  });
+
+  app.get("/api/bff/employee/workbench-preferences", requireSession, async (req, res) => {
+    const session = req.workbenchSession!;
+    const facility = resolveSessionFacilityKey(session);
+    if (!facility.ok) return res.status(facility.status).json({ message: facility.message });
+    const candidates = await buildEmployeeQuickActionCandidates(facility.facilityKey);
+    const preference = await storage
+      .getUserWorkbenchPreference({
+        userId: session.userId,
+        role: "employee",
+        preferenceKey: employeeWorkbenchPreferenceKey,
+      })
+      .catch(() => undefined);
+    const parsed = employeeWorkbenchPreferenceSchema.safeParse(preference?.payload ?? {});
+    const payload = parsed.success ? parsed.data : {};
+    return res.json({
+      quickActions: mergeStoredQuickActions(candidates, payload.quickActions),
+      preferredFacilityKey: payload.preferredFacilityKey ?? session.activeFacility ?? null,
+      candidates,
+      sourceStatus: {
+        connected: Boolean(preference || env.databaseUrl),
+        hasPersistedPreference: Boolean(preference),
+        errorMessage: parsed.success ? undefined : "偏好設定格式不正確，已使用預設入口。",
+      },
+    });
+  });
+
+  app.put("/api/bff/employee/workbench-preferences", requireSession, async (req, res) => {
+    const session = req.workbenchSession!;
+    const parsed = employeeWorkbenchPreferenceSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ message: "偏好設定格式錯誤", errors: parsed.error.flatten() });
+    if (parsed.data.preferredFacilityKey && !session.grantedFacilities.includes(parsed.data.preferredFacilityKey)) {
+      return res.status(403).json({ message: "無此館別權限" });
+    }
+    const candidates = await buildEmployeeQuickActionCandidates(session.activeFacility);
+    const payload = {
+      quickActions: mergeStoredQuickActions(candidates, parsed.data.quickActions),
+      preferredFacilityKey: parsed.data.preferredFacilityKey ?? session.activeFacility,
+    };
+    const saved = await storage.upsertUserWorkbenchPreference({
+      userId: session.userId,
+      role: "employee",
+      preferenceKey: employeeWorkbenchPreferenceKey,
+      payload,
+      updatedBy: session.displayName,
+    });
+    await storage.recordPortalEvent({
+      employeeNumber: session.userId,
+      employeeName: session.displayName,
+      facilityKey: session.activeFacility,
+      eventType: "layout_update",
+      target: employeeWorkbenchPreferenceKey,
+      targetLabel: "employee workbench preferences",
+      metadata: JSON.stringify({ quickActionCount: payload.quickActions.length }),
+    }).catch(() => undefined);
+    return res.json({
+      quickActions: payload.quickActions,
+      preferredFacilityKey: payload.preferredFacilityKey,
+      candidates,
+      sourceStatus: {
+        connected: true,
+        hasPersistedPreference: Boolean(saved),
+      },
+    });
   });
 
   app.get(

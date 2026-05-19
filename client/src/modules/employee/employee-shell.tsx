@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -7,29 +7,28 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
-  ChevronDown,
   FileText,
   GraduationCap,
   Home,
   Menu,
   MessageSquareText,
-  Megaphone,
   MoreHorizontal,
   PackageSearch,
   Search,
-  UserRound,
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "@/modules/workbench/role-switcher";
-import { useAuthMe, useSwitchFacility } from "@/shared/auth/session";
+import { useAuthMe } from "@/shared/auth/session";
 import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { fetchModuleNavigation } from "@/shared/modules/api";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
-import { FloatingQuickActionsPanel, type FloatingQuickActionItem } from "@/modules/workbench/floating-quick-actions";
+import { EmployeeFloatingQuickActions } from "./employee-floating-quick-actions";
+import { WorkbenchFacilitySwitcher } from "@/modules/workbench/workbench-facility-switcher";
+import { WorkbenchNotificationBell } from "@/modules/workbench/workbench-notification-bell";
 
 type EmployeeNavItem = {
   id: string;
@@ -52,12 +51,6 @@ const iconByKey: Record<string, LucideIcon> = {
   "package-search": PackageSearch,
   search: Search,
 };
-
-const employeeQuickActions: FloatingQuickActionItem[] = [
-  { label: "群組公告", helper: "查看必讀公告與置頂通知", href: "/employee/announcements", Icon: Megaphone },
-  { label: "交辦事項", helper: "回報交辦與交接事項", href: "/employee/handover", Icon: MessageSquareText },
-  { label: "今日班表", helper: "查看今日班表與場館值勤", href: "/employee/shift", Icon: CalendarDays },
-];
 
 const isActivePath = (location: string, href: string) =>
   href === "/employee" ? location === href || location === "/EMPLOYEE" : location === href || location.startsWith(`${href}/`);
@@ -83,56 +76,62 @@ function EmployeeDesktopSidebar({
   loading,
   location,
   onNavigate,
-  facilityName,
+  userName,
+  userId,
+  collapsed,
 }: {
   items: EmployeeNavItem[];
   loading: boolean;
   location: string;
   onNavigate: (item: EmployeeNavItem) => void;
-  facilityName: string;
+  userName: string;
+  userId: string;
+  collapsed: boolean;
 }) {
   return (
-    <aside className="hidden h-full min-h-0 w-[232px] shrink-0 flex-col bg-[#1f3f68] px-4 py-4 text-white shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)] md:flex">
-      <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
+    <aside
+      aria-hidden={collapsed}
+      className={cn(
+        "hidden h-full min-h-0 shrink-0 overflow-hidden bg-[#1f3f68] text-white transition-[width,box-shadow] duration-200 md:flex",
+        collapsed ? "pointer-events-none w-0 shadow-none" : "w-[232px] shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)]",
+      )}
+    >
+      <div className="flex h-full w-[232px] shrink-0 flex-col px-4 py-4">
+        <BrandLockup markClassName="h-10 w-10 rounded-[8px]" titleClassName="text-[17px] text-white" />
 
-      <div className="mt-4 shrink-0 rounded-[8px] bg-white/8 p-3">
-        <div className="mb-1.5 flex items-center gap-2 text-[12px] font-bold text-[#9dd84f]">
-          <span className="h-2 w-2 rounded-full bg-[#9dd84f]" />
-          營運中
-        </div>
-        <p className="line-clamp-2 text-[13px] font-bold">{facilityName}</p>
-      </div>
+        <WorkbenchFacilitySwitcher tone="employee" surface="sidebar" statusLabel="營運中" className="mt-4 shrink-0" />
 
-      <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
-        {!items.length && loading ? (
-          <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
-        ) : null}
-        {items.map((item) => {
-          const active = isActivePath(location, item.href);
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              onClick={() => onNavigate(item)}
-              className={cn(
-                "workbench-focus flex min-h-10 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
-                active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
-              )}
-            >
-              <item.Icon className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">{item.badge}</span> : null}
-            </Link>
-          );
-        })}
-      </nav>
+        <nav className="mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
+          {!items.length && loading ? (
+            <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
+          ) : null}
+          {items.map((item) => {
+            const active = isActivePath(location, item.href);
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                onClick={() => onNavigate(item)}
+                className={cn(
+                  "workbench-focus flex min-h-10 shrink-0 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
+                  active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
+                )}
+              >
+                <item.Icon className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">{item.badge}</span> : null}
+              </Link>
+            );
+          })}
+        </nav>
 
-      <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
-        <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">駿</div>
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-bold">員工工作台</p>
-            <p className="text-[11px] text-[#b6c7d9]">員工</p>
+        <div className="mt-3 shrink-0 border-t border-white/10 pt-3">
+          <div className="flex items-center gap-3 rounded-[8px] px-3 py-2">
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-[#007166] text-[12px] font-black">{userName.slice(0, 1)}</div>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-bold">{userName}</p>
+              <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
+            </div>
           </div>
         </div>
       </div>
@@ -146,32 +145,9 @@ interface EmployeeShellProps {
   children: ReactNode;
 }
 
-function FacilitySwitcher() {
-  const { data: session } = useAuthMe();
-  const switchFacility = useSwitchFacility();
-  const granted = session?.grantedFacilities ?? [];
-  const facilityLabels = useFacilityLabelMap(granted);
-  if (!granted.length) return null;
-  const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : granted[0];
-
-  return (
-    <select
-      value={activeFacility}
-      onChange={(event) => switchFacility.mutate(event.target.value)}
-      className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f]"
-      aria-label="切換館別"
-    >
-      {granted.map((facilityKey) => (
-        <option key={facilityKey} value={facilityKey}>
-          {facilityLabels.getFacilityName(facilityKey)}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps) {
   const [location] = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const trackEvent = useTrackEvent();
   const { data: session } = useAuthMe();
   const navigation = useQuery({
@@ -184,6 +160,8 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
   const facilityLabels = useFacilityLabelMap(granted);
   const activeFacility = session?.activeFacility && granted.includes(session.activeFacility) ? session.activeFacility : undefined;
   const facilityName = facilityLabels.getFacilityName(activeFacility);
+  const userName = session?.displayName || "員工";
+  const userId = session?.userId || "未登入";
   const visibleNav = getEmployeeCourtSchoolsForFacility(activeFacility, facilityName).length
     ? nav
     : nav.filter((item) => item.id !== "courts");
@@ -197,41 +175,29 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
           loading={navigation.isLoading}
           location={location}
           onNavigate={(item) => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
-          facilityName={facilityName}
+          userName={userName}
+          userId={userId}
+          collapsed={sidebarCollapsed}
         />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] md:bg-white/[0.92] md:text-[#10233f] md:backdrop-blur-xl">
-            <div className="flex h-14 w-full items-center justify-between px-4 md:h-14 md:px-6">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <button aria-label="開啟選單" className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 md:hidden">
+            <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3 md:px-6">
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={sidebarCollapsed ? "展開側欄" : "收合側欄"}
+                  aria-expanded={!sidebarCollapsed}
+                  onClick={() => setSidebarCollapsed((current) => !current)}
+                  className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 md:bg-[#eef5ff] md:text-[#1f6fd1]"
+                >
                   <Menu className="h-5 w-5" />
                 </button>
-                <Link href="/employee" className="hidden h-8 w-8 place-items-center rounded-[8px] border border-[#e2e9f2] bg-white text-[#8b9aae] md:grid" aria-label="回員工首頁">
-                  <Home className="h-4 w-4" />
-                </Link>
-                <div className="min-w-0">
-                  <p className="max-w-[180px] truncate text-[15px] font-black sm:max-w-[280px] lg:max-w-[300px] md:text-[13px] md:text-[#10233f]">{facilityName}</p>
-                  <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#8b9aae] md:block">Dashboard</p>
-                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <div className="hidden md:block">
-                  <RoleSwitcher visualActiveRole="employee" />
-                </div>
-                <div className="hidden md:block">
-                  <FacilitySwitcher />
-                </div>
-                <button className="workbench-focus hidden min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] md:inline-flex">
-                  員工
-                  <ChevronDown className="h-3.5 w-3.5 text-[#8b9aae]" />
-                </button>
-                <button aria-label="通知" className="workbench-focus relative grid h-10 w-10 place-items-center rounded-full bg-white/10 md:bg-[#f0f4f8] md:text-[#10233f]">
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#ff4964] text-[9px] font-black text-white">4</span>
-                </button>
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-[#32d17c] text-[13px] font-black text-white">
-                  {session?.displayName?.slice(0, 1) || <UserRound className="h-4 w-4" />}
-                </div>
+              <div className="hidden justify-center md:flex">
+                <RoleSwitcher visualActiveRole="employee" />
+              </div>
+              <div className="flex min-w-0 justify-end">
+                <WorkbenchNotificationBell role="employee" />
               </div>
             </div>
             <div className="border-t border-white/10 px-4 py-2 md:hidden">
@@ -248,7 +214,6 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
               <Link href="/employee" className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
                 回首頁
               </Link>
-              <FacilitySwitcher />
             </div>
             {children}
           </main>
@@ -278,7 +243,7 @@ export function EmployeeShell({ title, subtitle, children }: EmployeeShellProps)
           );
         })}
       </nav>
-      <FloatingQuickActionsPanel eyebrow="Employee Actions" title="員工快捷操作" items={employeeQuickActions} tone="blue" />
+      <EmployeeFloatingQuickActions />
     </div>
   );
 }

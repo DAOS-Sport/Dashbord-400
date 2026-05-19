@@ -289,11 +289,10 @@ export default function SystemControlCenterPage() {
   return (
     <RoleShell role="system" title="系統控制中心" subtitle="SYSTEM CONTROL CENTER">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-control-center-page">
-        <div className="flex flex-col gap-3 rounded-[8px] border border-[#dfe7ef] bg-white p-4 shadow-[0_8px_24px_-16px_rgba(13,42,80,0.18)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-[8px] border border-[#dfe7ef] bg-white p-3 shadow-[0_8px_24px_-16px_rgba(13,42,80,0.18)] sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#15935d]">SYSTEM · 總控台</p>
-            <h1 className="mt-1 text-[24px] font-black text-[#10233f]">系統總控台</h1>
-            <p className="mt-1 text-[13px] font-bold text-[#637185]">先看這裡：今天系統是否正常、同仁是否需要協助、功能是否有人使用。最後更新 {refreshedAt}</p>
+            <p className="mt-1 text-[13px] font-bold text-[#637185]">今天系統是否正常、同仁是否需要協助、功能是否有人使用。最後更新 {refreshedAt}</p>
           </div>
           <button
             type="button"

@@ -127,6 +127,10 @@ export interface ShortcutSummary {
   label: string;
   href: string;
   tone: "blue" | "green" | "amber" | "violet" | "rose" | "cyan";
+  helper?: string;
+  sourceType?: "module" | "document" | "custom";
+  resourceId?: number;
+  facilityScoped?: boolean;
 }
 
 export interface ShiftSummary {
@@ -311,6 +315,18 @@ export interface SupervisorFacilityModuleItemDto {
   attachments?: SupervisorFacilityAttachmentDto[];
 }
 
+export interface SupervisorFacilityFrontDeskModuleDto {
+  id: "handover" | "venue-rental" | "announcements-events" | "promotions";
+  label: string;
+  status: "ready" | "empty" | "error";
+  count: number;
+  items: SupervisorFacilityModuleItemDto[];
+  sourceStatus?: {
+    connected: boolean;
+    errorMessage?: string;
+  };
+}
+
 export interface SupervisorFacilityDetailDto {
   facility: SupervisorFacilityOverview;
   staffing: {
@@ -320,6 +336,7 @@ export interface SupervisorFacilityDetailDto {
   frontDesk: {
     openHandovers: number;
     items: SupervisorFacilityModuleItemDto[];
+    modules: SupervisorFacilityFrontDeskModuleDto[];
   };
   lifeguard: {
     waterQualityStatus: string;

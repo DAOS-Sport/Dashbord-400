@@ -1,16 +1,14 @@
 import { useLocation } from "wouter";
-import { LogOut } from "lucide-react";
 import type { WorkbenchRole } from "@shared/auth/me";
-import { roleHomePath, roleLabels } from "@shared/auth/me";
+import { roleHomePath } from "@shared/auth/me";
 import { cn } from "@/lib/utils";
-import { useAuthMe, useLogout } from "@/shared/auth/session";
+import { useAuthMe } from "@/shared/auth/session";
 
 const roleOrder: readonly WorkbenchRole[] = ["employee", "lifeguard", "supervisor", "system"];
 
 export function RoleSwitcher({ compact = false, visualActiveRole }: { compact?: boolean; visualActiveRole?: WorkbenchRole }) {
   const [, setLocation] = useLocation();
   const { data: session } = useAuthMe();
-  const logout = useLogout();
 
   if (!session) return null;
   const activeRole = visualActiveRole ?? session.activeRole;
@@ -39,19 +37,6 @@ export function RoleSwitcher({ compact = false, visualActiveRole }: { compact?: 
             </button>
           ))}
       </div>
-      {!compact ? (
-        <button
-          type="button"
-          onClick={() => logout.mutate(undefined, { onSuccess: () => setLocation("/login") })}
-          className="grid h-9 w-9 place-items-center rounded-[8px] border border-[#dfe7ef] bg-white text-[#637185] hover:text-[#10233f]"
-          aria-label="登出"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-      ) : null}
-      <span className="hidden text-[11px] font-bold text-[#8b9aae] xl:inline">
-        {session.displayName} · {roleLabels[activeRole]}
-      </span>
     </div>
   );
 }

@@ -3,7 +3,6 @@ export const MODULE_IDS = [
   "dashboard",
   "employee-home",
   "lifeguard-home",
-  "lifeguard-log",
   "lifeguard-water-quality",
   "lifeguard-coach-dive",
   "lifeguard-cleanup",

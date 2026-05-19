@@ -22,6 +22,12 @@ import type {
   LinebotServiceRow,
   LinebotWhitelistRow,
 } from "@shared/system/linebot-management-contract";
+import type {
+  LineXbsStatusDto,
+  LineXbsStatusEvent,
+  LineXbsStatusGroupDto,
+  LineXbsStatusItem,
+} from "@shared/system/project-monitoring-contract";
 
 type UpstreamResult = {
   path: string;
@@ -555,6 +561,116 @@ const contractReadiness = (result: UpstreamResult): LinebotApiReadiness[] => [
   },
 ];
 
+const lineXbsSeverity = (severity?: string): LineXbsStatusEvent["severity"] => {
+  if (severity === "critical") return "critical";
+  if (severity === "warning") return "warning";
+  return "info";
+};
+
+const lineXbsItemFromResult = (result: UpstreamResult, id: string): LineXbsStatusItem => ({
+  id,
+  label: result.label,
+  status: result.status,
+  rawStatus: result.rawStatus,
+  message: result.note,
+  sourcePath: result.path,
+  lastSyncAt: result.lastCheckedAt,
+});
+
+const lineXbsEventsFromReadiness = (items: LinebotApiReadiness[]): LineXbsStatusEvent[] =>
+  items
+    .filter((item) => item.status !== "ready")
+    .slice(0, 4)
+    .map((item, index) => ({
+      id: `${item.path}-${index}`,
+      severity: item.status === "error" ? "critical" : "warning",
+      message: `${item.label}: ${item.note}`,
+      occurredAt: item.lastCheckedAt,
+    }));
+
+const contractLineXbsGroups = (contract: ContractFullStatus, result: UpstreamResult): LineXbsStatusGroupDto[] =>
+  contract.domains.map((domain) => {
+    const items = domain.capabilities.map((capability) => ({
+      id: capability.key,
+      label: capability.label,
+      status: mapContractStatus(capability.status),
+      rawStatus: capability.status,
+      message: capabilityMessage(capability),
+      sourcePath: capability.sourceRoutes?.join(", ") || "/api/internal/monitoring/full-status",
+      lastSyncAt: capability.lastSuccessAt ?? capability.lastErrorAt,
+    }));
+    const readinessItems = contractReadiness(result);
+    const contractEvents = (contract.events ?? [])
+      .filter((event) => !event.domain || event.domain === domain.key)
+      .slice(0, 6)
+      .map((event, index) => ({
+        id: `${domain.key}-${event.occurredAt ?? index}`,
+        severity: lineXbsSeverity(event.severity),
+        message: event.message ?? `${domain.label} status event`,
+        occurredAt: event.occurredAt ?? contract.generatedAt,
+      }));
+    return {
+      key: domain.key,
+      label: domain.label,
+      status: mapContractStatus(domain.status),
+      items,
+      events: contractEvents.length ? contractEvents : lineXbsEventsFromReadiness(items.map<LinebotApiReadiness>((item) => ({
+        method: "GET",
+        path: item.sourcePath,
+        label: item.label,
+        status: item.status,
+        rawStatus: item.rawStatus,
+        note: item.message,
+        lastCheckedAt: item.lastSyncAt ?? contract.generatedAt,
+      }))),
+      apiReadiness: readinessItems,
+    };
+  });
+
+const legacyLineXbsGroup = (
+  key: string,
+  label: string,
+  results: Array<[string, UpstreamResult]>,
+): LineXbsStatusGroupDto => {
+  const apiReadiness = results.map(([, result]) => readiness(result));
+  const items = results.map(([id, result]) => lineXbsItemFromResult(result, id));
+  return {
+    key,
+    label,
+    status: combinedStatus(items),
+    items,
+    events: lineXbsEventsFromReadiness(apiReadiness),
+    apiReadiness,
+  };
+};
+
+const legacyLineXbsGroups = (snapshot: Awaited<ReturnType<typeof apiSnapshot>>): LineXbsStatusGroupDto[] => [
+  legacyLineXbsGroup("runtime", "執行環境 / 服務健康", [
+    ["runtime-health", snapshot.runtimeHealth],
+    ["dashboard-services", snapshot.dashboardServicesHealth],
+    ["internal-service-health", snapshot.serviceStatus],
+    ["service-snapshots", snapshot.serviceSnapshots],
+  ]),
+  legacyLineXbsGroup("announcement-actions", "公告與動作追蹤", [
+    ["announcement-pipeline", snapshot.announcementHealth],
+    ["task-stats", snapshot.taskStats],
+    ["attendance-stats", snapshot.attendanceStats],
+    ["webhook-stats", snapshot.webhookStats],
+    ["line-messages", snapshot.messages],
+  ]),
+  legacyLineXbsGroup("access-control", "白名單 / 授權 / Ragic", [
+    ["interview-users", snapshot.interviewUsers],
+    ["admin-whitelist", snapshot.adminWhitelist],
+    ["internal-whitelist", snapshot.internalWhitelist],
+    ["ragic-test", snapshot.ragicTest],
+  ]),
+  legacyLineXbsGroup("facilities", "館別 / 群組 / 報告", [
+    ["facility-list", snapshot.facilityList],
+    ["feature-stats", snapshot.featureStats],
+    ["water-quality-report", snapshot.waterQualityReport],
+  ]),
+];
+
 const facilityItems = (result: UpstreamResult): LinebotFacilityRow[] => {
   const data = jsonRecord(result.data);
   const items = firstArray(result.data, data.items, data.facilities, data.groups, data.list);
@@ -1069,6 +1185,34 @@ export const registerLinebotManagementRoutes = (app: Express, container: AppCont
       ],
     };
     res.json(dto);
+  });
+
+  app.get("/api/bff/system/lineXBS-status", requireSession, requireRole("system"), async (_req, res) => {
+    const contractResult = await fetchContractFullStatus();
+    if (contractResult.contract) {
+      const groups = contractLineXbsGroups(contractResult.contract, contractResult);
+      const apiReadiness = groups.flatMap((group) => group.apiReadiness);
+      const dto: LineXbsStatusDto = {
+        generatedAt: contractResult.contract.generatedAt,
+        status: combinedStatus(groups),
+        sourceMode: "contract",
+        groups,
+        apiReadiness,
+      };
+      return res.json(dto);
+    }
+
+    const snapshot = await apiSnapshot();
+    const groups = legacyLineXbsGroups(snapshot);
+    const apiReadiness = groups.flatMap((group) => group.apiReadiness);
+    const dto: LineXbsStatusDto = {
+      generatedAt: nowIso(),
+      status: combinedStatus(groups),
+      sourceMode: "legacy_fallback",
+      groups,
+      apiReadiness,
+    };
+    return res.json(dto);
   });
 
   app.get("/api/bff/system/linebot-management/services", requireSession, requireRole("system"), async (_req, res) => {

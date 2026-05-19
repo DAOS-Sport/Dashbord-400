@@ -23,7 +23,7 @@ const moduleCheckers: Record<string, () => Promise<Omit<ModuleHealthResult, "mod
       status: "degraded",
       tableExists: true,
       rowCount,
-      note: `notification_hub 資料表已建立，目前 ${rowCount} 筆；通知功能待後續實作接入事件來源。`,
+      note: `notification_hub 資料表已建立，目前 ${rowCount} 筆；工作台通知 BFF 已接線，外部事件來源仍可後續擴充。`,
     };
   },
   "registration-courses": async () => {

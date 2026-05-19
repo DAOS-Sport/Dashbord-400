@@ -1,31 +1,23 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { Activity, ChevronDown, ChevronLeft, ChevronUp, Clock, Pencil, Plus, Save, Search, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, X } from "lucide-react";
+import { Activity, ChevronDown, ChevronUp, Clock, Save, Search, ShieldCheck, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { cn } from "@/lib/utils";
 import { LINE_FEATURES } from "@shared/system/line-feature-whitelist";
 import {
-  createLineBotInterviewUser,
   createLineWhitelistEntry,
-  deleteLineBotInterviewUser,
-  fetchLineBotInterviewUsers,
   fetchLineBotServiceStatus,
   fetchLineBotServiceStatusSnapshots,
   fetchLineWhitelist,
   searchLineWhitelistCandidates,
-  updateLineBotInterviewUser,
   updateLineWhitelistEntry,
-  type InterviewUserEntry,
-  type LineBotInterviewUserPayload,
   type LineWhitelistCandidate,
   type LineWhitelistEntry,
 } from "./api";
 
 const whitelistQueryKey = ["/api/bff/system/line-whitelist"];
-const lineAuthorityQueryKey = ["/api/bff/system/line-bot/interview-users", "line-whitelist-authority"];
 const defaultFeatureAccess = () =>
   Object.fromEntries(LINE_FEATURES.map((feature) => [feature.key, feature.key === "interview" || feature.key === "caution-query"]));
 
@@ -45,58 +37,6 @@ const featureSummary = (features: Record<string, boolean>) =>
 
 const operationErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === "string" ? error : "操作失敗，請稍後再試。";
-
-const asInterviewUsers = (value: InterviewUserEntry[] | { items?: InterviewUserEntry[]; users?: InterviewUserEntry[] } | undefined) => {
-  if (Array.isArray(value)) return value;
-  return value?.items ?? value?.users ?? [];
-};
-
-const lineAuthorityUserName = (user: InterviewUserEntry) =>
-  user.displayName || user.userName || String(user.name ?? "") || "未命名";
-
-const lineAuthorityUserId = (user: InterviewUserEntry) =>
-  user.lineUserId || user.userId || String(user.id ?? "");
-
-const lineAuthorityIsActive = (user: InterviewUserEntry) =>
-  user.isActive === true || user.isActive === "true" || (user.isActive !== false && user.status !== "disabled");
-
-const lineAuthorityFlag = (value: boolean | string | undefined, fallback = false) =>
-  value === undefined ? fallback : value === true || value === "true";
-
-const lineAuthorityFeatures = (user: InterviewUserEntry) => [
-  lineAuthorityFlag(user.canInterviewCheck) ? "面試模組" : "",
-  lineAuthorityFlag(user.canCautionQuery) ? "慎用查詢" : "",
-  lineAuthorityFlag(user.canInternalQuery) ? "人員查詢" : "",
-  lineAuthorityFlag(user.canUseAiAgent) ? "AI 智能客服" : "",
-].filter(Boolean).join("、") || "400LINE 授權";
-
-const lineAuthorityPayload = (
-  userId: string,
-  input: {
-    displayName: string;
-    employeeNumber?: string | null;
-    phone?: string | null;
-    department?: string | null;
-    canInterviewCheck?: boolean;
-    canCautionQuery?: boolean;
-    canInternalQuery?: boolean;
-    canUseAiAgent?: boolean;
-    isActive?: boolean;
-  },
-): LineBotInterviewUserPayload => ({
-  userId,
-  lineUserId: userId,
-  userName: input.displayName,
-  displayName: input.displayName,
-  employeeNumber: input.employeeNumber || null,
-  phone: input.phone || null,
-  department: input.department || null,
-  canInterviewCheck: Boolean(input.canInterviewCheck),
-  canCautionQuery: Boolean(input.canCautionQuery),
-  canInternalQuery: Boolean(input.canInternalQuery),
-  canUseAiAgent: Boolean(input.canUseAiAgent),
-  isActive: input.isActive !== false,
-});
 
 function ServiceHealthStrip() {
   const [showSnapshots, setShowSnapshots] = useState(false);
@@ -249,111 +189,6 @@ function WhitelistEntryCard({ entry }: { entry: LineWhitelistEntry }) {
   );
 }
 
-function AuthorityUserCard({ user }: { user: InterviewUserEntry }) {
-  const queryClient = useQueryClient();
-  const userId = lineAuthorityUserId(user);
-  const [editing, setEditing] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [displayName, setDisplayName] = useState(lineAuthorityUserName(user));
-  const [department, setDepartment] = useState(user.department ?? "");
-  const [phone, setPhone] = useState(user.phone ?? "");
-  const [canInterviewCheck, setCanInterviewCheck] = useState(lineAuthorityFlag(user.canInterviewCheck, true));
-  const [canCautionQuery, setCanCautionQuery] = useState(lineAuthorityFlag(user.canCautionQuery));
-  const [canInternalQuery, setCanInternalQuery] = useState(lineAuthorityFlag(user.canInternalQuery, true));
-  const [canUseAiAgent, setCanUseAiAgent] = useState(lineAuthorityFlag(user.canUseAiAgent));
-  const [isActive, setIsActive] = useState(user.isActive !== false && user.status !== "disabled");
-  const invalidateAuthority = () => queryClient.invalidateQueries({ queryKey: lineAuthorityQueryKey });
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      updateLineBotInterviewUser(userId, lineAuthorityPayload(userId, {
-        displayName,
-        department,
-        phone,
-        canInterviewCheck,
-        canCautionQuery,
-        canInternalQuery,
-        canUseAiAgent,
-        isActive,
-      })),
-    onSuccess: () => {
-      setEditing(false);
-      invalidateAuthority();
-    },
-  });
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteLineBotInterviewUser(userId),
-    onSuccess: () => invalidateAuthority(),
-  });
-  return (
-    <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-      <div className="grid gap-2 lg:grid-cols-[1fr_180px_auto] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[13px] font-black text-[#10233f]">{lineAuthorityUserName(user)}</p>
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-black", lineAuthorityIsActive(user) ? "bg-[#e9f8df] text-[#188249]" : "bg-[#eef2f6] text-[#536175]")}>
-              {lineAuthorityIsActive(user) ? "啟用" : "停用"}
-            </span>
-          </div>
-          <p className="mt-0.5 truncate font-mono text-[11px] font-black text-[#536175]">{userId || "未提供 userId"}</p>
-          <p className="mt-0.5 text-[11px] font-bold text-[#8b9aae]">{fullPhone(user.phone)} · {user.department ?? "-"}</p>
-        </div>
-        <p className="text-[11px] font-black text-[#536175]">{lineAuthorityFeatures(user)}</p>
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={() => { setEditing((value) => !value); setConfirmDelete(false); }} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#536175] hover:bg-[#f3f6fb]">
-            {editing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-            {editing ? "收合" : "編輯"}
-          </button>
-          <button type="button" onClick={() => confirmDelete ? deleteMutation.mutate() : setConfirmDelete(true)} disabled={deleteMutation.isPending || !userId} className="inline-flex h-9 items-center gap-1 rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] px-3 text-[11px] font-black text-[#c2410c] disabled:opacity-50">
-            <Trash2 className="h-3.5 w-3.5" />
-            {confirmDelete ? "確認刪除" : "刪除"}
-          </button>
-        </div>
-      </div>
-      {editing ? (
-        <div className="mt-3 grid gap-3 rounded-[8px] border border-[#edf1f6] bg-white p-3">
-          <div className="grid gap-2 md:grid-cols-3">
-            <label className="grid gap-1">
-              <span className="text-[11px] font-black text-[#8b9aae]">姓名</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-[11px] font-black text-[#8b9aae]">部門</span>
-              <input value={department} onChange={(event) => setDepartment(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-[11px] font-black text-[#8b9aae]">電話</span>
-              <input value={phone} onChange={(event) => setPhone(event.target.value)} className="h-9 rounded-[8px] border border-[#dfe7ef] px-3 text-[12px] font-bold" />
-            </label>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            {[
-              ["面試模組", canInterviewCheck, setCanInterviewCheck],
-              ["慎用查詢", canCautionQuery, setCanCautionQuery],
-              ["人員查詢", canInternalQuery, setCanInternalQuery],
-              ["AI 智能客服", canUseAiAgent, setCanUseAiAgent],
-              ["啟用", isActive, setIsActive],
-            ].map(([label, checked, setter]) => (
-              <label key={String(label)} className="flex min-h-10 items-center justify-between gap-3 rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] px-3">
-                <span className="text-[11px] font-black text-[#536175]">{String(label)}</span>
-                <Switch checked={Boolean(checked)} onCheckedChange={(value) => (setter as (next: boolean) => void)(value)} />
-              </label>
-            ))}
-          </div>
-          {updateMutation.isError || deleteMutation.isError ? (
-            <div className="rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
-              {operationErrorMessage(updateMutation.error ?? deleteMutation.error)}
-            </div>
-          ) : null}
-          <button type="button" onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || !displayName.trim() || !userId} className="inline-flex h-10 w-fit items-center gap-2 rounded-[8px] bg-[#0f1b3d] px-4 text-[12px] font-black text-white disabled:opacity-50">
-            <Save className="h-4 w-4" />
-            {updateMutation.isPending ? "儲存中..." : "儲存變更"}
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export default function SystemLineWhitelistPage() {
   const queryClient = useQueryClient();
   const [ragicQuery, setRagicQuery] = useState("");
@@ -367,19 +202,10 @@ export default function SystemLineWhitelistPage() {
   const [wlSearch, setWlSearch] = useState("");
   const [lastSavedName, setLastSavedName] = useState("");
   const [lastSyncMessage, setLastSyncMessage] = useState("");
-  const [authorityUserId, setAuthorityUserId] = useState("");
-  const [authorityName, setAuthorityName] = useState("");
-  const [authorityDepartment, setAuthorityDepartment] = useState("");
-  const [authorityPhone, setAuthorityPhone] = useState("");
 
   const whitelistQuery = useQuery({
     queryKey: whitelistQueryKey,
     queryFn: fetchLineWhitelist,
-  });
-  const lineAuthorityQuery = useQuery({
-    queryKey: lineAuthorityQueryKey,
-    queryFn: fetchLineBotInterviewUsers,
-    retry: 1,
   });
   const ragicCandidateQuery = useQuery({
     queryKey: ["/api/bff/system/line-whitelist/candidates", ragicQuery.trim()],
@@ -408,19 +234,10 @@ export default function SystemLineWhitelistPage() {
       return `${item.displayName} ${item.lineUserId} ${item.phone ?? ""} ${item.department ?? ""}`.toLowerCase().includes(query);
     });
   }, [whitelistQuery.data?.items, wlSearch]);
-  const lineAuthorityUsers = useMemo(() => {
-    const query = wlSearch.trim().toLowerCase();
-    return asInterviewUsers(lineAuthorityQuery.data).filter((user) => {
-      if (!query) return true;
-      return `${lineAuthorityUserName(user)} ${lineAuthorityUserId(user)} ${user.phone ?? ""} ${user.department ?? ""}`.toLowerCase().includes(query);
-    });
-  }, [lineAuthorityQuery.data, wlSearch]);
-  const lineAuthorityActiveCount = lineAuthorityUsers.filter(lineAuthorityIsActive).length;
-  const lineAuthorityDisabledCount = Math.max(lineAuthorityUsers.length - lineAuthorityActiveCount, 0);
   const summary = {
-    total: Math.max(whitelistQuery.data?.summary.total ?? 0, lineAuthorityUsers.length),
-    active: Math.max(whitelistQuery.data?.summary.active ?? 0, lineAuthorityActiveCount),
-    disabled: Math.max(whitelistQuery.data?.summary.disabled ?? 0, lineAuthorityDisabledCount),
+    total: whitelistQuery.data?.summary.total ?? 0,
+    active: whitelistQuery.data?.summary.active ?? 0,
+    disabled: whitelistQuery.data?.summary.disabled ?? 0,
     expiringSoon: (whitelistQuery.data?.items ?? []).filter(isExpiringSoon).length,
   };
 
@@ -452,35 +269,9 @@ export default function SystemLineWhitelistPage() {
       setNotes("");
     },
   });
-  const createAuthorityMutation = useMutation({
-    mutationFn: () =>
-      createLineBotInterviewUser(lineAuthorityPayload(authorityUserId.trim(), {
-        displayName: authorityName.trim(),
-        department: authorityDepartment.trim(),
-        phone: authorityPhone.trim(),
-        canInterviewCheck: true,
-        canCautionQuery: true,
-        canInternalQuery: true,
-        canUseAiAgent: false,
-        isActive: true,
-      })),
-    onSuccess: () => {
-      setAuthorityUserId("");
-      setAuthorityName("");
-      setAuthorityDepartment("");
-      setAuthorityPhone("");
-      queryClient.invalidateQueries({ queryKey: lineAuthorityQueryKey });
-    },
-  });
-
   return (
     <RoleShell role="system" title="400 LINE 白名單管理" subtitle="INTERVIEW + CAUTION ACCESS">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-line-whitelist-page">
-        <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-          <ChevronLeft className="h-4 w-4" />
-          回控制中心
-        </Link>
-
         {whitelistQuery.data?.storageStatus === "schema_pending" ? (
           <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[13px] font-black text-[#8a5a00]">
             白名單資料表尚未建立：請執行 db:push 後即可寫入。
@@ -637,66 +428,9 @@ export default function SystemLineWhitelistPage() {
             ) : null}
             <div className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
               <p className="text-[13px] font-black text-[#10233f]">目前 400LINE 白名單對象</p>
-              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">上方顯示 400LINE 目前可讀到的系統授權名單；下方顯示 CMS shadow 內可編輯的詳細授權。</p>
+              <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">保留 CMS shadow 內可編輯的詳細授權，新增與更新一律從左側 Ragic H01 流程執行。</p>
             </div>
             <input value={wlSearch} onChange={(event) => setWlSearch(event.target.value)} placeholder="搜尋白名單（姓名 / userid / 電話 / 部門）" className="h-10 w-full rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold outline-none focus:border-[#2dd4bf]" />
-
-            <WorkbenchCard className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-[13px] font-black text-[#10233f]">系統目前授權名單</p>
-                  <p className="mt-1 text-[11px] font-bold text-[#8b9aae]">來源：400LINE /api/admin/interview-users，可直接新增、編輯、刪除既有 LINE 功能授權。</p>
-                </div>
-                <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[11px] font-black text-[#536175]">{lineAuthorityUsers.length} 位</span>
-              </div>
-              <div className="mt-3 grid gap-2 rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 xl:grid-cols-[1.25fr_0.9fr_0.9fr_0.9fr_auto] xl:items-end">
-                <label className="grid gap-1">
-                  <span className="text-[11px] font-black text-[#8b9aae]">LINE userId</span>
-                  <input value={authorityUserId} onChange={(event) => setAuthorityUserId(event.target.value)} placeholder="U 開頭 userId" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-mono text-[12px] font-bold" />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-[11px] font-black text-[#8b9aae]">姓名</span>
-                  <input value={authorityName} onChange={(event) => setAuthorityName(event.target.value)} placeholder="姓名" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-[11px] font-black text-[#8b9aae]">部門</span>
-                  <input value={authorityDepartment} onChange={(event) => setAuthorityDepartment(event.target.value)} placeholder="部門" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
-                </label>
-                <label className="grid gap-1">
-                  <span className="text-[11px] font-black text-[#8b9aae]">電話</span>
-                  <input value={authorityPhone} onChange={(event) => setAuthorityPhone(event.target.value)} placeholder="電話" className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold" />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => createAuthorityMutation.mutate()}
-                  disabled={createAuthorityMutation.isPending || !authorityUserId.trim() || !authorityName.trim()}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[8px] bg-[#0f1b3d] px-3 text-[12px] font-black text-white disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  新增
-                </button>
-              </div>
-              {createAuthorityMutation.isError ? (
-                <div className="mt-3 rounded-[8px] border border-[#fed7aa] bg-[#fff7ed] p-3 text-[12px] font-bold text-[#c2410c]">
-                  {operationErrorMessage(createAuthorityMutation.error)}
-                </div>
-              ) : null}
-              {lineAuthorityQuery.isLoading ? (
-                <div className="mt-3 rounded-[8px] bg-[#fbfcfd] p-4 text-center text-[12px] font-bold text-[#8b9aae]">讀取 400LINE 授權名單中…</div>
-              ) : lineAuthorityQuery.isError ? (
-                <div className="mt-3 rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[12px] font-bold text-[#8a5a00]">
-                  目前無法讀取 400LINE 系統白名單；CMS shadow 仍可從下方查看，新增/更新請從左側 Ragic H01 流程執行。
-                </div>
-              ) : lineAuthorityUsers.length ? (
-                <div className="mt-3 grid gap-2">
-                  {lineAuthorityUsers.map((user) => <AuthorityUserCard key={lineAuthorityUserId(user) || lineAuthorityUserName(user)} user={user} />)}
-                </div>
-              ) : (
-                <div className="mt-3 rounded-[8px] bg-[#fbfcfd] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
-                  {wlSearch ? "400LINE 授權名單無符合結果" : "400LINE 目前沒有回傳授權名單"}
-                </div>
-              )}
-            </WorkbenchCard>
 
             {whitelistQuery.isLoading ? (
               <WorkbenchCard className="p-6 text-center text-[12px] font-bold text-[#8b9aae]">載入中…</WorkbenchCard>

@@ -3,12 +3,15 @@ import {
   facilityLineGroups,
   findFacilityLineGroup,
 } from "@shared/domain/facilities";
+import { getCourtName, getSchoolName, isValidSchool, type SchoolId } from "@shared/court-config";
+import type { OperationalHandover } from "@shared/schema";
 import type { Express } from "express";
 import type { AppContainer } from "../../app/container";
 import { ok } from "../../shared/bff/section";
 import { env } from "../../shared/config/env";
 import { storage } from "../../storage";
 import { requireRole } from "../auth/context";
+import { courtsStorage } from "../courts/storage";
 import {
   getSupervisorDashboardFromSources,
   getSupervisorDashboardMock,
@@ -53,6 +56,33 @@ const mapPhotoRecord = (
   meta: toIso(item.clientCaptureTime) ?? toIso(item.createdAt),
   description: item.description ?? null,
   attachments: imageAttachment(`${label}-${item.id}`, "現場照片", item.photoUrl, label),
+});
+
+const courtSchoolsForFacility = (facilityKey: string): SchoolId[] => {
+  const key = facilityKey.toLowerCase();
+  const name = facilityLabel(facilityKey);
+  if (key.includes("salu") || key.includes("sanchong") || key.includes("sanlu") || /三重商工|三蘆|商工/.test(name)) return ["sanchong"];
+  if (key.includes("xinbei") || /新北高中|新北高中游泳池|新北/.test(name)) return ["xinbei"];
+  return [];
+};
+
+const statusForCount = (count: number) => count > 0 ? "ready" as const : "empty" as const;
+const promoPattern = /優惠|折扣|促銷|快訊|方案|折價|活動價|早鳥|特價/;
+
+const linkAttachment = (id: string, label: string, url?: string | null, source = "front-desk") =>
+  url ? [{ id, kind: "link" as const, label, url, source }] : [];
+
+const isImageLike = (value?: string | null) =>
+  Boolean(value && /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(value));
+
+const mapOperationalHandoverForBff = (handover: OperationalHandover) => ({
+  ...handover,
+  visibleFrom: handover.visibleFrom?.toISOString?.() ?? handover.visibleFrom,
+  dueAt: handover.dueAt?.toISOString?.() ?? handover.dueAt,
+  completedAt: handover.completedAt?.toISOString?.() ?? handover.completedAt,
+  createdAt: handover.createdAt?.toISOString?.() ?? handover.createdAt,
+  updatedAt: handover.updatedAt?.toISOString?.() ?? handover.updatedAt,
+  facilityName: facilityLabel(handover.facilityKey),
 });
 
 export const registerSupervisorBffRoutes = (
@@ -199,6 +229,50 @@ export const registerSupervisorBffRoutes = (
   );
 
   app.get(
+    "/api/bff/supervisor/handovers",
+    requireRole("supervisor", "system"),
+    async (req, res) => {
+      const session = req.workbenchSession!;
+      const isSystem = session.grantedRoles.includes("system");
+      const grantedFacilityKeys = session.grantedFacilities.length
+        ? session.grantedFacilities
+        : facilityLineGroups.map((facility) => facility.facilityKey);
+      const facilityParam = typeof req.query.facilityKey === "string" ? req.query.facilityKey : "all";
+      const facilityKeys = facilityParam && facilityParam !== "all"
+        ? [facilityParam]
+        : grantedFacilityKeys;
+      if (!isSystem && facilityKeys.some((key) => !grantedFacilityKeys.includes(key))) {
+        return res.status(403).json({ message: "無權限查看此館別" });
+      }
+      const status = typeof req.query.status === "string" && req.query.status !== "all" ? req.query.status : undefined;
+      const keyword = typeof req.query.q === "string" ? req.query.q.trim().toLowerCase() : "";
+      const rows = await storage.listOperationalHandovers({ status, limit: 500 }).catch(() => []);
+      const scoped = rows
+        .filter((handover) => facilityKeys.includes(handover.facilityKey))
+        .filter((handover) => {
+          if (!keyword) return true;
+          return `${handover.title} ${handover.content} ${handover.createdByName ?? ""} ${handover.assigneeName ?? ""} ${facilityLabel(handover.facilityKey)}`.toLowerCase().includes(keyword);
+        });
+      return res.json({
+        items: scoped.map(mapOperationalHandoverForBff),
+        facilities: grantedFacilityKeys.map((facilityKey) => ({
+          facilityKey,
+          facilityName: facilityLabel(facilityKey),
+        })),
+        summaryByFacility: grantedFacilityKeys.map((facilityKey) => {
+          const items = scoped.filter((handover) => handover.facilityKey === facilityKey);
+          return {
+            facilityKey,
+            facilityName: facilityLabel(facilityKey),
+            open: openOperationalHandovers(items).length,
+            total: items.length,
+          };
+        }),
+      });
+    },
+  );
+
+  app.get(
     "/api/bff/supervisor/facilities/:facilityKey/detail",
     requireRole("supervisor", "system"),
     async (req, res) => {
@@ -217,7 +291,9 @@ export const registerSupervisorBffRoutes = (
       }
 
       const fromDate = startOfTaipeiDay();
-      const [staffing, handovers, waterQuality, coachDive, cleanup, laneIssues, lostItems] = await Promise.all([
+      const workDate = todayTaipei();
+      const courtSchools = courtSchoolsForFacility(facilityKey);
+      const [staffing, handovers, waterQuality, coachDive, cleanup, laneIssues, lostItems, employeeResources, systemAnnouncements, groupBroadcastRows, laneRentals, courtReservations] = await Promise.all([
         withTimeout(buildStaffingSummary(container, [facilityKey]), 2500, {
           active: 0,
           total: 0,
@@ -232,8 +308,13 @@ export const registerSupervisorBffRoutes = (
         storage.listLifeguardWaterQualityLogs({ facilityKey, fromDate, limit: 100 }).catch(() => []),
         storage.listLifeguardCoachDiveLogs({ facilityKey, fromDate, limit: 100 }).catch(() => []),
         storage.listLifeguardCleanupLogs({ facilityKey, fromDate, limit: 100 }).catch(() => []),
-        storage.listLifeguardHandoverNotes({ facilityKey, workDate: todayTaipei(), limit: 100 }).catch(() => []),
+        storage.listLifeguardHandoverNotes({ facilityKey, workDate, limit: 100 }).catch(() => []),
         storage.listLifeguardLostAndFound({ facilityKey, fromDate, limit: 100 }).catch(() => []),
+        storage.listEmployeeResources({ facilityKey, limit: 120 }).catch(() => []),
+        storage.listSystemAnnouncements(facilityKey).catch(() => []),
+        storage.listGroupBroadcasts({ facilityKey, limit: 60 }).catch(() => []),
+        storage.listLaneRentals({ facilityKey, bookingDate: workDate, status: "active" }).catch(() => []),
+        Promise.all(courtSchools.map((school) => courtsStorage.getReservationsByDate(school, workDate).catch(() => []))).then((groups) => groups.flat()).catch(() => []),
       ]);
 
       const staffingRow = staffing.byFacility?.find((row) => row.facilityKey === facilityKey);
@@ -258,22 +339,150 @@ export const registerSupervisorBffRoutes = (
           + lostItems.filter((row) => Boolean(row.photoUrl)).length,
         currentLead: current[0] ? { name: current[0].name, title: current[0].title } : undefined,
       };
+      const handoverItems = openHandovers.slice(0, 20).map((handover) => ({
+        id: String(handover.id),
+        title: handover.title,
+        status: handover.status,
+        meta: [handover.targetDate, handover.targetShiftLabel, handover.assigneeName].filter(Boolean).join(" · "),
+        description: handover.content,
+        attachments: handover.linkedActionUrl
+          ? [{ id: `handover-${handover.id}-link`, kind: handover.linkedActionType === "image" ? "image" as const : "link" as const, label: handover.linkedActionType ?? "詳細連結", url: handover.linkedActionUrl, source: "handover" }]
+          : [],
+      }));
+      const laneRentalItems = laneRentals.slice(0, 12).map((rental) => ({
+        id: `lane-rental-${rental.id}`,
+        title: rental.zoneLabel || `水道 ${rental.laneCode}`,
+        status: rental.status,
+        meta: `${rental.bookingDate} ${rental.startTime}-${rental.endTime}`,
+        description: `${rental.renterName}${rental.note ? ` · ${rental.note}` : ""}`,
+        attachments: [],
+      }));
+      const courtItems = courtReservations.slice(0, 12).map((reservation) => {
+        const schoolName = isValidSchool(reservation.school) ? getSchoolName(reservation.school) : reservation.school;
+        return {
+          id: `court-${reservation.id}`,
+          title: reservation.customerName || reservation.serviceName || "場租預約",
+          status: reservation.status ?? "confirmed",
+          meta: `${schoolName} · ${getCourtName(reservation.court)} · ${reservation.startTime}-${reservation.endTime}`,
+          description: [reservation.serviceName, reservation.notes, reservation.bookingNumber].filter(Boolean).join(" · ") || null,
+          attachments: [],
+        };
+      });
+      const announcementEventItems = [
+        ...systemAnnouncements
+          .filter((item) => item.announcementType === "event" || item.announcementType === "notice" || item.isPinned)
+          .slice(0, 8)
+          .map((item) => ({
+            id: `system-announcement-${item.id}`,
+            title: item.title,
+            status: item.announcementType,
+            meta: item.publishedAt?.toLocaleString("zh-TW"),
+            description: item.content,
+            attachments: [],
+          })),
+        ...groupBroadcastRows
+          .filter((item) => item.isEvent || item.priority !== "normal")
+          .slice(0, 8)
+          .map((item) => ({
+            id: `group-broadcast-${item.id}`,
+            title: item.title || "群組公告",
+            status: item.priority,
+            meta: item.createdAt?.toLocaleString("zh-TW"),
+            description: item.summary || item.originalText,
+            attachments: [],
+          })),
+        ...employeeResources
+          .filter((item) => item.category === "event" || item.category === "announcement")
+          .slice(0, 8)
+          .map((item) => ({
+            id: `employee-resource-${item.id}`,
+            title: item.title,
+            status: item.eventCategory || item.subCategory || item.category,
+            meta: item.eventStartAt?.toLocaleString("zh-TW") ?? item.scheduledAt?.toLocaleString("zh-TW") ?? item.createdAt?.toLocaleString("zh-TW"),
+            description: item.content,
+            attachments: [
+              ...(isImageLike(item.imageUrl) ? imageAttachment(`resource-${item.id}-image`, "圖片", item.imageUrl, "employee-resource") : []),
+              ...linkAttachment(`resource-${item.id}-link`, "連結", item.url, "employee-resource"),
+            ],
+          })),
+      ].slice(0, 20);
+      const promotionItems = [
+        ...systemAnnouncements
+          .filter((item) => item.announcementType === "discount" || promoPattern.test(`${item.title} ${item.content}`))
+          .map((item) => ({
+            id: `system-promo-${item.id}`,
+            title: item.title,
+            status: item.severity,
+            meta: item.publishedAt?.toLocaleString("zh-TW"),
+            description: item.content,
+            attachments: [],
+          })),
+        ...employeeResources
+          .filter((item) => promoPattern.test(`${item.title} ${item.content ?? ""} ${item.eventCategory ?? ""} ${item.subCategory ?? ""}`))
+          .map((item) => ({
+            id: `employee-promo-${item.id}`,
+            title: item.title,
+            status: item.eventCategory || item.subCategory || "優惠快訊",
+            meta: item.eventStartAt?.toLocaleString("zh-TW") ?? item.createdAt?.toLocaleString("zh-TW"),
+            description: item.content,
+            attachments: [
+              ...(isImageLike(item.imageUrl) ? imageAttachment(`promo-${item.id}-image`, "圖片", item.imageUrl, "employee-resource") : []),
+              ...linkAttachment(`promo-${item.id}-link`, "連結", item.url, "employee-resource"),
+            ],
+          })),
+        ...groupBroadcastRows
+          .filter((item) => promoPattern.test(`${item.title ?? ""} ${item.summary ?? ""} ${item.originalText}`))
+          .map((item) => ({
+            id: `group-promo-${item.id}`,
+            title: item.title || "優惠快訊",
+            status: item.priority,
+            meta: item.createdAt?.toLocaleString("zh-TW"),
+            description: item.summary || item.originalText,
+            attachments: [],
+          })),
+      ].slice(0, 20);
+      const frontDeskModules = [
+        {
+          id: "handover" as const,
+          label: "交接事項",
+          status: statusForCount(handoverItems.length),
+          count: handoverItems.length,
+          items: handoverItems,
+          sourceStatus: { connected: true },
+        },
+        {
+          id: "venue-rental" as const,
+          label: "場租",
+          status: statusForCount(laneRentalItems.length + courtItems.length),
+          count: laneRentalItems.length + courtItems.length,
+          items: [...laneRentalItems, ...courtItems].slice(0, 20),
+          sourceStatus: { connected: true },
+        },
+        {
+          id: "announcements-events" as const,
+          label: "重要公告/活動檔期",
+          status: statusForCount(announcementEventItems.length),
+          count: announcementEventItems.length,
+          items: announcementEventItems,
+          sourceStatus: { connected: true },
+        },
+        {
+          id: "promotions" as const,
+          label: "優惠快訊",
+          status: statusForCount(promotionItems.length),
+          count: promotionItems.length,
+          items: promotionItems,
+          sourceStatus: { connected: true },
+        },
+      ];
 
       res.json({
         facility,
         staffing: { current, next },
         frontDesk: {
           openHandovers: openHandovers.length,
-          items: openHandovers.slice(0, 20).map((handover) => ({
-            id: String(handover.id),
-            title: handover.title,
-            status: handover.status,
-            meta: [handover.targetDate, handover.targetShiftLabel, handover.assigneeName].filter(Boolean).join(" · "),
-            description: handover.content,
-            attachments: handover.linkedActionUrl
-              ? [{ id: `handover-${handover.id}-link`, kind: "link", label: handover.linkedActionType ?? "詳細連結", url: handover.linkedActionUrl, source: "handover" }]
-              : [],
-          })),
+          items: handoverItems,
+          modules: frontDeskModules,
         },
         lifeguard: {
           waterQualityStatus: waterQuality.length ? `今日已檢測 ${waterQuality.length} 筆` : "今日尚未檢測",

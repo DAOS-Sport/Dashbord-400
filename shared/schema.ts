@@ -637,6 +637,34 @@ export const insertWidgetLayoutSettingSchema = createInsertSchema(widgetLayoutSe
 export type InsertWidgetLayoutSetting = z.infer<typeof insertWidgetLayoutSettingSchema>;
 export type WidgetLayoutSetting = typeof widgetLayoutSettings.$inferSelect;
 
+export const userWorkbenchPreferences = pgTable("user_workbench_preferences", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  role: text("role").notNull(),
+  preferenceKey: text("preference_key").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().default(sql`'{}'::jsonb`).notNull(),
+  updatedBy: text("updated_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueUserPreference: uniqueIndex("idx_user_workbench_preferences_unique").on(table.userId, table.role, table.preferenceKey),
+}));
+
+export const insertUserWorkbenchPreferenceSchema = createInsertSchema(userWorkbenchPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  userId: z.string().min(1),
+  role: workbenchRoleSchema,
+  preferenceKey: z.string().min(1).max(120),
+  payload: z.record(z.unknown()).default({}),
+  updatedBy: z.string().max(120).optional().nullable(),
+});
+
+export type InsertUserWorkbenchPreference = z.infer<typeof insertUserWorkbenchPreferenceSchema>;
+export type UserWorkbenchPreference = typeof userWorkbenchPreferences.$inferSelect;
+
 export const moduleSettings = pgTable("module_settings", {
   moduleId: text("module_id").primaryKey(),
   enabled: boolean("enabled").default(true).notNull(),
@@ -1879,12 +1907,39 @@ export const notificationHub = pgTable("notification_hub", {
   level: text("level").default("info").notNull(),
   targetRole: text("target_role"),
   facilityKey: text("facility_key"),
+  actionUrl: text("action_url"),
+  source: text("source").default("manual").notNull(),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdByRole: text("created_by_role"),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export type NotificationHubEntry = typeof notificationHub.$inferSelect;
 export type InsertNotificationHubEntry = typeof notificationHub.$inferInsert;
+
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    notificationId: integer("notification_id").notNull(),
+    recipientUserId: text("recipient_user_id").notNull(),
+    recipientRole: text("recipient_role"),
+    facilityKey: text("facility_key"),
+    readAt: timestamp("read_at"),
+    deliveredAt: timestamp("delivered_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueNotificationRecipient: uniqueIndex("idx_notification_deliveries_unique").on(table.notificationId, table.recipientUserId),
+    notificationRecipientIdx: index("idx_notification_deliveries_recipient").on(table.recipientUserId),
+  }),
+);
+
+export type NotificationDelivery = typeof notificationDeliveries.$inferSelect;
+export type InsertNotificationDelivery = typeof notificationDeliveries.$inferInsert;
 
 export const registrationCourses = pgTable("registration_courses", {
   id: serial("id").primaryKey(),

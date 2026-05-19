@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowRight,
   Bell,
   Bot,
   Building2,
@@ -14,13 +15,14 @@ import {
   GraduationCap,
   LifeBuoy,
   Home,
-  BarChart3,
   Menu,
   MoreHorizontal,
   Megaphone,
   MessageSquareWarning,
   Network,
   PackageSearch,
+  PanelLeftClose,
+  PanelLeftOpen,
   Car,
   Search,
   Server,
@@ -29,19 +31,19 @@ import {
   Waves,
 } from "lucide-react";
 import type { NavigationModuleDto } from "@shared/modules";
+import type { SystemProjectStatus } from "@shared/system/project-monitoring-contract";
 import { cn } from "@/lib/utils";
 import { RoleSwitcher } from "./role-switcher";
 import { fetchModuleNavigation } from "@/shared/modules/api";
+import { fetchSystemProjectMonitoring } from "@/modules/system/project-monitoring/api";
 import { useAuthMe } from "@/shared/auth/session";
-import { useFacilityLabelMap } from "@/shared/auth/facility-labels";
 import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
+import { WorkbenchNotificationBell } from "./workbench-notification-bell";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {
-};
-const LINEBOT_MODULE_IDS = new Set(["linebot-management", "helper-status", "line-whitelist"]);
-const linebotSectionStartsAt = (items: NavItem[]) => items.findIndex((item) => LINEBOT_MODULE_IDS.has(item.id));
+const FACILITY_SCOPED_SLOTS: Record<string, string[]> = {};
 
 type NavItem = {
   id: string;
@@ -75,6 +77,29 @@ const iconByKey: Record<string, LucideIcon> = {
   network: Network,
   car: Car,
 };
+
+const systemNavGroups = [
+  { key: "400cms", label: "400CMS", ids: ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-cms-monitoring"] },
+  { key: "400line", label: "400LINE", ids: ["linebot-management", "helper-status", "line-whitelist"] },
+  { key: "schedule", label: "班表系統", ids: ["system-schedule-control", "system-schedule-monitoring"] },
+  { key: "collab-course", label: "偕同課系統", ids: ["system-collab-course-control", "system-collab-course-monitoring"] },
+] as const;
+
+const statusLabel = (status: SystemProjectStatus) => {
+  if (status === "ready") return "正常";
+  if (status === "degraded") return "注意";
+  if (status === "error") return "錯誤";
+  return "未連線";
+};
+
+const statusClass = (status: SystemProjectStatus) =>
+  status === "ready"
+    ? "bg-[#e9f8df] text-[#188249]"
+    : status === "degraded"
+      ? "bg-[#fff6e7] text-[#9b6a00]"
+      : status === "error"
+        ? "bg-[#ffe8eb] text-[#dc2626]"
+        : "bg-[#eef2f6] text-[#536175]";
 
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
   id: item.id,
@@ -143,6 +168,93 @@ const toRoleNavItems = (
   });
 };
 
+const isNavActive = (location: string, item: NavItem, role: "supervisor" | "system", index?: number) => {
+  const roleRoot = item.href === "/supervisor" || item.href === "/system";
+  const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
+  return active || (index === 0 && role === "supervisor" && location === "/");
+};
+
+interface SystemGovernanceDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+function SystemGovernanceDrawer({ open, onOpenChange }: SystemGovernanceDrawerProps) {
+  const monitoring = useQuery({
+    queryKey: ["/api/bff/system/project-monitoring"],
+    queryFn: fetchSystemProjectMonitoring,
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const items = (monitoring.data?.items ?? []).filter((item) => item.key !== "governance");
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full overflow-y-auto bg-[#f3f6fb] p-5 sm:max-w-[620px]">
+        <SheetHeader className="pr-8 text-left">
+          <SheetTitle className="text-[20px] font-black text-[#10233f]">總治理</SheetTitle>
+          <SheetDescription className="text-[13px] font-bold leading-5 text-[#637185]">
+            跨父類狀態總覽與快速導航。這裡只讀取摘要，不做深層操作。
+          </SheetDescription>
+        </SheetHeader>
+
+        {monitoring.isError ? (
+          <div className="mt-4 rounded-[8px] border border-[#ffc7cf] bg-[#fff7f8] p-3 text-[13px] font-black text-[#dc2626]">
+            總治理摘要讀取失敗。
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid gap-3">
+          {items.map((item) => (
+            <section key={item.key} className="rounded-[10px] border border-[#dfe7ef] bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-black text-[#10233f]">{item.label}</p>
+                  <p className="mt-1 text-[12px] font-bold leading-5 text-[#637185]">{item.description}</p>
+                </div>
+                <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-black", statusClass(item.status))}>{statusLabel(item.status)}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                {[
+                  ["正常", item.metrics.ready],
+                  ["注意", item.metrics.degraded],
+                  ["未連線", item.metrics.notConnected],
+                  ["錯誤", item.metrics.error],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="rounded-[8px] bg-[#f7f9fb] p-2">
+                    <p className="text-[10px] font-black text-[#8b9aae]">{label}</p>
+                    <p className="text-[18px] font-black text-[#10233f]">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link onClick={() => onOpenChange(false)} href={item.controlCenterHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
+                  控制中心
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+                <Link onClick={() => onOpenChange(false)} href={item.monitorHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
+                  服務監控
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+                {item.governanceHref ? (
+                  <Link onClick={() => onOpenChange(false)} href={item.governanceHref} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
+                    治理/設定
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                ) : null}
+              </div>
+              <p className="mt-3 text-[11px] font-bold text-[#8b9aae]">最後更新 {new Date(item.lastUpdatedAt).toLocaleString("zh-TW")}</p>
+            </section>
+          ))}
+          {monitoring.isLoading ? (
+            <div className="rounded-[10px] border border-[#dfe7ef] bg-white p-4 text-[13px] font-bold text-[#637185]">載入總治理摘要中...</div>
+          ) : null}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 interface RoleShellProps {
   role: "supervisor" | "system";
   title: string;
@@ -152,6 +264,8 @@ interface RoleShellProps {
 
 export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const [location] = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [governanceOpen, setGovernanceOpen] = useState(false);
   const trackEvent = useTrackEvent();
   const navigation = useQuery({
     queryKey: ["/api/modules/navigation", role],
@@ -165,30 +279,46 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
         grantedFacilities: session.data.grantedFacilities ?? [],
       }
     : null;
-  const grantedFacilities = session.data?.grantedFacilities ?? [];
-  const facilityLabels = useFacilityLabelMap(grantedFacilities);
   const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
-  const linebotStartIndex = role === "system" ? linebotSectionStartsAt(nav) : -1;
   const mobileItems = nav.slice(0, 5);
-  const userLabel = role === "system" ? "System (IT)" : "主管工作台";
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
   const shellStatusLabel = role === "system" ? "系統監控中" : "營運中";
   const shellScopeLabel = role === "system" ? "IT 治理與監控工作台" : "授權場館工作台";
   const shellConsoleLabel = role === "system" ? "System Console" : "Supervisor Console";
   const roleEnglishLabel = role === "system" ? "System" : "Supervisor";
-  const todayLabel = new Intl.DateTimeFormat("zh-TW", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const userName = session.data?.displayName || roleLabel;
+  const userId = session.data?.userId || "未登入";
   const supervisorShell = role === "supervisor";
-  const activeFacility = session.data?.activeFacility;
-  const activeFacilityName = activeFacility ? facilityLabels.getFacilityName(activeFacility) : "授權場館";
+  const collapseEnabled = role === "system";
+
+  const renderNavLink = (item: NavItem, index?: number) => {
+    const active = isNavActive(location, item, role, index);
+    return (
+      <Link
+        key={item.id}
+        href={item.href}
+        onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
+        className={cn(
+          "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
+          active
+            ? "bg-[#2f9e5b] text-white"
+            : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
+        )}
+      >
+        <item.Icon className="h-4 w-4" />
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {item.label.includes("異常") || item.label.includes("告警") ? (
+          <span className="ml-auto grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">5</span>
+        ) : null}
+      </Link>
+    );
+  };
 
   return (
     <div className={cn("workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]", supervisorShell && "supervisor-workbench")}>
       <div className="flex h-full min-w-0">
-        <aside className="workbench-sidebar hidden h-full min-h-0 w-[220px] shrink-0 flex-col gap-4 p-[18px_14px] text-white lg:flex">
+        {!(collapseEnabled && sidebarCollapsed) ? (
+        <aside className="workbench-sidebar hidden h-full min-h-0 w-[220px] shrink-0 flex-col gap-4 overflow-hidden p-[18px_14px] text-white lg:flex">
           <BrandLockup className="px-1 pb-1" markClassName="h-[26px] w-[26px] rounded-[7px]" titleClassName="text-[16px] text-white" />
           <div className="rounded-[10px] border border-white/10 bg-white/[0.04] p-3 text-[12px] leading-5 text-[#b8c8da]">
             <div className="mb-2 flex items-center gap-2 font-black text-white">
@@ -198,66 +328,68 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
             <p className="truncate font-bold text-[#d9e4ef]">{shellScopeLabel}</p>
             <p className="truncate text-[11px] text-[#9eacbc]">{shellConsoleLabel}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-[10px] bg-white/[0.04] p-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-[#2f9e5b] text-white">
-              <Users className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-black">{userLabel}</p>
-              <p className="truncate text-[11px] text-[#b8c8da]">{roleLabel}</p>
-            </div>
-          </div>
-          <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">400CMS</div>
+
           <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1">
             {!nav.length && navigation.isLoading ? (
               <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d8e3ef]">導覽載入中...</div>
             ) : null}
-            {nav.map((item, index) => {
-              const roleRoot = item.href === "/supervisor" || item.href === "/system";
-              const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
-              const rootActive = index === 0 && role === "supervisor" && location === "/";
-              return (
-                <div key={item.id} className="contents">
-                  {index === linebotStartIndex ? (
-                    <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">400LINE</div>
-                  ) : null}
-                  <Link
-                    href={item.href}
-                    onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
-                    className={cn(
-                      "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
-                      active || rootActive
-                        ? "bg-[#2f9e5b] text-white"
-                        : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
-                    )}
-                  >
-                    <item.Icon className="h-4 w-4" />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {item.label.includes("異常") || item.label.includes("告警") ? (
-                      <span className="ml-auto grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">5</span>
-                    ) : null}
-                  </Link>
-                </div>
-              );
-            })}
+
+            {role === "system" ? (
+              <>
+                <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">總治理</div>
+                <button
+                  type="button"
+                  onClick={() => setGovernanceOpen(true)}
+                  className="workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-left text-[13.5px] font-bold text-[#d8e3ef] transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  <Network className="h-4 w-4" />
+                  <span className="min-w-0 flex-1 truncate">跨專案總覽</span>
+                  <ArrowRight className="h-3.5 w-3.5 opacity-70" />
+                </button>
+                {systemNavGroups.map((group) => {
+                  const groupItems = group.ids.map((id) => nav.find((item) => item.id === id)).filter(Boolean) as NavItem[];
+                  if (!groupItems.length) return null;
+                  return (
+                    <div key={group.key} className="contents">
+                      <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">{group.label}</div>
+                      {groupItems.map((item) => renderNavLink(item))}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              nav.map((item, index) => renderNavLink(item, index))
+            )}
           </nav>
           <div className="mt-auto border-t border-white/10 pt-3">
             <div className="flex items-center gap-3 px-2 py-2">
-              <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">駿</div>
+              <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2f9e5b] text-[11px] font-black text-white">{userName.slice(0, 1)}</div>
               <div className="min-w-0 text-[12px] leading-4">
-                <p className="truncate font-black text-white">{roleLabel}</p>
-                <p className="truncate text-[11px] text-[#9eacbc]">{roleEnglishLabel}</p>
+                <p className="truncate font-black text-white">{userName}</p>
+                <p className="truncate text-[11px] text-[#9eacbc]">{userId} · {roleEnglishLabel}</p>
               </div>
             </div>
           </div>
         </aside>
+        ) : null}
 
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden pb-20 lg:pb-0">
           <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white shadow-[0_1px_0_rgba(255,255,255,0.05)] lg:bg-white lg:text-[#102940]">
             <div className="flex h-14 w-full items-center justify-between gap-3 px-4 lg:h-14 lg:px-6">
               <div className="flex items-center gap-3">
-                <button aria-label="開啟選單" className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-white/10 lg:hidden">
-                  <Menu className="h-5 w-5" />
+                <button
+                  aria-label={collapseEnabled && sidebarCollapsed ? "展開側欄" : "收合側欄"}
+                  onClick={collapseEnabled ? () => setSidebarCollapsed((value) => !value) : undefined}
+                  className={cn(
+                    "workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-white/10 lg:bg-[#f3f6fb] lg:text-[#102940]",
+                    !collapseEnabled && "lg:hidden",
+                  )}
+                >
+                  {collapseEnabled ? (
+                    sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />
+                  ) : (
+                    <Menu className="h-5 w-5" />
+                  )}
                 </button>
                 <div className="hidden min-w-0 items-center gap-3 lg:flex">
                   <div className="grid h-8 w-8 place-items-center rounded-[6px] border border-[#e5e8ec] bg-[#fafbfc] text-[#4b596a]">
@@ -274,37 +406,31 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 <div className="hidden lg:block">
                   <RoleSwitcher />
                 </div>
-                <button aria-label="搜尋" className="workbench-focus hidden h-9 w-9 place-items-center rounded-full bg-[#f0f4f8] lg:grid">
-                  <Search className="h-4 w-4" />
-                </button>
-                <button aria-label="通知" className="workbench-focus relative grid h-9 w-9 place-items-center rounded-full bg-white/10 lg:bg-[#f0f4f8]">
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#ff4964]" />
-                </button>
-                <div className="hidden min-w-0 items-center gap-2 border-l border-[#e5e8ec] pl-2 text-[12px] font-bold text-[#4b596a] lg:flex">
-                  <span className="max-w-[160px] truncate">全端測試開發</span>
-                  <span className="rounded-[6px] bg-[#102940] px-2 py-1 text-[10px] font-black text-white">/{role === "system" ? "SYSTEM" : "SUPERVISOR"}</span>
-                </div>
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-[#2f9e5b] text-[12px] font-black text-white">駿</div>
+                <WorkbenchNotificationBell role={role} allowCompose />
               </div>
             </div>
           </header>
 
-          <main className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-6 lg:py-7">
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#2f9e5b]">{role === "system" ? "SYSTEM WORKBENCH" : "SUPERVISOR WORKBENCH"}</p>
-                <h1 className="text-[24px] font-black leading-tight text-[#102940] lg:text-[30px]">{title}</h1>
-                <p className="mt-1 max-w-[820px] text-[13px] font-medium leading-5 text-[#667386]">{subtitle}</p>
+          <main className="min-h-0 w-full flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6 lg:px-6 lg:py-6">
+            {role === "system" ? (
+              <div className="sr-only">
+                <h1>{title}</h1>
+                <p>{subtitle}</p>
               </div>
-              <div className="flex flex-wrap justify-end gap-2 text-[12px]">
-                <div className="lg:hidden">
-                  <RoleSwitcher compact />
+            ) : (
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#2f9e5b]">SUPERVISOR WORKBENCH</p>
+                  <h1 className="text-[24px] font-black leading-tight text-[#102940] lg:text-[30px]">{title}</h1>
+                  <p className="mt-1 max-w-[820px] text-[13px] font-medium leading-5 text-[#667386]">{subtitle}</p>
                 </div>
-                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">{todayLabel}</button>
-                <button className="workbench-focus min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 font-bold text-[#536175]">{activeFacilityName}</button>
+                <div className="flex flex-wrap justify-end gap-2 text-[12px]">
+                  <div className="lg:hidden">
+                    <RoleSwitcher compact />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
             {children}
           </main>
         </div>
@@ -318,8 +444,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
           <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中...</div>
         ) : null}
         {mobileItems.map((item) => {
-          const roleRoot = item.href === "/supervisor" || item.href === "/system";
-          const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
+          const active = isNavActive(location, item, role);
           return (
             <Link
               key={item.id}
@@ -337,6 +462,8 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
           );
         })}
       </nav>
+
+      {role === "system" ? <SystemGovernanceDrawer open={governanceOpen} onOpenChange={setGovernanceOpen} /> : null}
     </div>
   );
 }

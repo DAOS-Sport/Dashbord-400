@@ -1,5 +1,5 @@
-import type { EmployeeHomeDto, HandoverItemDto, HandoverListDto, HandoverSummaryDto, ShiftBoardDto } from "@shared/domain/workbench";
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import type { EmployeeHomeDto, HandoverItemDto, HandoverListDto, HandoverSummaryDto, ShiftBoardDto, ShortcutSummary } from "@shared/domain/workbench";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/shared/api/client";
 import type { HandoverEntryDTO, QuickLinkDTO } from "@/types/portal";
 
 export interface EmployeeSearchResultDTO {
@@ -89,6 +89,30 @@ export interface OperationalHandoverDTO {
 }
 
 export const fetchEmployeeHome = () => apiGet<EmployeeHomeDto>("/api/bff/employee/home");
+
+export interface EmployeeWorkbenchPreferencesDTO {
+  quickActions: ShortcutSummary[];
+  preferredFacilityKey: string | null;
+  candidates: ShortcutSummary[];
+  sourceStatus: {
+    connected: boolean;
+    hasPersistedPreference?: boolean;
+    errorMessage?: string;
+  };
+}
+
+export const fetchEmployeeQuickActionCandidates = (facilityKey?: string) => {
+  const suffix = facilityKey ? `?facilityKey=${encodeURIComponent(facilityKey)}` : "";
+  return apiGet<{ items: ShortcutSummary[] }>(`/api/bff/employee/quick-action-candidates${suffix}`);
+};
+
+export const fetchEmployeeWorkbenchPreferences = () =>
+  apiGet<EmployeeWorkbenchPreferencesDTO>("/api/bff/employee/workbench-preferences");
+
+export const updateEmployeeWorkbenchPreferences = (input: {
+  quickActions?: ShortcutSummary[];
+  preferredFacilityKey?: string | null;
+}) => apiPut<EmployeeWorkbenchPreferencesDTO>("/api/bff/employee/workbench-preferences", input);
 
 export interface EmployeeCourtReservationPreview {
   id?: string | number;

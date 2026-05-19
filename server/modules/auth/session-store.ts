@@ -94,8 +94,6 @@ export const createMockSession = (
     "workbench:search",
     "employee:facility:switch",
     "lifeguard:home:read",
-    "lifeguard:log:read",
-    "lifeguard:log:write",
   ],
 });
 

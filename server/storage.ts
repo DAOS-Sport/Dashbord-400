@@ -14,6 +14,7 @@ import {
   announcementOverlays, type AnnouncementOverlay, type InsertAnnouncementOverlay,
   type PortalEvent, type InsertPortalEvent,
   type WidgetLayoutSetting, type InsertWidgetLayoutSetting,
+  type UserWorkbenchPreference, type InsertUserWorkbenchPreference,
   type WatchdogEvent, type InsertWatchdogEvent,
   type DailyTaskTemplate, type InsertDailyTaskTemplate,
   type LifeguardAssignedTask, type InsertLifeguardAssignedTask,
@@ -40,7 +41,7 @@ import {
   users, anomalyReports, notificationRecipients,
   handoverEntries, operationalHandovers, quickLinks, employeeResources, systemAnnouncements, facilityAnnouncementGroups, portalEvents,
   classifierAnomalies,
-  knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, watchdogEvents,
+  knowledgeBaseQna, announcementAcknowledgements, widgetLayoutSettings, userWorkbenchPreferences, watchdogEvents,
   dailyTaskTemplates, lifeguardAssignedTasks, recurringTaskTemplates,
   waterQualitySchedules, waterQualityStandards, workLogTaskCompletions,
   waterQualityRecords, lifeguardHandoverNotes, dailyReportSubmissions, workLogReviewActions,
@@ -144,6 +145,8 @@ export interface IStorage {
   recordPortalEvent(event: InsertPortalEvent): Promise<PortalEvent>;
   getWidgetLayout(opts: { facilityKey: string; role: string; layoutKey: string }): Promise<WidgetLayoutSetting | undefined>;
   upsertWidgetLayout(layout: InsertWidgetLayoutSetting): Promise<WidgetLayoutSetting>;
+  getUserWorkbenchPreference(opts: { userId: string; role: string; preferenceKey: string }): Promise<UserWorkbenchPreference | undefined>;
+  upsertUserWorkbenchPreference(input: InsertUserWorkbenchPreference): Promise<UserWorkbenchPreference>;
   createWatchdogEvent(event: InsertWatchdogEvent): Promise<WatchdogEvent>;
   listWatchdogEvents(limit?: number): Promise<WatchdogEvent[]>;
   getEventStats(opts: { sinceDays?: number; facilityKey?: string }): Promise<{
@@ -752,6 +755,39 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(widgetLayoutSettings).values(layout).returning();
     return created;
+  }
+
+  async getUserWorkbenchPreference(opts: { userId: string; role: string; preferenceKey: string }): Promise<UserWorkbenchPreference | undefined> {
+    const [row] = await db
+      .select()
+      .from(userWorkbenchPreferences)
+      .where(and(
+        eq(userWorkbenchPreferences.userId, opts.userId),
+        eq(userWorkbenchPreferences.role, opts.role),
+        eq(userWorkbenchPreferences.preferenceKey, opts.preferenceKey),
+      ))
+      .limit(1);
+    return row;
+  }
+
+  async upsertUserWorkbenchPreference(input: InsertUserWorkbenchPreference): Promise<UserWorkbenchPreference> {
+    const [row] = await db
+      .insert(userWorkbenchPreferences)
+      .values({ ...input, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [
+          userWorkbenchPreferences.userId,
+          userWorkbenchPreferences.role,
+          userWorkbenchPreferences.preferenceKey,
+        ],
+        set: {
+          payload: input.payload,
+          updatedBy: input.updatedBy ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return row;
   }
 
   async createWatchdogEvent(event: InsertWatchdogEvent): Promise<WatchdogEvent> {

@@ -53,15 +53,24 @@ export const employeeShortcutPreferenceKey = "junsi.cms.employee.quick-actions.v
 export const employeeShortcutLimit = 7;
 
 export const employeeShortcutCandidates: ShortcutSummary[] = [
-  { id: "handover", label: "交辦事項", href: getPrimaryRoute("handover", "employee") ?? "/employee/handover", tone: "green" },
-  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet" },
-  { id: "events", label: "活動檔期", href: getPrimaryRoute("activity-periods", "employee") ?? "/employee/activity-periods", tone: "amber" },
-  { id: "documents", label: "常用文件", href: getPrimaryRoute("employee-resources", "employee") ?? "/employee/documents", tone: "cyan" },
-  { id: "qna", label: "相關問題詢問", href: getPrimaryRoute("knowledge-base-qna", "employee") ?? "/employee/qna", tone: "violet" },
+  { id: "handover", label: "交辦事項", href: getPrimaryRoute("handover", "employee") ?? "/employee/handover", tone: "green", helper: "回報交辦與交接事項", sourceType: "module", facilityScoped: false },
+  { id: "announcements", label: "群組公告", href: "/employee/announcements", tone: "violet", helper: "查看必讀公告", sourceType: "module", facilityScoped: false },
+  { id: "events", label: "活動檔期", href: getPrimaryRoute("activity-periods", "employee") ?? "/employee/activity-periods", tone: "amber", helper: "活動與課程快訊", sourceType: "module", facilityScoped: false },
+  { id: "documents", label: "常用文件", href: getPrimaryRoute("employee-resources", "employee") ?? "/employee/documents", tone: "cyan", helper: "文件與常用網址", sourceType: "module", facilityScoped: false },
+  { id: "qna", label: "相關問題詢問", href: getPrimaryRoute("knowledge-base-qna", "employee") ?? "/employee/qna", tone: "violet", helper: "問題與補充說明", sourceType: "module", facilityScoped: false },
 ];
 
 export const getEmployeeShortcutIcon = (shortcut: ShortcutSummary) =>
-  shortcutIconsById[shortcut.id] ?? shortcutIcons[shortcut.tone];
+  shortcut.sourceType === "document" || shortcut.id.startsWith("document-")
+    ? FileText
+    : shortcutIconsById[shortcut.id] ?? shortcutIcons[shortcut.tone];
+
+export const toFloatingQuickActionItem = (shortcut: ShortcutSummary) => ({
+  label: shortcut.label,
+  helper: shortcut.helper,
+  href: shortcut.href,
+  Icon: getEmployeeShortcutIcon(shortcut),
+});
 
 export const isEmployeeShortcutTone = (value: unknown): value is ShortcutSummary["tone"] =>
   typeof value === "string" && employeeShortcutToneOptions.includes(value as ShortcutSummary["tone"]);
@@ -118,20 +127,24 @@ export const resetEmployeeShortcutPreference = () => {
 };
 
 export const mergeEmployeeShortcutPreference = (source: ShortcutSummary[], preference: ShortcutSummary[] | null): ShortcutSummary[] => {
-  const sourceItems = source.slice(0, employeeShortcutLimit);
-  const sourceById = new Map(sourceItems.map((item) => [item.id, item]));
+  const sourceById = new Map(source.map((item) => [item.id, item]));
   const merged: ShortcutSummary[] = [];
   for (const saved of preference ?? []) {
     const base = sourceById.get(saved.id);
-    if (!base) continue;
+    if (!base && saved.sourceType !== "custom") continue;
     merged.push({
-      ...base,
-      label: base.label,
-      href: normalizeShortcutHref(saved.href, base.href),
-      tone: isEmployeeShortcutTone(saved.tone) ? saved.tone : base.tone,
+      ...(base ?? saved),
+      label: base?.label ?? saved.label,
+      href: normalizeShortcutHref(saved.href, base?.href ?? saved.href),
+      tone: isEmployeeShortcutTone(saved.tone) ? saved.tone : base?.tone ?? "blue",
+      sourceType: base?.sourceType ?? saved.sourceType ?? "module",
+      resourceId: base?.resourceId ?? saved.resourceId,
+      facilityScoped: base?.facilityScoped ?? saved.facilityScoped,
+      helper: base?.helper ?? saved.helper,
     });
   }
-  for (const item of sourceItems) {
+  for (const item of source) {
+    if (merged.length >= employeeShortcutLimit) break;
     if (!merged.some((saved) => saved.id === item.id)) {
       merged.push(item);
     }

@@ -868,8 +868,7 @@ const systemModulesDisambiguationPage = () => {
     ["announcement-review", "LINE candidate 審核", "主管審核 LINE Bot 候選公告 approve/reject。", "announcements"],
     ["announcement-summary", "公告統計 / 週報", "看 summary/report，不負責公告 CRUD。", "announcements"],
     ["system-announcements", "本地系統公告 CRUD", "主管維護本地 notices，員工端消費。", "announcements"],
-    ["lifeguard-log", "救生員日誌與填報", "第一線 lifeguard 作業輸入與日報。", "facilities"],
-    ["facilities", "主管場館狀態", "主管觀察單館櫃台交辦與救生功能模組狀態，不做第一線填報。", "lifeguard-log"],
+    ["facilities", "主管場館狀態", "主管觀察單館櫃台交辦與救生功能模組狀態，不做第一線填報。", "lifeguard-home"],
   ];
 
   return `# System Modules Disambiguation
