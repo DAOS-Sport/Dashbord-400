@@ -1379,8 +1379,8 @@ function buildMorningEveningFromBoard(shifts: ShiftBoardDto["shifts"]): { mornin
   const evening = new Map<string, FlatShiftPerson>();
   const prio = (p: { isCurrent: boolean; isFuture: boolean }) => p.isCurrent ? 2 : p.isFuture ? 1 : 0;
   for (const s of shifts) {
-    const [sh = 0] = (s.start ?? "00:00").split(":").map(Number);
-    const [eh = 0] = (s.end ?? "00:00").split(":").map(Number);
+    const sh = s.start ? new Date(s.start).getHours() : 0;
+    const eh = s.end ? new Date(s.end).getHours() : 0;
     const toMorning = sh < 12;
     const toEvening = sh >= 12 || (sh < 12 && eh > 12);
     for (const p of s.people) {
