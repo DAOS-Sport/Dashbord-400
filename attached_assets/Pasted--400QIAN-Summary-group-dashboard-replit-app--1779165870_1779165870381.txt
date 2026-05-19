@@ -1,0 +1,123 @@
+# 400QIAN 線上資料接線修復企畫書
+
+## Summary
+
+線上 `group-dashboard.replit.app` 目前不是全系統故障，主要問題是「資料源接上了，但不同畫面使用不同來源與不同統計口徑」，導致公告、白名單、400LINE 健康狀態看起來互相矛盾。
+
+修復目標：讓 IT 端、主管端、員工端看到同一套可追溯資料邏輯；每個畫面要能說清楚「資料來自哪裡、目前幾筆、哪些被篩掉、為什麼 degraded」。
+
+## Key Changes
+
+### 1. 修正 400LINE 白名單比對邏輯
+
+- 將 `/api/bff/system/linebot-management/whitelist-snapshot` 改成「contract + live fallback merge」：
+  - contract 只負責 capability/readiness。
+  - 真正名單資料固定從可用來源補齊：
+    - 400LINE 授權名單：`/api/bff/system/line-bot/interview-users`
+    - CMS shadow：`/api/bff/system/line-whitelist`
+    - Ragic 候選：`/api/bff/system/line-whitelist/candidates`
+- 修復後 400LINE 管理頁應顯示：
+  - `lineAuthorityTotal = 8`
+  - `ragicTotal = 200`
+  - `cmsShadowTotal = 8` 或實際 shadow 數
+- 保留 degraded 狀態，但原因要指向 capability contract，而不是讓白名單資料變成 0。
+
+### 2. 統一公告資料流與顯示口徑
+
+- 建立公告資料口徑：
+  - `group_messages`：LINE 群組原始公告，員工端目前主要來源。
+  - `candidate_pipeline`：AI/規則篩選候選公告，主管審核與 IT 管線來源。
+  - `system_announcements`：主管手動發布公告。
+  - `important_widget`：經本地 displayable/filter 後可進員工首頁的重要公告。
+- 員工端「群組重要公告」可以繼續顯示 LINE 群組訊息，但需標示來源，不再和 candidate pipeline 混稱。
+- `/api/widgets/announcements/important` 回 0 時，需回傳 `sourceStatus.filterBreakdown`，例如：
+  - upstream candidates 幾筆
+  - approved/published 幾筆
+  - confidence/priority 過濾幾筆
+  - displayable 過濾幾筆
+- 主管公告 summary 與列表要同口徑：
+  - summary 顯示 upstream total。
+  - 列表顯示 local filtered total。
+  - 畫面文案改成「上游待審核 60 / 本地可審核 19」，避免誤判。
+
+### 3. 修正 400LINE 管理頁 degraded 可讀性
+
+- `/system/linebot-management` 的各 tab 都要顯示 degraded 原因清單。
+- 目前已知需要明確列出：
+  - LINE 簽章驗證 disabled。
+  - `facility.announcements` status unknown。
+  - `ai.employee` Ragic SDK 測試失敗。
+  - 多個 AI/task capability stale。
+- `facilities` tab 要同時顯示：
+  - contract facility count。
+  - legacy `/api/facility-home/list` count。
+  - 差異來源，不要只顯示單一數字。
+
+### 4. 建立線上驗工 smoke
+
+新增一個只讀 smoke 腳本，例如 `npm run smoke:replit-live`：
+
+- 參數：
+  - `REPLIT_LIVE_BASE=https://group-dashboard.replit.app`
+  - 測試帳密固定用 `1111/1111`
+- 驗證角色：
+  - employee
+  - lifeguard
+  - supervisor
+  - system
+- 驗證內容：
+  - 主要 UI route 可開。
+  - 核心 BFF/API 回 JSON。
+  - 不接受 HTML fallback、401、403、500。
+  - loading 超過門檻要標記為 `hydration_timeout`。
+- 報告格式：
+  - passed count
+  - failed route/API
+  - degraded data source
+  - suspicious zero-count source
+
+## Public Interfaces / DTO Additions
+
+- `LinebotManagementWhitelistSnapshotDto` 新增：
+  - `sourceBreakdown.lineAuthorityTotal`
+  - `sourceBreakdown.cmsShadowTotal`
+  - `sourceBreakdown.ragicCandidateTotal`
+  - `sourceBreakdown.contractStatus`
+  - `diffItems[]`
+- `AnnouncementSectionSourceStatus` 新增：
+  - `sourceType`
+  - `upstreamTotal`
+  - `displayableTotal`
+  - `filterBreakdown`
+  - `lastSourceCheckedAt`
+- `LinebotManagementPipelineDto` 新增：
+  - `sourceBreakdown.groupMessages`
+  - `sourceBreakdown.candidates`
+  - `sourceBreakdown.systemAnnouncements`
+  - `knownIssues[]`
+
+## Test Plan
+
+- 本機：
+  - `npm run type-check`
+  - `npm run check:modules`
+  - `npm run check:ui-states`
+  - `npm run smoke:linebot-management`
+  - `npm run smoke:auth-bff`
+  - `npm run build`
+- 線上：
+  - `REPLIT_LIVE_BASE=https://group-dashboard.replit.app npm run smoke:replit-live`
+- 手動驗收：
+  - `/employee` 群組重要公告顯示來源標籤。
+  - `/employee/announcements` 與首頁公告數量一致或清楚說明差異。
+  - `/supervisor/announcements` 顯示 upstream/local filtered 兩個數字。
+  - `/system/linebot-management` 白名單不再是 0。
+  - `/system/linebot-management` degraded 原因可讀。
+  - `/system/line-whitelist` 仍可顯示 8 位 400LINE 授權名單與 200 位 Ragic 候選。
+
+## Assumptions
+
+- 400QIAN 前端仍維持「瀏覽器只打 400QIAN BFF，不直接打 400LINE」。
+- 400LINE contract 是健康/能力監控來源，不是所有業務資料的唯一來源。
+- 白名單詳細編輯仍在 `/system/line-whitelist`，`/system/linebot-management` 只做監控與比對。
+- 這輪先修讀取、比對、顯示口徑；不做 destructive DB migration，不改 400LINE 寫入語意。
