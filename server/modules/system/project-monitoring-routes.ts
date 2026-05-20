@@ -19,45 +19,45 @@ const projectConfig: Record<SystemProjectGroup, Omit<SystemProjectSummary, "stat
     key: "governance",
     label: "總治理",
     description: "跨專案治理、監控總覽與快速導航。",
-    controlCenterHref: "/system",
+    controlCenterHref: "/system/project-overview",
     monitorHref: "/system/watchdog",
-    governanceHref: "/system/governance",
+    governanceHref: "/system/project-overview",
   },
   "400cms": {
     key: "400cms",
     label: "400CMS",
-    description: "CMS 控制中心、Watchdog、運維、行為洞察與治理面。",
+    description: "CMS 控制中心、Watchdog、運維、行為洞察與跨專案治理總覽。",
     controlCenterHref: "/system",
-    monitorHref: "/system/400cms/status",
-    governanceHref: "/system/governance",
+    monitorHref: "/system/monitoring/400cms",
+    governanceHref: "/system/project-overview",
   },
   "400line": {
     key: "400line",
     label: "400LINE",
-    description: "400LINE 管理、服務監控與白名單治理。",
-    controlCenterHref: "/system/linebot-management",
-    monitorHref: "/system/lineXBS-status",
-    governanceHref: "/system/line-whitelist",
+    description: "400LINE 監控平台、服務監控與白名單治理。",
+    controlCenterHref: "/system/monitoring/400line",
+    monitorHref: "/system/monitoring/400line",
+    governanceHref: "/system/monitoring/400line?tab=whitelist",
   },
   schedule: {
     key: "schedule",
-    label: "班表系統",
-    description: "班表控制中心與服務監控殼，等待正式資料源接入。",
+    label: "排班管理系統",
+    description: "排班管理控制中心與服務監控殼，等待正式資料源接入。",
     controlCenterHref: "/system/schedule",
-    monitorHref: "/system/schedule/status",
+    monitorHref: "/system/monitoring/schedule",
   },
   "collab-course": {
     key: "collab-course",
     label: "偕同課系統",
-    description: "偕同課控制中心與服務監控殼，等待正式資料源接入。",
-    controlCenterHref: "/system/collab-course",
-    monitorHref: "/system/collab-course/status",
+    description: "偕同課 API 手冊 catalog 與服務監控殼，等待正式資料源接入。",
+    controlCenterHref: "/system/monitoring/collab-course",
+    monitorHref: "/system/monitoring/collab-course",
   },
 };
 
 const projectModuleIds: Record<Exclude<SystemProjectGroup, "governance" | "schedule" | "collab-course">, string[]> = {
-  "400cms": ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-cms-monitoring"],
-  "400line": ["linebot-management", "helper-status", "line-whitelist"],
+  "400cms": ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-monitoring-400cms", "system-cms-monitoring"],
+  "400line": ["system-monitoring-400line", "linebot-management", "helper-status", "line-whitelist"],
 };
 
 const nowIso = () => new Date().toISOString();
@@ -99,7 +99,7 @@ const servicesFromModuleHealth = (items: ModuleHealthDto[], moduleIds: string[])
 };
 
 const placeholderServices = (projectKey: Extract<SystemProjectGroup, "schedule" | "collab-course">, generatedAt: string): SystemProjectService[] => {
-  const label = projectKey === "schedule" ? "班表系統" : "偕同課系統";
+  const label = projectKey === "schedule" ? "排班管理系統" : "偕同課系統";
   const source = projectKey === "schedule" ? "SMART_SCHEDULE_MANAGER" : "COLLAB_COURSE_SYSTEM";
   return [
     {
@@ -144,7 +144,7 @@ const buildProjectDetail = (projectKey: SystemProjectGroup, container: AppContai
       label: "400LINE 連線設定",
       status: container.config.lineBotBaseUrl ? "degraded" : "not_connected",
       message: container.config.lineBotBaseUrl
-        ? "CMS 已設定 400LINE base URL；詳細健康狀態請看 /system/lineXBS-status 分類監控。"
+        ? "CMS 已設定 400LINE base URL；詳細健康狀態請看 /system/monitoring/400line 分類監控。"
         : "LINE_BOT_BASE_URL 尚未設定，不能直接確認 400LINE 狀態。",
       source: "LINE_BOT_BASE_URL",
       lastCheckedAt: generatedAt,

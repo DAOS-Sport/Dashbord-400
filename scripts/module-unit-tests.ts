@@ -22,6 +22,7 @@ import {
   getRedirectForLegacyPath,
   getWorkbenchRoutes,
 } from "../shared/navigation/workbench-routes";
+import { collabCourseApiCatalog } from "../shared/system/collab-course-api-catalog";
 
 const repoRoot = process.cwd();
 const bffRuntimeFiles = [
@@ -848,15 +849,9 @@ const runSystemModuleTests = () => {
     "system-watchdog",
     "system-operations",
     "system-insights",
-    "system-governance",
-    "system-cms-monitoring",
-    "linebot-management",
-    "helper-status",
-    "line-whitelist",
-    "system-schedule-control",
-    "system-schedule-monitoring",
-    "system-collab-course-control",
-    "system-collab-course-monitoring",
+    "system-monitoring-400line",
+    "system-monitoring-schedule",
+    "system-monitoring-collab-course",
   ];
   assert(
     navigation.map((item) => item.id).join(",") === expected.join(","),
@@ -890,52 +885,40 @@ const runSystemModuleTests = () => {
     "system watchdog card must route to /system/watchdog",
   );
   assert(
-    cards.some(
-      (card) =>
-        card.moduleId === "system-governance" &&
-        card.routePath === "/system/governance",
-    ),
-    "system governance card must route to /system/governance",
+    getRedirectForLegacyPath("/system/governance") === "/system/project-overview",
+    "legacy system governance route must redirect to cross-project overview",
+  );
+  assert(
+    getRedirectForLegacyPath("/system/linebot-management") === "/system/monitoring/400line",
+    "legacy linebot management route must redirect to the 400LINE monitoring surface",
   );
   assert(
     cards.some(
       (card) =>
-        card.moduleId === "linebot-management" &&
-        card.routePath === "/system/linebot-management",
+        card.moduleId === "system-monitoring-400line" &&
+        card.routePath === "/system/monitoring/400line",
     ),
-    "linebot management card must route to /system/linebot-management",
+    "400LINE monitoring card must route to /system/monitoring/400line",
+  );
+  assert(
+    getRedirectForLegacyPath("/system/line-whitelist") === "/system/monitoring/400line?tab=whitelist",
+    "line whitelist compatibility route must deep-link to the 400LINE whitelist tab",
   );
   assert(
     cards.some(
       (card) =>
-        card.moduleId === "helper-status" &&
-        card.routePath === "/system/lineXBS-status",
+        card.moduleId === "system-monitoring-schedule" &&
+        card.routePath === "/system/monitoring/schedule",
     ),
-    "helper status card must route to /system/lineXBS-status",
+    "schedule management monitoring card must route to /system/monitoring/schedule",
   );
   assert(
     cards.some(
       (card) =>
-        card.moduleId === "line-whitelist" &&
-        card.routePath === "/system/line-whitelist",
+        card.moduleId === "system-monitoring-collab-course" &&
+        card.routePath === "/system/monitoring/collab-course",
     ),
-    "line whitelist card must route to /system/line-whitelist",
-  );
-  assert(
-    cards.some(
-      (card) =>
-        card.moduleId === "system-schedule-monitoring" &&
-        card.routePath === "/system/schedule/status",
-    ),
-    "schedule monitoring card must route to /system/schedule/status",
-  );
-  assert(
-    cards.some(
-      (card) =>
-        card.moduleId === "system-collab-course-monitoring" &&
-        card.routePath === "/system/collab-course/status",
-    ),
-    "collab course monitoring card must route to /system/collab-course/status",
+    "collab course monitoring card must route to /system/monitoring/collab-course",
   );
   const health = getModuleHealth("system", rolePermissions.system);
   expected.forEach((id) =>
@@ -993,12 +976,12 @@ const runSystemModuleTests = () => {
   sourceIncludes(
     "client/src/App.tsx",
     'path="/system/governance"',
-    "system governance route must be registered",
+    "system governance compatibility route must be registered",
   );
   sourceIncludes(
     "client/src/App.tsx",
     'path="/system/linebot-management"',
-    "linebot management route must be registered",
+    "linebot management compatibility redirect must be registered",
   );
   sourceIncludes(
     "client/src/App.tsx",
@@ -1009,6 +992,56 @@ const runSystemModuleTests = () => {
     "client/src/App.tsx",
     'path="/system/lineXBS-status"',
     "lineXBS status route alias must be registered",
+  );
+  sourceIncludes(
+    "client/src/modules/workbench/role-shell.tsx",
+    "cms內部服務",
+    "system sidebar must expose the cms internal services parent group",
+  );
+  sourceIncludes(
+    "client/src/modules/workbench/role-shell.tsx",
+    "監控平台",
+    "system sidebar must expose the monitoring platform parent group",
+  );
+  assert(
+    !read("client/src/modules/workbench/role-shell.tsx").includes("lineDomainNavIds"),
+    "system sidebar must not keep the retired separate 400LINE parent group",
+  );
+  sourceIncludes(
+    "client/src/modules/system/api-monitoring/page.tsx",
+    "群組/館別",
+    "400LINE monitoring page must expose the group/facility tab",
+  );
+  sourceIncludes(
+    "client/src/modules/system/api-monitoring/page.tsx",
+    "重要公告管線",
+    "400LINE monitoring page must expose the announcement pipeline tab",
+  );
+  sourceIncludes(
+    "client/src/modules/system/api-monitoring/page.tsx",
+    "API Readiness",
+    "400LINE monitoring page must expose the API readiness tab",
+  );
+  sourceIncludes(
+    "server/modules/system/api-monitoring-routes.ts",
+    "collabCourseApiCatalog",
+    "collab course monitoring must seed API rows from the uploaded API manual catalog",
+  );
+  assert(
+    collabCourseApiCatalog.some((endpoint) => endpoint.path === "/api/deployment-test") &&
+      collabCourseApiCatalog.some((endpoint) => endpoint.path === "/api/coach-portal/my-schedule") &&
+      collabCourseApiCatalog.some((endpoint) => endpoint.path === "/api/admin/weekly-push/runs/:runId/report"),
+    "collab course API catalog must include representative system, coach portal, and governance endpoints",
+  );
+  sourceIncludes(
+    "client/src/modules/system/api-monitoring/page.tsx",
+    "已依偕同課 API 手冊建立分類 catalog",
+    "collab course monitoring page must label the manual catalog source clearly",
+  );
+  sourceIncludes(
+    "client/src/App.tsx",
+    'path="/system/monitoring/400line"',
+    "400LINE monitoring route must be registered",
   );
   sourceIncludes(
     "client/src/App.tsx",
@@ -1113,19 +1146,19 @@ const runSystemModuleTests = () => {
     "watchdog page must include Integrations tab",
   );
   sourceIncludes(
-    "client/src/modules/system/governance/page.tsx",
+    "client/src/modules/system/project-overview/page.tsx",
     "Module Registry",
-    "governance page must include Module Registry tab",
+    "cross-project overview must include Module Registry governance content",
   );
   sourceIncludes(
-    "client/src/modules/system/governance/page.tsx",
+    "client/src/modules/system/project-overview/page.tsx",
     "Function Relations",
-    "governance page must include Function Relations tab",
+    "cross-project overview must include Function Relations governance content",
   );
   sourceIncludes(
-    "client/src/modules/system/governance/page.tsx",
-    "Audit Raw",
-    "governance page must include Audit Raw tab",
+    "client/src/modules/system/project-overview/page.tsx",
+    "Topology",
+    "cross-project overview must include Topology governance content",
   );
   sourceMatches(
     "server/modules/system/operations-routes.ts",
@@ -1404,6 +1437,16 @@ const runSystemReadEndpointAuthTests = () => {
     "server/modules/system/helper-status-routes.ts",
     /app\.get\("\/api\/bff\/system\/helper-status",\s*requireSession,\s*requireRole\("system"\)/,
     "helper status endpoint must require system role",
+  );
+  sourceMatches(
+    "server/modules/system/api-monitoring-routes.ts",
+    /app\.get\("\/api\/bff\/system\/api-monitoring",\s*requireSession,\s*requireRole\("system"\)/,
+    "api monitoring endpoint must require system role",
+  );
+  sourceIncludes(
+    "server/modules/telemetry/routes.ts",
+    "recordApiLatency",
+    "telemetry middleware must record BFF/API latency logs",
   );
   sourceMatches(
     "server/modules/system/line-whitelist-routes.ts",

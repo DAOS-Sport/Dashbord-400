@@ -357,7 +357,7 @@ export const registerLineWhitelistRoutes = (app: Express, container: AppContaine
   app.post("/api/bff/system/line-whitelist/import-interview-users", requireSession, requireRole("system"), async (_req, res) =>
     res.status(410).json({
       message: "LINEBOT_IMPORT_DISABLED",
-      guidance: "詳細授權必須從 Ragic H01 選人後寫入 CMS shadow，再同步到 400LINE。400LINE 名單匯入只保留在 /system/linebot-management 做三方比對。",
+      guidance: "詳細授權必須從 Ragic H01 選人後寫入 CMS shadow，再同步到 400LINE。400LINE 名單匯入只保留在 /system/monitoring/400line?tab=whitelist 做三方比對。",
     }));
 
   app.post("/api/bff/system/line-whitelist", requireSession, requireRole("system"), async (req, res) => {

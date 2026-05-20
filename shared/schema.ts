@@ -933,6 +933,21 @@ export const bffLatencyLogs = pgTable("bff_latency_logs", {
   correlationId: text("correlation_id"),
 });
 
+export const apiMonitoringErrorResolutions = pgTable("api_monitoring_error_resolutions", {
+  fingerprint: text("fingerprint").primaryKey(),
+  projectKey: text("project_key").notNull(),
+  route: text("route").notNull(),
+  statusCode: integer("status_code").notNull(),
+  errorType: text("error_type").notNull(),
+  hour: timestamp("hour").notNull(),
+  status: text("status").default("open").notNull(),
+  note: text("note"),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const employeeHomeProjection = pgTable("employee_home_projection", {
   id: serial("id").primaryKey(),
   userId: text("user_id"),

@@ -43,19 +43,13 @@ export const workbenchRoutes = [
   { moduleId: "handover", label: "交接事項", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/training", shell: "supervisor" },
 
-  { moduleId: "system-control-center", label: "控制中心", iconKey: "gauge", role: "system", primaryPath: "/system", shell: "system" },
   { moduleId: "system-watchdog", label: "Watchdog", iconKey: "shield-check", role: "system", primaryPath: "/system/watchdog", shell: "system" },
-  { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
+  { moduleId: "system-cms-monitoring", label: "CMS 內部監控", iconKey: "server", role: "system", primaryPath: "/system/cms-monitoring", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
-  { moduleId: "system-governance", label: "治理面", iconKey: "network", role: "system", primaryPath: "/system/governance", shell: "system" },
-  { moduleId: "system-cms-monitoring", label: "400CMS 服務監控", iconKey: "server", role: "system", primaryPath: "/system/400cms/status", shell: "system" },
-  { moduleId: "linebot-management", label: "400LINE 管理", iconKey: "bot", role: "system", primaryPath: "/system/linebot-management", shell: "system" },
-  { moduleId: "helper-status", label: "服務監控", iconKey: "server", role: "system", primaryPath: "/system/lineXBS-status", shell: "system" },
-  { moduleId: "line-whitelist", label: "白名單", iconKey: "users", role: "system", primaryPath: "/system/line-whitelist", shell: "system" },
-  { moduleId: "system-schedule-control", label: "班表控制中心", iconKey: "calendar-days", role: "system", primaryPath: "/system/schedule", shell: "system" },
-  { moduleId: "system-schedule-monitoring", label: "班表服務監控", iconKey: "server", role: "system", primaryPath: "/system/schedule/status", shell: "system" },
-  { moduleId: "system-collab-course-control", label: "偕同課控制中心", iconKey: "graduation-cap", role: "system", primaryPath: "/system/collab-course", shell: "system" },
-  { moduleId: "system-collab-course-monitoring", label: "偕同課服務監控", iconKey: "server", role: "system", primaryPath: "/system/collab-course/status", shell: "system" },
+  { moduleId: "system-operations", label: "遠維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
+  { moduleId: "system-monitoring-400line", label: "400LINE", iconKey: "server", role: "system", primaryPath: "/system/monitoring/400line", shell: "system" },
+  { moduleId: "system-monitoring-schedule", label: "排班管理系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/schedule", shell: "system" },
+  { moduleId: "system-monitoring-collab-course", label: "偕同課系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/collab-course", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
 
 export const getWorkbenchRoutes = (role: WorkbenchRole): WorkbenchRouteDescriptor[] =>
@@ -67,16 +61,27 @@ export const getPrimaryRoute = (moduleId: string, role: WorkbenchRole): string |
 export const getRedirectForLegacyPath = (pathname: string): string | undefined => {
   const normalized = pathname.replace(/\/+$/, "") || "/";
 
-  if (normalized === "/") return "/system";
+  if (normalized === "/") return "/system/project-overview";
+  if (normalized === "/system") return "/system/project-overview";
+  if (normalized === "/system/overview") return "/system/project-overview";
   if (normalized === "/analytics") return "/system/insights";
   if (normalized === "/operations") return "/supervisor";
-  if (normalized === "/anomaly-reports") return "/system/alerts";
+  if (normalized === "/anomaly-reports") return "/system/watchdog?tab=alerts";
   if (normalized === "/announcements" || normalized === "/announcements/summary") return "/supervisor/announcements";
   if (normalized === "/employee/tasks" || normalized === "/employee/personal-note") return "/employee/handover";
   if (normalized === "/supervisor/tasks") return "/supervisor/handover";
   if (normalized === "/lifeguard/tasks") return "/lifeguard/handover";
-  if (normalized === "/system-health" || normalized === "/system/health" || normalized === "/system/alerts" || normalized === "/system/integrations") return "/system/watchdog";
-  if (normalized === "/system/function-relations" || normalized === "/system/audit" || normalized === "/system/training-views" || normalized === "/system/topology") return "/system/governance";
+  if (normalized === "/system-health" || normalized === "/system/health") return "/system/watchdog";
+  if (normalized === "/system/alerts") return "/system/watchdog?tab=alerts";
+  if (normalized === "/system/integrations") return "/system/watchdog?tab=integrations";
+  if (normalized === "/system/audit") return "/system/operations?tab=audit";
+  if (normalized === "/system/400cms/status") return "/system/monitoring/400cms";
+  if (normalized === "/system/linebot-management") return "/system/monitoring/400line";
+  if (normalized === "/system/helper-status" || normalized === "/system/lineXBS-status") return "/system/monitoring/400line";
+  if (normalized === "/system/line-whitelist") return "/system/monitoring/400line?tab=whitelist";
+  if (normalized === "/system/schedule/status") return "/system/monitoring/schedule";
+  if (normalized === "/system/collab-course/status") return "/system/monitoring/collab-course";
+  if (normalized === "/system/governance" || normalized === "/system/function-relations" || normalized === "/system/training-views" || normalized === "/system/topology") return "/system/project-overview";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";
   if (normalized === "/admin/parking") return "/supervisor/parking";
   if (normalized === "/admin/parking/dashboard") return "/supervisor/parking";

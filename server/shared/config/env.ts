@@ -1,7 +1,36 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 export type RuntimeEnvironment = "development" | "test" | "production";
 export type DataSourceMode = "mock" | "test" | "real";
 export type DatabaseProfile = "mock" | "local" | "test" | "neon";
 export type AdapterMode = "mock" | "real";
+
+const loadLocalEnv = () => {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+
+  const content = readFileSync(envPath, "utf8").replace(/^\uFEFF/, "");
+  content.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || !line.includes("=")) return;
+
+    const separatorIndex = line.indexOf("=");
+    const key = line.slice(0, separatorIndex).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || process.env[key] !== undefined) return;
+
+    let value = line.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  });
+};
+
+loadLocalEnv();
 
 const read = (key: string) => process.env[key]?.trim();
 

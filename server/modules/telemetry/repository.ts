@@ -1,5 +1,5 @@
 import type { ClientErrorDto, UiEventDto } from "@shared/telemetry/events";
-import { auditLogs, clientErrors, uiEvents } from "@shared/schema";
+import { apiMonitoringErrorResolutions, auditLogs, bffLatencyLogs, clientErrors, uiEvents } from "@shared/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import type { AuditEventInput } from "../../shared/telemetry/audit-writer";
 import { env } from "../../shared/config/env";
@@ -42,6 +42,40 @@ export interface AuditLogRecord {
   resultStatus?: string;
 }
 
+export interface ApiLatencyInput {
+  timestamp?: string;
+  route: string;
+  role?: string;
+  facilityKey?: string;
+  durationMs: number;
+  statusCode: number;
+  correlationId?: string;
+}
+
+export interface ApiLatencyRecord extends ApiLatencyInput {
+  timestamp: string;
+}
+
+export type ApiErrorResolutionStatus = "open" | "resolved";
+
+export interface ApiErrorResolutionInput {
+  fingerprint: string;
+  projectKey: string;
+  route: string;
+  statusCode: number;
+  errorType: "4xx" | "5xx" | "timeout" | "aborted";
+  hour: string;
+  status: ApiErrorResolutionStatus;
+  note?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+}
+
+export interface ApiErrorResolutionRecord extends ApiErrorResolutionInput {
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TrainingViewRecord {
   id?: number;
   resourceId?: string;
@@ -82,16 +116,22 @@ export interface TelemetryRepository {
   recordUiEvent(event: StoredUiEvent): Promise<void>;
   recordClientError(error: StoredClientError): Promise<void>;
   recordAudit(event: AuditEventInput): Promise<void>;
+  recordApiLatency(event: ApiLatencyInput): Promise<void>;
+  upsertApiErrorResolution(input: ApiErrorResolutionInput): Promise<ApiErrorResolutionRecord>;
   getUiEventOverview(): Promise<TelemetryOverview>;
   getTrainingViewReport(): Promise<TrainingViewReport>;
   listUiEvents(limit?: number): Promise<StoredUiEvent[]>;
   listClientErrors(limit?: number): Promise<StoredClientError[]>;
   listAuditLogs(limit?: number): Promise<AuditLogRecord[]>;
+  listApiLatencyLogs(limit?: number): Promise<ApiLatencyRecord[]>;
+  listApiErrorResolutions(limit?: number): Promise<ApiErrorResolutionRecord[]>;
 }
 
 const uiEventMemory: StoredUiEvent[] = [];
 const clientErrorMemory: StoredClientError[] = [];
 const auditMemory: AuditEventInput[] = [];
+const apiLatencyMemory: ApiLatencyRecord[] = [];
+const apiErrorResolutionMemory = new Map<string, ApiErrorResolutionRecord>();
 
 export const createMemoryTelemetryRepository = (): TelemetryRepository => ({
   async recordUiEvent(event) {
@@ -105,6 +145,26 @@ export const createMemoryTelemetryRepository = (): TelemetryRepository => ({
   async recordAudit(event) {
     auditMemory.push(event);
     console.info("[audit:memory]", JSON.stringify({ ...event, timestamp: new Date().toISOString() }));
+  },
+
+  async recordApiLatency(event) {
+    apiLatencyMemory.push({ ...event, timestamp: event.timestamp ?? new Date().toISOString() });
+    if (apiLatencyMemory.length > 5000) apiLatencyMemory.splice(0, apiLatencyMemory.length - 5000);
+  },
+
+  async upsertApiErrorResolution(input) {
+    const timestamp = new Date().toISOString();
+    const existing = apiErrorResolutionMemory.get(input.fingerprint);
+    const record: ApiErrorResolutionRecord = {
+      ...input,
+      note: input.note?.trim() ? input.note.trim() : undefined,
+      resolvedBy: input.status === "resolved" ? input.resolvedBy : undefined,
+      resolvedAt: input.status === "resolved" ? input.resolvedAt ?? timestamp : undefined,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    };
+    apiErrorResolutionMemory.set(input.fingerprint, record);
+    return record;
   },
 
   async getUiEventOverview() {
@@ -133,6 +193,18 @@ export const createMemoryTelemetryRepository = (): TelemetryRepository => ({
         correlationId: event.correlationId,
         resultStatus: event.resultStatus ?? "success",
       }));
+  },
+
+  async listApiLatencyLogs(limit = 2000) {
+    return apiLatencyMemory
+      .slice(-Math.min(Math.max(limit, 1), 5000))
+      .reverse();
+  },
+
+  async listApiErrorResolutions(limit = 2000) {
+    return Array.from(apiErrorResolutionMemory.values())
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, Math.min(Math.max(limit, 1), 5000));
   },
 
   async listUiEvents(limit = 500) {
@@ -353,6 +425,76 @@ export const createPostgresTelemetryRepository = (database: TelemetryDatabase): 
     }
   },
 
+  async recordApiLatency(event) {
+    try {
+      await database.insert(bffLatencyLogs).values({
+        timestamp: toOptionalDate(event.timestamp),
+        route: event.route,
+        role: event.role ?? null,
+        facilityKey: event.facilityKey ?? null,
+        durationMs: event.durationMs,
+        statusCode: event.statusCode,
+        correlationId: event.correlationId ?? null,
+      });
+    } catch (err) {
+      console.error("[telemetry:bff_latency_logs:write_failed]", err, event);
+    }
+  },
+
+  async upsertApiErrorResolution(input) {
+    const now = new Date();
+    const resolvedAt = input.status === "resolved" ? toOptionalDate(input.resolvedAt) ?? now : null;
+    const note = input.note?.trim() ? input.note.trim() : null;
+    const values = {
+      fingerprint: input.fingerprint,
+      projectKey: input.projectKey,
+      route: input.route,
+      statusCode: input.statusCode,
+      errorType: input.errorType,
+      hour: toOptionalDate(input.hour) ?? now,
+      status: input.status,
+      note,
+      resolvedBy: input.status === "resolved" ? input.resolvedBy ?? null : null,
+      resolvedAt,
+      updatedAt: now,
+    };
+
+    const [row] = await database
+      .insert(apiMonitoringErrorResolutions)
+      .values(values)
+      .onConflictDoUpdate({
+        target: apiMonitoringErrorResolutions.fingerprint,
+        set: {
+          projectKey: values.projectKey,
+          route: values.route,
+          statusCode: values.statusCode,
+          errorType: values.errorType,
+          hour: values.hour,
+          status: values.status,
+          note: values.note,
+          resolvedBy: values.resolvedBy,
+          resolvedAt: values.resolvedAt,
+          updatedAt: values.updatedAt,
+        },
+      })
+      .returning();
+
+    return {
+      fingerprint: row.fingerprint,
+      projectKey: row.projectKey,
+      route: row.route,
+      statusCode: row.statusCode,
+      errorType: row.errorType as ApiErrorResolutionInput["errorType"],
+      hour: iso(row.hour),
+      status: row.status as ApiErrorResolutionStatus,
+      note: row.note ?? undefined,
+      resolvedBy: row.resolvedBy ?? undefined,
+      resolvedAt: row.resolvedAt ? iso(row.resolvedAt) : undefined,
+      createdAt: iso(row.createdAt),
+      updatedAt: iso(row.updatedAt),
+    };
+  },
+
   async getUiEventOverview() {
     const [eventTotal] = await database.select({ count: sql<number>`count(*)::int` }).from(uiEvents);
     const [errorTotal] = await database.select({ count: sql<number>`count(*)::int` }).from(clientErrors);
@@ -417,6 +559,55 @@ export const createPostgresTelemetryRepository = (database: TelemetryDatabase): 
       correlationId: row.correlationId ?? undefined,
       resultStatus: row.resultStatus ?? undefined,
     }));
+  },
+
+  async listApiLatencyLogs(limit = 2000) {
+    try {
+      const rows = await database
+        .select()
+        .from(bffLatencyLogs)
+        .orderBy(desc(bffLatencyLogs.timestamp))
+        .limit(Math.min(Math.max(limit, 1), 5000));
+      return rows.map((row) => ({
+        timestamp: iso(row.timestamp),
+        route: row.route,
+        role: row.role ?? undefined,
+        facilityKey: row.facilityKey ?? undefined,
+        durationMs: row.durationMs,
+        statusCode: row.statusCode,
+        correlationId: row.correlationId ?? undefined,
+      }));
+    } catch (err) {
+      console.error("[telemetry:bff_latency_logs:read_failed]", err);
+      return [];
+    }
+  },
+
+  async listApiErrorResolutions(limit = 2000) {
+    try {
+      const rows = await database
+        .select()
+        .from(apiMonitoringErrorResolutions)
+        .orderBy(desc(apiMonitoringErrorResolutions.updatedAt))
+        .limit(Math.min(Math.max(limit, 1), 5000));
+      return rows.map((row) => ({
+        fingerprint: row.fingerprint,
+        projectKey: row.projectKey,
+        route: row.route,
+        statusCode: row.statusCode,
+        errorType: row.errorType as ApiErrorResolutionInput["errorType"],
+        hour: iso(row.hour),
+        status: row.status as ApiErrorResolutionStatus,
+        note: row.note ?? undefined,
+        resolvedBy: row.resolvedBy ?? undefined,
+        resolvedAt: row.resolvedAt ? iso(row.resolvedAt) : undefined,
+        createdAt: iso(row.createdAt),
+        updatedAt: iso(row.updatedAt),
+      }));
+    } catch (err) {
+      console.error("[telemetry:api_monitoring_error_resolutions:read_failed]", err);
+      return [];
+    }
   },
 
   async listUiEvents(limit = 500) {

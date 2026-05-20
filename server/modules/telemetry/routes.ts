@@ -10,6 +10,31 @@ export const registerTelemetryRoutes = (app: Express, container: AppContainer) =
     return fallback || (Array.isArray(header) ? header[0] : header);
   };
 
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api/")) return next();
+
+    const start = Date.now();
+    let recorded = false;
+    const record = (statusCode: number) => {
+      if (recorded) return;
+      recorded = true;
+      void container.repositories.telemetry.recordApiLatency({
+        route: req.path,
+        role: req.workbenchSession?.activeRole,
+        facilityKey: req.workbenchSession?.activeFacility,
+        durationMs: Math.max(0, Date.now() - start),
+        statusCode,
+        correlationId: getCorrelationId(req),
+      });
+    };
+
+    res.on("finish", () => record(res.statusCode));
+    res.on("close", () => {
+      if (!recorded && !res.writableEnded) record(499);
+    });
+    return next();
+  });
+
   app.post("/api/telemetry/ui-events", async (req, res) => {
     const key = req.workbenchSession?.userId || req.ip || "anonymous";
     if (!allowTokenBucket(`ui-events:${key}`, 10, 1000)) {
