@@ -101,6 +101,12 @@ function MobileDrawer({
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">場館</p>
               <WorkbenchFacilitySwitcher compact tone="lifeguard" className="min-h-[48px] w-full text-[14px]" />
             </div>
+            {(session?.grantedRoles?.length ?? 0) > 1 && (
+              <div>
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">角色</p>
+                <RoleSwitcher compact visualActiveRole="lifeguard" />
+              </div>
+            )}
           </div>
           <div className="my-4 border-t border-[#e6edf5]" />
           <nav className="grid gap-2">
@@ -317,6 +323,9 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 <WorkbenchFacilitySwitcher tone="lifeguard" className="w-[172px] max-w-[54vw]" />
               </div>
               <div className="flex items-center gap-2">
+                <div className="hidden lg:block">
+                  <RoleSwitcher visualActiveRole="lifeguard" />
+                </div>
                 <WorkbenchGlobalSearch role="lifeguard" />
                 <WorkbenchNotificationBell role="lifeguard" />
               </div>
