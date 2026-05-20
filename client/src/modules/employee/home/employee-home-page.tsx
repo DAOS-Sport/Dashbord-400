@@ -486,13 +486,41 @@ function HandoverCard({
     <WorkbenchCard className="h-full p-5">
       <SectionTitle title="交辦事項" eyebrow="Handover" action="查看全部" actionHref="/employee/handover" />
       {total > 0 ? (
-        <div className="space-y-3">
-          {items.slice(0, 5).map((item) => (
-            <button key={`handover-${item.id}`} type="button" onClick={onOpenDrawer} className="block w-full rounded-[8px] border border-[#e6edf4] bg-[#fbfcfd] p-3 text-left">
-              <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
-              <p className="mt-1 truncate text-[11px] font-bold text-[#8b9aae]">{item.preview || "尚無內容摘要"} · {item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}</p>
-            </button>
-          ))}
+        <div className="space-y-2">
+          {items.slice(0, 5).map((item) => {
+            const isDone = item.status === "completed";
+            const isExpired = item.status === "expired";
+            return (
+              <button key={`handover-${item.id}`} type="button" onClick={onOpenDrawer}
+                className={cn(
+                  "block w-full rounded-[8px] border p-3 text-left",
+                  isDone
+                    ? "border-[#d1fae5] bg-[#f0fdf4]"
+                    : isExpired
+                    ? "border-[#fecdd3] bg-[#fff1f2]"
+                    : "border-[#e6edf4] bg-[#fbfcfd]",
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className={cn(
+                      "truncate text-[13px] font-black",
+                      isDone ? "text-[#065f46]" : isExpired ? "text-[#9f1239]" : "text-[#10233f]",
+                    )}>{item.title}</p>
+                    <p className="mt-0.5 truncate text-[11px] font-bold text-[#8b9aae]">
+                      {item.preview || "尚無內容摘要"} · {item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}
+                    </p>
+                  </div>
+                  {isDone && (
+                    <span className="shrink-0 rounded-full bg-[#d1fae5] px-1.5 py-0.5 text-[10px] font-black text-[#065f46]">已完成</span>
+                  )}
+                  {isExpired && (
+                    <span className="shrink-0 rounded-full bg-[#fecdd3] px-1.5 py-0.5 text-[10px] font-black text-[#9f1239]">已逾期</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
           <div className="pt-1">
             <button type="button" onClick={onOpenDrawer} className="workbench-focus min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
               新增交辦事項

@@ -53,18 +53,7 @@ export const attachEmployeeHomeContract = (
     "交辦事項資料暫時無法取得。",
   );
   const handoverItems = (dto.handover.data ?? [])
-    .filter(
-      (item) =>
-        item.status === "pending" ||
-        item.status === "unread" ||
-        item.status === "read",
-    )
-    .filter(
-      (item) =>
-        !item.dueLabel ||
-        Date.parse(item.dueLabel) >= Date.now() ||
-        Number.isNaN(Date.parse(item.dueLabel)),
-    )
+    .slice(0, 5)
     .map((item) => ({
       id: item.id,
       title: item.title,
