@@ -1,0 +1,581 @@
+
+未連線
+下載推播報告 · 管理員
+
+GET
+/api/admin/weekly-push/runs/:runId/report
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+重試失敗收件人 · 管理員
+
+POST
+/api/admin/weekly-push/runs/:runId/retry-failed
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+排入週推播工作 · 管理員
+
+POST
+/api/admin/weekly-push/enqueue
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+推播執行紀錄 · 管理員
+
+GET
+/api/admin/weekly-push/runs
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+單次執行詳情 · 管理員
+
+GET
+/api/admin/weekly-push/runs/:runId
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+IT 治理總覽 · 管理員
+
+GET
+/api/admin/it-governance
+
+0
+
+calls · 24h
+
+—
+
+公開資料
+5
+
+未連線
+已核准教練清單 · 公開
+
+GET
+/api/approved-coaches
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+全域時段定義 · 公開
+
+GET
+/api/time-slots
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練姓名清單 · 公開
+
+GET
+/api/coaches
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+場館清單 · 公開
+
+GET
+/api/venues
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+場館說明 / 地圖 / 影片 · 公開
+
+GET
+/api/venue-infos
+
+0
+
+calls · 24h
+
+—
+
+推播 / Ragic 同步
+5
+
+未連線
+手動觸發 Ragic 同步 · 管理員
+
+POST
+/api/admin/ragic-sync
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+推播歷史紀錄 · 管理員
+
+GET
+/api/admin/notify-logs
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+觸發明日提醒 · 管理員
+
+POST
+/api/admin/notify-daily
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+觸發週推播 · 管理員
+
+POST
+/api/admin/send-weekly-notifications
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+Ragic 同步狀態 · 管理員
+
+GET
+/api/admin/ragic-status
+
+0
+
+calls · 24h
+
+—
+
+課表查詢 / 衝突
+5
+
+未連線
+未指派教練課程 · 公開
+
+GET
+/api/schedules/vacant
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+特定日期所有課程 · 公開
+
+GET
+/api/schedules/:date
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+排課衝突偵測 · 公開
+
+GET
+/api/conflicts/:date
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練堂數統計 · 公開
+
+GET
+/api/statistics
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+課表依日期範圍 · 公開
+
+GET
+/api/schedules
+
+0
+
+calls · 24h
+
+—
+
+教練前台
+8
+
+未連線
+申請新教練帳號 · 公開
+
+POST
+/api/coach-portal/register
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+同場館同事 · 教練 Token
+
+GET
+/api/coach-portal/colleagues
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+個人可用時段 · 教練 Token
+
+GET
+/api/coach-portal/availability
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+個人場館偏好 · 教練 Token
+
+GET
+/api/coach-portal/venue-preferences
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練個人資料 · 教練 Token
+
+GET
+/api/coach-portal/me/:identifier
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練個人課表 · 教練 Token
+
+GET
+/api/coach-portal/my-schedule
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+儲存可用時段 · 教練 Token
+
+POST
+/api/coach-portal/availability
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+儲存場館偏好 · 教練 Token
+
+POST
+/api/coach-portal/venue-preferences
+
+0
+
+calls · 24h
+
+—
+
+管理端：場館資料
+3
+
+未連線
+刪除場館 · 管理員
+
+DELETE
+/api/admin/venues/:id
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+更新場館詳細資訊 · 管理員
+
+PUT
+/api/admin/venue-infos/:venueName
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+新增場館 · 管理員
+
+POST
+/api/admin/venues
+
+0
+
+calls · 24h
+
+—
+
+管理端：課表操作
+6
+
+未連線
+刪除課程 · 管理員
+
+DELETE
+/api/schedules/:id
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+指派教練 · 管理員
+
+PUT
+/api/schedules/:id/assign-coach
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+新增或更新課程 · 公開
+
+POST
+/api/schedules
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+解鎖課表 · 管理員
+
+POST
+/api/schedules/unlock
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+複製整週課表 · 管理員
+
+POST
+/api/schedules/copy-week
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+鎖定課表 · 管理員
+
+POST
+/api/schedules/lock
+
+0
+
+calls · 24h
+
+—
+
+系統總覽
+2
+
+未連線
+系統健康檢查 · 公開
+
+GET
+/api/deployment-test
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+LINE 登入設定狀態 · 公開
+
+GET
+/api/auth/line/status
+
+0
+
+calls · 24h
+
+—
+
+管理端：教練帳號
+4
+
+未連線
+核准或退回教練 · 管理員
+
+PUT
+/api/admin/coach-users/:id/status
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練帳號清單 · 管理員
+
+GET
+/api/admin/coach-users
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+教練填寫率儀表板 · 管理員
+
+GET
+/api/admin/coach-fillrate
+
+0
+
+calls · 24h
+
+—
+
+
+未連線
+驗證管理密碼 · 管理員
+
+POST
+/api/admin/verify-password

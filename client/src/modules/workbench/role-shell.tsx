@@ -40,6 +40,7 @@ import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 import { WorkbenchNotificationBell } from "./workbench-notification-bell";
+import { WorkbenchGlobalSearch } from "./workbench-global-search";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -341,6 +342,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 <div className="hidden lg:block">
                   <RoleSwitcher />
                 </div>
+                <WorkbenchGlobalSearch role={role} />
                 <WorkbenchNotificationBell role={role} allowCompose />
               </div>
             </div>

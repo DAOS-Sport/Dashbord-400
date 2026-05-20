@@ -29,6 +29,7 @@ import {
 import type { ApiErrorResolutionRecord, ApiLatencyRecord } from "../telemetry/repository";
 import { requireRole, requireSession } from "../auth/context";
 import { scheduleHealthService } from "./schedule-health-service";
+import { collabCourseApiProbeService } from "./collab-course-api-probe-service";
 
 type MonitorProjectKey = Exclude<SystemProjectGroup, "governance">;
 
@@ -442,13 +443,43 @@ type MonitoringDataset = {
   resolutions: Map<string, ApiErrorResolutionRecord>;
 };
 
+const applyCollabCourseProbes = (
+  rows: ApiMonitoringRow[],
+  probes: Awaited<ReturnType<typeof collabCourseApiProbeService.snapshot>>,
+  generatedAt: string,
+): ApiMonitoringRow[] =>
+  rows.map((row) => {
+    if (row.projectKey !== "collab-course") return row;
+    const endpointId = row.id.replace("collab-course:", "");
+    const probe = probes.get(endpointId);
+    if (!probe || probe.status === "not_connected") return row;
+    return {
+      ...row,
+      status: probe.status,
+      statusCode: probe.statusCode,
+      avgDurationMs: probe.durationMs,
+      lastCheckedAt: probe.checkedAt ?? generatedAt,
+      totalCount: probe.checkedAt ? 1 : 0,
+      errorCount: probe.status === "error" ? 1 : 0,
+      warningCount: probe.status === "warning" ? 1 : 0,
+      unresolvedErrorCount: probe.status === "error" ? 1 : 0,
+      resolvedErrorCount: 0,
+      trend: probeTrend(probe),
+    };
+  });
+
 const buildMonitoringDataset = async (container: AppContainer): Promise<MonitoringDataset> => {
   const generatedAt = nowIso();
   const descriptors = getModuleDescriptorsByRole("system");
-  const latencyRecords = await container.repositories.telemetry.listApiLatencyLogs(5000);
-  const resolutions = resolutionByFingerprint(await container.repositories.telemetry.listApiErrorResolutions(5000));
+  const [latencyRecords, resolutionRecords, collabProbes] = await Promise.all([
+    container.repositories.telemetry.listApiLatencyLogs(5000),
+    container.repositories.telemetry.listApiErrorResolutions(5000),
+    collabCourseApiProbeService.snapshot(),
+  ]);
+  const resolutions = resolutionByFingerprint(resolutionRecords);
   const descriptorRows = rowsFromDescriptors(descriptors).filter((row) => row.projectKey !== "collab-course");
-  const allRows = completeRows([...healthRows(container), ...descriptorRows, ...collabCourseCatalogRows()], latencyRecords, generatedAt, resolutions);
+  const rawRows = completeRows([...healthRows(container), ...descriptorRows, ...collabCourseCatalogRows()], latencyRecords, generatedAt, resolutions);
+  const allRows = applyCollabCourseProbes(rawRows, collabProbes, generatedAt);
   return { generatedAt, latencyRecords, allRows, resolutions };
 };
 
@@ -494,6 +525,45 @@ const recordsFromScheduleProbe = (probe: ScheduleEndpointProbe): ApiLatencyRecor
         statusCode: probe.statusCode ?? fallbackStatusCode,
       }]
     : [];
+};
+
+const buildCollabCourseDetailRow = async (
+  rowId: string,
+  generatedAt: string,
+  resolutions: Map<string, ApiErrorResolutionRecord>,
+): Promise<{ row: ApiMonitoringRow; records: ApiLatencyRecord[] } | null> => {
+  const probes = await collabCourseApiProbeService.snapshot();
+  const endpointId = rowId.replace(/^collab-course:/, "");
+  const probe = probes.get(endpointId);
+  if (!probe) return null;
+  const catalogEntry = collabCourseApiCatalog.find((e) => e.id === endpointId);
+  if (!catalogEntry) return null;
+  const records = recordsFromScheduleProbe(probe);
+  const groups = buildErrorGroups("collab-course", probe.path, records, resolutions);
+  const row: ApiMonitoringRow = {
+    id: rowId,
+    projectKey: "collab-course",
+    type: typeFromPath(probe.path),
+    label: `${catalogEntry.label} · ${collabCourseApiAuthLabels[catalogEntry.auth]}`,
+    method: probe.method,
+    path: probe.path,
+    source: "collabCourseApiProbeService",
+    status: probe.status,
+    statusCode: probe.statusCode,
+    totalCount: records.length,
+    errorCount: groups.reduce((count, group) => count + group.count, 0),
+    warningCount: probe.status === "warning" ? 1 : 0,
+    unresolvedErrorCount: groups
+      .filter((group) => group.resolution.status !== "resolved")
+      .reduce((count, group) => count + group.count, 0),
+    resolvedErrorCount: groups
+      .filter((group) => group.resolution.status === "resolved")
+      .reduce((count, group) => count + group.count, 0),
+    avgDurationMs: probe.durationMs,
+    lastCheckedAt: probe.checkedAt ?? generatedAt,
+    trend: probeTrend(probe),
+  };
+  return { row, records };
 };
 
 const buildScheduleDetailRow = async (
@@ -552,6 +622,14 @@ const buildDetailDto = async (
     if (scheduleRow) {
       row = scheduleRow.row;
       records = scheduleRow.records;
+    }
+  }
+
+  if (!row && projectKey === "collab-course") {
+    const collabRow = await buildCollabCourseDetailRow(rowId, dataset.generatedAt, dataset.resolutions);
+    if (collabRow) {
+      row = collabRow.row;
+      records = collabRow.records;
     }
   }
 

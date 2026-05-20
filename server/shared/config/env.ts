@@ -67,6 +67,8 @@ export const env = {
   lineBotInternalToken: read("LINE_BOT_INTERNAL_TOKEN") || read("LINE_BOT_API_TOKEN") || read("REPLIT_DATA_API_TOKEN") || read("INTERNAL_API_TOKEN"),
   smartScheduleBaseUrl: read("SMART_SCHEDULE_BASE_URL") || "https://smart-schedule-manager.replit.app",
   smartScheduleApiToken: read("SMART_SCHEDULE_API_TOKEN") || read("SMART_SCHEDULE_INTERNAL_TOKEN") || read("INTERNAL_API_TOKEN"),
+  swimSchedulerBaseUrl: read("SWIM_SCHEDULER_BASE_URL") || "https://swim-scheduler-ronchen2.replit.app",
+  swimSchedulerAdminPassword: read("SWIM_SCHEDULER_ADMIN_PASSWORD"),
   externalApiTimeoutMs: Number(read("EXTERNAL_API_TIMEOUT_MS") || 10000),
   ragicApiKey: read("RAGIC_API_KEY"),
   ragicHost: read("RAGIC_HOST") || "ap7.ragic.com",

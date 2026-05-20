@@ -325,9 +325,6 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 <WorkbenchFacilitySwitcher tone="lifeguard" className="w-[172px] max-w-[54vw]" />
               </div>
               <div className="flex items-center gap-2">
-                <div className="hidden lg:block">
-                  <RoleSwitcher visualActiveRole="lifeguard" />
-                </div>
                 <WorkbenchGlobalSearch role="lifeguard" />
                 <WorkbenchNotificationBell role="lifeguard" />
               </div>

@@ -7,7 +7,12 @@ export function lineMessageToAnnouncement(
 ): AnnouncementSummary {
   const text = msg.text ?? "";
   const title = text.split("\n")[0]?.trim().slice(0, 60) || "(無內容)";
-  const isImportant = /@all/i.test(text) || /【重要】|【公告】|!!|！|❗|‼/.test(text);
+  const atAll = /@all/i.test(text);
+  const hasImportantKeyword = /【重要】|【公告】|必讀|緊急|注意/.test(text);
+  const substantialLength = text.trim().replace(/@\S+\s*/g, "").trim().length >= 25;
+  const isImportant =
+    (atAll && hasImportantKeyword && substantialLength) ||
+    /【重要】|【公告】/.test(text);
   const publishedAt = msg.timestamp || msg.createdAt || new Date().toISOString();
 
   return {

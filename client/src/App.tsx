@@ -17,6 +17,7 @@ import CourtsMonthPage from "@/pages/courts/month";
 import CourtsSearchPage from "@/pages/courts/search";
 import CourtsAdminPage from "@/pages/courts/admin";
 import NotFound from "@/pages/not-found";
+import { EmployeeCollabCoursesFrame, SupervisorCollabCoursesFrame } from "@/pages/collab-courses/page";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
 import PortalSetup from "@/pages/portal/portal-setup";
@@ -464,6 +465,12 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/more">
         <EmployeeMorePage />
+      </Route>
+      <Route path="/employee/collab-courses">
+        <EmployeeCollabCoursesFrame />
+      </Route>
+      <Route path="/supervisor/collab-courses">
+        <SupervisorCollabCoursesFrame />
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />

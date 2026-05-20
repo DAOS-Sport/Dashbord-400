@@ -70,6 +70,13 @@ export async function readFacilityLineAnnouncements(params: {
     });
     return response.messages
       .filter((message) => message.type === "text" && message.text)
+      .filter((message) => {
+        const txt = (message.text ?? "").trim();
+        if (txt.length < 20) return false;
+        if (/^[\p{Emoji}\p{Emoji_Presentation}\s]+$/u.test(txt)) return false;
+        if (/^[@＠][\S]+(\s+[@＠][\S]+)*\s*$/.test(txt)) return false;
+        return true;
+      })
       .map((message) => lineMessageToAnnouncement(message, group.label));
   }));
 
