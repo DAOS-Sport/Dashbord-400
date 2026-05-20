@@ -22,6 +22,7 @@ export const workbenchRoutes = [
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "employee", primaryPath: "/employee/training", shell: "employee" },
   { moduleId: "lifeguard-lost-and-found", label: "失物招領", iconKey: "package-search", role: "employee", primaryPath: "/employee/lost-and-found", shell: "employee" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "employee", primaryPath: "/employee/courts/xinbei", shell: "employee" },
+  { moduleId: "collab-courses", label: "偕同課課表", iconKey: "graduation-cap", role: "employee", primaryPath: "/employee/collab-courses", shell: "employee" },
   { moduleId: "knowledge-base-qna", label: "相關問題詢問", iconKey: "book-open", role: "employee", primaryPath: "/employee/qna", shell: "employee" },
 
   { moduleId: "lifeguard-home", label: "首頁", iconKey: "home", role: "lifeguard", primaryPath: "/lifeguard", shell: "lifeguard" },
@@ -38,6 +39,7 @@ export const workbenchRoutes = [
   { moduleId: "parking", label: "停車場管理", iconKey: "car", role: "supervisor", primaryPath: "/supervisor/parking", legacyPath: "/admin/parking/dashboard", shell: "supervisor" },
   { moduleId: "lane-rentals", label: "水道租借", iconKey: "waves", role: "supervisor", primaryPath: "/supervisor/lane-rentals", legacyPath: "/admin/lane-rentals", shell: "supervisor" },
   { moduleId: "courts", label: "場地預約", iconKey: "calendar-days", role: "supervisor", primaryPath: "/supervisor/courts/xinbei", legacyPath: "/courts/xinbei", shell: "supervisor" },
+  { moduleId: "collab-courses", label: "偕同課課表", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/collab-courses", shell: "supervisor" },
   { moduleId: "announcements", label: "公告管理", iconKey: "megaphone", role: "supervisor", primaryPath: "/supervisor/announcements", legacyPath: "/announcements", shell: "supervisor" },
   { moduleId: "announcement-groups", label: "公告群組綁定", iconKey: "message-square-warning", role: "supervisor", primaryPath: "/supervisor/announcement-groups", legacyPath: "/admin/announcement-groups", shell: "supervisor" },
   { moduleId: "handover", label: "交接事項", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },

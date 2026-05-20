@@ -9,6 +9,7 @@ import { registerSystemRoutes } from "../../modules/system/routes";
 import { registerTelemetryRoutes } from "../../modules/telemetry/routes";
 import { registerModuleRegistryRoutes } from "../../modules/registry/moduleRegistryController";
 import { registerHandoverRoutes } from "../../modules/handover";
+import { registerCollabCoursesRoutes } from "../../modules/collab-courses/routes";
 
 export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express) => {
   const container = createAppContainer();
@@ -21,5 +22,6 @@ export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express)
   registerModuleRegistryRoutes(app);
   registerHandoverRoutes(app);
   registerBffRoutes(app, container);
+  registerCollabCoursesRoutes(app);
   return container;
 };

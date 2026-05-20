@@ -16,6 +16,7 @@ import CourtsWeekPage from "@/pages/courts/week";
 import CourtsMonthPage from "@/pages/courts/month";
 import CourtsSearchPage from "@/pages/courts/search";
 import CourtsAdminPage from "@/pages/courts/admin";
+import CollabCoursesPage from "@/pages/collab-courses/page";
 import NotFound from "@/pages/not-found";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
@@ -249,6 +250,11 @@ function WorkbenchRouter() {
       <Route path="/supervisor/courts">
         <Redirect to="/supervisor/courts/xinbei" />
       </Route>
+      <Route path="/supervisor/collab-courses">
+        <SupervisorCollabCoursesFrame>
+          <CollabCoursesPage />
+        </SupervisorCollabCoursesFrame>
+      </Route>
       <Route path="/courts/:school/week">
         {(params) => <Redirect to={`/supervisor/courts/${params.school}/week`} />}
       </Route>
@@ -406,6 +412,11 @@ function WorkbenchRouter() {
       <Route path="/employee/courts">
         <Redirect to="/employee/courts/xinbei" />
       </Route>
+      <Route path="/employee/collab-courses">
+        <EmployeeCollabCoursesFrame>
+          <CollabCoursesPage />
+        </EmployeeCollabCoursesFrame>
+      </Route>
       <Route path="/employee/announcements">
         <EmployeeAnnouncementsPage />
       </Route>
@@ -465,6 +476,31 @@ function EmployeeCourtsFrame({ children }: { children: React.ReactNode }) {
     <EmployeeShell
       title="場租查看"
       subtitle="查看新北高中與三重商工場租排程，並依場館切換單日、週、月、搜尋與管理檢視。"
+    >
+      {children}
+    </EmployeeShell>
+  );
+}
+
+function SupervisorCollabCoursesFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <SupervisorModuleShell
+      moduleId="collab-courses"
+      title="偕同課課表"
+      eyebrow="COLLAB COURSES"
+      description="五泳池偕同課週次課表，依場館篩選並查看教練配課。"
+      layoutMode="schedule"
+    >
+      {children}
+    </SupervisorModuleShell>
+  );
+}
+
+function EmployeeCollabCoursesFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <EmployeeShell
+      title="偕同課課表"
+      subtitle="查看五泳池偕同課週次課表，依場館篩選。"
     >
       {children}
     </EmployeeShell>
