@@ -7,7 +7,14 @@ export function lineMessageToAnnouncement(
 ): AnnouncementSummary {
   const text = msg.text ?? "";
   const title = text.split("\n")[0]?.trim().slice(0, 60) || "(無內容)";
-  const isImportant = /@all/i.test(text) || /【重要】|【公告】|!!|！|❗|‼/.test(text);
+
+  // Explicit markers always trigger 必讀
+  const hasExplicitMarker = /【重要】|【公告】|‼|❗❗/.test(text);
+  // @All alone is NOT sufficient — require substantial length + real announcement keywords
+  const hasAtAll = /@all/i.test(text);
+  const hasAnnouncementKeywords = /注意|禁止|停課|取消|停辦|更改|暫停|請假|通知|公告|規定|辦法|規則|重要|必須|須知|截止|deadline|提醒/.test(text);
+  const isSubstantialLength = text.replace(/@\w+/gi, "").trim().length >= 25;
+  const isImportant = hasExplicitMarker || (hasAtAll && hasAnnouncementKeywords && isSubstantialLength);
   const publishedAt = msg.timestamp || msg.createdAt || new Date().toISOString();
 
   return {

@@ -69,7 +69,17 @@ export async function readFacilityLineAnnouncements(params: {
       limit,
     });
     return response.messages
-      .filter((message) => message.type === "text" && message.text)
+      .filter((message) => {
+        if (message.type !== "text" || !message.text) return false;
+        const text = message.text.trim();
+        // Must have meaningful length — filters out "好👌", "收到", "加溫開", "零用金5000", etc.
+        if (text.length < 20) return false;
+        // Skip emoji-only / punctuation-only messages
+        if (/^[\p{Emoji}\p{P}\s\d]+$/u.test(text)) return false;
+        // Skip @mention-only messages (e.g. "@chi" or "@煒" alone)
+        if (/^(@\S+\s*){1,3}$/.test(text)) return false;
+        return true;
+      })
       .map((message) => lineMessageToAnnouncement(message, group.label));
   }));
 
