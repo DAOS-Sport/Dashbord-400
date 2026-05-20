@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { AlertTriangle, ChevronLeft, RefreshCw, RotateCcw, Search, Send, ShieldAlert, UserRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, FileSearch, MousePointerClick, RefreshCw, RotateCcw, Search, Send, ShieldAlert, ShieldCheck, UserRound, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -9,6 +9,20 @@ import { cn } from "@/lib/utils";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { apiGet, apiPost } from "@/shared/api/client";
+import { fetchAuditLogs, fetchAuditPortalAnalytics, fetchUiEventOverview } from "../audit/api";
+
+type OpsTabKey = "actions" | "audit";
+
+const opsTabs: Array<{ id: OpsTabKey; label: string }> = [
+  { id: "actions", label: "同仁支援" },
+  { id: "audit", label: "操作稽核" },
+];
+
+const readOpsTabFromUrl = (): OpsTabKey => {
+  if (typeof window === "undefined") return "actions";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  return opsTabs.some((t) => t.id === tab) ? (tab as OpsTabKey) : "actions";
+};
 
 type OperationUser = {
   userId: string;
@@ -209,10 +223,18 @@ function OpsActionDialog({
 }
 
 export default function SystemOperationsPage() {
+  const [tab, setTabState] = useState<OpsTabKey>(() => readOpsTabFromUrl());
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<OperationUser | null>(null);
   const [action, setAction] = useState<OpsAction | null>(null);
+
+  const setTab = (next: OpsTabKey) => {
+    setTabState(next);
+    if (typeof window === "undefined") return;
+    const search = next === "actions" ? "" : `?tab=${next}`;
+    window.history.replaceState(null, "", `/system/operations${search}`);
+  };
   const searchQuery = useQuery({
     queryKey: ["system-operations-search", submittedQuery],
     queryFn: () => apiGet<{ items: OperationUser[] }>(`/api/bff/system/operations/user-search?q=${encodeURIComponent(submittedQuery)}`),
@@ -232,13 +254,31 @@ export default function SystemOperationsPage() {
   const actionButtons = useMemo(() => (Object.keys(actionMeta) as OpsAction[]), []);
 
   return (
-    <RoleShell role="system" title="同仁支援中心" subtitle="查同仁狀態、協助重新登入、重新整理資料、重發通知">
+    <RoleShell role="system" title="遠維協助" subtitle="CMS 內部 · 同仁支援 + 操作稽核">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-operations-page">
-        <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-          <ChevronLeft className="h-4 w-4" />
-          回控制中心
-        </Link>
+        <WorkbenchCard className="p-2">
+          <div className="flex flex-wrap gap-2">
+            {opsTabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "min-h-10 rounded-[8px] px-4 text-[13px] font-black transition",
+                  tab === item.id ? "bg-[#0d2a50] text-white" : "bg-white text-[#637185] hover:bg-[#f3f6fb]",
+                )}
+                data-testid={`ops-tab-${item.id}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </WorkbenchCard>
 
+        {tab === "audit" ? <OpsAuditPanel /> : null}
+
+        {tab === "actions" ? (
+          <>
         <WorkbenchCard className="p-3.5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end">
             <label className="grid flex-1 gap-1 text-[12px] font-black text-[#536175]">
@@ -436,9 +476,91 @@ export default function SystemOperationsPage() {
           />
         </WorkbenchCard>
 
+          </>
+        ) : null}
+
         <OpsActionDialog action={action} target={selectedUser} detail={detail} onClose={() => setAction(null)} />
       </div>
     </RoleShell>
+  );
+}
+
+function OpsAuditPanel() {
+  const uiQuery = useQuery({ queryKey: ["/api/bff/system/ui-event-overview"], queryFn: fetchUiEventOverview });
+  const analyticsQuery = useQuery({ queryKey: ["/api/portal/analytics", "audit"], queryFn: fetchAuditPortalAnalytics });
+  const auditLogsQuery = useQuery({ queryKey: ["/api/audit/logs"], queryFn: fetchAuditLogs });
+  const analytics = analyticsQuery.data;
+  const metrics: readonly (readonly [label: string, value: number, Icon: LucideIcon, tone: string])[] = [
+    ["UI 事件", uiQuery.data?.totalEvents ?? 0, MousePointerClick, "text-[#2f6fe8]"],
+    ["Client Errors", uiQuery.data?.totalClientErrors ?? 0, Activity, "text-[#ff4964]"],
+    ["Portal Events", analytics?.totalEvents ?? 0, ShieldCheck, "text-[#15935d]"],
+    ["使用者", analytics?.topEmployees?.length ?? 0, Users, "text-[#10233f]"],
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-4">
+        {metrics.map(([label, value, Icon, tone]) => (
+          <WorkbenchCard key={label} className="p-4">
+            <p className="text-[12px] font-bold text-[#637185]">{label}</p>
+            <div className="mt-2 flex items-center justify-between">
+              <p className={`text-[26px] font-black ${tone}`}>{value}</p>
+              <Icon className="h-5 w-5 text-[#2f6fe8]" />
+            </div>
+          </WorkbenchCard>
+        ))}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <WorkbenchCard className="p-5">
+          <h2 className="mb-4 text-[15px] font-black">事件類型</h2>
+          <div className="space-y-3">
+            {(analytics?.byType ?? []).map((item) => (
+              <div key={item.eventType} className="flex items-center gap-3 rounded-[8px] bg-[#fbfcfd] p-3">
+                <FileSearch className="h-4 w-4 text-[#2f6fe8]" />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-black text-[#10233f]">{item.eventType}</span>
+                <span className="text-[13px] font-black text-[#10233f]">{item.count}</span>
+              </div>
+            ))}
+            {!analytics?.byType?.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚無事件類型資料。</div> : null}
+          </div>
+        </WorkbenchCard>
+
+        <WorkbenchCard className="p-5">
+          <h2 className="mb-4 text-[15px] font-black">高頻使用者</h2>
+          <div className="space-y-3">
+            {(analytics?.topEmployees ?? []).slice(0, 8).map((item, index) => (
+              <div key={`${item.employeeNumber}-${index}`} className="flex items-center gap-3 rounded-[8px] bg-[#fbfcfd] p-3">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-[#eef5ff] text-[11px] font-black text-[#2f6fe8]">{index + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-black text-[#10233f]">{item.employeeName ?? "未知使用者"}</p>
+                  <p className="text-[11px] font-bold text-[#8b9aae]">{item.employeeNumber ?? "無員編"}</p>
+                </div>
+                <span className="text-[13px] font-black text-[#10233f]">{item.count}</span>
+              </div>
+            ))}
+            {!analytics?.topEmployees?.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚無使用者稽核資料。</div> : null}
+          </div>
+        </WorkbenchCard>
+
+        <WorkbenchCard className="p-5 xl:col-span-2">
+          <h2 className="mb-4 text-[15px] font-black">Audit Logs</h2>
+          <div className="space-y-3">
+            {(auditLogsQuery.data?.items ?? []).map((item) => (
+              <div key={`${item.id ?? item.timestamp}-${item.action}`} className="grid gap-2 rounded-[8px] bg-[#fbfcfd] p-3 md:grid-cols-[1fr_150px_120px] md:items-center">
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-black text-[#10233f]">{item.action}</p>
+                  <p className="truncate text-[11px] font-bold text-[#8b9aae]">{item.resource}{item.resourceId ? ` / ${item.resourceId}` : ""}</p>
+                </div>
+                <p className="text-[12px] font-bold text-[#637185]">{item.actorId ?? "system"}</p>
+                <p className="text-[12px] font-black text-[#10233f]">{item.resultStatus ?? "success"}</p>
+              </div>
+            ))}
+            {!auditLogsQuery.data?.items?.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">尚無 audit log 資料。</div> : null}
+          </div>
+        </WorkbenchCard>
+      </div>
+    </div>
   );
 }
 

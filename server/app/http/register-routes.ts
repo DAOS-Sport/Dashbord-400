@@ -15,9 +15,9 @@ export const registerNewArchitectureRoutes = (_httpServer: Server, app: Express)
   const container = createAppContainer();
   container.services.ragicCache.start();
   registerBackendModules(container);
+  registerTelemetryRoutes(app, container);
   registerAuthRoutes(app, container);
   registerAnnouncementRoutes(app, container);
-  registerTelemetryRoutes(app, container);
   registerSystemRoutes(app, container);
   registerModuleRegistryRoutes(app);
   registerHandoverRoutes(app);

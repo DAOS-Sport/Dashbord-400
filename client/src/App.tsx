@@ -16,8 +16,8 @@ import CourtsWeekPage from "@/pages/courts/week";
 import CourtsMonthPage from "@/pages/courts/month";
 import CourtsSearchPage from "@/pages/courts/search";
 import CourtsAdminPage from "@/pages/courts/admin";
-import CollabCoursesPage from "@/pages/collab-courses/page";
 import NotFound from "@/pages/not-found";
+import { EmployeeCollabCoursesFrame, SupervisorCollabCoursesFrame } from "@/pages/collab-courses/page";
 import PortalLogin from "@/pages/portal/portal-login";
 import PortalHome from "@/pages/portal/portal-home";
 import PortalSetup from "@/pages/portal/portal-setup";
@@ -53,18 +53,12 @@ import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
 import SupervisorTrainingPage from "@/modules/supervisor/training/page";
 import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
 import SystemDashboardPage from "@/modules/system/dashboard-page";
-import SystemAlertsPage from "@/modules/system/alerts/page";
-import SystemAuditPage from "@/modules/system/audit/page";
-import SystemControlCenterPage from "@/modules/system/control-center/page";
-import SystemGovernancePage from "@/modules/system/governance/page";
-import SystemHelperStatusPage from "@/modules/system/helper-status/page";
-import SystemLinebotManagementPage from "@/modules/system/linebot-management/page";
-import SystemLineWhitelistPage from "@/modules/system/line-whitelist/page";
 import SystemInsightsPage from "@/modules/system/insights/page";
-import SystemIntegrationsPage from "@/modules/system/integrations/page";
 import SystemOperationsPage from "@/modules/system/operations/page";
+import SystemCmsMonitoringPage from "@/modules/system/cms-monitoring/page";
 import SystemProjectMonitoringPage from "@/modules/system/project-monitoring/page";
 import SystemProjectOverviewPage from "@/modules/system/project-overview/page";
+import SystemApiMonitoringPage from "@/modules/system/api-monitoring/page";
 import SystemTrainingViewsPage from "@/modules/system/training-views/page";
 import SystemWatchdogPage from "@/modules/system/watchdog/page";
 import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
@@ -206,9 +200,11 @@ function WorkbenchRouter() {
   return (
     <Switch>
       <Route path="/">
-        <Redirect to="/system" />
+        <Redirect to="/system/project-overview" />
       </Route>
-      <Route path="/SYSTEM" component={SystemControlCenterPage} />
+      <Route path="/SYSTEM">
+        <Redirect to="/system/project-overview" />
+      </Route>
       <Route path="/SUPERVISOR" component={SupervisorDashboardPage} />
       <Route path="/EMPLOYEE" component={EmployeeHomePage} />
       <Route path="/LIFEGUARD" component={LifeguardHomePage} />
@@ -249,11 +245,6 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/supervisor/courts">
         <Redirect to="/supervisor/courts/xinbei" />
-      </Route>
-      <Route path="/supervisor/collab-courses">
-        <SupervisorCollabCoursesFrame>
-          <CollabCoursesPage />
-        </SupervisorCollabCoursesFrame>
       </Route>
       <Route path="/courts/:school/week">
         {(params) => <Redirect to={`/supervisor/courts/${params.school}/week`} />}
@@ -343,13 +334,39 @@ function WorkbenchRouter() {
       <Route path="/lifeguard/home" component={LifeguardHomePage} />
       <Route path="/lifeguard" component={LifeguardHomePage} />
       <Route path="/system/watchdog" component={SystemWatchdogPage} />
+      <Route path="/system/cms-monitoring" component={SystemCmsMonitoringPage} />
       <Route path="/system/operations" component={SystemOperationsPage} />
       <Route path="/system/insights" component={SystemInsightsPage} />
-      <Route path="/system/governance" component={SystemGovernancePage} />
-      <Route path="/system/linebot-management" component={SystemLinebotManagementPage} />
-      <Route path="/system/helper-status" component={SystemHelperStatusPage} />
-      <Route path="/system/lineXBS-status" component={SystemHelperStatusPage} />
-      <Route path="/system/line-whitelist" component={SystemLineWhitelistPage} />
+      <Route path="/system/governance">
+        <Redirect to="/system/project-overview" />
+      </Route>
+      <Route path="/system/linebot-management">
+        <Redirect to="/system/monitoring/400line" />
+      </Route>
+      <Route path="/system/helper-status">
+        <Redirect to="/system/monitoring/400line" />
+      </Route>
+      <Route path="/system/lineXBS-status">
+        <Redirect to="/system/monitoring/400line" />
+      </Route>
+      <Route path="/system/monitoring">
+        <SystemApiMonitoringPage projectKey="all" />
+      </Route>
+      <Route path="/system/monitoring/400cms">
+        <SystemApiMonitoringPage projectKey="400cms" />
+      </Route>
+      <Route path="/system/monitoring/400line">
+        <SystemApiMonitoringPage projectKey="400line" />
+      </Route>
+      <Route path="/system/monitoring/schedule">
+        <SystemApiMonitoringPage projectKey="schedule" />
+      </Route>
+      <Route path="/system/monitoring/collab-course">
+        <SystemApiMonitoringPage projectKey="collab-course" />
+      </Route>
+      <Route path="/system/line-whitelist">
+        <Redirect to="/system/monitoring/400line?tab=whitelist" />
+      </Route>
       <Route path="/system/400cms/status">
         <SystemProjectMonitoringPage projectKey="400cms" mode="status" />
       </Route>
@@ -370,20 +387,24 @@ function WorkbenchRouter() {
         <SystemFunctionRelationsPage />
       </Route>
       <Route path="/system/alerts">
-        <SystemAlertsPage />
+        <Redirect to="/system/watchdog?tab=alerts" />
       </Route>
       <Route path="/system/integrations">
-        <SystemIntegrationsPage />
+        <Redirect to="/system/watchdog?tab=integrations" />
       </Route>
       <Route path="/system/audit">
-        <SystemAuditPage />
+        <Redirect to="/system/operations?tab=audit" />
       </Route>
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
       <Route path="/system/project-overview" component={SystemProjectOverviewPage} />
-      <Route path="/system/overview" component={SystemControlCenterPage} />
-      <Route path="/system" component={SystemControlCenterPage} />
+      <Route path="/system/overview">
+        <Redirect to="/system/project-overview" />
+      </Route>
+      <Route path="/system">
+        <Redirect to="/system/project-overview" />
+      </Route>
       <Route path="/employee/courts/:school/week">
         <EmployeeCourtsFrame>
           <CourtsWeekPage />
@@ -411,11 +432,6 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/courts">
         <Redirect to="/employee/courts/xinbei" />
-      </Route>
-      <Route path="/employee/collab-courses">
-        <EmployeeCollabCoursesFrame>
-          <CollabCoursesPage />
-        </EmployeeCollabCoursesFrame>
       </Route>
       <Route path="/employee/announcements">
         <EmployeeAnnouncementsPage />
@@ -450,6 +466,12 @@ function WorkbenchRouter() {
       <Route path="/employee/more">
         <EmployeeMorePage />
       </Route>
+      <Route path="/employee/collab-courses">
+        <EmployeeCollabCoursesFrame />
+      </Route>
+      <Route path="/supervisor/collab-courses">
+        <SupervisorCollabCoursesFrame />
+      </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
       <Route component={NotFound} />
@@ -476,31 +498,6 @@ function EmployeeCourtsFrame({ children }: { children: React.ReactNode }) {
     <EmployeeShell
       title="場租查看"
       subtitle="查看新北高中與三重商工場租排程，並依場館切換單日、週、月、搜尋與管理檢視。"
-    >
-      {children}
-    </EmployeeShell>
-  );
-}
-
-function SupervisorCollabCoursesFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <SupervisorModuleShell
-      moduleId="collab-courses"
-      title="偕同課課表"
-      eyebrow="COLLAB COURSES"
-      description="五泳池偕同課週次課表，依場館篩選並查看教練配課。"
-      layoutMode="schedule"
-    >
-      {children}
-    </SupervisorModuleShell>
-  );
-}
-
-function EmployeeCollabCoursesFrame({ children }: { children: React.ReactNode }) {
-  return (
-    <EmployeeShell
-      title="偕同課課表"
-      subtitle="查看五泳池偕同課週次課表，依場館篩選。"
     >
       {children}
     </EmployeeShell>

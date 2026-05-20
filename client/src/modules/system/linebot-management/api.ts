@@ -18,7 +18,7 @@ export const fetchLinebotManagementFacilities = () =>
   apiGet<LinebotManagementFacilitiesDto>("/api/bff/system/linebot-management/facilities");
 
 export const fetchLinebotManagementWhitelist = () =>
-  apiGet<LinebotManagementWhitelistDto>("/api/bff/system/linebot-management/whitelist-comparison");
+  apiGet<LinebotManagementWhitelistDto>("/api/bff/system/linebot-management/whitelist-snapshot");
 
 export const fetchLinebotManagementPipeline = () =>
   apiGet<LinebotManagementPipelineDto>("/api/bff/system/linebot-management/announcement-pipeline");

@@ -189,7 +189,7 @@ function WhitelistEntryCard({ entry }: { entry: LineWhitelistEntry }) {
   );
 }
 
-export default function SystemLineWhitelistPage() {
+export function LineWhitelistManagementPanel({ embedded = false }: { embedded?: boolean }) {
   const queryClient = useQueryClient();
   const [ragicQuery, setRagicQuery] = useState("");
   const [ragicSelected, setRagicSelected] = useState<LineWhitelistCandidate | null>(null);
@@ -270,8 +270,10 @@ export default function SystemLineWhitelistPage() {
     },
   });
   return (
-    <RoleShell role="system" title="400 LINE 白名單管理" subtitle="INTERVIEW + CAUTION ACCESS">
-      <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-line-whitelist-page">
+      <div
+        className={cn("space-y-3", !embedded && "mx-auto max-w-[1440px]")}
+        data-testid="system-line-whitelist-page"
+      >
         {whitelistQuery.data?.storageStatus === "schema_pending" ? (
           <div className="rounded-[8px] border border-[#f2dda8] bg-[#fffaf0] p-3 text-[13px] font-black text-[#8a5a00]">
             白名單資料表尚未建立：請執行 db:push 後即可寫入。
@@ -450,6 +452,13 @@ export default function SystemLineWhitelistPage() {
 
         <ServiceHealthStrip />
       </div>
+  );
+}
+
+export default function SystemLineWhitelistPage() {
+  return (
+    <RoleShell role="system" title="400 LINE 白名單管理" subtitle="INTERVIEW + CAUTION ACCESS">
+      <LineWhitelistManagementPanel />
     </RoleShell>
   );
 }

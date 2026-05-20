@@ -1,78 +1,55 @@
-import { env } from "../../shared/config/env";
-
 const SWIM_SCHEDULER_BASE_URL =
-  process.env.SWIM_SCHEDULER_BASE_URL || "https://swim-scheduler-ronchen2.replit.app";
-
-const TIMEOUT_MS = env.externalApiTimeoutMs;
-
-const fetchJson = async <T>(path: string, params?: Record<string, string>): Promise<T | null> => {
-  const url = new URL(path, SWIM_SCHEDULER_BASE_URL);
-  if (params) {
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url.toString(), {
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
-    });
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-};
+  process.env.SWIM_SCHEDULER_BASE_URL ?? "https://swim-scheduler-ronchen2.replit.app";
 
 export interface SwimVenue {
   id: string;
   name: string;
-  color: string;
-  order: number;
+  shortName?: string;
+  address?: string;
 }
 
 export interface SwimTimeSlot {
-  id: string;
-  period: string;
+  period: number;
+  label: string;
   startTime: string;
   endTime: string;
-  order: number;
 }
 
-export interface SwimScheduleItem {
+export interface SwimScheduleEntry {
   id: string;
   date: string;
-  venueId: string;
-  timeSlotId: string;
-  className: string;
-  coachName: string | null;
-  coachName2: string | null;
-  coachCount: number;
-  isClassLocked: boolean;
-  notes: string | null;
   venue: SwimVenue;
   timeSlot: SwimTimeSlot;
+  className: string;
+  coachName: string;
+  coachName2?: string;
+  status?: string;
+  note?: string;
 }
 
-let venueCache: { data: SwimVenue[]; ts: number } | null = null;
-const VENUE_CACHE_TTL = 5 * 60 * 1000;
+let _venueCache: { data: SwimVenue[]; fetchedAt: number } | null = null;
+const VENUE_TTL_MS = 5 * 60 * 1000;
 
-export const fetchSwimVenues = async (): Promise<SwimVenue[]> => {
-  if (venueCache && Date.now() - venueCache.ts < VENUE_CACHE_TTL) return venueCache.data;
-  const data = await fetchJson<SwimVenue[]>("/api/venues");
-  const venues = (data ?? []).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  venueCache = { data: venues, ts: Date.now() };
-  return venues;
-};
+export async function fetchVenues(): Promise<SwimVenue[]> {
+  const now = Date.now();
+  if (_venueCache && now - _venueCache.fetchedAt < VENUE_TTL_MS) {
+    return _venueCache.data;
+  }
+  const res = await fetch(`${SWIM_SCHEDULER_BASE_URL}/api/venues`);
+  if (!res.ok) throw new Error(`swim-scheduler /api/venues ${res.status}`);
+  const data = (await res.json()) as SwimVenue[];
+  _venueCache = { data, fetchedAt: now };
+  return data;
+}
 
-export const fetchSwimSchedules = async (
+export async function fetchSchedules(
   startDate: string,
   endDate: string,
-): Promise<SwimScheduleItem[]> => {
-  const data = await fetchJson<SwimScheduleItem[]>("/api/schedules", { startDate, endDate });
-  return data ?? [];
-};
+  venueId?: string,
+): Promise<SwimScheduleEntry[]> {
+  const params = new URLSearchParams({ startDate, endDate });
+  if (venueId) params.set("venueId", venueId);
+  const res = await fetch(`${SWIM_SCHEDULER_BASE_URL}/api/schedules?${params}`);
+  if (!res.ok) throw new Error(`swim-scheduler /api/schedules ${res.status}`);
+  return res.json() as Promise<SwimScheduleEntry[]>;
+}

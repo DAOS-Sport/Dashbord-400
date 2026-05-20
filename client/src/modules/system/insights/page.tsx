@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { AlertTriangle, BarChart3, ChevronLeft, LineChart, UsersRound } from "lucide-react";
+import { AlertTriangle, BarChart3, LineChart, UsersRound } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { RoleShell } from "@/modules/workbench/role-shell";
@@ -68,13 +67,9 @@ export default function SystemInsightsPage() {
   const maxFacility = Math.max(1, ...(data?.byFacility.map((item) => item.eventCount) ?? [0]));
 
   return (
-    <RoleShell role="system" title="使用狀況" subtitle="看哪些功能有人用、哪些功能突然變少或變多">
+    <RoleShell role="system" title="行為洞察" subtitle="CMS 內部 · 使用狀況與功能熱度分析">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-insights-page">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/system" className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175]">
-            <ChevronLeft className="h-4 w-4" />
-            回控制中心
-          </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="inline-flex rounded-[8px] border border-[#dfe7ef] bg-white p-1" aria-label="選擇統計期間">
             {(["7d", "30d"] as Period[]).map((item) => (
               <button

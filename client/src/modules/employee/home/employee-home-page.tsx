@@ -368,15 +368,9 @@ function TopBar({
           </button>
         </div>
         <div className="flex items-center gap-2">
-          <div className="hidden md:block">
-            <RoleSwitcher visualActiveRole="employee" />
-          </div>
           <WorkbenchGlobalSearch role="employee" />
           <WorkbenchNotificationBell role="employee" />
         </div>
-      </div>
-      <div className="border-t border-white/10 px-4 py-2 md:hidden">
-        <RoleSwitcher compact visualActiveRole="employee" />
       </div>
     </header>
   );

@@ -72,5 +72,3 @@ timeoutMs = 120000
 
 [userenv.shared]
 RAGIC_ADAPTER_MODE = "real"
-SCHEDULE_ADAPTER_MODE = "real"
-SWIM_SCHEDULER_BASE_URL = "https://swim-scheduler-ronchen2.replit.app"

@@ -194,7 +194,7 @@ const getChangeChecklist = (module: ModuleDefinition) => [
 const implementationOwners = (module: ModuleDefinition) => {
   if (module.id === "linebot-management") {
     return [
-      "UI owner：`client/src/modules/system/linebot-management/page.tsx`。",
+      "UI owner：`client/src/modules/system/api-monitoring/page.tsx` 的 400LINE tabs。",
       "BFF route owner：`server/modules/system/linebot-management-routes.ts`；此模組只做 read-only normalized DTO，不對 400LINE 執行寫入。",
       "DTO owner：`shared/system/linebot-management-contract.ts`；狀態固定為 `ready | degraded | waiting_for_400line_api | error`。",
       "Data authority：400LINE / LINE Bot Assistant；400QIAN 只保留 shadow/snapshot 與 diff。",
@@ -854,8 +854,8 @@ const systemModulesDisambiguationPage = () => {
     ["system-dashboard", "Legacy system overview", "保留相容入口；新功能不得加在此模組。", "system-control-center"],
     ["system-watchdog", "服務健康檢視", "呈現 module health、external integration、watchdog 狀態。", "helper-status / watchdog-events"],
     ["watchdog-events", "外部事件 ingestion source", "只代表事件資料來源；UI 統一由 system-watchdog 消費。", "system-watchdog"],
-    ["linebot-management", "400LINE 集中入口", "集中看 400LINE 服務、群組/館別、白名單 snapshot、重要公告管線與 API readiness；read-only shell。", "system-watchdog / helper-status"],
-    ["helper-status", "400LINE 服務監控舊頁", "只看 400LINE 連接服務、secret configured/missing、heartbeat/snapshot；後續收斂為 linebot-management 子頁。", "system-watchdog"],
+    ["linebot-management", "400LINE normalized BFF", "集中供應 400LINE 服務、群組/館別、白名單 snapshot、重要公告管線與 API readiness；UI 收斂在 system-monitoring-400line。", "system-monitoring-400line"],
+    ["helper-status", "400LINE 服務監控舊頁", "只看 400LINE 連接服務、secret configured/missing、heartbeat/snapshot；UI 收斂為 400LINE 監控頁的服務監控 tab。", "system-watchdog"],
     ["system-operations", "IT 人員協助 / soft intervention", "查人、reset session、refresh cache、resend notification；必須 audit。", "system-control-center"],
     ["system-insights", "行為數據洞察", "讀 telemetry 行為趨勢、completion rate、role/facility/time trend。", "analytics"],
     ["system-governance", "治理 / registry / audit raw hub", "模組 registry、function relations、audit raw、topology notes 的收斂頁。", "system-function-relations"],
@@ -882,8 +882,8 @@ ${table(["Module", "Responsibility", "Boundary", "Do Not Confuse With"], rows, "
 ## Rules
 
 - 新 IT page 預設先掛到 \`system-governance\` tab 或 \`system-watchdog\` tab，除非有獨立 BFF owner。
-- 400CMS 監控看 \`system-control-center\` / \`system-watchdog\` / \`system-governance\`；400LINE 外部服務看 \`linebot-management\`。
-- 服務健康看 \`system-watchdog\`；400LINE 服務細節先看 \`linebot-management\`，舊細節頁保留在 \`helper-status\`；事件 ingestion 看 \`watchdog-events\`。
+- 400CMS 監控看 \`system-control-center\` / \`system-watchdog\` / \`system-governance\`；400LINE 外部服務看 \`system-monitoring-400line\`。
+- 服務健康看 \`system-watchdog\`；400LINE 服務細節先看 \`system-monitoring-400line\`，舊細節頁保留相容導向；事件 ingestion 看 \`watchdog-events\`。
 - 公告顯示看 \`announcements\`；群組綁定看 \`announcement-groups\`；審核看 \`announcement-review\`；統計看 \`announcement-summary\`。
 - 行為數據看 \`system-insights\`；主管營運報表保留在 \`analytics\`；portal usage 看 \`portal-analytics\`。
 `;
@@ -1001,7 +1001,7 @@ const linebotApiReadinessPage = () => `# 400LINE API Readiness
 
 [[00-index|模組總覽]] / [[400line-management-blueprint|400LINE 管理藍圖]] / [[modules/linebot-management|linebot-management]]
 
-這頁定義 400QIAN 對 400LINE API 的讀取狀態。前端不得直接呼叫 400LINE；一律經過 \`/api/bff/system/linebot-management/*\` 正規化。
+這頁定義 400QIAN 對 400LINE API 的讀取狀態。前端不得直接呼叫 400LINE；一律經過 \`/api/bff/system/linebot-management/*\` 正規化，並在 \`/system/monitoring/400line\` 呈現。
 
 ## Status Contract
 

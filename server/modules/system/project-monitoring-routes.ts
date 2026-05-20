@@ -11,6 +11,8 @@ import type {
   SystemProjectStatus,
   SystemProjectSummary,
 } from "@shared/system/project-monitoring-contract";
+import { collabCourseHealthService } from "./collab-course-health-service";
+import { smartScheduleProjectHealthService } from "./smart-schedule-project-health-service";
 
 const projectOrder: SystemProjectGroup[] = ["governance", "400cms", "400line", "schedule", "collab-course"];
 
@@ -19,45 +21,45 @@ const projectConfig: Record<SystemProjectGroup, Omit<SystemProjectSummary, "stat
     key: "governance",
     label: "總治理",
     description: "跨專案治理、監控總覽與快速導航。",
-    controlCenterHref: "/system",
+    controlCenterHref: "/system/project-overview",
     monitorHref: "/system/watchdog",
-    governanceHref: "/system/governance",
+    governanceHref: "/system/project-overview",
   },
   "400cms": {
     key: "400cms",
     label: "400CMS",
-    description: "CMS 控制中心、Watchdog、運維、行為洞察與治理面。",
+    description: "CMS 控制中心、Watchdog、運維、行為洞察與跨專案治理總覽。",
     controlCenterHref: "/system",
-    monitorHref: "/system/400cms/status",
-    governanceHref: "/system/governance",
+    monitorHref: "/system/monitoring/400cms",
+    governanceHref: "/system/project-overview",
   },
   "400line": {
     key: "400line",
     label: "400LINE",
-    description: "400LINE 管理、服務監控與白名單治理。",
-    controlCenterHref: "/system/linebot-management",
-    monitorHref: "/system/lineXBS-status",
-    governanceHref: "/system/line-whitelist",
+    description: "400LINE 監控平台、服務監控與白名單治理。",
+    controlCenterHref: "/system/monitoring/400line",
+    monitorHref: "/system/monitoring/400line",
+    governanceHref: "/system/monitoring/400line?tab=whitelist",
   },
   schedule: {
     key: "schedule",
-    label: "班表系統",
-    description: "班表控制中心與服務監控殼，等待正式資料源接入。",
+    label: "排班管理系統",
+    description: "smart-schedule-manager 健康監控，含主服務與資料庫連線狀態。",
     controlCenterHref: "/system/schedule",
-    monitorHref: "/system/schedule/status",
+    monitorHref: "/system/monitoring/schedule",
   },
   "collab-course": {
     key: "collab-course",
     label: "偕同課系統",
-    description: "偕同課控制中心與服務監控殼，等待正式資料源接入。",
-    controlCenterHref: "/system/collab-course",
+    description: "swim-scheduler 健康監控，含部署狀態、資料庫連線、LINE 推播與 Ragic 同步。",
+    controlCenterHref: "/supervisor/collab-courses",
     monitorHref: "/system/collab-course/status",
   },
 };
 
 const projectModuleIds: Record<Exclude<SystemProjectGroup, "governance" | "schedule" | "collab-course">, string[]> = {
-  "400cms": ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-cms-monitoring"],
-  "400line": ["linebot-management", "helper-status", "line-whitelist"],
+  "400cms": ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-monitoring-400cms", "system-cms-monitoring"],
+  "400line": ["system-monitoring-400line", "linebot-management", "helper-status", "line-whitelist"],
 };
 
 const nowIso = () => new Date().toISOString();
@@ -98,30 +100,7 @@ const servicesFromModuleHealth = (items: ModuleHealthDto[], moduleIds: string[])
   }));
 };
 
-const placeholderServices = (projectKey: Extract<SystemProjectGroup, "schedule" | "collab-course">, generatedAt: string): SystemProjectService[] => {
-  const label = projectKey === "schedule" ? "班表系統" : "偕同課系統";
-  const source = projectKey === "schedule" ? "SMART_SCHEDULE_MANAGER" : "COLLAB_COURSE_SYSTEM";
-  return [
-    {
-      id: `${projectKey}-control-center`,
-      label: `${label}控制中心`,
-      status: "not_connected",
-      message: `${source} 尚未接入 CMS BFF；目前只建立監控殼與導覽契約。`,
-      source,
-      lastCheckedAt: generatedAt,
-    },
-    {
-      id: `${projectKey}-service-monitoring`,
-      label: `${label}服務監控`,
-      status: "not_connected",
-      message: "等待資料源提供 health/readiness endpoint 後接線。",
-      source: `${source}:health`,
-      lastCheckedAt: generatedAt,
-    },
-  ];
-};
-
-const buildProjectDetail = (projectKey: SystemProjectGroup, container: AppContainer): SystemProjectDetailDto => {
+const buildProjectDetail = async (projectKey: SystemProjectGroup, container: AppContainer): Promise<SystemProjectDetailDto> => {
   const generatedAt = nowIso();
   const moduleHealth = getModuleHealth("system");
   const allSystemServices = servicesFromModuleHealth(moduleHealth, moduleHealth.map((item) => item.moduleId));
@@ -144,15 +123,28 @@ const buildProjectDetail = (projectKey: SystemProjectGroup, container: AppContai
       label: "400LINE 連線設定",
       status: container.config.lineBotBaseUrl ? "degraded" : "not_connected",
       message: container.config.lineBotBaseUrl
-        ? "CMS 已設定 400LINE base URL；詳細健康狀態請看 /system/lineXBS-status 分類監控。"
+        ? "CMS 已設定 400LINE base URL；詳細健康狀態請看 /system/monitoring/400line 分類監控。"
         : "LINE_BOT_BASE_URL 尚未設定，不能直接確認 400LINE 狀態。",
       source: "LINE_BOT_BASE_URL",
       lastCheckedAt: generatedAt,
     });
     notes = ["400LINE 一律透過 CMS BFF 讀取，不由前端直接呼叫 400LINE。"];
+  } else if (projectKey === "schedule") {
+    services = await smartScheduleProjectHealthService.getServices();
+    const readyCount = services.filter((s) => s.status === "ready").length;
+    notes = [
+      `資料來源：smart-schedule-manager /api/health`,
+      `正常服務數：${readyCount} / ${services.length}`,
+      "排班管理系統透過 INTERNAL_API_TOKEN 驗證；API 監控詳見 /system/monitoring/schedule。",
+    ];
   } else {
-    services = placeholderServices(projectKey, generatedAt);
-    notes = ["目前是監控殼，不顯示假健康；後續接入資料源後會改由真 endpoint 回報。"];
+    services = await collabCourseHealthService.getServices();
+    const readyCount = services.filter((s) => s.status === "ready").length;
+    notes = [
+      `資料來源：swim-scheduler /api/deployment-test 與 /api/admin/it-governance`,
+      `正常服務數：${readyCount} / ${services.length}`,
+      "偕同課系統管理端點使用 SWIM_SCHEDULER_ADMIN_PASSWORD 驗證。",
+    ];
   }
 
   const metrics = metricsFromServices(services);
@@ -167,30 +159,28 @@ const buildProjectDetail = (projectKey: SystemProjectGroup, container: AppContai
 };
 
 export const registerProjectMonitoringRoutes = (app: Express, container: AppContainer) => {
-  app.get("/api/bff/system/project-monitoring", requireSession, requireRole("system"), (_req, res) => {
-    const items = projectOrder.map((projectKey) => {
-      const detail = buildProjectDetail(projectKey, container);
-      return {
-        key: detail.key,
-        label: detail.label,
-        description: detail.description,
-        status: detail.status,
-        controlCenterHref: detail.controlCenterHref,
-        monitorHref: detail.monitorHref,
-        governanceHref: detail.governanceHref,
-        metrics: detail.metrics,
-        lastUpdatedAt: detail.lastUpdatedAt,
-      };
-    });
+  app.get("/api/bff/system/project-monitoring", requireSession, requireRole("system"), async (_req, res) => {
+    const details = await Promise.all(projectOrder.map((projectKey) => buildProjectDetail(projectKey, container)));
+    const items = details.map((detail) => ({
+      key: detail.key,
+      label: detail.label,
+      description: detail.description,
+      status: detail.status,
+      controlCenterHref: detail.controlCenterHref,
+      monitorHref: detail.monitorHref,
+      governanceHref: detail.governanceHref,
+      metrics: detail.metrics,
+      lastUpdatedAt: detail.lastUpdatedAt,
+    }));
     const dto: SystemProjectMonitoringDto = { generatedAt: nowIso(), items };
     return res.json(dto);
   });
 
-  app.get("/api/bff/system/project-monitoring/:projectKey", requireSession, requireRole("system"), (req, res) => {
+  app.get("/api/bff/system/project-monitoring/:projectKey", requireSession, requireRole("system"), async (req, res) => {
     const projectKey = String(req.params.projectKey ?? "") as SystemProjectGroup;
     if (!projectOrder.includes(projectKey)) {
       return res.status(404).json({ message: "SYSTEM_PROJECT_NOT_FOUND" });
     }
-    return res.json(buildProjectDetail(projectKey, container));
+    return res.json(await buildProjectDetail(projectKey, container));
   });
 };

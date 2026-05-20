@@ -61,6 +61,7 @@ function MobileDrawer({
   onClose,
   title,
   facilityName,
+  canSwitchRoles,
   items,
   location,
   onNavigate,
@@ -69,6 +70,7 @@ function MobileDrawer({
   onClose: () => void;
   title: string;
   facilityName: string;
+  canSwitchRoles: boolean;
   items: Array<{ id: string; label: string; href: string; Icon: LucideIcon }>;
   location: string;
   onNavigate: (item: { id: string; href: string }) => void;
@@ -101,7 +103,7 @@ function MobileDrawer({
               <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">場館</p>
               <WorkbenchFacilitySwitcher compact tone="lifeguard" className="min-h-[48px] w-full text-[14px]" />
             </div>
-            {(session?.grantedRoles?.length ?? 0) > 1 && (
+            {canSwitchRoles && (
               <div>
                 <p className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">角色</p>
                 <RoleSwitcher compact visualActiveRole="lifeguard" />
@@ -323,9 +325,6 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
                 <WorkbenchFacilitySwitcher tone="lifeguard" className="w-[172px] max-w-[54vw]" />
               </div>
               <div className="flex items-center gap-2">
-                <div className="hidden lg:block">
-                  <RoleSwitcher visualActiveRole="lifeguard" />
-                </div>
                 <WorkbenchGlobalSearch role="lifeguard" />
                 <WorkbenchNotificationBell role="lifeguard" />
               </div>
@@ -381,6 +380,7 @@ export function LifeguardShell({ title, subtitle, children }: { title: string; s
         onClose={() => setMobileMenuOpen(false)}
         title="救生員選單"
         facilityName={facilityName}
+        canSwitchRoles={(session?.grantedRoles?.length ?? 0) > 1}
         items={primaryNav}
         location={location}
         onNavigate={trackNavigate}

@@ -40,6 +40,7 @@ import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { BrandLockup } from "@/shared/brand";
 import { getWorkbenchRoutes, type WorkbenchRouteDescriptor } from "@shared/navigation/workbench-routes";
 import { WorkbenchNotificationBell } from "./workbench-notification-bell";
+import { WorkbenchGlobalSearch } from "./workbench-global-search";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,13 +83,21 @@ const iconByKey: Record<string, LucideIcon> = {
   car: Car,
 };
 
-const systemNavGroups = [
-  { key: "400cms", label: "400CMS", ids: ["system-control-center", "system-watchdog", "system-operations", "system-insights", "system-governance", "system-cms-monitoring"] },
-  { key: "400line", label: "400LINE", ids: ["linebot-management", "helper-status", "line-whitelist"] },
-  { key: "schedule", label: "班表系統", ids: ["system-schedule-control", "system-schedule-monitoring"] },
-  { key: "collab-course", label: "偕同課系統", ids: ["system-collab-course-control", "system-collab-course-monitoring"] },
+const systemMonitoringNavIds = [
+  "system-monitoring-400line",
+  "system-monitoring-schedule",
+  "system-monitoring-collab-course",
 ] as const;
 
+const cmsMonitoringNavIds = [
+  "system-watchdog",
+  "system-cms-monitoring",
+  "system-insights",
+] as const;
+
+const cmsOperationsNavIds = [
+  "system-operations",
+] as const;
 
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
   id: item.id,
@@ -248,21 +257,34 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">總治理</div>
                 <Link
                   href="/system/project-overview"
-                  className="workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-left text-[13.5px] font-bold text-[#d8e3ef] transition hover:bg-white/[0.06] hover:text-white"
+                  className={cn(
+                    "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-left text-[13.5px] font-bold transition",
+                    location === "/system/project-overview"
+                      ? "bg-[#2f9e5b] text-white"
+                      : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
+                  )}
                 >
                   <Network className="h-4 w-4" />
                   <span className="min-w-0 flex-1 truncate">跨專案總覽</span>
                 </Link>
-                {systemNavGroups.map((group) => {
-                  const groupItems = group.ids.map((id) => nav.find((item) => item.id === id)).filter(Boolean) as NavItem[];
-                  if (!groupItems.length) return null;
-                  return (
-                    <div key={group.key} className="contents">
-                      <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#9eacbc]">{group.label}</div>
-                      {groupItems.map((item) => renderNavLink(item))}
-                    </div>
-                  );
-                })}
+
+                <div className="mt-2 px-2 pt-2 text-[9.5px] font-black tracking-[0.18em] text-[#9eacbc]">cms內部服務</div>
+                <div className="mt-1 pl-3 text-[9px] font-bold tracking-[0.14em] text-[#6f8092]">監控</div>
+                {cmsMonitoringNavIds
+                  .map((id) => nav.find((item) => item.id === id))
+                  .filter(Boolean)
+                  .map((item) => renderNavLink(item as NavItem))}
+                <div className="mt-1 pl-3 text-[9px] font-bold tracking-[0.14em] text-[#6f8092]">運維</div>
+                {cmsOperationsNavIds
+                  .map((id) => nav.find((item) => item.id === id))
+                  .filter(Boolean)
+                  .map((item) => renderNavLink(item as NavItem))}
+
+                <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">監控平台</div>
+                {systemMonitoringNavIds
+                  .map((id) => nav.find((item) => item.id === id))
+                  .filter(Boolean)
+                  .map((item) => renderNavLink(item as NavItem))}
               </>
             ) : (
               nav.map((item, index) => renderNavLink(item, index))
@@ -320,6 +342,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
                 <div className="hidden lg:block">
                   <RoleSwitcher />
                 </div>
+                <WorkbenchGlobalSearch role={role} />
                 <WorkbenchNotificationBell role={role} allowCompose />
               </div>
             </div>

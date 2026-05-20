@@ -237,7 +237,7 @@ assert(
   getNavigationModules("system")
     .map((item) => item.id)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,system-cms-monitoring,linebot-management,helper-status,line-whitelist,system-schedule-control,system-schedule-monitoring,system-collab-course-control,system-collab-course-monitoring",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-monitoring-400line,system-monitoring-schedule,system-monitoring-collab-course",
   `system navigation order changed: ${getNavigationModules("system")
     .map((item) => item.id)
     .join(",")}`,
@@ -246,7 +246,7 @@ assert(
   getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",") ===
-    "system-control-center,system-watchdog,system-operations,system-insights,system-governance,system-cms-monitoring,linebot-management,helper-status,line-whitelist,system-schedule-control,system-schedule-monitoring,system-collab-course-control,system-collab-course-monitoring",
+    "system-control-center,system-watchdog,system-operations,system-insights,system-monitoring-400line,system-monitoring-schedule,system-monitoring-collab-course",
   `system home card order changed: ${getHomeLayoutCards("system")
     .map((item) => item.moduleId)
     .join(",")}`,
