@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useRef, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   CheckCircle2,
   Clock3,
   EyeOff,
+  Image as ImageIcon,
   Megaphone,
   Pencil,
   Pin,
@@ -56,14 +57,6 @@ const typeMeta: Record<AnnouncementKind, { label: string; badgeClass: string; ro
   event: { label: "活動 / 折扣", badgeClass: "bg-[#eaf2ff] text-[#2f6fe8]", rowClass: "bg-white" },
 };
 
-const PIN_PRESETS: Array<{ key: string; label: string; hours: number }> = [
-  { key: "1h", label: "1 小時", hours: 1 },
-  { key: "4h", label: "4 小時", hours: 4 },
-  { key: "1d", label: "1 天", hours: 24 },
-  { key: "3d", label: "3 天", hours: 72 },
-  { key: "7d", label: "7 天", hours: 168 },
-];
-
 const toDisplayTime = (value: string | undefined | null) => {
   if (!value) return "未設定";
   const parsed = Date.parse(value);
@@ -85,15 +78,6 @@ const toRelativeFuture = (iso: string | null | undefined) => {
   return `${days} 天後到期`;
 };
 
-const toTimestamp = (item: UiAnnouncement) => {
-  const candidates = [item.scheduledAt, item.publishedAt, item.deadlineLabel, item.effectiveRange, item.acknowledgedAt];
-  for (const candidate of candidates) {
-    const parsed = Date.parse(candidate ?? "");
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return 0;
-};
-
 const inferKind = (item: UiAnnouncement): AnnouncementKind => {
   if (item.type === "required" || item.type === "sop" || item.type === "notice" || item.type === "event") return item.type;
   if (item.priority === "required") return "required";
@@ -102,6 +86,56 @@ const inferKind = (item: UiAnnouncement): AnnouncementKind => {
   if (/活動|折扣|優惠|課程|報名|event|sale/.test(text)) return "event";
   return "notice";
 };
+
+// ── Note rendering: parse [img:url] tokens embedded in note text ─────────────
+function parseNoteSegments(note: string): Array<{ type: "text"; value: string } | { type: "image"; url: string }> {
+  const segments: Array<{ type: "text"; value: string } | { type: "image"; url: string }> = [];
+  const re = /\[img:(https?:\/\/[^\]]+)\]/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(note)) !== null) {
+    if (match.index > last) segments.push({ type: "text", value: note.slice(last, match.index) });
+    segments.push({ type: "image", url: match[1] });
+    last = match.index + match[0].length;
+  }
+  if (last < note.length) segments.push({ type: "text", value: note.slice(last) });
+  return segments;
+}
+
+function NoteContent({ note }: { note: string }) {
+  const segments = parseNoteSegments(note);
+  return (
+    <span>
+      {segments.map((seg, i) =>
+        seg.type === "image" ? (
+          <img
+            key={i}
+            src={seg.url}
+            alt="備註附圖"
+            className="mt-2 block max-h-48 max-w-full rounded-[6px] border border-[#f1c66c] object-contain"
+          />
+        ) : (
+          <span key={i} className="whitespace-pre-wrap">{seg.value}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
+// ── Image upload via presigned URL ───────────────────────────────────────────
+async function uploadNoteImage(file: File): Promise<string> {
+  const res = await fetch("/api/uploads/request-url", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+  });
+  if (!res.ok) throw new Error("無法取得上傳位址");
+  const { uploadURL, objectPath } = await res.json() as { uploadURL: string; objectPath: string };
+  const put = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+  if (!put.ok) throw new Error("圖片上傳失敗");
+  return objectPath as string;
+}
 
 export default function EmployeeAnnouncementsPage() {
   const auth = useAuthMe();
@@ -116,6 +150,8 @@ export default function EmployeeAnnouncementsPage() {
   const [hiddenPanelOpen, setHiddenPanelOpen] = useState(false);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [noteImageUploading, setNoteImageUploading] = useState(false);
+  const noteImageInputRef = useRef<HTMLInputElement>(null);
   const [activePinId, setActivePinId] = useState<string | null>(null);
   const [pinUntilDraft, setPinUntilDraft] = useState("");
   const [draft, setDraft] = useState({
@@ -227,6 +263,20 @@ export default function EmployeeAnnouncementsPage() {
     noteMutation.mutate({ id, note: trimmed.length === 0 ? null : trimmed });
   };
 
+  const handleNoteImagePick = async (file: File) => {
+    if (!file) return;
+    setNoteImageUploading(true);
+    try {
+      const url = await uploadNoteImage(file);
+      setNoteDraft((prev) => `${prev}${prev.length > 0 ? "\n" : ""}[img:${url}]`);
+    } catch {
+      alert("圖片上傳失敗，請稍後再試。");
+    } finally {
+      setNoteImageUploading(false);
+      if (noteImageInputRef.current) noteImageInputRef.current.value = "";
+    }
+  };
+
   const openPinPicker = (item: UiAnnouncement) => {
     setActivePinId(item.id);
     const next = new Date(Date.now() + 60 * 60 * 1000);
@@ -234,11 +284,16 @@ export default function EmployeeAnnouncementsPage() {
     const iso = new Date(next.getTime() - next.getTimezoneOffset() * 60000).toISOString();
     setPinUntilDraft(iso.slice(0, 16));
   };
-  const submitPin = (id: string, hours?: number) => {
-    let untilIso: string | null = null;
-    if (hours) untilIso = new Date(Date.now() + hours * 3600 * 1000).toISOString();
-    else if (pinUntilDraft) untilIso = new Date(pinUntilDraft).toISOString();
-    if (!untilIso) return;
+
+  const submitPin = (id: string, forever?: boolean) => {
+    let untilIso: string;
+    if (forever) {
+      untilIso = new Date(Date.now() + 100 * 365 * 24 * 3600 * 1000).toISOString();
+    } else if (pinUntilDraft) {
+      untilIso = new Date(pinUntilDraft).toISOString();
+    } else {
+      return;
+    }
     pinMutation.mutate({ id, until: untilIso });
   };
 
@@ -307,9 +362,7 @@ export default function EmployeeAnnouncementsPage() {
           <WorkbenchCard className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-[14px] font-black text-[#10233f]">已隱藏公告（僅主管可見）</h3>
-              <span className="text-[11px] font-bold text-[#8b9aae]">
-                共 {hiddenQuery.data?.length ?? 0} 則
-              </span>
+              <span className="text-[11px] font-bold text-[#8b9aae]">共 {hiddenQuery.data?.length ?? 0} 則</span>
             </div>
             {hiddenQuery.isLoading ? (
               <DreamLoader compact label="讀取已隱藏公告" />
@@ -431,60 +484,57 @@ export default function EmployeeAnnouncementsPage() {
                 const pinExpiry = toRelativeFuture(item.overlayPinnedUntil);
                 const isOverlayPinned = Boolean(item.overlayPinnedUntil) && pinExpiry !== null;
                 const sortTime = toDisplayTime(item.scheduledAt ?? item.publishedAt ?? item.effectiveRange);
-                const fullText = item.content || item.summary || "（無原文內容）";
                 return (
                   <li
                     key={item.id}
-                    className={cn("px-4 py-4", item.isPinned ? "bg-[#fff8f9]" : meta.rowClass)}
+                    className={cn("px-4 py-3", item.isPinned ? "bg-[#fff8f9]" : meta.rowClass)}
                     data-testid={`row-announcement-${item.id}`}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("rounded-[6px] px-2 py-1 text-[11px] font-black", meta.badgeClass)}>{meta.label}</span>
+                    {/* Single-line title row */}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className={cn("shrink-0 rounded-[6px] px-2 py-0.5 text-[11px] font-black", meta.badgeClass)}>
+                        {meta.label}
+                      </span>
                       {isOverlayPinned ? (
-                        <span className="inline-flex items-center gap-1 rounded-[6px] bg-[#ffe8ed] px-2 py-1 text-[11px] font-black text-[#ff4964]">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-[#ffe8ed] px-2 py-0.5 text-[11px] font-black text-[#ff4964]">
                           <Pin className="h-3 w-3" /> 置頂・{pinExpiry}
                         </span>
                       ) : item.isPinned ? (
-                        <span className="inline-flex items-center gap-1 rounded-[6px] bg-[#eef2f6] px-2 py-1 text-[11px] font-black text-[#637185]">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-[#eef2f6] px-2 py-0.5 text-[11px] font-black text-[#637185]">
                           <Pin className="h-3 w-3" /> 置頂
                         </span>
                       ) : null}
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#8b9aae]">
+                      <h3 className="min-w-0 flex-1 truncate text-[14px] font-black text-[#10233f]">{item.title}</h3>
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-bold text-[#8b9aae]">
                         <Clock3 className="h-3 w-3" /> {sortTime}
                       </span>
                       {item.sourceLabel ? (
-                        <span className="text-[11px] font-bold text-[#8b9aae]">・{item.sourceLabel}</span>
+                        <span className="shrink-0 text-[11px] font-bold text-[#8b9aae]">・{item.sourceLabel}</span>
                       ) : null}
                     </div>
 
-                    <h3 className="mt-2 text-[14px] font-black leading-5 text-[#10233f]">{item.title}</h3>
-
+                    {/* Overlay note (if any) */}
                     {item.overlayNote ? (
                       <div className="mt-2 flex items-start gap-2 rounded-[6px] border border-[#f1c66c] bg-[#fffaf0] px-3 py-2 text-[12px] font-bold leading-5 text-[#8a6510]">
                         <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span className="whitespace-pre-wrap">{item.overlayNote}</span>
-                        <span className="ml-auto text-[10px] font-bold text-[#b89252]">
+                        <div className="min-w-0 flex-1">
+                          <NoteContent note={item.overlayNote} />
+                        </div>
+                        <span className="ml-auto shrink-0 text-[10px] font-bold text-[#b89252]">
                           {item.overlayLastModifiedByName ?? "—"}
                         </span>
                       </div>
                     ) : null}
 
-                    <p
-                      className="mt-2 whitespace-pre-wrap text-[13px] font-medium leading-6 text-[#3a4658]"
-                      data-testid={`text-content-${item.id}`}
-                    >
-                      {fullText}
-                    </p>
-
                     {/* Action bar */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         disabled={ackMutation.isPending || acknowledged}
                         onClick={() => ackMutation.mutate(item.id)}
                         data-testid={`button-ack-${item.id}`}
                         className={cn(
-                          "workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] px-3 text-[11px] font-black disabled:cursor-not-allowed",
+                          "workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] px-2.5 text-[11px] font-black disabled:cursor-not-allowed",
                           acknowledged ? "bg-[#eef2f6] text-[#637185]" : "bg-[#1f3f68] text-white",
                         )}
                       >
@@ -498,7 +548,7 @@ export default function EmployeeAnnouncementsPage() {
                           onClick={() => unpinMutation.mutate(item.id)}
                           disabled={unpinMutation.isPending}
                           data-testid={`button-unpin-${item.id}`}
-                          className="workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#637185]"
+                          className="workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-2.5 text-[11px] font-black text-[#637185]"
                         >
                           <PinOff className="h-3.5 w-3.5" /> 取消置頂
                         </button>
@@ -507,7 +557,7 @@ export default function EmployeeAnnouncementsPage() {
                           type="button"
                           onClick={() => openPinPicker(item)}
                           data-testid={`button-pin-${item.id}`}
-                          className="workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#637185]"
+                          className="workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-2.5 text-[11px] font-black text-[#637185]"
                         >
                           <Pin className="h-3.5 w-3.5" /> 置頂到…
                         </button>
@@ -517,7 +567,7 @@ export default function EmployeeAnnouncementsPage() {
                         type="button"
                         onClick={() => openNoteEditor(item)}
                         data-testid={`button-note-${item.id}`}
-                        className="workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#637185]"
+                        className="workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-white px-2.5 text-[11px] font-black text-[#637185]"
                       >
                         <Pencil className="h-3.5 w-3.5" /> {item.overlayNote ? "編輯備註" : "加備註"}
                       </button>
@@ -531,29 +581,17 @@ export default function EmployeeAnnouncementsPage() {
                         }}
                         disabled={hideMutation.isPending}
                         data-testid={`button-hide-${item.id}`}
-                        className="workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] border border-[#fcd6db] bg-[#fff5f6] px-3 text-[11px] font-black text-[#d23a4f]"
+                        className="workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] border border-[#fcd6db] bg-[#fff5f6] px-2.5 text-[11px] font-black text-[#d23a4f]"
                       >
                         <Trash2 className="h-3.5 w-3.5" /> 隱藏
                       </button>
                     </div>
 
-                    {/* Pin picker inline */}
+                    {/* Pin picker — 自訂時間 + 無限制 only */}
                     {activePinId === item.id ? (
-                      <div className="mt-3 rounded-[8px] border border-[#dfe7ef] bg-white p-3">
+                      <div className="mt-2 rounded-[8px] border border-[#dfe7ef] bg-white p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[11px] font-black text-[#637185]">置頂期間：</span>
-                          {PIN_PRESETS.map((preset) => (
-                            <button
-                              key={preset.key}
-                              type="button"
-                              onClick={() => submitPin(item.id, preset.hours)}
-                              disabled={pinMutation.isPending}
-                              data-testid={`button-pin-preset-${preset.key}-${item.id}`}
-                              className="workbench-focus min-h-8 rounded-[6px] border border-[#dfe7ef] bg-[#f7f9fb] px-3 text-[11px] font-black text-[#10233f]"
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
                           <input
                             type="datetime-local"
                             value={pinUntilDraft}
@@ -565,17 +603,23 @@ export default function EmployeeAnnouncementsPage() {
                             type="button"
                             onClick={() => submitPin(item.id)}
                             disabled={!pinUntilDraft || pinMutation.isPending}
-                            data-testid={`button-pin-confirm-${item.id}`}
+                            data-testid={`button-pin-custom-${item.id}`}
                             className="workbench-focus min-h-8 rounded-[6px] bg-[#0d2a50] px-3 text-[11px] font-black text-white disabled:bg-[#8b9aae]"
                           >
                             自訂時間
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              setActivePinId(null);
-                              setPinUntilDraft("");
-                            }}
+                            onClick={() => submitPin(item.id, true)}
+                            disabled={pinMutation.isPending}
+                            data-testid={`button-pin-forever-${item.id}`}
+                            className="workbench-focus min-h-8 rounded-[6px] border border-[#dfe7ef] bg-[#f7f9fb] px-3 text-[11px] font-black text-[#10233f]"
+                          >
+                            無限制
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setActivePinId(null); setPinUntilDraft(""); }}
                             className="workbench-focus inline-flex min-h-8 items-center gap-1 rounded-[6px] px-2 text-[11px] font-black text-[#8b9aae]"
                           >
                             <X className="h-3.5 w-3.5" /> 取消
@@ -584,25 +628,44 @@ export default function EmployeeAnnouncementsPage() {
                       </div>
                     ) : null}
 
-                    {/* Note editor inline */}
+                    {/* Note editor — with image upload */}
                     {activeNoteId === item.id ? (
-                      <div className="mt-3 rounded-[8px] border border-[#dfe7ef] bg-white p-3">
+                      <div className="mt-2 rounded-[8px] border border-[#dfe7ef] bg-white p-3">
                         <textarea
                           value={noteDraft}
                           onChange={(e) => setNoteDraft(e.target.value)}
                           placeholder="例如：與 5/8 公告重複；以此則為準"
                           rows={2}
-                          maxLength={1000}
                           data-testid={`input-note-${item.id}`}
                           className="w-full rounded-[6px] border border-[#dfe7ef] bg-[#fbfcfd] p-2 text-[12px] font-bold text-[#10233f] outline-none"
                         />
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => noteImageInputRef.current?.click()}
+                            disabled={noteImageUploading}
+                            data-testid={`button-note-image-${item.id}`}
+                            className="workbench-focus inline-flex min-h-7 items-center gap-1 rounded-[6px] border border-[#dfe7ef] bg-[#f7f9fb] px-2.5 text-[11px] font-black text-[#637185] disabled:opacity-50"
+                          >
+                            <ImageIcon className="h-3.5 w-3.5" />
+                            {noteImageUploading ? "上傳中…" : "附圖"}
+                          </button>
+                          <input
+                            ref={noteImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleNoteImagePick(file);
+                            }}
+                          />
+                          <span className="text-[10px] font-bold text-[#9aa8ba]">圖片嵌入備註</span>
+                        </div>
                         <div className="mt-2 flex items-center justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveNoteId(null);
-                              setNoteDraft("");
-                            }}
+                            onClick={() => { setActiveNoteId(null); setNoteDraft(""); }}
                             className="workbench-focus min-h-8 rounded-[6px] px-3 text-[11px] font-black text-[#8b9aae]"
                           >
                             取消
@@ -621,9 +684,9 @@ export default function EmployeeAnnouncementsPage() {
                           <button
                             type="button"
                             onClick={() => submitNote(item.id)}
-                            disabled={noteMutation.isPending}
+                            disabled={noteMutation.isPending || noteImageUploading}
                             data-testid={`button-note-save-${item.id}`}
-                            className="workbench-focus min-h-8 rounded-[6px] bg-[#0d2a50] px-3 text-[11px] font-black text-white"
+                            className="workbench-focus min-h-8 rounded-[6px] bg-[#0d2a50] px-3 text-[11px] font-black text-white disabled:bg-[#8b9aae]"
                           >
                             儲存
                           </button>
