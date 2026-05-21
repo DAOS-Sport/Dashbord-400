@@ -48,7 +48,7 @@ import type {
   ScheduleEndpointProbe,
   ScheduleMonitoringBlock,
 } from "@shared/system/api-monitoring-contract";
-import type { LinebotApiReadiness, LinebotManagementStatus } from "@shared/system/linebot-management-contract";
+import type { LinebotApiReadiness, LinebotManagementCard, LinebotManagementStatus } from "@shared/system/linebot-management-contract";
 
 /* ============================================================
  * Design Tokens
@@ -340,14 +340,105 @@ function KpiCard({
   );
 }
 
+/** 400LINE 能力概覽 KPI 欄（取代通用 4 格計數） */
+function LineCapabilityKpiBar({
+  cards,
+  isLoading,
+  isError,
+}: {
+  cards: LinebotManagementCard[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const accentFor = (status: LinebotManagementStatus) => {
+    const token = lineStatusToToken(status);
+    return {
+      healthy: "before:bg-emerald-500",
+      warning: "before:bg-amber-500",
+      error: "before:bg-rose-500",
+      idle: "before:bg-slate-300",
+    }[token];
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-3 md:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <WorkbenchCard
+            key={i}
+            className="relative overflow-hidden p-4 pl-5 before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-slate-200"
+          >
+            <div className="h-3 w-20 animate-pulse rounded bg-slate-200" />
+            <div className="mt-3 h-7 w-12 animate-pulse rounded bg-slate-100" />
+          </WorkbenchCard>
+        ))}
+      </div>
+    );
+  }
+
+  if (isError || !cards.length) {
+    return (
+      <div className="grid gap-3 md:grid-cols-4">
+        {["健康功能", "需注意功能", "服務列", "館別/群組"].map((label) => (
+          <WorkbenchCard
+            key={label}
+            className="relative overflow-hidden p-4 pl-5 before:absolute before:left-0 before:top-0 before:h-full before:w-1 before:bg-slate-200"
+          >
+            <div className="flex items-center justify-between">
+              <SectionLabel>{label}</SectionLabel>
+              <Server className={cn("h-4 w-4", tone.inkFaint)} />
+            </div>
+            <p className={cn("mt-2 text-[28px] font-semibold leading-none tabular-nums", tone.inkFaint)}>—</p>
+          </WorkbenchCard>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "grid gap-3",
+        cards.length >= 5 ? "md:grid-cols-5" : "md:grid-cols-4",
+      )}
+    >
+      {cards.map((card) => {
+        const token = lineStatusToToken(card.status);
+        const t = statusToken[token];
+        return (
+          <WorkbenchCard
+            key={card.label}
+            className={cn(
+              "relative overflow-hidden p-4 pl-5",
+              "before:absolute before:left-0 before:top-0 before:h-full before:w-1",
+              accentFor(card.status),
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <SectionLabel>{card.label}</SectionLabel>
+              <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", t.dot)} />
+            </div>
+            <p className={cn("mt-2 text-[28px] font-semibold leading-none tabular-nums", t.text)}>
+              {card.value}
+            </p>
+            <p className={cn("mt-1 truncate text-[11px]", tone.inkFaint)}>{card.hint}</p>
+          </WorkbenchCard>
+        );
+      })}
+    </div>
+  );
+}
+
 function MonitoringTopShell<Key extends string>({
   summary,
+  kpiSlot,
   tabs,
   activeTab,
   onSelectTab,
   children,
 }: {
   summary: MonitoringSummary | undefined;
+  kpiSlot?: React.ReactNode;
   tabs: ReadonlyArray<MonitoringTab<Key>>;
   activeTab: Key;
   onSelectTab: (key: Key) => void;
@@ -355,12 +446,16 @@ function MonitoringTopShell<Key extends string>({
 }) {
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 md:grid-cols-4">
-        <KpiCard label="API 總數" value={summary?.totalApis ?? 0} Icon={Server} accent="ink" />
-        <KpiCard label="正常" value={summary?.healthyApis ?? 0} Icon={ShieldCheck} accent="healthy" />
-        <KpiCard label="警告" value={summary?.warningApis ?? 0} Icon={AlertTriangle} accent="warning" />
-        <KpiCard label="異常" value={summary?.errorApis ?? 0} Icon={XCircle} accent="error" />
-      </div>
+      {kpiSlot !== undefined ? (
+        kpiSlot
+      ) : (
+        <div className="grid gap-3 md:grid-cols-4">
+          <KpiCard label="API 總數" value={summary?.totalApis ?? 0} Icon={Server} accent="ink" />
+          <KpiCard label="正常" value={summary?.healthyApis ?? 0} Icon={ShieldCheck} accent="healthy" />
+          <KpiCard label="警告" value={summary?.warningApis ?? 0} Icon={AlertTriangle} accent="warning" />
+          <KpiCard label="異常" value={summary?.errorApis ?? 0} Icon={XCircle} accent="error" />
+        </div>
+      )}
 
       <WorkbenchCard className="overflow-hidden p-0">
         <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-3 pt-2">
@@ -909,6 +1004,95 @@ function ApiHealthPanel({
   );
 }
 
+/** collab-course 專用：GET 端點 / POST-DELETE 端點分區顯示 */
+function CollabCourseHealthPanel({
+  rows,
+  isLoading,
+  onOpenDetail,
+}: {
+  rows: ApiMonitoringRow[];
+  isLoading: boolean;
+  onOpenDetail?: (row: ApiMonitoringRow) => void;
+}) {
+  const getRows = rows.filter((r) => !r.skipped);
+  const mutatingRows = rows.filter((r) => r.skipped);
+
+  const tableHeader = (
+    <div className="grid grid-cols-[88px_minmax(0,1fr)_120px_180px] gap-4 border-b border-slate-100 bg-slate-50/60 px-5 py-2 text-[10.5px] font-semibold uppercase tracking-wider text-slate-500">
+      <span>狀態</span>
+      <span>API</span>
+      <span className="text-right">流量 / 延遲</span>
+      <span className="text-right">24h 趨勢</span>
+    </div>
+  );
+
+  const renderGroups = (tableRows: ApiMonitoringRow[], placeholder: string) => {
+    if (isLoading) {
+      return <div className="px-5 py-8 text-center text-[12px] text-slate-500">API 監控載入中...</div>;
+    }
+    if (!tableRows.length) {
+      return <div className="px-5 py-8"><EmptyState>{placeholder}</EmptyState></div>;
+    }
+    const groups = new Map<string, ApiMonitoringRow[]>();
+    tableRows.forEach((row) => {
+      groups.set(row.source, [...(groups.get(row.source) ?? []), row]);
+    });
+    return (
+      <>
+        {Array.from(groups.entries()).map(([src, groupRows]) => (
+          <section key={src}>
+            <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/40 px-5 py-2">
+              <span className={cn("text-[11px] font-semibold uppercase tracking-wider", tone.inkSoft)}>
+                {src}
+              </span>
+              <span className="rounded-full bg-slate-200/70 px-2 py-px text-[10px] font-semibold tabular-nums text-slate-600">
+                {groupRows.length}
+              </span>
+            </div>
+            {groupRows.map((row) => (
+              <ApiRow key={row.id} row={row} onOpenDetail={onOpenDetail} />
+            ))}
+          </section>
+        ))}
+      </>
+    );
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="mb-1 flex items-center gap-2">
+          <h2 className={cn("text-[15px] font-semibold", tone.ink)}>讀取端點（GET）</h2>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-slate-600">
+            {isLoading ? "—" : getRows.length}
+          </span>
+        </div>
+        <p className={cn("mb-3 text-[12px]", tone.inkSoft)}>主動探活，納入 KPI 統計。</p>
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          {tableHeader}
+          {renderGroups(getRows, "偕同課系統 GET 端點尚未接入。")}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-center gap-2">
+          <h2 className={cn("text-[15px] font-semibold", tone.ink)}>寫入端點（POST / DELETE）</h2>
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-semibold tabular-nums text-slate-600">
+            {isLoading ? "—" : mutatingRows.length}
+          </span>
+        </div>
+        <p className={cn("mb-3 text-[12px]", tone.inkSoft)}>
+          寫入端點不主動探活，不計入 KPI 統計；僅供架構參考。
+        </p>
+        <div className="overflow-hidden rounded-md border border-slate-200/60 bg-white opacity-75">
+          {tableHeader}
+          {renderGroups(mutatingRows, "無寫入端點登錄。")}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecentErrorsPanel({ recentErrors }: { recentErrors: ApiMonitoringError[] }) {
   if (recentErrors.length === 0) {
     return <EmptyState>最近沒有 4xx / 5xx / timeout / aborted。</EmptyState>;
@@ -952,13 +1136,18 @@ function AuditEventsPanel({ auditEvents }: { auditEvents: ApiMonitoringAuditEven
       {auditEvents.slice(0, 50).map((event) => (
         <div key={event.id} className="border-b border-slate-100 px-4 py-3 last:border-b-0">
           <div className="flex items-start justify-between gap-3">
-            <p className={cn("text-[12.5px] font-semibold", tone.ink)}>{event.action}</p>
+            <p
+              className={cn("max-w-[160px] truncate text-[12.5px] font-semibold", tone.ink)}
+              title={event.action}
+            >
+              {event.action}
+            </p>
             <p className="shrink-0 text-[10.5px] text-slate-400">{relativeTime(event.occurredAt)}</p>
           </div>
-          <p className="mt-0.5 text-[11.5px] text-slate-500">
+          <p className="mt-0.5 min-w-0 text-[11.5px] text-slate-500">
             <span className="font-medium text-slate-700">{event.actorId ?? "system"}</span>
             <span className="mx-1 text-slate-300">·</span>
-            <span className="font-mono">{event.resource}</span>
+            <span className="min-w-0 break-all font-mono">{event.resource}</span>
           </p>
         </div>
       ))}
@@ -1245,6 +1434,17 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
   const recentErrors = data?.recentErrors ?? [];
   const auditEvents = data?.auditEvents ?? [];
 
+  const scheduleSummary: MonitoringSummary | undefined = useMemo(() => {
+    if (!isScheduleMonitoring || !data?.scheduleBlock) return data?.summary;
+    const s = data.scheduleBlock.summary;
+    return {
+      totalApis: s.healthy + s.warning + s.error,
+      healthyApis: s.healthy,
+      warningApis: s.warning,
+      errorApis: s.error,
+    };
+  }, [isScheduleMonitoring, data?.scheduleBlock, data?.summary]);
+
   const openDetail = (target: ApiDetailTarget) => {
     setDetailTarget(target);
   };
@@ -1282,6 +1482,10 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
       return <ScheduleMonitoringSection block={data.scheduleBlock} onOpenDetail={openDetail} />;
     }
 
+    if (projectKey === "collab-course") {
+      return <CollabCourseHealthPanel rows={rows} isLoading={query.isLoading} onOpenDetail={openRowDetail} />;
+    }
+
     return (
       <ApiHealthPanel
         groupedRows={groupedRows}
@@ -1289,12 +1493,7 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
         isLoading={query.isLoading}
-        emptyLabel={projectKey === "collab-course" ? "偕同課系統資料源尚未接入。" : "目前沒有符合條件的 API。"}
-        leadingNotice={
-          projectKey === "collab-course" ? (
-            <EmptyState>已依偕同課 API 手冊建立分類 catalog；尚未設定偕同課 base URL / token 前，健康狀態維持未連線，不顯示假探測。</EmptyState>
-          ) : null
-        }
+        emptyLabel="目前沒有符合條件的 API。"
         onOpenDetail={openRowDetail}
       />
     );
@@ -1317,6 +1516,13 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
         {isLineMonitoring ? (
           <MonitoringTopShell
             summary={data?.summary}
+            kpiSlot={
+              <LineCapabilityKpiBar
+                cards={lineOverviewQuery.data?.cards ?? []}
+                isLoading={lineOverviewQuery.isLoading}
+                isError={lineOverviewQuery.isError}
+              />
+            }
             tabs={lineTabs}
             activeTab={lineTab}
             onSelectTab={selectLineTab}
@@ -1531,7 +1737,7 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
 
         {!isLineMonitoring ? (
           <MonitoringTopShell
-            summary={data?.summary}
+            summary={scheduleSummary}
             tabs={baseMonitoringTabs}
             activeTab={baseTab}
             onSelectTab={selectBaseTab}
