@@ -348,6 +348,8 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
     queryKey: ["/api/bff/supervisor/facilities/detail", decodedRouteFacilityKey],
     queryFn: () => fetchFacilityDetail(decodedRouteFacilityKey!),
     enabled: Boolean(decodedRouteFacilityKey),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const staffing = dashboardQuery.data?.staffing.data;
@@ -520,6 +522,12 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
             </div>
 
             {detailQuery.isLoading ? <div className="rounded-[8px] bg-white p-5 text-[13px] font-bold text-[#637185]">載入單館模組概況中...</div> : null}
+            {detailQuery.isError ? (
+              <div className="flex items-center justify-between rounded-[8px] border border-[#fde8e8] bg-[#fff8f8] p-4">
+                <p className="text-[13px] font-bold text-[#c94444]">模組概況載入失敗，請稍後再試。</p>
+                <button type="button" onClick={() => detailQuery.refetch()} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175] hover:bg-[#f5f7fa]">重試</button>
+              </div>
+            ) : null}
             {detailQuery.data ? (
               <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
                 <FrontDeskModules modules={detailQuery.data.frontDesk.modules} fallbackItems={detailQuery.data.frontDesk.items} />

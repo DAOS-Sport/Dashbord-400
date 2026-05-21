@@ -5,6 +5,7 @@ import {
 } from "@shared/domain/facilities";
 import { getCourtName, getSchoolName, isValidSchool, type SchoolId } from "@shared/court-config";
 import type { OperationalHandover } from "@shared/schema";
+import type { StaffMemberSummary } from "@shared/domain/workbench";
 import type { Express } from "express";
 import type { AppContainer } from "../../app/container";
 import { ok } from "../../shared/bff/section";
@@ -297,17 +298,18 @@ export const registerSupervisorBffRoutes = (
       const fromDate = startOfTaipeiDay();
       const workDate = todayTaipei();
       const courtSchools = courtSchoolsForFacility(facilityKey);
+      const staffingFallback = {
+        active: 0,
+        total: 0,
+        onShift: 0,
+        absent: 0,
+        activeEmployees: [] as StaffMemberSummary[],
+        currentOnDuty: [] as StaffMemberSummary[],
+        nextOnDuty: [] as StaffMemberSummary[],
+        byFacility: [{ facilityKey, facilityName: facilityLabel(facilityKey), active: 0, onShift: 0, next: 0 }],
+      };
       const [staffing, handovers, waterQuality, coachDive, cleanup, laneIssues, lostItems, employeeResources, systemAnnouncements, groupBroadcastRows, laneRentals, courtReservations] = await Promise.all([
-        withTimeout(buildStaffingSummary(container, [facilityKey]), 2500, {
-          active: 0,
-          total: 0,
-          onShift: 0,
-          absent: 0,
-          activeEmployees: [],
-          currentOnDuty: [],
-          nextOnDuty: [],
-          byFacility: [{ facilityKey, facilityName: facilityLabel(facilityKey), active: 0, onShift: 0, next: 0 }],
-        }),
+        withTimeout(buildStaffingSummary(container, [facilityKey]), 2500, staffingFallback).catch(() => staffingFallback),
         storage.listOperationalHandovers({ facilityKey, limit: 100 }).catch(() => []),
         storage.listLifeguardWaterQualityLogs({ facilityKey, fromDate, limit: 100 }).catch(() => []),
         storage.listLifeguardCoachDiveLogs({ facilityKey, fromDate, limit: 100 }).catch(() => []),
