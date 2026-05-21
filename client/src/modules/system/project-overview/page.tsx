@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -23,18 +23,18 @@ import { cn } from "@/lib/utils";
 import { fetchSystemProjectMonitoring } from "../project-monitoring/api";
 import { fetchApiMonitoring } from "../api-monitoring/api";
 import type {
+  SparklineBucket,
   SystemProjectStatus,
   SystemProjectSummary,
 } from "@shared/system/project-monitoring-contract";
 import type { ApiMonitoringError } from "@shared/system/api-monitoring-contract";
 
 // ============================================================================
-// Suggested additions to SystemProjectSummary contract (all optional;
-// the UI gracefully degrades if any are missing):
-//   uptime7d?: number          // 0-100 percentage
-//   errorsLast24h?: number[]   // 8 hourly buckets, oldest first
-//   lastActivity?: string      // human-readable latest event description
-//   alertsPending?: number     // count of unresolved alerts (governance only)
+// SystemProjectSummary contract fields used here:
+//   uptime7d?: number           0-100 percentage (non-governance cards)
+//   errorsTrend72h?: SparklineBucket[]  24 × 3h buckets, oldest first
+//   lastActivity?: string       human-readable latest event description
+//   alertsPending?: number      count of unresolved alerts (governance only)
 // ============================================================================
 
 interface WatchdogEventDto {
@@ -358,32 +358,157 @@ function KpiStrip({
   );
 }
 
+// Format a sparkline slot's time range for the popover header.
+// Output: "05/21 下午03:00 – 06:00"
+function formatSlotRange(isoStart: string): string {
+  const start = new Date(isoStart);
+  const end = new Date(start.getTime() + 3 * 3_600_000);
+  const datePart = start.toLocaleDateString("zh-TW", {
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Asia/Taipei",
+  });
+  const fmtTime = (d: Date) =>
+    d.toLocaleTimeString("zh-TW", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Taipei",
+    });
+  return `${datePart} ${fmtTime(start)} – ${fmtTime(end)}`;
+}
+
+const ERROR_TYPE_BADGE: Record<string, string> = {
+  "5xx": "bg-[#ffe8eb] text-[#991b1b]",
+  "4xx": "bg-[#fff6e7] text-[#7c3b00]",
+  timeout: "bg-[#fdf3c5] text-[#713f00]",
+  other: "bg-[#eef2f6] text-[#536175]",
+};
+
+function SparklinePopover({
+  bucket,
+  onClose,
+}: {
+  bucket: SparklineBucket;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="absolute bottom-full left-0 z-50 mb-2 w-[230px] rounded-[8px] border border-[#dfe7ef] bg-white p-3 shadow-[0_4px_16px_rgba(16,35,63,0.12)]"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[11px] font-black text-[#10233f]">
+          {formatSlotRange(bucket.slotStart)}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+          className="rounded px-1 text-[11px] text-[#8b9aae] hover:text-[#10233f]"
+          aria-label="關閉"
+        >
+          ✕
+        </button>
+      </div>
+      <p className="mb-1.5 text-[10px] font-bold text-[#8b9aae]">
+        {bucket.count} 個錯誤／逾時
+      </p>
+      {bucket.errors.length === 0 ? (
+        <p className="text-[10px] text-[#8b9aae]">無詳細紀錄</p>
+      ) : (
+        <ul className="space-y-1">
+          {bucket.errors.map((err, i) => (
+            <li
+              key={i}
+              className="rounded-[5px] border border-[#edf1f6] bg-[#fbfcfd] px-2 py-1.5"
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={cn(
+                    "shrink-0 rounded-[3px] px-1 py-0.5 text-[9px] font-black",
+                    ERROR_TYPE_BADGE[err.errorType] ?? ERROR_TYPE_BADGE.other,
+                  )}
+                >
+                  {err.statusCode || err.errorType}
+                </span>
+                <span className="truncate font-mono text-[9px] font-bold text-[#10233f]">
+                  {err.route}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[9px] text-[#8b9aae]">
+                {new Date(err.timestamp).toLocaleString("zh-TW", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  hour12: false,
+                  timeZone: "Asia/Taipei",
+                })}{" · "}
+                {err.durationMs}ms
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Sparkline({
   data,
   tone,
 }: {
-  data?: number[];
+  data?: SparklineBucket[];
   tone: string;
 }) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="mt-2 flex h-3 items-end gap-[1px]">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="flex-1 rounded-[1px] bg-[#eef2f6]" style={{ height: "20%" }} />
-        ))}
-      </div>
-    );
-  }
-  const max = Math.max(...data, 1);
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const isEmpty = !data || data.length === 0;
+  const counts = isEmpty ? [] : data.map((b) => b.count);
+  const max = counts.length > 0 ? Math.max(...counts, 1) : 1;
+
   return (
-    <div className="mt-2 flex h-3 items-end gap-[1px]">
-      {data.map((v, i) => (
-        <div
-          key={i}
-          className={cn("flex-1 rounded-[1px]", tone)}
-          style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
+    <div ref={wrapRef} className="relative mt-2">
+      <div className="flex h-3 items-end gap-[1px]">
+        {isEmpty
+          ? Array.from({ length: 24 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded-[1px] bg-[#eef2f6]"
+                style={{ height: "20%" }}
+              />
+            ))
+          : data!.map((bucket, i) => (
+              <div
+                key={i}
+                role="button"
+                aria-label={`${formatSlotRange(bucket.slotStart)} · ${bucket.count} 個錯誤`}
+                className={cn(
+                  "flex-1 rounded-[1px] transition-opacity",
+                  bucket.count > 0
+                    ? cn(tone, "cursor-pointer hover:opacity-70")
+                    : "bg-[#eef2f6]",
+                  activeIdx === i && "ring-1 ring-[#10233f]",
+                )}
+                style={{ height: `${Math.max(10, (bucket.count / max) * 100)}%` }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (bucket.count === 0) return;
+                  setActiveIdx(activeIdx === i ? null : i);
+                }}
+              />
+            ))}
+      </div>
+
+      {activeIdx !== null && data && data[activeIdx] && (
+        <SparklinePopover
+          bucket={data[activeIdx]}
+          onClose={() => setActiveIdx(null)}
         />
-      ))}
+      )}
     </div>
   );
 }
@@ -392,11 +517,24 @@ function ProjectPortalCard({ item }: { item: ProjectWithMetrics }) {
   const href = item.key === "governance" ? "/system/governance" : item.monitorHref;
   const isGovernance = item.key === "governance";
   const primaryValue = isGovernance
-    ? item.alertsPending ?? "—"
+    ? (item.alertsPending ?? 0)
     : typeof item.uptime7d === "number"
       ? item.uptime7d.toFixed(1)
       : "—";
   const primaryUnit = isGovernance ? "告警待處理" : "% · 7d uptime";
+
+  // Derive a human-readable services sub-label
+  const servicesLabel = (() => {
+    const m = item.metrics;
+    const total = m.ready + m.degraded + m.error + m.notConnected;
+    if (total === 0) return "服務未知";
+    const parts: string[] = [];
+    if (m.ready) parts.push(`${m.ready} 正常`);
+    if (m.degraded) parts.push(`${m.degraded} 降級`);
+    if (m.error) parts.push(`${m.error} 異常`);
+    if (m.notConnected) parts.push(`${m.notConnected} 未接`);
+    return parts.join(" · ");
+  })();
 
   return (
     <Link
@@ -411,12 +549,17 @@ function ProjectPortalCard({ item }: { item: ProjectWithMetrics }) {
         </div>
         <ArrowUpRight className="h-3 w-3 text-[#c5d0db] transition group-hover:text-[#10233f] group-hover:translate-x-0.5" />
       </div>
+
       <div className="mt-1.5 flex items-baseline gap-1">
         <span className="text-[17px] font-black leading-none text-[#10233f]">{primaryValue}</span>
         <span className="text-[10px] font-bold text-[#8b9aae]">{primaryUnit}</span>
       </div>
-      <Sparkline data={item.errorsLast24h} tone={sparkTone(item.status)} />
-      <p className={cn("mt-1.5 text-[10px] font-bold", statusToneText(item.status))}>
+
+      <p className="mt-0.5 text-[10px] font-bold text-[#8b9aae]">{servicesLabel}</p>
+
+      <Sparkline data={item.errorsTrend72h} tone={sparkTone(item.status)} />
+
+      <p className={cn("mt-1 text-[10px] font-bold", statusToneText(item.status))}>
         {item.lastActivity ?? "—"}
       </p>
     </Link>

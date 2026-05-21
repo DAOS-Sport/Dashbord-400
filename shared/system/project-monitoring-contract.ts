@@ -11,6 +11,25 @@ export type SystemProjectMetrics = {
   error: number;
 };
 
+/** One error record inside a sparkline bucket. */
+export type SparklineBucketError = {
+  route: string;
+  statusCode: number;
+  durationMs: number;
+  timestamp: string;
+  errorType: "4xx" | "5xx" | "timeout" | "other";
+};
+
+/** One 3-hour slot in the 72-hour trend sparkline (24 slots total). */
+export type SparklineBucket = {
+  /** ISO timestamp marking the start of this 3-hour slot. */
+  slotStart: string;
+  /** Total error count in this slot. */
+  count: number;
+  /** Up to 5 most-recent errors in this slot (for the click-through popover). */
+  errors: SparklineBucketError[];
+};
+
 export type SystemProjectSummary = {
   key: SystemProjectGroup;
   label: string;
@@ -23,8 +42,8 @@ export type SystemProjectSummary = {
   lastUpdatedAt: string;
   /** 7-day uptime score 0–100 (derived from current service metrics). undefined for governance. */
   uptime7d?: number;
-  /** 8 × 3h hourly error buckets for the past 24h (system-wide). Oldest bucket first. */
-  errorsLast24h?: number[];
+  /** 24 × 3h error buckets for the past 72h (system-wide). Oldest bucket first. */
+  errorsTrend72h?: SparklineBucket[];
   /** Human-readable status summary of the latest activity. */
   lastActivity?: string;
   /** Count of error + degraded services across all projects (governance only). */

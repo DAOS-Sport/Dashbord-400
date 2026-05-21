@@ -3,6 +3,8 @@ import type { AppContainer } from "../../app/container";
 import { requireRole, requireSession } from "../auth/context";
 import { getModuleDescriptorById, getModuleHealth, type ModuleHealthDto } from "@shared/modules";
 import type {
+  SparklineBucket,
+  SparklineBucketError,
   SystemProjectDetailDto,
   SystemProjectGroup,
   SystemProjectMetrics,
@@ -28,24 +30,52 @@ const computeUptimeFromMetrics = (metrics: SystemProjectMetrics): number => {
   return Math.round((score / (total * 100)) * 1000) / 10;
 };
 
+const SPARKLINE_BUCKETS = 24;
+const SPARKLINE_BUCKET_MS = 3 * 3_600_000; // 3 h each → 72 h total window
+const SPARKLINE_MAX_ERRORS = 5; // errors stored per bucket for the popover
+
 /**
- * Bucket the last 24 h of error / slow records into 8 slots of 3 h each.
- * Index 0 = oldest (21-24h ago), index 7 = most recent (0-3h ago).
+ * Bucket the last 72 h of error / slow records into 24 × 3-hour slots.
+ * Index 0 = oldest (69–72h ago), index 23 = most recent (0–3h ago).
+ * Each slot also carries up to SPARKLINE_MAX_ERRORS detail records so the
+ * frontend popover can show route · status · timestamp on click.
  */
-const computeErrorBuckets24h = (records: ApiLatencyRecord[]): number[] => {
-  const buckets = new Array<number>(8).fill(0);
+const computeErrorBuckets72h = (records: ApiLatencyRecord[]): SparklineBucket[] => {
   const now = Date.now();
-  const windowMs = 24 * 3_600_000;
-  const bucketMs = windowMs / 8;
+  const windowMs = SPARKLINE_BUCKETS * SPARKLINE_BUCKET_MS;
+
+  const slots: { count: number; errors: SparklineBucketError[] }[] = Array.from(
+    { length: SPARKLINE_BUCKETS },
+    () => ({ count: 0, errors: [] }),
+  );
+
   for (const r of records) {
     const isError = r.statusCode >= 400 || r.durationMs >= 8_000;
     if (!isError) continue;
     const age = now - new Date(r.timestamp).getTime();
     if (age < 0 || age >= windowMs) continue;
-    const idx = 7 - Math.floor(age / bucketMs);
-    buckets[Math.min(Math.max(idx, 0), 7)]++;
+    const idx = SPARKLINE_BUCKETS - 1 - Math.floor(age / SPARKLINE_BUCKET_MS);
+    const slot = slots[Math.min(Math.max(idx, 0), SPARKLINE_BUCKETS - 1)];
+    slot.count++;
+    if (slot.errors.length < SPARKLINE_MAX_ERRORS) {
+      const sc = r.statusCode;
+      const errorType: SparklineBucketError["errorType"] =
+        sc >= 500 ? "5xx" : sc >= 400 ? "4xx" : r.durationMs >= 8_000 ? "timeout" : "other";
+      slot.errors.push({
+        route: r.route,
+        statusCode: sc,
+        durationMs: r.durationMs,
+        timestamp: r.timestamp ?? new Date().toISOString(),
+        errorType,
+      });
+    }
   }
-  return buckets;
+
+  return slots.map((slot, i) => ({
+    slotStart: new Date(now - (SPARKLINE_BUCKETS - i) * SPARKLINE_BUCKET_MS).toISOString(),
+    count: slot.count,
+    errors: slot.errors.sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+  }));
 };
 
 /**
@@ -210,10 +240,10 @@ export const registerProjectMonitoringRoutes = (app: Express, container: AppCont
   app.get("/api/bff/system/project-monitoring", requireSession, requireRole("system"), async (_req, res) => {
     const [details, latencyRecords] = await Promise.all([
       Promise.all(projectOrder.map((projectKey) => buildProjectDetail(projectKey, container))),
-      container.repositories.telemetry.listApiLatencyLogs(1000).catch((): ApiLatencyRecord[] => []),
+      container.repositories.telemetry.listApiLatencyLogs(3000).catch((): ApiLatencyRecord[] => []),
     ]);
 
-    const errorBuckets = computeErrorBuckets24h(latencyRecords);
+    const errorBuckets = computeErrorBuckets72h(latencyRecords);
 
     // Count total error + degraded services across all non-governance projects
     // so the governance card can display an "alertsPending" number.
@@ -233,7 +263,7 @@ export const registerProjectMonitoringRoutes = (app: Express, container: AppCont
       lastUpdatedAt: detail.lastUpdatedAt,
       uptime7d: detail.key !== "governance" ? computeUptimeFromMetrics(detail.metrics) : undefined,
       alertsPending: detail.key === "governance" ? alertsPending : undefined,
-      errorsLast24h: errorBuckets,
+      errorsTrend72h: errorBuckets,
       lastActivity: computeLastActivity(detail),
     }));
 
