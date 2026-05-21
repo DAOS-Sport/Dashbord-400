@@ -82,10 +82,12 @@ export type ApiMonitoringRow = {
 export type ApiMonitoringSummary = {
   projectKey: ApiMonitoringProjectKey;
   totalApis: number;
+  connectedApis: number;
   healthyApis: number;
   warningApis: number;
   errorApis: number;
   notConnectedApis: number;
+  skippedApis: number;
   lastUpdatedAt: string;
 };
 

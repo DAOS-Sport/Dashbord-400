@@ -111,15 +111,24 @@ const rollupStatus = (statuses: ApiMonitoringStatus[]): ApiMonitoringStatus => {
   return [...statuses].sort((a, b) => statusRank[a] - statusRank[b])[0] ?? "not_connected";
 };
 
-const summarize = (projectKey: ApiMonitoringProjectKey, rows: ApiMonitoringRow[], generatedAt: string): ApiMonitoringSummary => ({
-  projectKey,
-  totalApis: rows.length,
-  healthyApis: rows.filter((row) => row.status === "healthy").length,
-  warningApis: rows.filter((row) => row.status === "warning").length,
-  errorApis: rows.filter((row) => row.status === "error").length,
-  notConnectedApis: rows.filter((row) => row.status === "not_connected").length,
-  lastUpdatedAt: generatedAt,
-});
+const summarize = (projectKey: ApiMonitoringProjectKey, rows: ApiMonitoringRow[], generatedAt: string): ApiMonitoringSummary => {
+  const healthyApis = rows.filter((row) => row.status === "healthy").length;
+  const warningApis = rows.filter((row) => row.status === "warning").length;
+  const errorApis = rows.filter((row) => row.status === "error").length;
+  const notConnectedApis = rows.filter((row) => row.status === "not_connected").length;
+  const connectedApis = healthyApis + warningApis + errorApis;
+  return {
+    projectKey,
+    totalApis: connectedApis,
+    connectedApis,
+    healthyApis,
+    warningApis,
+    errorApis,
+    notConnectedApis,
+    skippedApis: notConnectedApis,
+    lastUpdatedAt: generatedAt,
+  };
+};
 
 const hourStart = (date: Date) => {
   const next = new Date(date);

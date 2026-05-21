@@ -88,36 +88,38 @@ function padBuckets(trend: ApiMonitoringTrendBucket[]): ApiMonitoringTrendBucket
   return cells;
 }
 
-function TrendHeatmap({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
+function TrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   const cells = useMemo(() => padBuckets(trend), [trend]);
   const maxTotal = Math.max(...cells.map((c) => c.total), 1);
-
+  const hasData = cells.some((c) => c.total > 0);
+  const totalErrors = cells.reduce((s, c) => s + c.errors, 0);
+  const totalCalls = cells.reduce((s, c) => s + c.total, 0);
+  const errorRatio = totalCalls > 0 ? totalErrors / totalCalls : 0;
+  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const n = cells.length;
+  const W = 120, H = 22, padX = 2, padY = 2;
+  const w = W - padX * 2, h = H - padY * 2;
+  const pts = cells.map((cell, i) => ({
+    x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+    y: padY + h - (cell.total / maxTotal) * h,
+    cell,
+  }));
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
-    <div className="inline-flex items-end gap-[1px] rounded-[3px] bg-[#fbfcfd] p-1" aria-label="近 24h 每小時趨勢">
-      {cells.map((cell, idx) => {
-        const errorRatio = cell.total > 0 ? cell.errors / cell.total : 0;
-        const intensity = cell.total > 0 ? 0.35 + Math.min(cell.total / maxTotal, 1) * 0.65 : 1;
-        const colorClass =
-          cell.total === 0
-            ? "bg-[#e5eaf0]"
-            : errorRatio >= 0.5
-              ? "bg-[#dc2626]"
-              : errorRatio > 0
-                ? "bg-[#f59e0b]"
-                : "bg-[#22c55e]";
-        const tooltip = cell.hour
-          ? `${new Date(cell.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })} · ${cell.total} 次 · ${cell.errors} 錯誤${cell.avgDurationMs != null ? ` · ${Math.round(cell.avgDurationMs)}ms` : ""}`
-          : "無資料";
-        return (
-          <div
-            key={idx}
-            className={cn("h-[22px] w-[5px] rounded-[1px]", colorClass)}
-            style={{ opacity: intensity }}
-            title={tooltip}
-          />
-        );
-      })}
-    </div>
+    <svg width={120} height={22} viewBox="0 0 120 22" aria-label="24h 趨勢折線" className="shrink-0">
+      {!hasData ? (
+        <line x1={2} y1={11} x2={118} y2={11} stroke="#c8d0da" strokeWidth="1" strokeDasharray="2 2" />
+      ) : (
+        <>
+          <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+          {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="2" fill="#dc2626">
+              <title>{`${p.cell.hour ? new Date(p.cell.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }) : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤`}</title>
+            </circle>
+          ))}
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -132,7 +134,7 @@ export default function SystemWatchdogPage() {
   const [tab, setTabState] = useState<TabKey>(() => readTabFromUrl());
   const [selectedEvent, setSelectedEvent] = useState<WatchdogEventDto | null>(null);
   const [selectedApi, setSelectedApi] = useState<ApiMonitoringRow | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | ApiMonitoringStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "connected" | ApiMonitoringStatus>("connected");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [keyword, setKeyword] = useState("");
@@ -164,7 +166,11 @@ export default function SystemWatchdogPage() {
 
   const apiRows = useMemo(() => {
     return [...allRows]
-      .filter((row) => statusFilter === "all" || row.status === statusFilter)
+      .filter((row) => {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "connected") return row.status !== "not_connected";
+        return row.status === statusFilter;
+      })
       .filter((row) => typeFilter === "all" || row.type === typeFilter)
       .filter((row) => {
         if (!keyword.trim()) return true;
@@ -211,7 +217,7 @@ export default function SystemWatchdogPage() {
                 <h2 className="text-[16px] font-black text-[#10233f]">API 健康列表</h2>
                 <p className="mt-1 text-[12px] font-bold text-[#637185]">
                   {summary
-                    ? `共 ${summary.totalApis} 支 API · ${summary.healthyApis} 正常 / ${summary.warningApis} 注意 / ${summary.errorApis} 錯誤 / ${summary.notConnectedApis} 未連線`
+                    ? `共 ${summary.connectedApis ?? summary.totalApis} 支已接線 · ${summary.healthyApis} 正常 / ${summary.warningApis} 注意 / ${summary.errorApis} 錯誤 · 未連線 ${summary.notConnectedApis} 支（預設隱藏，可切換篩選）`
                     : "讀取中…"}
                 </p>
               </div>
@@ -226,14 +232,15 @@ export default function SystemWatchdogPage() {
                 />
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "all" | ApiMonitoringStatus)}
+                  onChange={(e) => setStatusFilter(e.target.value as "all" | "connected" | ApiMonitoringStatus)}
                   className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
                 >
+                  <option value="connected">已接線（預設）</option>
                   <option value="all">all status</option>
                   <option value="error">error</option>
                   <option value="warning">warning</option>
-                  <option value="not_connected">not_connected</option>
                   <option value="healthy">healthy</option>
+                  <option value="not_connected">not_connected</option>
                 </select>
                 <select
                   value={typeFilter}
@@ -406,49 +413,58 @@ function ApiRow({ row, onSelect }: { row: ApiMonitoringRow; onSelect: () => void
       </td>
       <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-[#536175]">{formatMs(row.avgDurationMs)}</td>
       <td className="px-4 py-3">
-        <TrendHeatmap trend={row.trend} />
+        <TrendSparkline trend={row.trend} />
       </td>
     </tr>
   );
 }
 
-function LargeTrendHeatmap({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
+function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   const cells = useMemo(() => padBuckets(trend), [trend]);
   const maxTotal = Math.max(...cells.map((c) => c.total), 1);
+  const hasData = cells.some((c) => c.total > 0);
+  const totalErrors = cells.reduce((s, c) => s + c.errors, 0);
+  const totalCalls = cells.reduce((s, c) => s + c.total, 0);
+  const errorRatio = totalCalls > 0 ? totalErrors / totalCalls : 0;
+  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const W = 320, H = 72, padX = 4, padY = 6, labelH = 14;
+  const w = W - padX * 2, h = H - padY * 2 - labelH;
+  const n = cells.length;
+  const pts = cells.map((cell, i) => ({
+    x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+    y: padY + h - (cell.total / maxTotal) * h,
+    cell,
+    hour: cell.hour ? new Date(cell.hour).getHours() : null,
+  }));
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <div className="space-y-2">
-      <div className="flex items-end gap-[3px] rounded-[6px] bg-[#fbfcfd] p-3">
-        {cells.map((cell, idx) => {
-          const errorRatio = cell.total > 0 ? cell.errors / cell.total : 0;
-          const intensity = cell.total > 0 ? 0.35 + Math.min(cell.total / maxTotal, 1) * 0.65 : 1;
-          const colorClass =
-            cell.total === 0
-              ? "bg-[#e5eaf0]"
-              : errorRatio >= 0.5
-                ? "bg-[#dc2626]"
-                : errorRatio > 0
-                  ? "bg-[#f59e0b]"
-                  : "bg-[#22c55e]";
-          const hour = cell.hour ? new Date(cell.hour).getHours().toString().padStart(2, "0") : "";
-          return (
-            <div key={idx} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className={cn("h-12 w-full rounded-[2px]", colorClass)}
-                style={{ opacity: intensity }}
-                title={`${hour}:00 · ${cell.total} 次 · ${cell.errors} 錯誤${cell.avgDurationMs != null ? ` · ${Math.round(cell.avgDurationMs)}ms` : ""}`}
-              />
-              {idx % 3 === 0 && hour && (
-                <span className="font-mono text-[9px] font-bold text-[#8b9aae]">{hour}</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-[#fbfcfd]" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
+        {!hasData ? (
+          <line x1={padX} y1={(H - labelH) / 2} x2={W - padX} y2={(H - labelH) / 2} stroke="#c8d0da" strokeWidth="1" strokeDasharray="3 3" />
+        ) : (
+          <>
+            <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
+              <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="#dc2626">
+                <title>{`${p.hour != null ? String(p.hour).padStart(2, "0") + ":00" : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤${p.cell.avgDurationMs != null ? ` · ${Math.round(p.cell.avgDurationMs)}ms` : ""}`}</title>
+              </circle>
+            ))}
+          </>
+        )}
+        {pts.filter((_, i) => i % 3 === 0).map((p, i) =>
+          p.hour !== null ? (
+            <text key={i} x={p.x.toFixed(1)} y={H - 2} textAnchor="middle" fontSize="7" fill="#8b9aae" fontFamily="monospace">
+              {String(p.hour).padStart(2, "0")}
+            </text>
+          ) : null,
+        )}
+      </svg>
       <div className="flex items-center gap-3 text-[10px] font-bold text-[#8b9aae]">
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#22c55e]" /> 正常</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#f59e0b]" /> 有錯誤</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#dc2626]" /> ≥50% 錯誤</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#e5eaf0]" /> 無資料</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#22c55e]" /> 正常</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#f59e0b]" /> 有錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#dc2626]" /> ≥50% 錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> 錯誤點</span>
       </div>
     </div>
   );
@@ -538,7 +554,7 @@ function ApiDetailPanel({ row, onClose }: { row: ApiMonitoringRow; onClose: () =
 
         <div className="space-y-2 px-5 py-5">
           <h3 className="text-[13px] font-black text-[#10233f]">24h 趨勢 (每小時)</h3>
-          <LargeTrendHeatmap trend={trend} />
+          <LargeTrendSparkline trend={trend} />
         </div>
 
         {detailQuery.isLoading ? (

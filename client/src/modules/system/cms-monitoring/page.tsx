@@ -89,52 +89,88 @@ function padActionBuckets(trend: ActionMonitoringTrendBucket[]): ActionMonitorin
   return cells;
 }
 
-function ApiTrendHeatmap({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
-  const cells = useMemo(() => padApiBuckets(trend), [trend]);
-  const max = Math.max(...cells.map((c) => c.total), 1);
+function TrendSparkline({ points }: { points: { total: number; bad: number; hour: string }[] }) {
+  const maxTotal = Math.max(...points.map((c) => c.total), 1);
+  const hasData = points.some((c) => c.total > 0);
+  const totalBad = points.reduce((s, c) => s + c.bad, 0);
+  const totalCalls = points.reduce((s, c) => s + c.total, 0);
+  const errorRatio = totalCalls > 0 ? totalBad / totalCalls : 0;
+  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const n = points.length;
+  const W = 120, H = 22, padX = 2, padY = 2;
+  const w = W - padX * 2, h = H - padY * 2;
+  const pts = points.map((p, i) => ({
+    x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+    y: padY + h - (p.total / maxTotal) * h,
+    bad: p.bad,
+    tip: p.hour
+      ? `${new Date(p.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })} · ${p.total} 次 · ${p.bad} 失敗`
+      : "無資料",
+  }));
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
-    <div className="inline-flex items-end gap-[1px] rounded-[3px] bg-[#fbfcfd] p-1">
-      {cells.map((c, i) => {
-        const er = c.total > 0 ? c.errors / c.total : 0;
-        const intensity = c.total > 0 ? 0.35 + Math.min(c.total / max, 1) * 0.65 : 1;
-        const color =
-          c.total === 0
-            ? "bg-[#e5eaf0]"
-            : er >= 0.5
-              ? "bg-[#dc2626]"
-              : er > 0
-                ? "bg-[#f59e0b]"
-                : "bg-[#22c55e]";
-        const tip = c.hour
-          ? `${new Date(c.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })} · ${c.total} 次 · ${c.errors} 錯誤`
-          : "無資料";
-        return <div key={i} className={cn("h-[22px] w-[5px] rounded-[1px]", color)} style={{ opacity: intensity }} title={tip} />;
-      })}
-    </div>
+    <svg width={120} height={22} viewBox="0 0 120 22" aria-label="24h 趨勢折線" className="shrink-0">
+      {!hasData ? (
+        <line x1={2} y1={11} x2={118} y2={11} stroke="#c8d0da" strokeWidth="1" strokeDasharray="2 2" />
+      ) : (
+        <>
+          <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+          {pts.filter((p) => p.bad > 0).map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="2" fill="#dc2626"><title>{p.tip}</title></circle>
+          ))}
+        </>
+      )}
+    </svg>
   );
 }
 
-function ActionTrendHeatmap({ trend }: { trend: ActionMonitoringTrendBucket[] }) {
-  const cells = useMemo(() => padActionBuckets(trend), [trend]);
-  const max = Math.max(...cells.map((c) => c.total), 1);
+function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
+  const cells = useMemo(() => padApiBuckets(trend), [trend]);
+  const maxTotal = Math.max(...cells.map((c) => c.total), 1);
+  const hasData = cells.some((c) => c.total > 0);
+  const totalErrors = cells.reduce((s, c) => s + c.errors, 0);
+  const totalCalls = cells.reduce((s, c) => s + c.total, 0);
+  const errorRatio = totalCalls > 0 ? totalErrors / totalCalls : 0;
+  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const W = 320, H = 72, padX = 4, padY = 6, labelH = 14;
+  const w = W - padX * 2, h = H - padY * 2 - labelH;
+  const n = cells.length;
+  const pts = cells.map((cell, i) => ({
+    x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+    y: padY + h - (cell.total / maxTotal) * h,
+    cell,
+    hour: cell.hour ? new Date(cell.hour).getHours() : null,
+  }));
+  const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
-    <div className="inline-flex items-end gap-[1px] rounded-[3px] bg-[#fbfcfd] p-1">
-      {cells.map((c, i) => {
-        const fr = c.total > 0 ? c.failures / c.total : 0;
-        const intensity = c.total > 0 ? 0.35 + Math.min(c.total / max, 1) * 0.65 : 1;
-        const color =
-          c.total === 0
-            ? "bg-[#e5eaf0]"
-            : fr >= 0.5
-              ? "bg-[#dc2626]"
-              : fr > 0
-                ? "bg-[#f59e0b]"
-                : "bg-[#22c55e]";
-        const tip = c.hour
-          ? `${new Date(c.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })} · ${c.total} 次 · ${c.failures} 失敗`
-          : "無資料";
-        return <div key={i} className={cn("h-[22px] w-[5px] rounded-[1px]", color)} style={{ opacity: intensity }} title={tip} />;
-      })}
+    <div className="space-y-2">
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-[#fbfcfd]" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
+        {!hasData ? (
+          <line x1={padX} y1={(H - labelH) / 2} x2={W - padX} y2={(H - labelH) / 2} stroke="#c8d0da" strokeWidth="1" strokeDasharray="3 3" />
+        ) : (
+          <>
+            <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
+              <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="#dc2626">
+                <title>{`${p.hour != null ? String(p.hour).padStart(2, "0") + ":00" : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤`}</title>
+              </circle>
+            ))}
+          </>
+        )}
+        {pts.filter((_, i) => i % 3 === 0).map((p, i) =>
+          p.hour !== null ? (
+            <text key={i} x={p.x.toFixed(1)} y={H - 2} textAnchor="middle" fontSize="7" fill="#8b9aae" fontFamily="monospace">
+              {String(p.hour).padStart(2, "0")}
+            </text>
+          ) : null,
+        )}
+      </svg>
+      <div className="flex items-center gap-3 text-[10px] font-bold text-[#8b9aae]">
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#22c55e]" /> 正常</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#f59e0b]" /> 有錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#dc2626]" /> ≥50% 錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> 錯誤點</span>
+      </div>
     </div>
   );
 }
@@ -147,7 +183,7 @@ function HealthPanel({ data, isLoading }: { data?: ApiMonitoringDto; isLoading: 
         <h2 className="text-[16px] font-black text-[#10233f]">CMS 內部 API 健康</h2>
         <p className="mt-1 text-[12px] font-bold text-[#637185]">
           {data
-            ? `共 ${data.summary.totalApis} 支 · ${data.summary.healthyApis} 正常 / ${data.summary.warningApis} 注意 / ${data.summary.errorApis} 錯誤`
+            ? `共 ${data.summary.connectedApis ?? data.summary.totalApis} 支（排除 ${data.summary.notConnectedApis} 未連線）· ${data.summary.healthyApis} 正常 / ${data.summary.warningApis} 注意 / ${data.summary.errorApis} 錯誤`
             : "讀取中…"}
         </p>
       </div>
@@ -201,7 +237,9 @@ function ApiHealthRow({ row }: { row: ApiMonitoringRow }) {
         <span className={row.errorCount > 0 ? "text-[#dc2626]" : "text-[#8b9aae]"}>{row.errorCount}</span>
       </td>
       <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-[#536175]">{formatMs(row.avgDurationMs)}</td>
-      <td className="px-4 py-3"><ApiTrendHeatmap trend={row.trend} /></td>
+      <td className="px-4 py-3">
+        <TrendSparkline points={padApiBuckets(row.trend).map((c) => ({ total: c.total, bad: c.errors, hour: c.hour }))} />
+      </td>
     </tr>
   );
 }
@@ -243,10 +281,10 @@ function AuditPanel({ data }: { data?: ApiMonitoringDto }) {
       </div>
       <ul className="divide-y divide-[#edf1f6]">
         {events.map((ev) => (
-          <li key={ev.id} className="grid gap-2 px-4 py-3 md:grid-cols-[160px_120px_1fr_120px_160px] md:items-center">
+          <li key={ev.id} className="grid gap-2 px-4 py-3 md:grid-cols-[160px_1fr_1fr_120px_160px] md:items-center">
             <span className="font-mono text-[11px] font-bold text-[#637185]">{new Date(ev.occurredAt).toLocaleString("zh-TW")}</span>
-            <span className="rounded-[4px] bg-[#eef2f6] px-2 py-0.5 text-[10px] font-black text-[#536175] w-fit">{ev.action}</span>
-            <span className="truncate text-[12px] font-bold text-[#10233f]">{ev.resource}{ev.resourceId ? ` / ${ev.resourceId}` : ""}</span>
+            <span className="block max-w-[160px] truncate rounded-[4px] bg-[#eef2f6] px-2 py-0.5 text-[10px] font-black text-[#536175]" title={ev.action}>{ev.action}</span>
+            <span className="min-w-0 truncate text-[12px] font-bold text-[#10233f]">{ev.resource}{ev.resourceId ? ` / ${ev.resourceId}` : ""}</span>
             <span className="font-mono text-[11px] font-bold text-[#536175]">{ev.actorId ?? "system"}</span>
             <span className={cn("text-right text-[11px] font-black", ev.resultStatus && ev.resultStatus.toLowerCase() !== "success" ? "text-[#dc2626]" : "text-[#188249]")}>
               {ev.resultStatus ?? "success"}
@@ -359,7 +397,9 @@ function ActionsPanel({ onSelect }: { onSelect: (row: ActionMonitoringRow) => vo
                   <span className={row.failureCount > 0 ? "text-[#dc2626]" : "text-[#8b9aae]"}>{row.failureCount}</span>
                 </td>
                 <td className="px-4 py-3 text-[11px] font-bold text-[#536175]">{formatRelative(row.lastOccurredAt)}</td>
-                <td className="px-4 py-3"><ActionTrendHeatmap trend={row.trend} /></td>
+                <td className="px-4 py-3">
+                  <TrendSparkline points={padActionBuckets(row.trend).map((c) => ({ total: c.total, bad: c.failures, hour: c.hour }))} />
+                </td>
               </tr>
             ))}
             {!rows.length ? (
@@ -423,13 +463,7 @@ function ActionDetailPanel({ row, onClose }: { row: ActionMonitoringRow; onClose
 
         <div className="space-y-2 px-5 py-5">
           <h3 className="text-[13px] font-black text-[#10233f]">24h 趨勢 (每小時)</h3>
-          <ActionTrendHeatmap trend={row.trend} />
-          <div className="mt-2 flex items-center gap-3 text-[10px] font-bold text-[#8b9aae]">
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#22c55e]" /> 正常</span>
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#f59e0b]" /> 有失敗</span>
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#dc2626]" /> ≥50% 失敗</span>
-            <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-[2px] bg-[#e5eaf0]" /> 無資料</span>
-          </div>
+          <LargeTrendSparkline trend={row.trend.map((c) => ({ hour: c.hour, total: c.total, errors: c.failures, avgDurationMs: null }))} />
         </div>
 
         <div className="border-t border-[#edf1f6] px-5 py-5">
