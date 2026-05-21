@@ -493,7 +493,12 @@ const buildMonitoringDataset = async (container: AppContainer): Promise<Monitori
   const resolutions = resolutionByFingerprint(resolutionRecords);
   const descriptorRows = rowsFromDescriptors(descriptors).filter((row) => row.projectKey !== "collab-course");
   const rawRows = completeRows([...healthRows(container), ...descriptorRows, ...collabCourseCatalogRows()], latencyRecords, generatedAt, resolutions);
-  const allRows = applyCollabCourseProbes(rawRows, collabProbes, generatedAt);
+  const allRows = applyCollabCourseProbes(rawRows, collabProbes, generatedAt).map((row) => {
+    if (row.projectKey === "400line" && (row.label.includes("須注意") || (row as { isMutating?: boolean }).isMutating)) {
+      return { ...row, skipped: true };
+    }
+    return row;
+  });
   return { generatedAt, latencyRecords, allRows, resolutions };
 };
 

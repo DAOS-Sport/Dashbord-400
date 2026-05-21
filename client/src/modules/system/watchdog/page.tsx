@@ -406,7 +406,10 @@ function ApiRow({ row, onSelect }: { row: ApiMonitoringRow; onSelect: () => void
         <span className="mr-2 inline-block rounded-[4px] bg-[#eef2f6] px-1.5 py-0.5 text-[10px] font-black text-[#536175]">{row.method}</span>
         <span className="text-[#10233f]">{row.path}</span>
       </td>
-      <td className="px-4 py-3 text-[12px] font-bold text-[#536175]">{row.label}</td>
+      <td className="px-4 py-3 text-[12px] font-bold text-[#536175]">
+        {row.label}
+        {row.skipped && <span className="ml-2 inline-block rounded-[4px] bg-[#eef2f6] px-1.5 py-0.5 text-[10px] font-black text-[#8b9aae]" title="已排除計數">略過</span>}
+      </td>
       <td className="px-4 py-3 text-right font-mono text-[12px] font-black text-[#10233f]">{row.totalCount.toLocaleString()}</td>
       <td className="px-4 py-3 text-right font-mono text-[12px] font-black">
         <span className={row.errorCount > 0 ? "text-[#dc2626]" : "text-[#8b9aae]"}>{row.errorCount}</span>
