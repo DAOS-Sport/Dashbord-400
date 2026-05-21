@@ -140,6 +140,7 @@ export const buildInsightsOverview = async (container: AppContainer, periodDays:
     .map((moduleId) => {
       const currentCount = currentByModule.get(moduleId)?.count ?? 0;
       const previousCount = previousByModule.get(moduleId)?.count ?? 0;
+      if (previousCount === 0) return null;
       const type = classifyInsightAnomaly(currentCount, previousCount);
       if (!type) return null;
       return {

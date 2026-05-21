@@ -254,7 +254,7 @@ export default function SystemOperationsPage() {
   const actionButtons = useMemo(() => (Object.keys(actionMeta) as OpsAction[]), []);
 
   return (
-    <RoleShell role="system" title="遠維協助" subtitle="CMS 內部 · 同仁支援 + 操作稽核">
+    <RoleShell role="system" title="運維協助" subtitle="CMS 內部 · 同仁支援 + 操作稽核">
       <div className="mx-auto max-w-[1440px] space-y-3" data-testid="system-operations-page">
         <WorkbenchCard className="p-2">
           <div className="flex flex-wrap gap-2">

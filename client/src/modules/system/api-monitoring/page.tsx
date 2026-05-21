@@ -850,6 +850,9 @@ function ScheduleMonitoringSection({
           <p className={cn("mt-1 text-[13px]", tone.inkSoft)}>
             依 Internal API 種類分類，維持和監控平台 API row 一致的讀法。
           </p>
+          <p className={cn("mt-1 text-[11.5px]", tone.inkFaint)}>
+            注意：偕同課系統的 <code className="font-mono">/api/schedules/*</code>、<code className="font-mono">/api/conflicts/*</code> 是游泳教練課表 API，屬「偕同課系統」管轄，顯示在偕同課監控頁，此處為 Smart Schedule Manager 的探活結果。
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-slate-600">
@@ -1093,35 +1096,66 @@ function CollabCourseHealthPanel({
   );
 }
 
+const ERROR_TYPE_OPTIONS = [
+  { value: "all", label: "全部類型" },
+  { value: "timeout", label: "timeout" },
+  { value: "4xx", label: "4xx" },
+  { value: "5xx", label: "5xx" },
+  { value: "aborted", label: "aborted" },
+] as const;
+
 function RecentErrorsPanel({ recentErrors }: { recentErrors: ApiMonitoringError[] }) {
+  const [errorTypeFilter, setErrorTypeFilter] = useState<string>("all");
+
+  const filtered = errorTypeFilter === "all" ? recentErrors : recentErrors.filter((e) => e.errorType === errorTypeFilter);
+
   if (recentErrors.length === 0) {
     return <EmptyState>最近沒有 4xx / 5xx / timeout / aborted。</EmptyState>;
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      {recentErrors.slice(0, 50).map((error) => (
-        <div key={error.id} className="border-b border-slate-100 px-4 py-3 last:border-b-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate font-mono text-[12px] font-semibold text-slate-900">{error.route}</p>
-              <p className="mt-1 text-[12px] font-medium text-rose-700">
-                {error.errorType}
-                <span className="ml-1.5 text-slate-500">· {error.durationMs}ms</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <select
+          value={errorTypeFilter}
+          onChange={(e) => setErrorTypeFilter(e.target.value)}
+          className="h-8 rounded-[6px] border border-slate-200 bg-white px-2 text-[11.5px] font-semibold text-slate-700"
+          data-testid="select-error-type-filter"
+        >
+          {ERROR_TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <span className="text-[11px] text-slate-400">{filtered.length} 筆</span>
+      </div>
+      {filtered.length === 0 ? (
+        <EmptyState>此類型目前沒有錯誤記錄。</EmptyState>
+      ) : (
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          {filtered.slice(0, 50).map((error) => (
+            <div key={error.id} className="border-b border-slate-100 px-4 py-3 last:border-b-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-[12px] font-semibold text-slate-900">{error.route}</p>
+                  <p className="mt-1 text-[12px] font-medium text-rose-700">
+                    {error.errorType}
+                    <span className="ml-1.5 text-slate-500">· {error.durationMs}ms</span>
+                  </p>
+                </div>
+                <span className="shrink-0 rounded bg-rose-100 px-1.5 py-px text-[10px] font-semibold text-rose-700 tabular-nums">
+                  {error.statusCode}
+                </span>
+              </div>
+              <p className="mt-1 text-[10.5px] text-slate-400">
+                {relativeTime(error.occurredAt)}
+                <span className="ml-1">
+                  · {new Date(error.occurredAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </p>
             </div>
-            <span className="shrink-0 rounded bg-rose-100 px-1.5 py-px text-[10px] font-semibold text-rose-700 tabular-nums">
-              {error.statusCode}
-            </span>
-          </div>
-          <p className="mt-1 text-[10.5px] text-slate-400">
-            {relativeTime(error.occurredAt)}
-            <span className="ml-1">
-              · {new Date(error.occurredAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          </p>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -1549,8 +1583,14 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
                         </div>
                       ))}
                     </div>
-                    {lineOverviewQuery.isLoading ? (
-                      <p className="mt-3 text-[12px] text-slate-500">400LINE 總覽載入中...</p>
+                    {!lineOverviewQuery.isLoading && !lineOverviewQuery.isError && lineOverviewQuery.data?.status === "waiting_for_400line_api" ? (
+                      <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                        <p className="text-[12px] font-medium text-amber-700">正在等待 400LINE API 回應，數據可能尚未完整載入（通常需 2–5 秒後自動刷新）。</p>
+                      </div>
+                    ) : null}
+                    {lineOverviewQuery.isLoading && !(lineOverviewQuery.data?.cards ?? []).length ? (
+                      <p className="mt-3 text-[12px] text-slate-400">400LINE 總覽資料讀取中，請稍候…</p>
                     ) : null}
                     {lineOverviewQuery.isError ? (
                       <p className="mt-3 text-[12px] font-medium text-rose-700">400LINE 總覽資料讀取失敗。</p>

@@ -217,7 +217,7 @@ export default function SystemWatchdogPage() {
                 <h2 className="text-[16px] font-black text-[#10233f]">API 健康列表</h2>
                 <p className="mt-1 text-[12px] font-bold text-[#637185]">
                   {summary
-                    ? `共 ${summary.connectedApis ?? summary.totalApis} 支已接線 · ${summary.healthyApis} 正常 / ${summary.warningApis} 注意 / ${summary.errorApis} 錯誤 · 未連線 ${summary.notConnectedApis} 支（預設隱藏，可切換篩選）`
+                    ? `共 ${(summary.connectedApis ?? 0) + (summary.notConnectedApis ?? 0)} 支 API · 已接線 ${summary.connectedApis ?? 0}（${summary.healthyApis} 正常 / ${summary.warningApis} 注意 / ${summary.errorApis} 錯誤）· 未連線 ${summary.notConnectedApis ?? 0} 支（預設隱藏，可切換篩選）`
                     : "讀取中…"}
                 </p>
               </div>

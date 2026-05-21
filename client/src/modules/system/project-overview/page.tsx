@@ -420,7 +420,7 @@ export default function SystemProjectOverviewPage() {
           isFetching={projectsQuery.isFetching || apiMonQuery.isFetching || watchdogQuery.isFetching}
           isError={projectsQuery.isError}
           onRefresh={handleRefresh}
-          projectCount={items.length}
+          projectCount={allItems.length}
         />
 
         <div className="grid gap-4 lg:grid-cols-2">
