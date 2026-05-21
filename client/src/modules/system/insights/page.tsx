@@ -127,6 +127,17 @@ export default function SystemInsightsPage() {
               ))}
             </div>
           </WorkbenchCard>
+        ) : data && !data.anomalies.length && data.topModules.length > 0 ? (
+          <WorkbenchCard className="border-[#dfe7ef] bg-[#f8fbff] p-3.5">
+            <p className="text-[14px] font-black text-[#10233f]">需要注意的變化</p>
+            <p className="mt-1 text-[12px] font-bold text-[#637185]">目前比較區間內無顯著異常，系統將在下個週期自動比較使用量變化。</p>
+            <p className="mt-1 text-[11px] text-[#8b9aae]">若系統剛部署或功能為首次被使用，前一週期無資料，此區塊將在資料累積後開始顯示異常。</p>
+          </WorkbenchCard>
+        ) : data && !data.topModules.length ? (
+          <WorkbenchCard className="border-[#dfe7ef] bg-[#f8fbff] p-3.5">
+            <p className="text-[14px] font-black text-[#10233f]">需要注意的變化</p>
+            <p className="mt-1 text-[12px] font-bold text-[#637185]">目前無使用紀錄，行為分析將於首次活動後開始累積。</p>
+          </WorkbenchCard>
         ) : null}
 
         <WorkbenchCard className="overflow-hidden p-0">

@@ -1569,28 +1569,43 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
                       {lineOverviewQuery.data ? <LineStatusBadge status={lineOverviewQuery.data.status} /> : null}
                       {lineXbsQuery.data ? <LineStatusBadge status={lineXbsQuery.data.status} /> : null}
                     </div>
-                    <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                      {(lineOverviewQuery.data?.cards ?? []).map((card) => (
-                        <div key={card.label} className="rounded-md border border-slate-200 bg-white p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <SectionLabel>{card.label}</SectionLabel>
-                            <LineStatusBadge status={card.status} />
+                    {lineOverviewQuery.isLoading ? (
+                      <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <div key={i} className="animate-pulse rounded-md border border-slate-200 bg-white p-3">
+                            <div className="h-3 w-20 rounded bg-slate-100" />
+                            <div className="mt-3 h-6 w-12 rounded bg-slate-100" />
+                            <div className="mt-2 h-2.5 w-28 rounded bg-slate-100" />
                           </div>
-                          <p className={cn("mt-2 text-[22px] font-semibold tabular-nums", tone.ink)}>
-                            {card.value}
-                          </p>
-                          <p className={cn("mt-0.5 text-[11.5px]", tone.inkSoft)}>{card.hint}</p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                        {(lineOverviewQuery.data?.cards ?? []).map((card) => (
+                          <div key={card.label} className="rounded-md border border-slate-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <SectionLabel>{card.label}</SectionLabel>
+                              <LineStatusBadge status={card.status} />
+                            </div>
+                            <p className={cn("mt-2 text-[22px] font-semibold tabular-nums", tone.ink)}>
+                              {card.value}
+                            </p>
+                            <p className={cn("mt-0.5 text-[11.5px]", tone.inkSoft)}>{card.hint}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {!lineOverviewQuery.isLoading && !lineOverviewQuery.isError && lineOverviewQuery.data?.status === "degraded" ? (
+                      <div className="mt-3 flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-orange-600" />
+                        <p className="text-[12px] font-medium text-orange-700">400LINE 回報降級（degraded），部分功能可能暫時異常，連線通訊正常。</p>
+                      </div>
+                    ) : null}
                     {!lineOverviewQuery.isLoading && !lineOverviewQuery.isError && lineOverviewQuery.data?.status === "waiting_for_400line_api" ? (
                       <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
                         <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                         <p className="text-[12px] font-medium text-amber-700">正在等待 400LINE API 回應，數據可能尚未完整載入（通常需 2–5 秒後自動刷新）。</p>
                       </div>
-                    ) : null}
-                    {lineOverviewQuery.isLoading && !(lineOverviewQuery.data?.cards ?? []).length ? (
-                      <p className="mt-3 text-[12px] text-slate-400">400LINE 總覽資料讀取中，請稍候…</p>
                     ) : null}
                     {lineOverviewQuery.isError ? (
                       <p className="mt-3 text-[12px] font-medium text-rose-700">400LINE 總覽資料讀取失敗。</p>
