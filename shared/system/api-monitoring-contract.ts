@@ -69,6 +69,7 @@ export type ApiMonitoringRow = {
   source: string;
   status: ApiMonitoringStatus;
   statusCode?: number | null;
+  skipped: boolean;
   totalCount: number;
   errorCount: number;
   warningCount: number;

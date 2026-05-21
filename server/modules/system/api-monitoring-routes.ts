@@ -112,11 +112,13 @@ const rollupStatus = (statuses: ApiMonitoringStatus[]): ApiMonitoringStatus => {
 };
 
 const summarize = (projectKey: ApiMonitoringProjectKey, rows: ApiMonitoringRow[], generatedAt: string): ApiMonitoringSummary => {
-  const healthyApis = rows.filter((row) => row.status === "healthy").length;
-  const warningApis = rows.filter((row) => row.status === "warning").length;
-  const errorApis = rows.filter((row) => row.status === "error").length;
-  const notConnectedApis = rows.filter((row) => row.status === "not_connected").length;
+  const nonSkipped = rows.filter((row) => !row.skipped);
+  const healthyApis = nonSkipped.filter((row) => row.status === "healthy").length;
+  const warningApis = nonSkipped.filter((row) => row.status === "warning").length;
+  const errorApis = nonSkipped.filter((row) => row.status === "error").length;
+  const notConnectedApis = nonSkipped.filter((row) => row.status === "not_connected").length;
   const connectedApis = healthyApis + warningApis + errorApis;
+  const skippedApis = rows.filter((row) => row.skipped).length;
   return {
     projectKey,
     totalApis: connectedApis,
@@ -125,7 +127,7 @@ const summarize = (projectKey: ApiMonitoringProjectKey, rows: ApiMonitoringRow[]
     warningApis,
     errorApis,
     notConnectedApis,
-    skippedApis: notConnectedApis,
+    skippedApis,
     lastUpdatedAt: generatedAt,
   };
 };
@@ -272,6 +274,7 @@ const seedRow = (
   source: string,
   fallbackStatus: ApiMonitoringStatus,
   method = "GET",
+  skipped = false,
 ): Omit<ApiMonitoringRow, "trend" | "totalCount" | "errorCount" | "warningCount" | "unresolvedErrorCount" | "resolvedErrorCount" | "avgDurationMs" | "lastCheckedAt" | "statusCode"> => ({
   id,
   projectKey,
@@ -281,6 +284,7 @@ const seedRow = (
   path,
   source,
   status: fallbackStatus,
+  skipped,
 });
 
 const rowsFromDescriptors = (descriptors: ModuleDescriptor[]): Array<Omit<ApiMonitoringRow, "trend" | "totalCount" | "errorCount" | "warningCount" | "unresolvedErrorCount" | "resolvedErrorCount" | "avgDurationMs" | "lastCheckedAt" | "statusCode">> => {
@@ -308,6 +312,7 @@ const collabCourseCatalogRows = (): Array<Omit<ApiMonitoringRow, "trend" | "tota
       collabCourseApiCategoryLabels[endpoint.category],
       "not_connected",
       endpoint.method,
+      endpoint.method !== "GET",
     ),
   );
 
@@ -559,6 +564,7 @@ const buildCollabCourseDetailRow = async (
     source: "collabCourseApiProbeService",
     status: probe.status,
     statusCode: probe.statusCode,
+    skipped: catalogEntry.method !== "GET",
     totalCount: records.length,
     errorCount: groups.reduce((count, group) => count + group.count, 0),
     warningCount: probe.status === "warning" ? 1 : 0,
@@ -595,6 +601,7 @@ const buildScheduleDetailRow = async (
     source: "scheduleHealthService",
     status: probe.status,
     statusCode: probe.statusCode,
+    skipped: probe.isMutating ?? false,
     totalCount: records.length,
     errorCount: groups.reduce((count, group) => count + group.count, 0),
     warningCount: probe.status === "warning" ? 1 : 0,

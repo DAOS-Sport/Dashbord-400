@@ -142,6 +142,16 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
     hour: cell.hour ? new Date(cell.hour).getHours() : null,
   }));
   const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const maxDuration = Math.max(...cells.map((c) => c.avgDurationMs ?? 0), 1);
+  const hasDuration = cells.some((c) => c.avgDurationMs != null && c.avgDurationMs > 0);
+  const durationValidPts = cells
+    .map((cell, i) => ({
+      x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+      y: padY + h - ((cell.avgDurationMs ?? 0) / maxDuration) * h,
+      valid: cell.avgDurationMs != null,
+    }))
+    .filter((p) => p.valid);
+  const durationPolyline = durationValidPts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <div className="space-y-2">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-[#fbfcfd]" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
@@ -150,6 +160,9 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
         ) : (
           <>
             <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {hasDuration && durationValidPts.length > 1 && (
+              <polyline points={durationPolyline} fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="3 2" opacity="0.8" />
+            )}
             {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
               <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="#dc2626">
                 <title>{`${p.hour != null ? String(p.hour).padStart(2, "0") + ":00" : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤`}</title>
@@ -170,6 +183,7 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#f59e0b]" /> 有錯誤</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#dc2626]" /> ≥50% 錯誤</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> 錯誤點</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-[2px] w-4 rounded-[1px] bg-[#93c5fd]" style={{ borderTop: "1.5px dashed #93c5fd" }} /> Avg 延遲</span>
       </div>
     </div>
   );
@@ -284,7 +298,7 @@ function AuditPanel({ data }: { data?: ApiMonitoringDto }) {
           <li key={ev.id} className="grid gap-2 px-4 py-3 md:grid-cols-[160px_1fr_1fr_120px_160px] md:items-center">
             <span className="font-mono text-[11px] font-bold text-[#637185]">{new Date(ev.occurredAt).toLocaleString("zh-TW")}</span>
             <span className="block max-w-[160px] truncate rounded-[4px] bg-[#eef2f6] px-2 py-0.5 text-[10px] font-black text-[#536175]" title={ev.action}>{ev.action}</span>
-            <span className="min-w-0 truncate text-[12px] font-bold text-[#10233f]">{ev.resource}{ev.resourceId ? ` / ${ev.resourceId}` : ""}</span>
+            <span className="min-w-0 break-all text-[12px] font-bold text-[#10233f]">{ev.resource}{ev.resourceId ? ` / ${ev.resourceId}` : ""}</span>
             <span className="font-mono text-[11px] font-bold text-[#536175]">{ev.actorId ?? "system"}</span>
             <span className={cn("text-right text-[11px] font-black", ev.resultStatus && ev.resultStatus.toLowerCase() !== "success" ? "text-[#dc2626]" : "text-[#188249]")}>
               {ev.resultStatus ?? "success"}

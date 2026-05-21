@@ -437,6 +437,16 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
     hour: cell.hour ? new Date(cell.hour).getHours() : null,
   }));
   const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const maxDuration = Math.max(...cells.map((c) => c.avgDurationMs ?? 0), 1);
+  const hasDuration = cells.some((c) => c.avgDurationMs != null && c.avgDurationMs > 0);
+  const durationValidPts = cells
+    .map((cell, i) => ({
+      x: padX + (n <= 1 ? w / 2 : (i / (n - 1)) * w),
+      y: padY + h - ((cell.avgDurationMs ?? 0) / maxDuration) * h,
+      valid: cell.avgDurationMs != null,
+    }))
+    .filter((p) => p.valid);
+  const durationPolyline = durationValidPts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <div className="space-y-2">
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-[#fbfcfd]" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
@@ -445,6 +455,9 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
         ) : (
           <>
             <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {hasDuration && durationValidPts.length > 1 && (
+              <polyline points={durationPolyline} fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="3 2" opacity="0.8" />
+            )}
             {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
               <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="#dc2626">
                 <title>{`${p.hour != null ? String(p.hour).padStart(2, "0") + ":00" : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤${p.cell.avgDurationMs != null ? ` · ${Math.round(p.cell.avgDurationMs)}ms` : ""}`}</title>
@@ -465,6 +478,7 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#f59e0b]" /> 有錯誤</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#dc2626]" /> ≥50% 錯誤</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> 錯誤點</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-[2px] w-4 rounded-[1px] bg-[#93c5fd]" style={{ borderTop: "1.5px dashed #93c5fd" }} /> Avg 延遲</span>
       </div>
     </div>
   );
