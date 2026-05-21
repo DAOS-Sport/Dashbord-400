@@ -63,13 +63,8 @@ interface ActivityEntry {
   occurredAt: string;
 }
 
-// Extended project shape with optional new fields
-type ProjectWithMetrics = SystemProjectSummary & {
-  uptime7d?: number;
-  errorsLast24h?: number[];
-  lastActivity?: string;
-  alertsPending?: number;
-};
+// All enrichment fields are now part of SystemProjectSummary (see contract).
+type ProjectWithMetrics = SystemProjectSummary;
 
 const fetchWatchdogEvents = () =>
   apiGet<{ items: WatchdogEventDto[] }>("/api/bff/system/watchdog-events");

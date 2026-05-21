@@ -21,6 +21,14 @@ export type SystemProjectSummary = {
   governanceHref?: string;
   metrics: SystemProjectMetrics;
   lastUpdatedAt: string;
+  /** 7-day uptime score 0–100 (derived from current service metrics). undefined for governance. */
+  uptime7d?: number;
+  /** 8 × 3h hourly error buckets for the past 24h (system-wide). Oldest bucket first. */
+  errorsLast24h?: number[];
+  /** Human-readable status summary of the latest activity. */
+  lastActivity?: string;
+  /** Count of error + degraded services across all projects (governance only). */
+  alertsPending?: number;
 };
 
 export type SystemProjectService = {

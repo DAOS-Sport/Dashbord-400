@@ -11,8 +11,56 @@ import type {
   SystemProjectStatus,
   SystemProjectSummary,
 } from "@shared/system/project-monitoring-contract";
+import type { ApiLatencyRecord } from "../telemetry/repository";
 import { collabCourseHealthService } from "./collab-course-health-service";
 import { smartScheduleProjectHealthService } from "./smart-schedule-project-health-service";
+
+// ── Telemetry-driven enrichment helpers ──────────────────────────────────────
+
+/**
+ * Derive a 0-100 uptime score from the current service metrics snapshot.
+ * Weights: ready=100, degraded=60, notConnected=50, error=0.
+ */
+const computeUptimeFromMetrics = (metrics: SystemProjectMetrics): number => {
+  const total = metrics.ready + metrics.degraded + metrics.error + metrics.notConnected;
+  if (total === 0) return 0;
+  const score = metrics.ready * 100 + metrics.degraded * 60 + metrics.notConnected * 50;
+  return Math.round((score / (total * 100)) * 1000) / 10;
+};
+
+/**
+ * Bucket the last 24 h of error / slow records into 8 slots of 3 h each.
+ * Index 0 = oldest (21-24h ago), index 7 = most recent (0-3h ago).
+ */
+const computeErrorBuckets24h = (records: ApiLatencyRecord[]): number[] => {
+  const buckets = new Array<number>(8).fill(0);
+  const now = Date.now();
+  const windowMs = 24 * 3_600_000;
+  const bucketMs = windowMs / 8;
+  for (const r of records) {
+    const isError = r.statusCode >= 400 || r.durationMs >= 8_000;
+    if (!isError) continue;
+    const age = now - new Date(r.timestamp).getTime();
+    if (age < 0 || age >= windowMs) continue;
+    const idx = 7 - Math.floor(age / bucketMs);
+    buckets[Math.min(Math.max(idx, 0), 7)]++;
+  }
+  return buckets;
+};
+
+/**
+ * Generate a human-readable one-liner based on the current project status.
+ */
+const computeLastActivity = (detail: {
+  status: SystemProjectStatus;
+  metrics: SystemProjectMetrics;
+}): string => {
+  const { status, metrics } = detail;
+  if (status === "ready") return `全部 ${metrics.ready} 個服務正常`;
+  if (status === "error") return `${metrics.error} 個服務異常・需介入`;
+  if (status === "degraded") return `${metrics.degraded} 個服務降級`;
+  return `${metrics.notConnected} 個服務待接入`;
+};
 
 const projectOrder: SystemProjectGroup[] = ["governance", "400cms", "400line", "schedule", "collab-course"];
 
@@ -160,8 +208,20 @@ const buildProjectDetail = async (projectKey: SystemProjectGroup, container: App
 
 export const registerProjectMonitoringRoutes = (app: Express, container: AppContainer) => {
   app.get("/api/bff/system/project-monitoring", requireSession, requireRole("system"), async (_req, res) => {
-    const details = await Promise.all(projectOrder.map((projectKey) => buildProjectDetail(projectKey, container)));
-    const items = details.map((detail) => ({
+    const [details, latencyRecords] = await Promise.all([
+      Promise.all(projectOrder.map((projectKey) => buildProjectDetail(projectKey, container))),
+      container.repositories.telemetry.listApiLatencyLogs(1000).catch((): ApiLatencyRecord[] => []),
+    ]);
+
+    const errorBuckets = computeErrorBuckets24h(latencyRecords);
+
+    // Count total error + degraded services across all non-governance projects
+    // so the governance card can display an "alertsPending" number.
+    const alertsPending = details
+      .filter((d) => d.key !== "governance")
+      .reduce((sum, d) => sum + d.metrics.error + d.metrics.degraded, 0);
+
+    const items: SystemProjectSummary[] = details.map((detail) => ({
       key: detail.key,
       label: detail.label,
       description: detail.description,
@@ -171,7 +231,12 @@ export const registerProjectMonitoringRoutes = (app: Express, container: AppCont
       governanceHref: detail.governanceHref,
       metrics: detail.metrics,
       lastUpdatedAt: detail.lastUpdatedAt,
+      uptime7d: detail.key !== "governance" ? computeUptimeFromMetrics(detail.metrics) : undefined,
+      alertsPending: detail.key === "governance" ? alertsPending : undefined,
+      errorsLast24h: errorBuckets,
+      lastActivity: computeLastActivity(detail),
     }));
+
     const dto: SystemProjectMonitoringDto = { generatedAt: nowIso(), items };
     return res.json(dto);
   });
