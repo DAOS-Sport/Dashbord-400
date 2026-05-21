@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { CalendarDays, Camera, CheckCircle2, ClipboardList, Clock3, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
-import type { ShiftBoardDto, StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
+import { CalendarDays, Camera, CheckCircle2, ClipboardList, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
+import type { ShiftSummary, StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -10,11 +10,21 @@ import { apiGet } from "@/shared/api/client";
 import { cn } from "@/lib/utils";
 import { SupervisorPill } from "../supervisor-ui";
 
+type FacilityShiftResponse = {
+  facilityKey: string;
+  facilityName: string;
+  date: string;
+  shifts: ShiftSummary[];
+  totalCount: number;
+  activeCount: number;
+  sourceStatus: { connected: boolean; lastSyncedAt?: string; errorMessage?: string };
+};
+
 const fetchSupervisorDashboard = () => apiGet<SupervisorDashboardDto>("/api/bff/supervisor/dashboard");
 const fetchFacilityDetail = (facilityKey: string) =>
   apiGet<SupervisorFacilityDetailDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/detail`);
 const fetchFacilitySchedule = (facilityKey: string) =>
-  apiGet<ShiftBoardDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/schedule`);
+  apiGet<FacilityShiftResponse>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/schedule`);
 const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`;
 
 const roleLabel = (item: StaffMemberSummary) =>
@@ -139,38 +149,65 @@ function FrontDeskModules({ modules, fallbackItems }: { modules?: SupervisorFaci
   );
 }
 
-const SHIFT_PERIOD_META: Record<string, { label: string; bg: string; text: string; badge: string }> = {
-  early:  { label: "早班", bg: "bg-[#fff8e7]",  text: "text-[#b05c00]",  badge: "bg-[#ffe9b0] text-[#b05c00]" },
-  mid:    { label: "中班", bg: "bg-[#eef5ff]",  text: "text-[#1a4fa3]",  badge: "bg-[#dbeafe] text-[#1a4fa3]" },
-  late:   { label: "晚班", bg: "bg-[#f3eeff]",  text: "text-[#6b21a8]",  badge: "bg-[#ede9fe] text-[#6b21a8]" },
-  custom: { label: "彈性班", bg: "bg-[#eaf8ef]",  text: "text-[#15935d]",  badge: "bg-[#d1fae5] text-[#15935d]" },
+// ── Shift helpers（對齊 /employee/shift 頁面）────────────────────────────────
+
+const fmtShiftTime = (iso?: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" });
 };
 
-const ROLE_BUCKET_LABELS: Record<string, string> = {
-  counter:   "櫃台",
-  lifeguard: "救生員",
-  coach:     "教練",
-  other:     "其他",
-};
-
-function roleBucketFromRole(role?: string): string {
+function classifyShiftRole(role?: string): "counter" | "lifeguard" | "other" {
   if (!role) return "other";
-  const r = role.toLowerCase();
-  if (r.includes("櫃台") || r.includes("counter") || r.includes("front")) return "counter";
-  if (r.includes("救生") || r.includes("lifeguard") || r.includes("guard")) return "lifeguard";
-  if (r.includes("教練") || r.includes("coach") || r.includes("instructor")) return "coach";
+  if (role === "櫃台") return "counter";
+  if (role.includes("救生")) return "lifeguard";
   return "other";
 }
 
-function derivePeriod(startIso?: string): string {
-  if (!startIso) return "custom";
-  const h = new Date(startIso).getHours();
-  if (h < 13) return "early";
-  return "late";
+function classifyShiftPeriod(s: ShiftSummary): "morning" | "evening" | "both" {
+  if (!s.startsAt || !s.endsAt) return "morning";
+  const sh = new Date(s.startsAt).getHours();
+  const eh = new Date(s.endsAt).getHours();
+  if (sh < 12 && eh > 12) return "both";
+  if (sh >= 12) return "evening";
+  return "morning";
 }
 
-function fmtHM(iso: string) {
-  return new Date(iso).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+function ShiftPersonRow({ shift }: { shift: ShiftSummary }) {
+  const status = shift.status === "active" ? "active" : shift.status === "upcoming" ? "upcoming" : "finished";
+  const name = shift.employeeName ?? shift.label.split("/")[0]?.trim() ?? "—";
+  return (
+    <div className="flex items-center gap-2.5" data-testid={`row-shift-person-${shift.id}`}>
+      <span className={cn("text-[15px] font-bold leading-snug", status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]")}>
+        {name}
+      </span>
+      <span className="font-mono text-[12px] font-bold text-[#8b9aae]">
+        {fmtShiftTime(shift.startsAt)}–{fmtShiftTime(shift.endsAt)}
+      </span>
+      {status === "active" && (
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+          上班中
+        </span>
+      )}
+      {status === "finished" && (
+        <span className="ml-auto shrink-0 text-[10px] font-bold text-[#c8d3de]">已結束</span>
+      )}
+    </div>
+  );
+}
+
+function ShiftRoleSection({ label, labelClass, shifts }: { label: string; labelClass: string; shifts: ShiftSummary[] }) {
+  if (!shifts.length) return null;
+  return (
+    <div className="px-4 py-3">
+      <p className={cn("mb-2.5", labelClass)}>{label}</p>
+      <div className="space-y-2">
+        {shifts.map((s) => <ShiftPersonRow key={s.id} shift={s} />)}
+      </div>
+    </div>
+  );
 }
 
 function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
@@ -181,29 +218,22 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
     staleTime: 60_000,
   });
 
-  const periodGroups = useMemo(() => {
-    if (!data?.shifts?.length) return [];
-    const map = new Map<string, { meta: typeof SHIFT_PERIOD_META[string]; slots: typeof data.shifts }>();
-    const order = ["early", "mid", "late", "custom"];
-    for (const slot of data.shifts) {
-      const key = slot.period ?? derivePeriod(slot.start);
-      if (!map.has(key)) {
-        map.set(key, {
-          meta: SHIFT_PERIOD_META[key] ?? SHIFT_PERIOD_META.custom,
-          slots: [],
-        });
-      }
-      map.get(key)!.slots.push(slot);
-    }
-    return order.filter((k) => map.has(k)).map((k) => ({ key: k, ...map.get(k)! }));
-  }, [data]);
+  const shifts = data?.shifts ?? [];
+  const morningShifts = useMemo(
+    () => shifts.filter((s) => { const p = classifyShiftPeriod(s); return p === "morning" || p === "both"; }),
+    [shifts],
+  );
+  const eveningShifts = useMemo(
+    () => shifts.filter((s) => { const p = classifyShiftPeriod(s); return p === "evening" || p === "both"; }),
+    [shifts],
+  );
 
   const connected = data?.sourceStatus?.connected ?? false;
-  const totalCount = data?.totalCount ?? 0;
 
   return (
-    <WorkbenchCard className="p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <WorkbenchCard className="overflow-hidden p-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-[#007166]" />
           <div>
@@ -212,124 +242,92 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {data ? (
-            <span className={cn(
-              "rounded-full px-2 py-1 text-[11px] font-black",
-              connected ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#fff0cc] text-[#b05c00]",
-            )}>
-              {connected ? `已連線 · ${totalCount} 人次` : "連線異常"}
+          {data && (
+            <span className="text-[12px] font-bold text-[#8b9aae]">{data.date}</span>
+          )}
+          {data && data.activeCount > 0 && (
+            <span className="rounded-full bg-[#eaf8ef] px-2.5 py-0.5 text-[11px] font-black text-[#15935d]">
+              {data.activeCount} 人在班
             </span>
-          ) : null}
+          )}
           <button type="button" onClick={() => refetch()} aria-label="重新整理排班" data-testid="button-refresh-schedule">
             <RefreshCw className={cn("h-4 w-4 text-[#637185]", isFetching && "animate-spin")} />
           </button>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">載入排班資料中…</div>
-      ) : isError ? (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center">
+      {/* States */}
+      {isLoading && (
+        <div className="border-t border-[#f0f4f8] px-5 py-6 text-[13px] font-bold text-[#8b9aae]">載入排班中…</div>
+      )}
+      {!isLoading && (isError || (data && !connected)) && (
+        <div className="border-t border-[#f0f4f8] px-5 py-6">
           <p className="text-[13px] font-bold text-[#b05c00]">目前無法取得 Smart Schedule 資料</p>
-          <p className="mt-1 text-[12px] font-bold text-[#637185]">排班系統可能暫時無法連線，請稍後再試。</p>
-        </div>
-      ) : data && !connected ? (
-        <div className="rounded-[8px] bg-[#fff0cc] p-4">
-          <p className="text-[13px] font-black text-[#b05c00]">Smart Schedule 暫時無法連線</p>
-          <p className="mt-1 text-[12px] font-bold text-[#637185]">{data.sourceStatus?.errorMessage ?? "班表資料暫時無法取得，請稍後再試。"}</p>
-        </div>
-      ) : data && periodGroups.length === 0 ? (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">今日尚無排班資料。</div>
-      ) : data ? (
-        <div className="grid gap-4">
-          {periodGroups.map(({ key, meta, slots }) => {
-            const peopleCount = slots.reduce((s, sl) => s + sl.people.length, 0);
-            return (
-              <div key={key}>
-                <div className={cn("mb-2 flex items-center gap-2 rounded-[8px] px-3 py-2", meta.bg)}>
-                  <span className={cn("text-[12px] font-black", meta.text)}>{meta.label}</span>
-                  <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[10px] font-black", meta.badge)}>
-                    {peopleCount} 人
-                  </span>
-                </div>
-                <div className="grid gap-2">
-                  {slots.map((slot) => {
-                    const statusLabel = slot.isCurrent ? "上班中" : slot.isFuture ? "待接" : "已結束";
-                    const statusCls = slot.isCurrent
-                      ? "bg-[#eaf8ef] text-[#15935d]"
-                      : slot.isFuture
-                        ? "bg-[#eef5ff] text-[#2f6fe8]"
-                        : "bg-[#eef2f6] text-[#637185]";
-                    const timeRange = slot.start && slot.end ? `${fmtHM(slot.start)} – ${fmtHM(slot.end)}` : "";
-
-                    const buckets = new Map<string, typeof slot.people>();
-                    for (const p of slot.people) {
-                      const b = roleBucketFromRole(p.role);
-                      if (!buckets.has(b)) buckets.set(b, []);
-                      buckets.get(b)!.push(p);
-                    }
-                    const bucketOrder = ["counter", "lifeguard", "coach", "other"];
-                    const activeBuckets = bucketOrder.filter((b) => buckets.has(b));
-
-                    return (
-                      <div key={slot.shiftId} className="rounded-[8px] border border-[#e6edf4] bg-white p-3" data-testid={`schedule-slot-${slot.shiftId}`}>
-                        <div className="mb-2 flex items-center gap-2">
-                          <Clock3 className="h-3.5 w-3.5 text-[#8b9aae]" />
-                          <span className="text-[12px] font-black text-[#10233f]">{timeRange}</span>
-                          <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-black", statusCls)}>
-                            {statusLabel}
-                          </span>
-                        </div>
-                        {slot.people.length === 0 ? (
-                          <p className="text-[11px] font-bold text-[#8b9aae]">此時段無排班人員</p>
-                        ) : (
-                          <div className="grid gap-2">
-                            {activeBuckets.map((bucket) => (
-                              <div key={bucket}>
-                                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#8b9aae]">{ROLE_BUCKET_LABELS[bucket] ?? bucket}</p>
-                                <div className="grid gap-1 sm:grid-cols-2">
-                                  {buckets.get(bucket)!.map((person, pi) => (
-                                    <div
-                                      key={`${person.userId}-${pi}`}
-                                      className={cn(
-                                        "flex items-center gap-2 rounded-[6px] px-2 py-1.5",
-                                        meta.bg,
-                                      )}
-                                      data-testid={`schedule-person-${slot.shiftId}-${pi}`}
-                                    >
-                                      <div className={cn(
-                                        "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-black",
-                                        meta.text,
-                                        "bg-white",
-                                      )}>
-                                        {person.name.slice(0, 1)}
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="truncate text-[12px] font-black text-[#10233f]">{person.name}</p>
-                                        {person.role ? <p className="truncate text-[10px] font-bold text-[#8b9aae]">{person.role}</p> : null}
-                                      </div>
-                                      {person.isCurrentUser && (
-                                        <span className="shrink-0 rounded-full bg-[#0d2a50] px-1.5 py-0.5 text-[9px] font-black text-white">我</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          <p className="text-right text-[11px] font-bold text-[#8b9aae]">
-            {data.date} · 今日共 {totalCount} 人次
+          <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">
+            {data?.sourceStatus?.errorMessage ?? "排班系統可能暫時無法連線，請稍後再試。"}
           </p>
         </div>
-      ) : null}
+      )}
+      {!isLoading && data && connected && shifts.length === 0 && (
+        <div className="border-t border-[#f0f4f8] px-5 py-6 text-[13px] font-bold text-[#8b9aae]">今日尚無排班資料。</div>
+      )}
+
+      {/* 早班 / 晚班 雙欄 */}
+      {!isLoading && data && connected && shifts.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 divide-x divide-[#f0f4f8] border-t border-[#f0f4f8]">
+            {/* 早班 */}
+            <div>
+              <div className="border-b border-[#f0f4f8] px-4 py-2.5">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f9e5b]">早班</p>
+                <p className="text-[10px] font-bold text-[#8b9aae]">12:00 前</p>
+              </div>
+              {morningShifts.length === 0 ? (
+                <div className="px-4 py-5 text-[12px] font-bold text-[#8b9aae]">無早班人員</div>
+              ) : (
+                <div className="divide-y divide-[#f0f4f8]">
+                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-[#8b9aae]" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
+                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-[#10233f]" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
+                  {morningShifts.filter((s) => classifyShiftRole(s.role) === "other").length > 0 && (
+                    <ShiftRoleSection
+                      label={morningShifts.find((s) => classifyShiftRole(s.role) === "other")?.role || "其他"}
+                      labelClass="text-[12px] font-black text-[#536175]"
+                      shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "other")}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+            {/* 晚班 */}
+            <div>
+              <div className="border-b border-[#f0f4f8] px-4 py-2.5">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f6fe8]">晚班</p>
+                <p className="text-[10px] font-bold text-[#8b9aae]">12:00 後</p>
+              </div>
+              {eveningShifts.length === 0 ? (
+                <div className="px-4 py-5 text-[12px] font-bold text-[#8b9aae]">無晚班人員</div>
+              ) : (
+                <div className="divide-y divide-[#f0f4f8]">
+                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-[#8b9aae]" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
+                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-[#10233f]" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
+                  {eveningShifts.filter((s) => classifyShiftRole(s.role) === "other").length > 0 && (
+                    <ShiftRoleSection
+                      label={eveningShifts.find((s) => classifyShiftRole(s.role) === "other")?.role || "其他"}
+                      labelClass="text-[12px] font-black text-[#536175]"
+                      shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "other")}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-[#f0f4f8] bg-[#f8fafc] px-5 py-2.5">
+            <span className="text-[11px] font-bold text-[#8b9aae]">本日共計</span>
+            <span className="text-[12px] font-black text-[#10233f]">{data.totalCount} 人次</span>
+          </div>
+        </>
+      )}
     </WorkbenchCard>
   );
 }

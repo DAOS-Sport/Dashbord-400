@@ -22,7 +22,7 @@ import {
   withTimeout,
 } from "./employee-home-service";
 import { mapScheduleShifts } from "./services/employee-shift-service";
-import { buildShiftBoardFromSummaries, filterShiftSummariesForFacility } from "./services/shift-board-contract";
+import { filterShiftSummariesForFacility } from "./services/shift-board-contract";
 
 const todayTaipei = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
 const startOfTaipeiDay = () => new Date(`${todayTaipei()}T00:00:00+08:00`);
@@ -579,15 +579,20 @@ export const registerSupervisorBffRoutes = (
         facilityKey,
       );
 
-      return res.json(
-        buildShiftBoardFromSummaries(facilityKey, session.userId, shifts, {
-          connected: Array.isArray(result.data),
+      const connected = Array.isArray(result.data);
+      return res.json({
+        facilityKey,
+        facilityName: facilityLabel(facilityKey),
+        date: new Date().toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei", month: "long", day: "numeric", weekday: "short" }),
+        shifts,
+        totalCount: shifts.length,
+        activeCount: shifts.filter((s) => s.status === "active").length,
+        sourceStatus: {
+          connected,
           lastSyncedAt: new Date().toISOString(),
-          errorMessage: result.data
-            ? undefined
-            : result.meta.fallbackReason || "班表資料暫時無法取得。",
-        }),
-      );
+          errorMessage: connected ? undefined : result.meta.fallbackReason || "班表資料暫時無法取得。",
+        },
+      });
     },
   );
 };
