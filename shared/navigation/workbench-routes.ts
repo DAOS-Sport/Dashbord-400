@@ -48,7 +48,7 @@ export const workbenchRoutes = [
   { moduleId: "system-watchdog", label: "Watchdog", iconKey: "shield-check", role: "system", primaryPath: "/system/watchdog", shell: "system" },
   { moduleId: "system-cms-monitoring", label: "CMS 內部監控", iconKey: "server", role: "system", primaryPath: "/system/cms-monitoring", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
-  { moduleId: "system-operations", label: "遠維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
+  { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
   { moduleId: "system-monitoring-400line", label: "400LINE", iconKey: "server", role: "system", primaryPath: "/system/monitoring/400line", shell: "system" },
   { moduleId: "system-monitoring-schedule", label: "排班管理系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/schedule", shell: "system" },
   { moduleId: "system-monitoring-collab-course", label: "偕同課系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/collab-course", shell: "system" },
