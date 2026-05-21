@@ -362,6 +362,35 @@ export interface SupervisorDashboardDto {
   campaigns: BffSection<CampaignSummary[]>;
 }
 
+export interface FacilityScheduleStaffDto {
+  name: string;
+  employeeNumber?: string;
+  role?: string;
+  timeRange?: string;
+  status: "active" | "upcoming" | "ended";
+}
+
+export interface FacilitySchedulePeriodDto {
+  period: "early" | "mid" | "late" | "custom";
+  label: string;
+  timeRange?: string;
+  staff: FacilityScheduleStaffDto[];
+}
+
+export interface FacilityTodayScheduleDto {
+  facilityKey: string;
+  facilityName: string;
+  date: string;
+  sourceConnected: boolean;
+  sourceLabel: string;
+  periods: FacilitySchedulePeriodDto[];
+  summary: {
+    total: number;
+    current: number;
+    byPeriod: Record<string, number>;
+  };
+}
+
 export interface SystemMetricSummary {
   label: string;
   value: string;

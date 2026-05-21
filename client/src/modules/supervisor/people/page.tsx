@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Camera, CheckCircle2, ClipboardList, Clock3, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
-import type { StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
+import { CalendarDays, Camera, CheckCircle2, ClipboardList, Clock3, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
+import type { FacilityTodayScheduleDto, StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -13,6 +13,8 @@ import { SupervisorPill } from "../supervisor-ui";
 const fetchSupervisorDashboard = () => apiGet<SupervisorDashboardDto>("/api/bff/supervisor/dashboard");
 const fetchFacilityDetail = (facilityKey: string) =>
   apiGet<SupervisorFacilityDetailDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/detail`);
+const fetchFacilitySchedule = (facilityKey: string) =>
+  apiGet<FacilityTodayScheduleDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/schedule`);
 const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`;
 
 const roleLabel = (item: StaffMemberSummary) =>
@@ -134,6 +136,118 @@ function FrontDeskModules({ modules, fallbackItems }: { modules?: SupervisorFaci
         </div>
       </div>
     </div>
+  );
+}
+
+const PERIOD_COLORS = {
+  early:  { bg: "bg-[#fff8e7]",  text: "text-[#b05c00]",  badge: "bg-[#ffe9b0] text-[#b05c00]" },
+  mid:    { bg: "bg-[#eef5ff]",  text: "text-[#1a4fa3]",  badge: "bg-[#dbeafe] text-[#1a4fa3]" },
+  late:   { bg: "bg-[#f3eeff]",  text: "text-[#6b21a8]",  badge: "bg-[#ede9fe] text-[#6b21a8]" },
+  custom: { bg: "bg-[#eaf8ef]",  text: "text-[#15935d]",  badge: "bg-[#d1fae5] text-[#15935d]" },
+} as const;
+
+function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ["/api/bff/supervisor/facilities/schedule", facilityKey],
+    queryFn: () => fetchFacilitySchedule(facilityKey),
+    enabled: Boolean(facilityKey),
+    staleTime: 60_000,
+  });
+
+  return (
+    <WorkbenchCard className="p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-[#007166]" />
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#007166]">Smart Schedule</p>
+            <h2 className="text-[15px] font-black text-[#10233f]">今日排班</h2>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {data ? (
+            <span className={cn(
+              "rounded-full px-2 py-1 text-[11px] font-black",
+              data.sourceConnected ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#fff0cc] text-[#b05c00]",
+            )}>
+              {data.sourceConnected ? `已連線 · 共 ${data.summary.total} 筆` : "連線異常"}
+            </span>
+          ) : null}
+          <button type="button" onClick={() => refetch()} aria-label="重新整理排班" data-testid="button-refresh-schedule">
+            <RefreshCw className={cn("h-4 w-4 text-[#637185]", isFetching && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">
+          載入排班資料中…
+        </div>
+      ) : isError || (data && !data.sourceConnected) ? (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center">
+          <p className="text-[13px] font-bold text-[#b05c00]">目前無法取得 Smart Schedule 資料</p>
+          <p className="mt-1 text-[12px] font-bold text-[#637185]">排班系統可能暫時無法連線，請稍後再試。</p>
+        </div>
+      ) : data && data.periods.length === 0 ? (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">
+          今日尚無排班資料。
+        </div>
+      ) : data ? (
+        <div className="grid gap-3">
+          {data.periods.map((pg) => {
+            const colors = PERIOD_COLORS[pg.period] ?? PERIOD_COLORS.custom;
+            return (
+              <div key={pg.period} className={cn("rounded-[8px] p-3", colors.bg)}>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className={cn("text-[12px] font-black", colors.text)}>{pg.label}</span>
+                  {pg.timeRange ? (
+                    <span className="text-[11px] font-bold text-[#637185]">{pg.timeRange}</span>
+                  ) : null}
+                  <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[10px] font-black", colors.badge)}>
+                    {pg.staff.length} 人
+                  </span>
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2">
+                  {pg.staff.map((member, i) => (
+                    <div
+                      key={`${member.employeeNumber ?? member.name}-${i}`}
+                      className="flex items-center gap-2 rounded-[6px] bg-white px-2 py-1.5"
+                      data-testid={`schedule-staff-${pg.period}-${i}`}
+                    >
+                      <div className={cn(
+                        "grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black",
+                        colors.bg, colors.text,
+                      )}>
+                        {member.name.slice(0, 1)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-black text-[#10233f]">{member.name}</p>
+                        <p className="truncate text-[10px] font-bold text-[#8b9aae]">
+                          {[member.role, member.timeRange].filter(Boolean).join(" · ") || "—"}
+                        </p>
+                      </div>
+                      <span className={cn(
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black",
+                        member.status === "active"
+                          ? "bg-[#eaf8ef] text-[#15935d]"
+                          : member.status === "upcoming"
+                            ? "bg-[#eef5ff] text-[#2f6fe8]"
+                            : "bg-[#eef2f6] text-[#637185]",
+                      )}>
+                        {member.status === "active" ? "當班" : member.status === "upcoming" ? "待接" : "已下班"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-right text-[11px] font-bold text-[#8b9aae]">
+            {data.date} · 當班 {data.summary.current} 人 / 今日共 {data.summary.total} 筆
+          </p>
+        </div>
+      ) : null}
+    </WorkbenchCard>
   );
 }
 
@@ -309,6 +423,8 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                 ))}
               </div>
             </WorkbenchCard>
+
+            <TodaySchedulePanel facilityKey={decodedRouteFacilityKey!} />
 
             <div className="grid gap-4 xl:grid-cols-2">
               <StaffRows title="當班現職人員" items={detailQuery.data?.staffing.current ?? []} empty="目前沒有當班資料。" />

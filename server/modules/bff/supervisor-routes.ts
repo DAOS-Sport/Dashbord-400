@@ -544,4 +544,114 @@ export const registerSupervisorBffRoutes = (
       });
     },
   );
+
+  // ── 今日排班（Smart Schedule）──────────────────────────────────────────
+  app.get(
+    "/api/bff/supervisor/facilities/:facilityKey/schedule",
+    requireRole("supervisor", "system"),
+    async (req, res) => {
+      const session = req.workbenchSession!;
+      const facilityKeyParam = req.params.facilityKey;
+      const facilityKey = Array.isArray(facilityKeyParam) ? facilityKeyParam[0] : facilityKeyParam;
+      if (!facilityKey) return res.status(400).json({ message: "缺少場館代碼" });
+
+      const isSystem = session.grantedRoles.includes("system");
+      const grantedFacilityKeys = session.grantedFacilities.length
+        ? session.grantedFacilities
+        : facilityLineGroups.map((f) => f.facilityKey);
+      if (!isSystem && !grantedFacilityKeys.includes(facilityKey)) {
+        return res.status(403).json({ message: "無權限查看此場館" });
+      }
+
+      const now = Date.now();
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Taipei" });
+
+      const emptyResult = { data: null as null, meta: { source: "timeout", fallbackReason: "timeout", errorCode: "TIMEOUT" } } as const;
+      const shiftsResult = await withTimeout(
+        container.integrations.schedule.listTodayShifts(facilityKey),
+        4000,
+        emptyResult as Awaited<ReturnType<AppContainer["integrations"]["schedule"]["listTodayShifts"]>>,
+      );
+
+      const shifts = shiftsResult.data ?? [];
+      const PERIOD_LABELS: Record<string, string> = {
+        early: "早班",
+        mid: "中班",
+        late: "晚班",
+        custom: "彈性班",
+      };
+
+      const periodMap = new Map<string, typeof shifts>();
+      for (const shift of shifts) {
+        const period = shift.period ?? "custom";
+        if (!periodMap.has(period)) periodMap.set(period, []);
+        periodMap.get(period)!.push(shift);
+      }
+
+      const periodOrder = ["early", "mid", "late", "custom"];
+      const periods = periodOrder
+        .filter((p) => periodMap.has(p))
+        .map((p) => {
+          const group = periodMap.get(p)!;
+          const times = group.flatMap((s) => [s.startsAt, s.endsAt]).filter(Boolean);
+          const minTime = times.length ? times.reduce((a, b) => (a < b ? a : b)) : undefined;
+          const maxTime = times.length ? times.reduce((a, b) => (a > b ? a : b)) : undefined;
+          const fmtTime = (iso: string) =>
+            new Date(iso).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+          const timeRange = minTime && maxTime ? `${fmtTime(minTime)} – ${fmtTime(maxTime)}` : undefined;
+
+          return {
+            period: p as "early" | "mid" | "late" | "custom",
+            label: PERIOD_LABELS[p] ?? p,
+            timeRange,
+            staff: group.map((shift) => {
+              const startsAt = shift.startsAt ? Date.parse(shift.startsAt) : 0;
+              const endsAt = shift.endsAt ? Date.parse(shift.endsAt) : 0;
+              const status =
+                startsAt && endsAt
+                  ? now >= startsAt && now <= endsAt
+                    ? ("active" as const)
+                    : now < startsAt
+                      ? ("upcoming" as const)
+                      : ("ended" as const)
+                  : ("upcoming" as const);
+              const fmtRange =
+                shift.startsAt && shift.endsAt
+                  ? `${fmtTime(shift.startsAt)} – ${fmtTime(shift.endsAt)}`
+                  : undefined;
+              return {
+                name: shift.employeeName || shift.label || "—",
+                employeeNumber: shift.employeeNumber || undefined,
+                role: shift.role || shift.kind || undefined,
+                timeRange: fmtRange,
+                status,
+              };
+            }),
+          };
+        });
+
+      const byPeriod: Record<string, number> = {};
+      for (const pg of periods) byPeriod[pg.period] = pg.staff.length;
+
+      return res.json({
+        facilityKey,
+        facilityName: facilityLabel(facilityKey),
+        date: today,
+        sourceConnected: Array.isArray(shiftsResult.data),
+        sourceLabel: "Smart Schedule",
+        periods,
+        summary: {
+          total: shifts.length,
+          current: shifts.filter(
+            (s) =>
+              s.startsAt &&
+              s.endsAt &&
+              Date.parse(s.startsAt) <= now &&
+              Date.parse(s.endsAt) >= now,
+          ).length,
+          byPeriod,
+        },
+      });
+    },
+  );
 };
