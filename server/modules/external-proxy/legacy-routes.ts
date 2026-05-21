@@ -53,13 +53,26 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
     return sanitizeAnnouncementCandidate(candidate);
   };
 
+  // candidateType values that are purely casual chat and must NEVER appear in
+  // the announcement review queue regardless of what the upstream classifier says.
+  // "chat" = 一般閒聊; "vip_chat" = VIP 用戶閒聊（例如陳柏榮）
+  const CHAT_TYPES = new Set(["chat", "vip_chat"]);
+
   const postProcessAnnouncementPayload = (payload: unknown) => {
     if (!payload || typeof payload !== "object") return payload;
     const source = payload as Record<string, unknown>;
     const itemsKey = Array.isArray(source.candidates) ? "candidates" : Array.isArray(source.items) ? "items" : null;
     if (!itemsKey) return payload;
     const originalItems = source[itemsKey] as Record<string, unknown>[];
-    const sanitized = originalItems
+    // First pass: drop chat / vip_chat by candidateType (upstream classification).
+    // This catches casual messages that slipped through the upstream "ignore" filter
+    // via vip_bypass or similar passReasons.
+    const nonChat = originalItems.filter((item) => {
+      const ct = String(item.candidateType ?? "").toLowerCase().trim();
+      return !CHAT_TYPES.has(ct);
+    });
+    // Second pass: run local text classifier.
+    const sanitized = nonChat
       .map((item) => postProcessAnnouncementCandidate(item))
       .filter((item): item is Record<string, unknown> => Boolean(item));
     return {

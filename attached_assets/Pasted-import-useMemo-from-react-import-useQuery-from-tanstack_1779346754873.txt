@@ -801,6 +801,8 @@ export default function SystemProjectOverviewPage() {
         <KpiStrip
           healthScore={healthScore}
           errors24h={recentErrors.length}
+          // errorsTrend can be wired up once BFF returns yesterday's count;
+          // omit for now and the trend pill simply hides.
           pending={pending}
           alerts24h={recentEvents.length}
         />

@@ -411,7 +411,7 @@ export default function SupervisorAnnouncementsPage() {
   const queryClient = useQueryClient();
   const auth = useAuthMe();
   const facilityKey = auth.data?.activeFacility ?? "xinbei_pool";
-  const [filters, setFilters] = useState<AnnouncementFilters>({ page: 1, pageSize: 20, status: "pending_review" });
+  const [filters, setFilters] = useState<AnnouncementFilters>({ page: 1, pageSize: 50, status: "pending_review" });
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [keyword, setKeyword] = useState("");
   const [announcementDrawerOpen, setAnnouncementDrawerOpen] = useState(false);
