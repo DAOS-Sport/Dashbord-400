@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { AlertCircle, CalendarCheck, CalendarDays, Car, CheckSquare, ClipboardList, Megaphone, UserRound, Users, Waves, X } from "lucide-react";
+import { AlertCircle, BookOpen, Building2, CalendarCheck, CalendarDays, Car, CheckSquare, ClipboardList, Megaphone, UserRound, Users, Waves, X } from "lucide-react";
 import type { StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityOverview } from "@shared/domain/workbench";
 import { apiGet } from "@/shared/api/client";
 import { useAuthMe } from "@/shared/auth/session";
@@ -732,6 +732,92 @@ export default function SupervisorDashboardPage() {
             data={data}
             onOpenDutyDrawer={() => setDutyDrawerOpen(true)}
           />
+
+          {/* ── 模組速覽 6-widget ─────────────────────────────────────── */}
+          <WorkbenchCard className="p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#007166]">Quick Modules</p>
+              <span className="text-[13px] font-black text-[#10233f]">模組速覽</span>
+              <span className="text-[10px] font-bold text-[#8b9aae]">點擊進入完整管理頁</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+              {([
+                {
+                  icon: Building2,
+                  label: "場館",
+                  value: facilities.length,
+                  sub: `${facilities.filter((f) => f.onShift > 0).length} 館營運中`,
+                  href: "/supervisor/facilities" as const,
+                  tone: "navy" as const,
+                },
+                {
+                  icon: ClipboardList,
+                  label: "交接事項",
+                  value: data.handoverOverview.data?.open ?? 0,
+                  sub: "未完成交接",
+                  href: "/supervisor/handover" as const,
+                  tone: "amber" as const,
+                },
+                {
+                  icon: Car,
+                  label: "停車場管理",
+                  value: parkingQuery.isLoading ? "…" : (parkingQuery.data?.activeVehicleCount ?? "—"),
+                  sub: "履約中車輛",
+                  href: "/supervisor/parking" as const,
+                  tone: "blue" as const,
+                },
+                {
+                  icon: Waves,
+                  label: "水道租借",
+                  value: laneRentalQuery.isLoading ? "…" : extractItems<LaneRentalPreview>(laneRentalQuery.data).length,
+                  sub: "今日時段數",
+                  href: "/supervisor/lane-rentals" as const,
+                  tone: "green" as const,
+                },
+                {
+                  icon: CalendarCheck,
+                  label: "場地預約",
+                  value: courtsQuery.isLoading
+                    ? "…"
+                    : (courtsQuery.data?.xinbei?.length ?? 0) + (courtsQuery.data?.sanchong?.length ?? 0),
+                  sub: "今日預約數",
+                  href: "/supervisor/courts/xinbei" as const,
+                  tone: "blue" as const,
+                },
+                {
+                  icon: BookOpen,
+                  label: "偕同課課表",
+                  value: "課表",
+                  sub: "查看課程時段",
+                  href: "/supervisor/collab-courses" as const,
+                  tone: "navy" as const,
+                },
+              ] as const).map(({ icon: Icon, label, value, sub, href, tone }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="group flex flex-col gap-2 rounded-[8px] border border-[#edf1f6] bg-white p-3 transition hover:border-[#c5d0db] hover:bg-[#fbfcfd] hover:shadow-sm"
+                  data-testid={`quick-module-${label}`}
+                >
+                  <div className={cn(
+                    "grid h-8 w-8 place-items-center rounded-[6px]",
+                    tone === "green" ? "bg-[#eaf8ef] text-[#15935d]"
+                    : tone === "amber" ? "bg-[#fff4e8] text-[#c86912]"
+                    : tone === "blue"  ? "bg-[#eef5ff] text-[#2f6fe8]"
+                    : "bg-[#eef2f6] text-[#536175]",
+                  )}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-black text-[#10233f]">{label}</p>
+                    <p className="mt-0.5 text-[20px] font-black leading-none text-[#10233f]">{value}</p>
+                    <p className="mt-1 text-[10px] font-bold text-[#8b9aae]">{sub}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </WorkbenchCard>
+
           <WorkbenchCard className="overflow-hidden p-0">
             <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div className="px-5 pt-5">

@@ -16,6 +16,8 @@ export type { AnnouncementFilterBreakdown };
 const IMPORTANT_TYPES = ["rule", "notice", "script"] as const;
 const CAMPAIGN_TYPES = ["campaign", "discount"] as const;
 const APPROVED_STATUSES = ["published", "approved"] as const;
+/** Pending candidates at or above this threshold are auto-included without supervisor review. */
+const HIGH_CONFIDENCE_AUTO_THRESHOLD = 0.9;
 const SYNC_INTERVAL_MS = 30_000;
 const RESULT_CACHE_TTL_MS = 30_000;
 const EXPIRING_SOON_MS = 24 * 60 * 60 * 1000;
@@ -332,11 +334,20 @@ async function fetchAndBuildImportant(
   );
   const typeFilter = inArray(announcementCandidates.candidateType, [...IMPORTANT_TYPES]);
   const expiryFilter = or(isNull(announcementCandidates.endAt), gte(announcementCandidates.endAt, now));
-  const approvedFilter = inArray(announcementCandidates.status, [...APPROVED_STATUSES]);
+
+  // Eligible = explicitly approved/published  OR  pending with high confidence (auto-include).
+  // This lets supervisors skip review for announcements the AI is very certain about (≥ 90%).
+  const eligibleFilter = or(
+    inArray(announcementCandidates.status, [...APPROVED_STATUSES]),
+    and(
+      eq(announcementCandidates.status, "pending"),
+      gte(announcementCandidates.confidence, HIGH_CONFIDENCE_AUTO_THRESHOLD),
+    ),
+  );
 
   // Run two COUNT queries + data fetch in parallel:
   // 1. upstreamTotal = all synced candidates for this facility + type (any status, not expired)
-  // 2. approvedTotal = those that also pass the approved/published status filter
+  // 2. approvedTotal = those that pass eligibleFilter (approved/published OR high-confidence pending)
   const [countAllResult, countApprovedResult, rows] = await Promise.all([
     db
       .select({ value: count() })
@@ -345,11 +356,11 @@ async function fetchAndBuildImportant(
     db
       .select({ value: count() })
       .from(announcementCandidates)
-      .where(and(facilityFilter, typeFilter, expiryFilter, approvedFilter)),
+      .where(and(facilityFilter, typeFilter, expiryFilter, eligibleFilter)),
     db
       .select()
       .from(announcementCandidates)
-      .where(and(facilityFilter, typeFilter, expiryFilter, approvedFilter))
+      .where(and(facilityFilter, typeFilter, expiryFilter, eligibleFilter))
       .orderBy(desc(announcementCandidates.detectedAt))
       .limit(limit * 5),
   ]);
