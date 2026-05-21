@@ -10,6 +10,7 @@ import type {
   ApiMonitoringRow,
   ApiMonitoringStatus,
   ApiMonitoringTrendBucket,
+  ApiMonitoringError,
 } from "@shared/system/api-monitoring-contract";
 
 type TabKey = "apis" | "alerts" | "integrations";
@@ -285,41 +286,106 @@ export default function SystemWatchdogPage() {
         ) : null}
 
         {tab === "alerts" ? (
-          <WorkbenchCard className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
-              <div>
-                <h2 className="text-[16px] font-black text-[#10233f]">Watchdog events</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#637185]">點擊 row 可展開 payload、routePath、endpoint 與 correlationId。</p>
+          <div className="space-y-4">
+            {/* ── 近 24h API 錯誤 ─────────────────────────────── */}
+            <WorkbenchCard className="overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
+                <div>
+                  <h2 className="text-[16px] font-black text-[#10233f]">
+                    近 24h API 錯誤
+                    {(apiQuery.data?.recentErrors ?? []).length > 0 && (
+                      <span className="ml-2 rounded-full bg-[#ffe8eb] px-2 py-0.5 text-[11px] font-black text-[#dc2626]">
+                        {apiQuery.data!.recentErrors.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#637185]">來自 API 監控的 4xx / 5xx / timeout / aborted 記錄，未標示已處理。</p>
+                </div>
               </div>
-              <select
-                value={severityFilter}
-                onChange={(event) => setSeverityFilter(event.target.value)}
-                className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
-              >
-                <option value="all">all severity</option>
-                <option value="critical">critical</option>
-                <option value="warning">warning</option>
-                <option value="info">info</option>
-              </select>
-            </div>
-            <div className="divide-y divide-[#edf1f6]">
-              {events.map((event) => (
-                <button
-                  key={event.id}
-                  type="button"
-                  onClick={() => setSelectedEvent(event)}
-                  className="grid w-full gap-2 p-4 text-left hover:bg-[#fbfcfd] md:grid-cols-[160px_110px_1fr_160px_140px] md:items-center"
+              {apiQuery.isLoading ? (
+                <div className="space-y-2 p-4">
+                  {[1, 2, 3].map((n) => <div key={n} className="h-12 animate-pulse rounded-[8px] bg-[#f3f6fb]" />)}
+                </div>
+              ) : (apiQuery.data?.recentErrors ?? []).length === 0 ? (
+                <div className="p-8 text-center text-[13px] font-bold text-[#637185]">最近 24h 無未解決 API 錯誤 🎉</div>
+              ) : (
+                <div className="divide-y divide-[#edf1f6]">
+                  {(apiQuery.data!.recentErrors as ApiMonitoringError[]).slice(0, 30).map((err) => (
+                    <div key={err.id} className="grid gap-2 p-4 md:grid-cols-[140px_80px_1fr_120px_100px] md:items-center">
+                      <span className="text-[11px] font-bold text-[#637185]">
+                        {new Date(err.occurredAt).toLocaleString("zh-TW")}
+                      </span>
+                      <span className={cn(
+                        "w-fit rounded-[4px] px-1.5 py-0.5 text-[10px] font-black",
+                        err.errorType === "5xx" ? "bg-[#ffe8eb] text-[#dc2626]" :
+                        err.errorType === "4xx" ? "bg-[#fff6e7] text-[#9b6a00]" :
+                        err.errorType === "timeout" ? "bg-[#fff6e7] text-[#9b6a00]" :
+                        "bg-[#eef2f6] text-[#536175]"
+                      )}>
+                        {err.statusCode || err.errorType}
+                      </span>
+                      <span className="truncate font-mono text-[12px] font-bold text-[#10233f]">{err.route}</span>
+                      <span className="text-[11px] font-bold text-[#8b9aae]">{err.errorType}</span>
+                      <span className="text-right font-mono text-[11px] font-bold text-[#8b9aae]">{err.durationMs}ms</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </WorkbenchCard>
+
+            {/* ── 系統 Watchdog events ──────────────────────────── */}
+            <WorkbenchCard className="overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
+                <div>
+                  <h2 className="text-[16px] font-black text-[#10233f]">
+                    系統 Watchdog events
+                    {events.length > 0 && (
+                      <span className="ml-2 rounded-full bg-[#fff6e7] px-2 py-0.5 text-[11px] font-black text-[#9b6a00]">
+                        {events.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="mt-1 text-[12px] font-bold text-[#637185]">系統主動偵測或後端寫入的異常事件，點擊可展開 payload。</p>
+                </div>
+                <select
+                  value={severityFilter}
+                  onChange={(event) => setSeverityFilter(event.target.value)}
+                  className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
                 >
-                  <span className="text-[12px] font-bold text-[#637185]">{new Date(event.observedAt).toLocaleString("zh-TW")}</span>
-                  <span className={cn("w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase", statusToneCard[event.severity] ?? statusToneCard.info)}>{event.severity}</span>
-                  <span className="truncate text-[13px] font-black text-[#10233f]">{event.message ?? event.serviceName}</span>
-                  <span className="truncate text-[12px] font-bold text-[#637185]">{event.serviceName}</span>
-                  <span className="truncate text-[12px] font-bold text-[#8b9aae]">{event.source}</span>
-                </button>
-              ))}
-              {!events.length ? <div className="p-8 text-center text-[13px] font-bold text-[#637185]">目前沒有 Watchdog events。</div> : null}
-            </div>
-          </WorkbenchCard>
+                  <option value="all">all severity</option>
+                  <option value="critical">critical</option>
+                  <option value="warning">warning</option>
+                  <option value="info">info</option>
+                </select>
+              </div>
+              <div className="divide-y divide-[#edf1f6]">
+                {eventsQuery.isLoading ? (
+                  <div className="space-y-2 p-4">
+                    {[1, 2].map((n) => <div key={n} className="h-10 animate-pulse rounded-[8px] bg-[#f3f6fb]" />)}
+                  </div>
+                ) : events.length === 0 ? (
+                  <div className="p-8 text-center text-[13px] font-bold text-[#637185]">
+                    目前沒有 Watchdog events。系統背景若偵測到異常會自動寫入此處。
+                  </div>
+                ) : (
+                  events.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => setSelectedEvent(event)}
+                      className="grid w-full gap-2 p-4 text-left hover:bg-[#fbfcfd] md:grid-cols-[160px_110px_1fr_160px_140px] md:items-center"
+                    >
+                      <span className="text-[12px] font-bold text-[#637185]">{new Date(event.observedAt).toLocaleString("zh-TW")}</span>
+                      <span className={cn("w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase", statusToneCard[event.severity] ?? statusToneCard.info)}>{event.severity}</span>
+                      <span className="truncate text-[13px] font-black text-[#10233f]">{event.message ?? event.serviceName}</span>
+                      <span className="truncate text-[12px] font-bold text-[#637185]">{event.serviceName}</span>
+                      <span className="truncate text-[12px] font-bold text-[#8b9aae]">{event.source}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </WorkbenchCard>
+          </div>
         ) : null}
 
         {tab === "integrations" ? (

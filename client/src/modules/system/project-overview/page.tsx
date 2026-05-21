@@ -261,7 +261,7 @@ function buildHourBuckets(events: WatchdogEventDto[]) {
 const SEVERITY_BG: Record<string, string> = {
   critical: "bg-[#dc2626]",
   warning: "bg-[#f59e0b]",
-  info: "bg-[#60a5fa]",
+  info: "bg-[#94a3b8]",
   none: "bg-[#eef2f6]",
 };
 
