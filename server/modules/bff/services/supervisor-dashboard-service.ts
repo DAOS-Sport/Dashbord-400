@@ -109,6 +109,17 @@ export const buildStaffingSummary = async (
     }));
 
   const shifts = shiftResults.flatMap((result) => result.data ?? []);
+
+  const mapShiftToMember = (shift: (typeof shifts)[number], status: StaffMemberSummary["status"]): StaffMemberSummary => ({
+    employeeNumber: shift.employeeNumber,
+    name: shift.employeeName || shift.label,
+    facilityKey: shift.facilityKey,
+    facilityName: shift.venueName || facilityLabel(shift.facilityKey),
+    shiftLabel: shift.role || shift.kind || shift.period || "今日",
+    timeRange: toTimeRange(shift.startsAt, shift.endsAt),
+    status,
+  });
+
   const currentOnDuty: StaffMemberSummary[] = shifts
     .filter(
       (shift) =>
@@ -117,28 +128,29 @@ export const buildStaffingSummary = async (
         Date.parse(shift.startsAt) <= now &&
         Date.parse(shift.endsAt) >= now,
     )
-    .map((shift) => ({
-      employeeNumber: shift.employeeNumber,
-      name: shift.employeeName || shift.label,
-      facilityKey: shift.facilityKey,
-      facilityName: shift.venueName || facilityLabel(shift.facilityKey),
-      shiftLabel: shift.kind || "當班",
-      timeRange: toTimeRange(shift.startsAt, shift.endsAt),
-      status: "active" as const,
-    }));
+    .map((shift) => mapShiftToMember(shift, "active"));
+
   const nextOnDuty: StaffMemberSummary[] = shifts
     .filter((shift) => shift.startsAt && Date.parse(shift.startsAt) > now)
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
     .slice(0, 20)
-    .map((shift) => ({
-      employeeNumber: shift.employeeNumber,
-      name: shift.employeeName || shift.label,
-      facilityKey: shift.facilityKey,
-      facilityName: shift.venueName || facilityLabel(shift.facilityKey),
-      shiftLabel: shift.kind || "下一班",
-      timeRange: toTimeRange(shift.startsAt, shift.endsAt),
-      status: "upcoming" as const,
-    }));
+    .map((shift) => mapShiftToMember(shift, "upcoming"));
+
+  const allTodayOnDuty: StaffMemberSummary[] = shifts
+    .sort((a, b) => Date.parse(a.startsAt ?? "") - Date.parse(b.startsAt ?? ""))
+    .map((shift) => {
+      const s = shift.startsAt ? Date.parse(shift.startsAt) : 0;
+      const e = shift.endsAt ? Date.parse(shift.endsAt) : 0;
+      const status: StaffMemberSummary["status"] =
+        s && e
+          ? now >= s && now <= e
+            ? "active"
+            : now < s
+              ? "upcoming"
+              : "off"
+          : "upcoming";
+      return mapShiftToMember(shift, status);
+    });
 
   return {
     active: activeEmployees.length,
@@ -148,6 +160,7 @@ export const buildStaffingSummary = async (
     activeEmployees,
     currentOnDuty,
     nextOnDuty,
+    allTodayOnDuty,
     byFacility: facilityKeys.map((facilityKey) => ({
       facilityKey,
       facilityName: facilityLabel(facilityKey),
@@ -163,6 +176,9 @@ export const buildStaffingSummary = async (
         (employee) => employee.facilityKey === facilityKey,
       ).length,
       next: nextOnDuty.filter(
+        (employee) => employee.facilityKey === facilityKey,
+      ).length,
+      todayTotal: allTodayOnDuty.filter(
         (employee) => employee.facilityKey === facilityKey,
       ).length,
     })),

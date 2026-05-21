@@ -259,7 +259,8 @@ export interface SupervisorStaffingSummary {
   activeEmployees?: StaffMemberSummary[];
   currentOnDuty?: StaffMemberSummary[];
   nextOnDuty?: StaffMemberSummary[];
-  byFacility?: Array<{ facilityKey: string; facilityName: string; active: number; onShift: number; next: number }>;
+  allTodayOnDuty?: StaffMemberSummary[];
+  byFacility?: Array<{ facilityKey: string; facilityName: string; active: number; onShift: number; next: number; todayTotal?: number }>;
 }
 
 export interface StaffMemberSummary {
@@ -289,6 +290,7 @@ export interface SupervisorFacilityOverview {
   active: number;
   onShift: number;
   next: number;
+  todayTotal?: number;
   openHandovers?: number;
   incompleteTasks?: number;
   currentCounterCount?: number;

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { CalendarDays, Camera, CheckCircle2, ClipboardList, Clock3, Droplets, Image as ImageIcon, MapPin, PackageSearch, RefreshCw, Search, UserCheck, Users, Waves } from "lucide-react";
-import type { FacilityTodayScheduleDto, StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
+import type { ShiftBoardDto, StaffMemberSummary, SupervisorDashboardDto, SupervisorFacilityDetailDto, SupervisorFacilityFrontDeskModuleDto, SupervisorFacilityModuleItemDto } from "@shared/domain/workbench";
 import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchMetricCluster } from "@/modules/workbench/metric-cluster";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
@@ -14,7 +14,7 @@ const fetchSupervisorDashboard = () => apiGet<SupervisorDashboardDto>("/api/bff/
 const fetchFacilityDetail = (facilityKey: string) =>
   apiGet<SupervisorFacilityDetailDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/detail`);
 const fetchFacilitySchedule = (facilityKey: string) =>
-  apiGet<FacilityTodayScheduleDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/schedule`);
+  apiGet<ShiftBoardDto>(`/api/bff/supervisor/facilities/${encodeURIComponent(facilityKey)}/schedule`);
 const getFacilityDetailHref = (facilityKey: string) => `/supervisor/facilities/${encodeURIComponent(facilityKey)}`;
 
 const roleLabel = (item: StaffMemberSummary) =>
@@ -139,12 +139,39 @@ function FrontDeskModules({ modules, fallbackItems }: { modules?: SupervisorFaci
   );
 }
 
-const PERIOD_COLORS = {
-  early:  { bg: "bg-[#fff8e7]",  text: "text-[#b05c00]",  badge: "bg-[#ffe9b0] text-[#b05c00]" },
-  mid:    { bg: "bg-[#eef5ff]",  text: "text-[#1a4fa3]",  badge: "bg-[#dbeafe] text-[#1a4fa3]" },
-  late:   { bg: "bg-[#f3eeff]",  text: "text-[#6b21a8]",  badge: "bg-[#ede9fe] text-[#6b21a8]" },
-  custom: { bg: "bg-[#eaf8ef]",  text: "text-[#15935d]",  badge: "bg-[#d1fae5] text-[#15935d]" },
-} as const;
+const SHIFT_PERIOD_META: Record<string, { label: string; bg: string; text: string; badge: string }> = {
+  early:  { label: "早班", bg: "bg-[#fff8e7]",  text: "text-[#b05c00]",  badge: "bg-[#ffe9b0] text-[#b05c00]" },
+  mid:    { label: "中班", bg: "bg-[#eef5ff]",  text: "text-[#1a4fa3]",  badge: "bg-[#dbeafe] text-[#1a4fa3]" },
+  late:   { label: "晚班", bg: "bg-[#f3eeff]",  text: "text-[#6b21a8]",  badge: "bg-[#ede9fe] text-[#6b21a8]" },
+  custom: { label: "彈性班", bg: "bg-[#eaf8ef]",  text: "text-[#15935d]",  badge: "bg-[#d1fae5] text-[#15935d]" },
+};
+
+const ROLE_BUCKET_LABELS: Record<string, string> = {
+  counter:   "櫃台",
+  lifeguard: "救生員",
+  coach:     "教練",
+  other:     "其他",
+};
+
+function roleBucketFromRole(role?: string): string {
+  if (!role) return "other";
+  const r = role.toLowerCase();
+  if (r.includes("櫃台") || r.includes("counter") || r.includes("front")) return "counter";
+  if (r.includes("救生") || r.includes("lifeguard") || r.includes("guard")) return "lifeguard";
+  if (r.includes("教練") || r.includes("coach") || r.includes("instructor")) return "coach";
+  return "other";
+}
+
+function derivePeriod(startIso?: string): string {
+  if (!startIso) return "custom";
+  const h = new Date(startIso).getHours();
+  if (h < 13) return "early";
+  return "late";
+}
+
+function fmtHM(iso: string) {
+  return new Date(iso).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
 
 function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -153,6 +180,26 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
     enabled: Boolean(facilityKey),
     staleTime: 60_000,
   });
+
+  const periodGroups = useMemo(() => {
+    if (!data?.shifts?.length) return [];
+    const map = new Map<string, { meta: typeof SHIFT_PERIOD_META[string]; slots: typeof data.shifts }>();
+    const order = ["early", "mid", "late", "custom"];
+    for (const slot of data.shifts) {
+      const key = slot.period ?? derivePeriod(slot.start);
+      if (!map.has(key)) {
+        map.set(key, {
+          meta: SHIFT_PERIOD_META[key] ?? SHIFT_PERIOD_META.custom,
+          slots: [],
+        });
+      }
+      map.get(key)!.slots.push(slot);
+    }
+    return order.filter((k) => map.has(k)).map((k) => ({ key: k, ...map.get(k)! }));
+  }, [data]);
+
+  const connected = data?.sourceStatus?.connected ?? false;
+  const totalCount = data?.totalCount ?? 0;
 
   return (
     <WorkbenchCard className="p-5">
@@ -168,9 +215,9 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
           {data ? (
             <span className={cn(
               "rounded-full px-2 py-1 text-[11px] font-black",
-              data.sourceConnected ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#fff0cc] text-[#b05c00]",
+              connected ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#fff0cc] text-[#b05c00]",
             )}>
-              {data.sourceConnected ? `已連線 · 共 ${data.summary.total} 筆` : "連線異常"}
+              {connected ? `已連線 · ${totalCount} 人次` : "連線異常"}
             </span>
           ) : null}
           <button type="button" onClick={() => refetch()} aria-label="重新整理排班" data-testid="button-refresh-schedule">
@@ -180,70 +227,106 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
       </div>
 
       {isLoading ? (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">
-          載入排班資料中…
-        </div>
-      ) : isError || (data && !data.sourceConnected) ? (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">載入排班資料中…</div>
+      ) : isError ? (
         <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center">
           <p className="text-[13px] font-bold text-[#b05c00]">目前無法取得 Smart Schedule 資料</p>
           <p className="mt-1 text-[12px] font-bold text-[#637185]">排班系統可能暫時無法連線，請稍後再試。</p>
         </div>
-      ) : data && data.periods.length === 0 ? (
-        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">
-          今日尚無排班資料。
+      ) : data && !connected ? (
+        <div className="rounded-[8px] bg-[#fff0cc] p-4">
+          <p className="text-[13px] font-black text-[#b05c00]">Smart Schedule 暫時無法連線</p>
+          <p className="mt-1 text-[12px] font-bold text-[#637185]">{data.sourceStatus?.errorMessage ?? "班表資料暫時無法取得，請稍後再試。"}</p>
         </div>
+      ) : data && periodGroups.length === 0 ? (
+        <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">今日尚無排班資料。</div>
       ) : data ? (
-        <div className="grid gap-3">
-          {data.periods.map((pg) => {
-            const colors = PERIOD_COLORS[pg.period] ?? PERIOD_COLORS.custom;
+        <div className="grid gap-4">
+          {periodGroups.map(({ key, meta, slots }) => {
+            const peopleCount = slots.reduce((s, sl) => s + sl.people.length, 0);
             return (
-              <div key={pg.period} className={cn("rounded-[8px] p-3", colors.bg)}>
-                <div className="mb-2 flex items-center gap-2">
-                  <span className={cn("text-[12px] font-black", colors.text)}>{pg.label}</span>
-                  {pg.timeRange ? (
-                    <span className="text-[11px] font-bold text-[#637185]">{pg.timeRange}</span>
-                  ) : null}
-                  <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[10px] font-black", colors.badge)}>
-                    {pg.staff.length} 人
+              <div key={key}>
+                <div className={cn("mb-2 flex items-center gap-2 rounded-[8px] px-3 py-2", meta.bg)}>
+                  <span className={cn("text-[12px] font-black", meta.text)}>{meta.label}</span>
+                  <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[10px] font-black", meta.badge)}>
+                    {peopleCount} 人
                   </span>
                 </div>
-                <div className="grid gap-1.5 sm:grid-cols-2">
-                  {pg.staff.map((member, i) => (
-                    <div
-                      key={`${member.employeeNumber ?? member.name}-${i}`}
-                      className="flex items-center gap-2 rounded-[6px] bg-white px-2 py-1.5"
-                      data-testid={`schedule-staff-${pg.period}-${i}`}
-                    >
-                      <div className={cn(
-                        "grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black",
-                        colors.bg, colors.text,
-                      )}>
-                        {member.name.slice(0, 1)}
+                <div className="grid gap-2">
+                  {slots.map((slot) => {
+                    const statusLabel = slot.isCurrent ? "上班中" : slot.isFuture ? "待接" : "已結束";
+                    const statusCls = slot.isCurrent
+                      ? "bg-[#eaf8ef] text-[#15935d]"
+                      : slot.isFuture
+                        ? "bg-[#eef5ff] text-[#2f6fe8]"
+                        : "bg-[#eef2f6] text-[#637185]";
+                    const timeRange = slot.start && slot.end ? `${fmtHM(slot.start)} – ${fmtHM(slot.end)}` : "";
+
+                    const buckets = new Map<string, typeof slot.people>();
+                    for (const p of slot.people) {
+                      const b = roleBucketFromRole(p.role);
+                      if (!buckets.has(b)) buckets.set(b, []);
+                      buckets.get(b)!.push(p);
+                    }
+                    const bucketOrder = ["counter", "lifeguard", "coach", "other"];
+                    const activeBuckets = bucketOrder.filter((b) => buckets.has(b));
+
+                    return (
+                      <div key={slot.shiftId} className="rounded-[8px] border border-[#e6edf4] bg-white p-3" data-testid={`schedule-slot-${slot.shiftId}`}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <Clock3 className="h-3.5 w-3.5 text-[#8b9aae]" />
+                          <span className="text-[12px] font-black text-[#10233f]">{timeRange}</span>
+                          <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-black", statusCls)}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        {slot.people.length === 0 ? (
+                          <p className="text-[11px] font-bold text-[#8b9aae]">此時段無排班人員</p>
+                        ) : (
+                          <div className="grid gap-2">
+                            {activeBuckets.map((bucket) => (
+                              <div key={bucket}>
+                                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#8b9aae]">{ROLE_BUCKET_LABELS[bucket] ?? bucket}</p>
+                                <div className="grid gap-1 sm:grid-cols-2">
+                                  {buckets.get(bucket)!.map((person, pi) => (
+                                    <div
+                                      key={`${person.userId}-${pi}`}
+                                      className={cn(
+                                        "flex items-center gap-2 rounded-[6px] px-2 py-1.5",
+                                        meta.bg,
+                                      )}
+                                      data-testid={`schedule-person-${slot.shiftId}-${pi}`}
+                                    >
+                                      <div className={cn(
+                                        "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-black",
+                                        meta.text,
+                                        "bg-white",
+                                      )}>
+                                        {person.name.slice(0, 1)}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="truncate text-[12px] font-black text-[#10233f]">{person.name}</p>
+                                        {person.role ? <p className="truncate text-[10px] font-bold text-[#8b9aae]">{person.role}</p> : null}
+                                      </div>
+                                      {person.isCurrentUser && (
+                                        <span className="shrink-0 rounded-full bg-[#0d2a50] px-1.5 py-0.5 text-[9px] font-black text-white">我</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12px] font-black text-[#10233f]">{member.name}</p>
-                        <p className="truncate text-[10px] font-bold text-[#8b9aae]">
-                          {[member.role, member.timeRange].filter(Boolean).join(" · ") || "—"}
-                        </p>
-                      </div>
-                      <span className={cn(
-                        "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black",
-                        member.status === "active"
-                          ? "bg-[#eaf8ef] text-[#15935d]"
-                          : member.status === "upcoming"
-                            ? "bg-[#eef5ff] text-[#2f6fe8]"
-                            : "bg-[#eef2f6] text-[#637185]",
-                      )}>
-                        {member.status === "active" ? "當班" : member.status === "upcoming" ? "待接" : "已下班"}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
           <p className="text-right text-[11px] font-bold text-[#8b9aae]">
-            {data.date} · 當班 {data.summary.current} 人 / 今日共 {data.summary.total} 筆
+            {data.date} · 今日共 {totalCount} 人次
           </p>
         </div>
       ) : null}
@@ -341,8 +424,12 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
 
             <div className="grid gap-3 xl:grid-cols-3">
               {visibleFacilities.map((facility) => {
-                const currentPeople = (staffing?.currentOnDuty ?? []).filter((item) => item.facilityKey === facility.facilityKey);
+                const todayCount = facility.todayTotal ?? facility.onShift;
+                const todayPeople = (staffing?.allTodayOnDuty ?? staffing?.currentOnDuty ?? []).filter(
+                  (item) => item.facilityKey === facility.facilityKey,
+                );
                 const nextPeople = (staffing?.nextOnDuty ?? []).filter((item) => item.facilityKey === facility.facilityKey);
+                const hasToday = todayCount > 0;
                 return (
                   <WorkbenchCard key={facility.facilityKey} className="overflow-hidden p-0">
                     <div className="flex items-start justify-between gap-3 border-b border-[#edf1f6] p-4">
@@ -353,20 +440,23 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                           {facility.area} · {facility.facilityKey}
                         </p>
                       </div>
-                      <SupervisorPill tone={facility.onShift > 0 ? "green" : "amber"}>
-                        {facility.onShift > 0 ? "營運中" : "待排班"}
+                      <SupervisorPill tone={hasToday ? "green" : "amber"}>
+                        {hasToday ? "今日有班" : "今日無排班"}
                       </SupervisorPill>
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-4 text-[12px] font-black">
                       <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">當班現職人員</p>
-                        <p className="mt-1 text-[20px] text-[#15935d]">{facility.onShift}</p>
-                        <p className="truncate text-[11px] text-[#637185]">{currentPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
+                        <p className="text-[#8b9aae]">今日排班</p>
+                        <p className="mt-1 text-[20px] text-[#15935d]">{todayCount}</p>
+                        <p className="truncate text-[11px] text-[#637185]">{todayPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
                       </div>
                       <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">下一班人員</p>
-                        <p className="mt-1 text-[20px] text-[#2f6fe8]">{facility.next}</p>
-                        <p className="truncate text-[11px] text-[#637185]">{nextPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
+                        <p className="text-[#8b9aae]">當班／待接</p>
+                        <p className="mt-1 text-[20px] text-[#2f6fe8]">{facility.onShift + facility.next}</p>
+                        <p className="truncate text-[11px] text-[#637185]">
+                          {nextPeople.slice(0, 3).map((item) => item.name).join("、") ||
+                            (facility.onShift > 0 ? `${facility.onShift} 人在班` : "無")}
+                        </p>
                       </div>
                       <div className="rounded-[8px] bg-[#fbfcfd] p-3">
                         <p className="text-[#8b9aae]">櫃台交接事項</p>
