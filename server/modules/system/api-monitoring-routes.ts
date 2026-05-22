@@ -121,7 +121,7 @@ const summarize = (projectKey: ApiMonitoringProjectKey, rows: ApiMonitoringRow[]
   const skippedApis = rows.filter((row) => row.skipped).length;
   return {
     projectKey,
-    totalApis: connectedApis,
+    totalApis: nonSkipped.length,
     connectedApis,
     healthyApis,
     warningApis,

@@ -35,8 +35,37 @@ export type ActionMonitoringSummary = {
   lastUpdatedAt: string;
 };
 
+export type ActionMonitoringRoleSummary = {
+  role: string;
+  totalCount: number;
+  successCount: number;
+  failureCount: number;
+  successRate: number;
+  uniqueOperators: number;
+  lastActorId?: string | null;
+  lastAction?: string | null;
+  lastOccurredAt?: string | null;
+};
+
+export type ActionMonitoringOperatorSummary = {
+  actorId: string;
+  role?: string | null;
+  facilityKey?: string | null;
+  totalCount: number;
+  successCount: number;
+  failureCount: number;
+  successRate: number;
+  actionCount: number;
+  lastAction?: string | null;
+  lastResource?: string | null;
+  lastResultStatus?: string | null;
+  lastOccurredAt?: string | null;
+};
+
 export type ActionMonitoringDto = {
   generatedAt: string;
   summary: ActionMonitoringSummary;
   rows: ActionMonitoringRow[];
+  byRole: ActionMonitoringRoleSummary[];
+  byOperator: ActionMonitoringOperatorSummary[];
 };

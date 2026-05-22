@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  BarChart3,
   Bot,
   Building2,
   CalendarDays,
@@ -81,22 +82,19 @@ const iconByKey: Record<string, LucideIcon> = {
   waves: Waves,
   network: Network,
   car: Car,
+  "bar-chart-3": BarChart3,
 };
+
+const systemCmsNavIds = [
+  "system-control-center",
+  "system-governance",
+  "system-insights",
+] as const;
 
 const systemMonitoringNavIds = [
   "system-monitoring-400line",
   "system-monitoring-schedule",
   "system-monitoring-collab-course",
-] as const;
-
-const cmsMonitoringNavIds = [
-  "system-watchdog",
-  "system-cms-monitoring",
-  "system-insights",
-] as const;
-
-const cmsOperationsNavIds = [
-  "system-operations",
 ] as const;
 
 const fromNavigationModule = (item: NavigationModuleDto): NavItem => ({
@@ -167,6 +165,28 @@ const toRoleNavItems = (
 };
 
 const isNavActive = (location: string, item: NavItem, role: "supervisor" | "system", index?: number) => {
+  if (item.id === "system-project-overview") {
+    return location === "/system" || location === "/system/project-overview";
+  }
+  if (item.id === "system-control-center") {
+    const controlCenterPaths = [
+      "/system/control-center",
+      "/system/watchdog",
+      "/system/cms-monitoring",
+      "/system/operations",
+      "/system/api-catalog",
+      "/system/health",
+      "/system/alerts",
+      "/system/integrations",
+      "/system/audit",
+      "/system/training-views",
+    ];
+    return controlCenterPaths.some((path) => location === path || location.startsWith(`${path}/`) || location.startsWith(`${path}?`));
+  }
+  if (item.id === "system-governance") {
+    const governancePaths = ["/system/governance", "/system/function-relations"];
+    return governancePaths.some((path) => location === path || location.startsWith(`${path}/`) || location.startsWith(`${path}?`));
+  }
   const roleRoot = item.href === "/supervisor" || item.href === "/system";
   const active = roleRoot ? location === item.href : location === item.href || location.startsWith(`${item.href}/`);
   return active || (index === 0 && role === "supervisor" && location === "/");
@@ -198,6 +218,9 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
       }
     : null;
   const nav = toRoleNavItems(role, navigation.data?.items, sessionContext);
+  const projectOverviewNavItem = role === "system"
+    ? nav.find((item) => item.id === "system-project-overview")
+    : undefined;
   const mobileItems = nav.slice(0, 5);
   const roleLabel = role === "system" ? "系統管理員" : "營運主管";
   const shellStatusLabel = role === "system" ? "系統監控中" : "營運中";
@@ -209,7 +232,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
   const supervisorShell = role === "supervisor";
   const collapseEnabled = role === "system";
 
-  const renderNavLink = (item: NavItem, index?: number) => {
+  const renderNavLink = (item: NavItem, index?: number, options?: { child?: boolean }) => {
     const active = isNavActive(location, item, role, index);
     return (
       <Link
@@ -218,6 +241,7 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
         onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
         className={cn(
           "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-[13.5px] font-bold transition",
+          options?.child && "ml-3 pl-4 text-[13px]",
           active
             ? "bg-[#2f9e5b] text-white"
             : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
@@ -231,6 +255,12 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
       </Link>
     );
   };
+
+  const renderSystemNavByIds = (ids: readonly string[]) =>
+    ids
+      .map((id) => nav.find((item) => item.id === id))
+      .filter((item): item is NavItem => Boolean(item))
+      .map((item) => renderNavLink(item, undefined, { child: true }));
 
   return (
     <div className={cn("workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]", supervisorShell && "supervisor-workbench")}>
@@ -254,37 +284,13 @@ export function RoleShell({ role, title, subtitle, children }: RoleShellProps) {
 
             {role === "system" ? (
               <>
-                <div className="px-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">總治理</div>
-                <Link
-                  href="/system/project-overview"
-                  className={cn(
-                    "workbench-focus flex min-h-10 items-center gap-3 rounded-[6px] px-3 text-left text-[13.5px] font-bold transition",
-                    location === "/system/project-overview"
-                      ? "bg-[#2f9e5b] text-white"
-                      : "text-[#d8e3ef] hover:bg-white/[0.06] hover:text-white",
-                  )}
-                >
-                  <Network className="h-4 w-4" />
-                  <span className="min-w-0 flex-1 truncate">跨專案總覽</span>
-                </Link>
+                {projectOverviewNavItem ? renderNavLink(projectOverviewNavItem) : null}
 
-                <div className="mt-2 px-2 pt-2 text-[9.5px] font-black tracking-[0.18em] text-[#9eacbc]">cms內部服務</div>
-                <div className="mt-1 pl-3 text-[9px] font-bold tracking-[0.14em] text-[#6f8092]">監控</div>
-                {cmsMonitoringNavIds
-                  .map((id) => nav.find((item) => item.id === id))
-                  .filter(Boolean)
-                  .map((item) => renderNavLink(item as NavItem))}
-                <div className="mt-1 pl-3 text-[9px] font-bold tracking-[0.14em] text-[#6f8092]">運維</div>
-                {cmsOperationsNavIds
-                  .map((id) => nav.find((item) => item.id === id))
-                  .filter(Boolean)
-                  .map((item) => renderNavLink(item as NavItem))}
+                <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">400CMS</div>
+                {renderSystemNavByIds(systemCmsNavIds)}
 
                 <div className="mt-2 px-2 pt-2 text-[9.5px] font-black uppercase tracking-[0.18em] text-[#5eead4]">監控平台</div>
-                {systemMonitoringNavIds
-                  .map((id) => nav.find((item) => item.id === id))
-                  .filter(Boolean)
-                  .map((item) => renderNavLink(item as NavItem))}
+                {renderSystemNavByIds(systemMonitoringNavIds)}
               </>
             ) : (
               nav.map((item, index) => renderNavLink(item, index))

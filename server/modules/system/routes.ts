@@ -141,6 +141,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     const watchdogEvents = await safeRead(() => storage.listWatchdogEvents(200), []);
     const auditLogs = await safeRead(() => container.repositories.telemetry.listAuditLogs(200), []);
     const last24h = 24 * 60 * 60 * 1000;
+    const generatedAt = new Date().toISOString();
     const recentWatchdogs = watchdogEvents.filter((event) => isRecent(eventCreatedAt(event), last24h));
     const criticalWatchdogs = recentWatchdogs.filter((event) => event.severity === "critical");
     const warningOrCriticalWatchdogs = recentWatchdogs.filter((event) => event.severity === "critical" || event.severity === "warning");
@@ -159,8 +160,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
     }).length;
     const insightsOverview = await safeRead(() => buildInsightsOverview(container, 7), undefined);
     const insightAnomaly = insightsOverview?.anomalies[0];
-    const recentCriticalEvents = warningOrCriticalWatchdogs
-      .slice(0, 5)
+    const watchdogAlerts = warningOrCriticalWatchdogs
       .map((event) => {
         const payload = event.payload && typeof event.payload === "object" ? event.payload as Record<string, unknown> : {};
         return {
@@ -173,6 +173,24 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
           createdAt: new Date(eventCreatedAt(event)).toISOString(),
         };
       });
+    const moduleHealthAlerts = health
+      .filter((item) => item.status === "error" || item.status === "degraded" || item.status === "not_connected" || item.status === "telemetry_pending")
+      .map((item) => {
+        const descriptor = getModuleDescriptorById(item.moduleId);
+        return {
+          id: `module-health:${item.moduleId}`,
+          title: item.issues[0] ?? `${descriptor?.shortName ?? descriptor?.name ?? item.moduleId} health requires attention`,
+          severity: item.status === "error" ? "critical" : "warning",
+          source: "module-health",
+          moduleId: item.moduleId,
+          role: "system",
+          createdAt: generatedAt,
+        };
+      });
+    const recentCriticalEvents = [...watchdogAlerts, ...moduleHealthAlerts]
+      .filter((event) => event.severity === "critical" || event.severity === "warning")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
     const latestWatchdog = warningOrCriticalWatchdogs[0] ?? watchdogEvents[0];
 
     const data = {
@@ -210,7 +228,7 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
       },
       recentCriticalEvents,
       roleApiSurfaces: buildRoleApiSurfaces(),
-      generatedAt: new Date().toISOString(),
+      generatedAt,
     };
 
     controlCenterCache = { expiresAt: Date.now() + 5_000, data };

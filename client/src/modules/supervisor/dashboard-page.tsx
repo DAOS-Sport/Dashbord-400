@@ -841,7 +841,7 @@ export default function SupervisorDashboardPage() {
             <WorkbenchCard className="p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-[15px] font-black">未完成交接 Top 5</h2>
-                <button className="workbench-focus rounded-[8px] px-2 py-1 text-[11px] font-black text-[#007166]">查看全部 →</button>
+                <Link href="/supervisor/handover" className="workbench-focus rounded-[8px] px-2 py-1 text-[11px] font-black text-[#007166]">查看全部 →</Link>
               </div>
               <div className="space-y-2">
                 {(data.incompleteTasks.data ?? []).slice(0, 5).length ? (data.incompleteTasks.data ?? []).slice(0, 5).map((task) => (

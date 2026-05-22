@@ -99,7 +99,7 @@ const projectConfig: Record<SystemProjectGroup, Omit<SystemProjectSummary, "stat
     key: "governance",
     label: "總治理",
     description: "跨專案治理、監控總覽與快速導航。",
-    controlCenterHref: "/system/project-overview",
+    controlCenterHref: "/system/control-center",
     monitorHref: "/system/watchdog",
     governanceHref: "/system/project-overview",
   },
@@ -107,9 +107,9 @@ const projectConfig: Record<SystemProjectGroup, Omit<SystemProjectSummary, "stat
     key: "400cms",
     label: "400CMS",
     description: "CMS 控制中心、Watchdog、運維、行為洞察與跨專案治理總覽。",
-    controlCenterHref: "/system",
+    controlCenterHref: "/system/control-center",
     monitorHref: "/system/monitoring/400cms",
-    governanceHref: "/system/project-overview",
+    governanceHref: "/system/control-center/cms-monitoring",
   },
   "400line": {
     key: "400line",
@@ -131,7 +131,7 @@ const projectConfig: Record<SystemProjectGroup, Omit<SystemProjectSummary, "stat
     label: "偕同課系統",
     description: "swim-scheduler 健康監控，含部署狀態、資料庫連線、LINE 推播與 Ragic 同步。",
     controlCenterHref: "/supervisor/collab-courses",
-    monitorHref: "/system/collab-course/status",
+    monitorHref: "/system/monitoring/collab-course",
   },
 };
 

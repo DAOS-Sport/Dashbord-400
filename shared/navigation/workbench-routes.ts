@@ -43,14 +43,13 @@ export const workbenchRoutes = [
   { moduleId: "announcement-groups", label: "公告群組綁定", iconKey: "message-square-warning", role: "supervisor", primaryPath: "/supervisor/announcement-groups", legacyPath: "/admin/announcement-groups", shell: "supervisor" },
   { moduleId: "handover", label: "交接事項", iconKey: "message-square-text", role: "supervisor", primaryPath: "/supervisor/handover", shell: "supervisor" },
   { moduleId: "employee-training", label: "員工教材", iconKey: "graduation-cap", role: "supervisor", primaryPath: "/supervisor/training", shell: "supervisor" },
+  { moduleId: "supervisor-reports", label: "報表", iconKey: "bar-chart-3", role: "supervisor", primaryPath: "/supervisor/reports", shell: "supervisor" },
 
-  { moduleId: "system-control-center", label: "控制中心", iconKey: "gauge", role: "system", primaryPath: "/system/project-overview", shell: "system" },
-  { moduleId: "system-api-catalog", label: "API Catalog", iconKey: "server", role: "system", primaryPath: "/system/api-catalog", shell: "system" },
-  { moduleId: "system-watchdog", label: "Watchdog", iconKey: "shield-check", role: "system", primaryPath: "/system/watchdog", shell: "system" },
-  { moduleId: "system-cms-monitoring", label: "CMS 內部監控", iconKey: "server", role: "system", primaryPath: "/system/cms-monitoring", shell: "system" },
+  { moduleId: "system-project-overview", label: "跨專案總覽", iconKey: "network", role: "system", primaryPath: "/system/project-overview", shell: "system" },
+  { moduleId: "system-control-center", label: "控制中心", iconKey: "gauge", role: "system", primaryPath: "/system/control-center", shell: "system" },
+  { moduleId: "system-governance", label: "治理面", iconKey: "shield-check", role: "system", primaryPath: "/system/governance", shell: "system" },
   { moduleId: "system-insights", label: "行為洞察", iconKey: "gauge", role: "system", primaryPath: "/system/insights", shell: "system" },
-  { moduleId: "system-operations", label: "運維協助", iconKey: "link", role: "system", primaryPath: "/system/operations", shell: "system" },
-  { moduleId: "system-monitoring-400line", label: "400LINE", iconKey: "server", role: "system", primaryPath: "/system/monitoring/400line", shell: "system" },
+  { moduleId: "system-monitoring-400line", label: "400line", iconKey: "server", role: "system", primaryPath: "/system/monitoring/400line", shell: "system" },
   { moduleId: "system-monitoring-schedule", label: "排班管理系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/schedule", shell: "system" },
   { moduleId: "system-monitoring-collab-course", label: "偕同課系統", iconKey: "server", role: "system", primaryPath: "/system/monitoring/collab-course", shell: "system" },
 ] as const satisfies readonly WorkbenchRouteDescriptor[];
@@ -77,14 +76,12 @@ export const getRedirectForLegacyPath = (pathname: string): string | undefined =
   if (normalized === "/system-health" || normalized === "/system/health") return "/system/watchdog";
   if (normalized === "/system/alerts") return "/system/watchdog?tab=alerts";
   if (normalized === "/system/integrations") return "/system/watchdog?tab=integrations";
-  if (normalized === "/system/audit") return "/system/operations?tab=audit";
   if (normalized === "/system/400cms/status") return "/system/monitoring/400cms";
   if (normalized === "/system/linebot-management") return "/system/monitoring/400line";
   if (normalized === "/system/helper-status" || normalized === "/system/lineXBS-status") return "/system/monitoring/400line";
   if (normalized === "/system/line-whitelist") return "/system/monitoring/400line?tab=whitelist";
   if (normalized === "/system/schedule/status") return "/system/monitoring/schedule";
   if (normalized === "/system/collab-course/status") return "/system/monitoring/collab-course";
-  if (normalized === "/system/governance" || normalized === "/system/function-relations" || normalized === "/system/training-views" || normalized === "/system/topology") return "/system/project-overview";
   if (normalized === "/admin/announcement-groups") return "/supervisor/announcement-groups";
   if (normalized === "/admin/parking") return "/supervisor/parking";
   if (normalized === "/admin/parking/dashboard") return "/supervisor/parking";

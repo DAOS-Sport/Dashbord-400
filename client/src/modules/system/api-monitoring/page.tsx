@@ -972,7 +972,7 @@ function CollabCourseHealthPanel({
             {isLoading ? "—" : getRows.length}
           </span>
         </div>
-        <p className={cn("mb-3 text-[12px]", tone.inkSoft)}>主動探活，納入 KPI 統計。</p>
+        <p className={cn("mb-3 text-[12px]", tone.inkSoft)}>已依偕同課 API 手冊建立分類 catalog；主動探活，納入 KPI 統計。</p>
         <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
           {tableHeader}
           {renderGroups(getRows, "偕同課系統 GET 端點尚未接入。")}
@@ -1087,6 +1087,155 @@ function AuditEventsPanel({ auditEvents }: { auditEvents: ApiMonitoringAuditEven
           </p>
         </div>
       ))}
+    </div>
+  );
+}
+
+function LineTrafficEntryMatrix({
+  rows,
+  recentErrors,
+  summary,
+  lineStatus,
+  isLoading,
+}: {
+  rows: ApiMonitoringRow[];
+  recentErrors: ApiMonitoringError[];
+  summary: MonitoringSummary | undefined;
+  lineStatus?: LinebotManagementStatus;
+  isLoading: boolean;
+}) {
+  const unresolved = rows.reduce((sum, row) => sum + (row.unresolvedErrorCount ?? 0), 0);
+  const trafficTotal = rows.reduce((sum, row) => sum + row.totalCount, 0);
+  const latencyRows = rows.filter((row) => row.avgDurationMs !== null);
+  const avgLatency = latencyRows.length
+    ? Math.round(
+        latencyRows.reduce((sum, row) => sum + (row.avgDurationMs ?? 0), 0) / latencyRows.length,
+      )
+    : null;
+  const errorBuckets = ERROR_TYPE_OPTIONS.filter((item) => item.value !== "all").map((item) => ({
+    label: item.label,
+    count: recentErrors.filter((error) => error.errorType === item.value).length,
+  }));
+  const liveErrors = recentErrors.slice(0, 8);
+  const sourceRows = Array.from(
+    rows.reduce((map, row) => {
+      const current = map.get(row.type) ?? { type: row.type, count: 0, calls: 0, errors: 0 };
+      current.count += 1;
+      current.calls += row.totalCount;
+      current.errors += row.unresolvedErrorCount ?? 0;
+      map.set(row.type, current);
+      return map;
+    }, new Map<string, { type: string; count: number; calls: number; errors: number }>()),
+  ).map(([, value]) => value).sort((a, b) => b.calls - a.calls);
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 lg:grid-cols-[1.35fr_0.65fr]">
+        <div className="rounded-[6px] border border-[#edf1f6] bg-white p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#637185]">400LINE Live Error Briefing</p>
+              <h2 className="mt-1 text-[18px] font-black text-[#10233f]">即時錯誤快訊</h2>
+            </div>
+            <div className="flex gap-2 text-[11px] font-black text-[#637185]">
+              <span className="rounded-[6px] border border-[#edf1f6] px-2 py-1">{lineStatus ? lineStatusLabel(lineStatus) : isLoading ? "Loading" : "BFF"}</span>
+              <span className="rounded-[6px] border border-[#edf1f6] px-2 py-1">{trafficTotal.toLocaleString()} calls</span>
+              <span className="rounded-[6px] border border-[#edf1f6] px-2 py-1">{avgLatency === null ? "--" : `${avgLatency}ms`} avg</span>
+              <span className="rounded-[6px] border border-[#ffd8de] bg-[#fff6f7] px-2 py-1 text-[#d33f55]">{unresolved} unresolved</span>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-[6px] border border-[#edf1f6]">
+            <div className="grid grid-cols-[96px_minmax(0,1fr)_116px_150px] bg-[#f8fafc] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-[#637185]">
+              <span>Type</span>
+              <span>400LINE Route</span>
+              <span className="text-right">HTTP / Latency</span>
+              <span className="text-right">Time</span>
+            </div>
+            {liveErrors.length ? liveErrors.map((error) => (
+              <div
+                key={error.id}
+                className="grid grid-cols-[96px_minmax(0,1fr)_116px_150px] items-center gap-3 border-t border-[#edf1f6] px-3 py-3"
+              >
+                <span className={cn("w-fit rounded-full px-2 py-1 text-[10px] font-black", error.errorType === "5xx" || error.errorType === "timeout" ? "bg-[#fff0f1] text-[#d33f55]" : "bg-[#fff8e8] text-[#9b6a00]")}>
+                  {error.errorType}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-[12px] font-black text-[#10233f]">{error.route}</span>
+                  {error.correlationId ? (
+                    <span className="mt-0.5 block truncate font-mono text-[10px] font-bold text-[#8b9aae]">{error.correlationId}</span>
+                  ) : null}
+                </span>
+                <span className="text-right text-[11px] font-black text-[#637185]">
+                  {error.statusCode} / {error.durationMs}ms
+                </span>
+                <span className="text-right text-[11px] font-bold text-[#637185]">
+                  {new Date(error.occurredAt).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            )) : (
+              <div className="border-t border-[#edf1f6] px-4 py-8">
+                <EmptyState>目前沒有 400LINE 即時錯誤快訊。</EmptyState>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {[
+              { label: "400LINE endpoints", value: summary?.totalApis ?? rows.length },
+              { label: "24h calls", value: trafficTotal.toLocaleString() },
+              { label: "open errors", value: unresolved },
+            ].map((item) => (
+              <div key={item.label} className="rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#637185]">{item.label}</p>
+                <p className="mt-1 text-[20px] font-black leading-none text-[#10233f]">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[6px] border border-[#edf1f6] bg-white p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#637185]">Error Distribution</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {errorBuckets.map((bucket) => (
+              <div key={bucket.label} className="rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#637185]">{bucket.label}</p>
+                <p className={cn("mt-1 text-[24px] font-black leading-none tabular-nums", bucket.count ? "text-[#d33f55]" : "text-[#10233f]")}>{bucket.count}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-[#637185]">Healthy / Warning / Error</p>
+            <p className="mt-1 text-[13px] font-black text-[#10233f]">
+              {summary?.healthyApis ?? 0} / {summary?.warningApis ?? 0} / {summary?.errorApis ?? 0}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[6px] border border-[#edf1f6] bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#637185]">Traffic Source Matrix</p>
+          <span className="text-[11px] font-bold text-[#637185]">{sourceRows.length} source groups</span>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {sourceRows.length ? sourceRows.map((source) => (
+            <div key={source.type} className="rounded-[6px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-[12px] font-black text-[#10233f]">{typeLabels[source.type] ?? source.type}</p>
+                <span className="text-[10px] font-black text-[#637185]">{source.count} API</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-bold">
+                <span className="rounded-[6px] bg-white px-2 py-1 text-[#637185]">calls <b className="text-[#10233f]">{source.calls.toLocaleString()}</b></span>
+                <span className="rounded-[6px] bg-white px-2 py-1 text-[#637185]">open <b className={source.errors ? "text-[#d33f55]" : "text-[#10233f]"}>{source.errors}</b></span>
+              </div>
+            </div>
+          )) : (
+            <div className="md:col-span-2 xl:col-span-4">
+              <EmptyState>400line traffic source 尚未累積資料。</EmptyState>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1209,7 +1358,7 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
     if (!isScheduleMonitoring || !data?.scheduleBlock) return data?.summary;
     const s = data.scheduleBlock.summary;
     return {
-      totalApis: s.healthy + s.warning + s.error,
+      totalApis: s.healthy + s.warning + s.error + s.notConnected,
       healthyApis: s.healthy,
       warningApis: s.warning,
       errorApis: s.error,
@@ -1299,74 +1448,13 @@ export default function SystemApiMonitoringPage({ projectKey }: { projectKey: Ap
             onSelectTab={selectLineTab}
           >
               {lineTab === "overview" ? (
-                <div className="grid gap-4 xl:grid-cols-[1fr_400px]">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className={cn("text-[15px] font-semibold", tone.ink)}>400LINE 總覽</h2>
-                      {lineOverviewQuery.data ? <LineStatusBadge status={lineOverviewQuery.data.status} /> : null}
-                      {lineXbsQuery.data ? <LineStatusBadge status={lineXbsQuery.data.status} /> : null}
-                    </div>
-                    {lineOverviewQuery.isLoading ? (
-                      <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div key={i} className="animate-pulse rounded-md border border-slate-200 bg-white p-3">
-                            <div className="h-3 w-20 rounded bg-slate-100" />
-                            <div className="mt-3 h-6 w-12 rounded bg-slate-100" />
-                            <div className="mt-2 h-2.5 w-28 rounded bg-slate-100" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
-                        {(lineOverviewQuery.data?.cards ?? []).map((card) => (
-                          <div key={card.label} className="rounded-md border border-slate-200 bg-white p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <SectionLabel>{card.label}</SectionLabel>
-                              <LineStatusBadge status={card.status} />
-                            </div>
-                            <p className={cn("mt-2 text-[22px] font-semibold tabular-nums", tone.ink)}>
-                              {card.value}
-                            </p>
-                            <p className={cn("mt-0.5 text-[11.5px]", tone.inkSoft)}>{card.hint}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {!lineOverviewQuery.isLoading && !lineOverviewQuery.isError && lineOverviewQuery.data?.status === "degraded" ? (
-                      <div className="mt-3 flex items-center gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-orange-600" />
-                        <p className="text-[12px] font-medium text-orange-700">400LINE 回報降級（degraded），部分功能可能暫時異常，連線通訊正常。</p>
-                      </div>
-                    ) : null}
-                    {!lineOverviewQuery.isLoading && !lineOverviewQuery.isError && lineOverviewQuery.data?.status === "waiting_for_400line_api" ? (
-                      <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                        <p className="text-[12px] font-medium text-amber-700">正在等待 400LINE API 回應，數據可能尚未完整載入（通常需 2–5 秒後自動刷新）。</p>
-                      </div>
-                    ) : null}
-                    {lineOverviewQuery.isError ? (
-                      <p className="mt-3 text-[12px] font-medium text-rose-700">400LINE 總覽資料讀取失敗。</p>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <SectionLabel>LineXBS 分類</SectionLabel>
-                    {(lineXbsQuery.data?.groups ?? []).map((group) => (
-                      <div key={group.key} className="rounded-md border border-slate-200 bg-white p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className={cn("text-[13px] font-semibold", tone.ink)}>{group.label}</p>
-                          <LineStatusBadge status={group.status} />
-                        </div>
-                        <p className="mt-1 text-[11.5px] text-slate-500">
-                          {group.items.length} services · {group.apiReadiness.length} readiness
-                        </p>
-                      </div>
-                    ))}
-                    {!lineXbsQuery.isLoading && !(lineXbsQuery.data?.groups ?? []).length ? (
-                      <LineEmpty label="LineXBS 分類" />
-                    ) : null}
-                  </div>
-                </div>
+                <LineTrafficEntryMatrix
+                  rows={rows}
+                  recentErrors={recentErrors}
+                  summary={data?.summary}
+                  lineStatus={lineOverviewQuery.data?.status}
+                  isLoading={query.isLoading || lineOverviewQuery.isLoading}
+                />
               ) : null}
 
               {lineTab === "services" ? (

@@ -845,9 +845,8 @@ const runCanonicalModuleRegistrationTests = () => {
 const runSystemModuleTests = () => {
   const navigation = getNavigationModules("system", rolePermissions.system);
   const expected = [
+    "system-project-overview",
     "system-control-center",
-    "system-watchdog",
-    "system-operations",
     "system-insights",
     "system-monitoring-400line",
     "system-monitoring-schedule",
@@ -872,21 +871,13 @@ const runSystemModuleTests = () => {
     cards.some(
       (card) =>
         card.moduleId === "system-control-center" &&
-        card.routePath === "/system",
+        card.routePath === "/system/control-center",
     ),
-    "system control center card must route to /system",
+    "system control center card must route to /system/control-center",
   );
   assert(
-    cards.some(
-      (card) =>
-        card.moduleId === "system-watchdog" &&
-        card.routePath === "/system/watchdog",
-    ),
-    "system watchdog card must route to /system/watchdog",
-  );
-  assert(
-    getRedirectForLegacyPath("/system/governance") === "/system/project-overview",
-    "legacy system governance route must redirect to cross-project overview",
+    getRedirectForLegacyPath("/system/governance") === undefined,
+    "system governance route must remain available as an original page",
   );
   assert(
     getRedirectForLegacyPath("/system/linebot-management") === "/system/monitoring/400line",
@@ -995,8 +986,8 @@ const runSystemModuleTests = () => {
   );
   sourceIncludes(
     "client/src/modules/workbench/role-shell.tsx",
-    "cms內部服務",
-    "system sidebar must expose the cms internal services parent group",
+    "400CMS",
+    "system sidebar must expose the 400CMS parent group",
   );
   sourceIncludes(
     "client/src/modules/workbench/role-shell.tsx",
@@ -1050,33 +1041,23 @@ const runSystemModuleTests = () => {
   );
   sourceIncludes(
     "client/src/modules/system/control-center/page.tsx",
-    "WATCHDOG",
+    "Watchdog",
     "system control center must render the watchdog entry tile",
   );
   sourceIncludes(
     "client/src/modules/system/control-center/page.tsx",
-    "OPERATIONS",
+    "運維協助",
     "system control center must render the operations entry tile",
   );
   sourceIncludes(
     "client/src/modules/system/control-center/page.tsx",
-    "INSIGHTS",
+    "行為洞察",
     "system control center must render the insights entry tile",
   );
   sourceIncludes(
     "client/src/modules/system/control-center/page.tsx",
-    "GOVERNANCE",
+    "功能關係",
     "system control center must render the governance entry tile",
-  );
-  sourceIncludes(
-    "client/src/modules/system/control-center/page.tsx",
-    "HELPER STATUS",
-    "system control center must render the helper status drawer tile",
-  );
-  sourceIncludes(
-    "client/src/modules/system/control-center/page.tsx",
-    "hasControlCenterData",
-    "system control center must gate normal summaries behind real BFF data",
   );
   sourceIncludes(
     "client/src/modules/system/control-center/page.tsx",

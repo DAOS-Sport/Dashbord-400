@@ -14,6 +14,8 @@ import type {
 } from "@shared/system/api-monitoring-contract";
 import type {
   ActionCategory,
+  ActionMonitoringOperatorSummary,
+  ActionMonitoringRoleSummary,
   ActionMonitoringRow,
   ActionMonitoringStatus,
   ActionMonitoringTrendBucket,
@@ -334,46 +336,54 @@ function ActionsPanel({ onSelect }: { onSelect: (row: ActionMonitoringRow) => vo
   }, [query.data?.rows, categoryFilter, statusFilter]);
 
   const summary = query.data?.summary;
+  const roleRows = query.data?.byRole ?? [];
+  const operatorRows = query.data?.byOperator ?? [];
 
   return (
-    <WorkbenchCard className="overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-4">
-        <div>
-          <h2 className="text-[16px] font-black text-text-strong">動作監控</h2>
-          <p className="mt-1 text-[12px] font-bold text-text-body">
-            {summary
-              ? `共 ${summary.totalActions} 類動作 · 24h 執行 ${summary.totalExecutions.toLocaleString()} 次 · 失敗 ${summary.totalFailures} 次`
-              : "讀取中…"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as "all" | ActionCategory)}
-            className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
-          >
-            <option value="all">all category</option>
-            <option value="ops">運維</option>
-            <option value="session">Session</option>
-            <option value="permission">權限</option>
-            <option value="content">內容</option>
-            <option value="system">系統</option>
-            <option value="other">其他</option>
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "all" | ActionMonitoringStatus)}
-            className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
-          >
-            <option value="all">all status</option>
-            <option value="error">error</option>
-            <option value="warning">warning</option>
-            <option value="healthy">healthy</option>
-            <option value="not_connected">not_connected</option>
-          </select>
-        </div>
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <RoleOperationsPanel rows={roleRows} isLoading={query.isLoading} />
+        <OperatorOperationsPanel rows={operatorRows} isLoading={query.isLoading} />
       </div>
-      <div className="overflow-x-auto">
+
+      <WorkbenchCard className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-4">
+          <div>
+            <h2 className="text-[16px] font-black text-text-strong">動作監控</h2>
+            <p className="mt-1 text-[12px] font-bold text-text-body">
+              {summary
+                ? `共 ${summary.totalActions} 類動作 · 24h 執行 ${summary.totalExecutions.toLocaleString()} 次 · 失敗 ${summary.totalFailures} 次`
+                : "讀取中…"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as "all" | ActionCategory)}
+              className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
+            >
+              <option value="all">all category</option>
+              <option value="ops">運維</option>
+              <option value="session">Session</option>
+              <option value="permission">權限</option>
+              <option value="content">內容</option>
+              <option value="system">系統</option>
+              <option value="other">其他</option>
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | ActionMonitoringStatus)}
+              className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
+            >
+              <option value="all">all status</option>
+              <option value="error">error</option>
+              <option value="warning">warning</option>
+              <option value="healthy">healthy</option>
+              <option value="not_connected">not_connected</option>
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
         <table className="min-w-full text-left text-[13px]">
           <thead className="bg-surface-soft text-[11px] font-black uppercase tracking-[0.12em] text-text-muted">
             <tr>
@@ -423,6 +433,99 @@ function ActionsPanel({ onSelect }: { onSelect: (row: ActionMonitoringRow) => vo
               <tr>
                 <td colSpan={8} className="p-8 text-center text-[13px] font-bold text-text-body">
                   {query.isLoading ? "讀取中…" : "尚無動作資料"}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      </WorkbenchCard>
+    </div>
+  );
+}
+
+function RoleOperationsPanel({ rows, isLoading }: { rows: ActionMonitoringRoleSummary[]; isLoading: boolean }) {
+  return (
+    <WorkbenchCard className="overflow-hidden">
+      <div className="border-b border-border-subtle p-4">
+        <h2 className="text-[16px] font-black text-text-strong">依角色操作</h2>
+        <p className="mt-1 text-[12px] font-bold text-text-body">24h 內每個角色的操作量、失敗量與最後操作者。</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[12px]">
+          <thead className="bg-surface-soft text-[10px] font-black uppercase tracking-[0.12em] text-text-muted">
+            <tr>
+              <th className="px-4 py-3">角色</th>
+              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-right">失敗</th>
+              <th className="px-4 py-3 text-right">成功率</th>
+              <th className="px-4 py-3">最後操作</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-subtle">
+            {rows.slice(0, 8).map((row) => (
+              <tr key={row.role} className="hover:bg-surface-soft">
+                <td className="px-4 py-3 font-black text-text-strong">{row.role}</td>
+                <td className="px-4 py-3 text-right font-mono font-black">{row.totalCount}</td>
+                <td className={cn("px-4 py-3 text-right font-mono font-black", row.failureCount > 0 ? "text-red-600" : "text-text-muted")}>{row.failureCount}</td>
+                <td className="px-4 py-3 text-right font-mono font-black text-text-body">{row.successRate}%</td>
+                <td className="px-4 py-3 text-[11px] font-bold text-text-body">
+                  {row.lastAction ?? "—"}
+                  <span className="ml-1 text-text-muted">· {row.lastActorId ?? "system"} · {formatRelative(row.lastOccurredAt)}</span>
+                </td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-[13px] font-bold text-text-body">
+                  {isLoading ? "讀取中…" : "尚無角色操作紀錄"}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </WorkbenchCard>
+  );
+}
+
+function OperatorOperationsPanel({ rows, isLoading }: { rows: ActionMonitoringOperatorSummary[]; isLoading: boolean }) {
+  return (
+    <WorkbenchCard className="overflow-hidden">
+      <div className="border-b border-border-subtle p-4">
+        <h2 className="text-[16px] font-black text-text-strong">依操作人員</h2>
+        <p className="mt-1 text-[12px] font-bold text-text-body">24h 內每個操作者的操作分佈與最後結果。</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[12px]">
+          <thead className="bg-surface-soft text-[10px] font-black uppercase tracking-[0.12em] text-text-muted">
+            <tr>
+              <th className="px-4 py-3">操作人員</th>
+              <th className="px-4 py-3">角色</th>
+              <th className="px-4 py-3 text-right">操作</th>
+              <th className="px-4 py-3 text-right">功能</th>
+              <th className="px-4 py-3">最後結果</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-subtle">
+            {rows.slice(0, 10).map((row) => (
+              <tr key={row.actorId} className="hover:bg-surface-soft">
+                <td className="px-4 py-3 font-mono font-black text-text-strong">{row.actorId}</td>
+                <td className="px-4 py-3 font-bold text-text-body">{row.role ?? "unknown"}</td>
+                <td className="px-4 py-3 text-right font-mono font-black">{row.totalCount}</td>
+                <td className="px-4 py-3 text-right font-mono font-bold text-text-body">{row.actionCount}</td>
+                <td className="px-4 py-3 text-[11px] font-bold text-text-body">
+                  <span className={row.lastResultStatus && row.lastResultStatus.toLowerCase() !== "success" ? "text-red-600" : ""}>
+                    {row.lastResultStatus ?? "success"}
+                  </span>
+                  <span className="ml-1 text-text-muted">· {row.lastAction ?? "—"} · {formatRelative(row.lastOccurredAt)}</span>
+                </td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-[13px] font-bold text-text-body">
+                  {isLoading ? "讀取中…" : "尚無操作人員紀錄"}
                 </td>
               </tr>
             ) : null}

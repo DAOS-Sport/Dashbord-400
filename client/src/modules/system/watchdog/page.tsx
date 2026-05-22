@@ -62,7 +62,7 @@ const apiStatusDotClass = (s: ApiMonitoringStatus) => {
 };
 
 const tabs: Array<{ id: TabKey; label: string }> = [
-  { id: "apis", label: "API 列表" },
+  { id: "apis", label: "Health" },
   { id: "alerts", label: "Alerts" },
   { id: "integrations", label: "Integrations" },
 ];

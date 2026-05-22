@@ -65,12 +65,16 @@ const SupervisorPeoplePage = lazy(() => import("@/modules/supervisor/people/page
 const SupervisorHandoverPage = lazy(() => import("@/modules/supervisor/handover/page"));
 const SupervisorQnaReviewPage = lazy(() => import("@/modules/supervisor/qna-review/page"));
 const SupervisorTrainingPage = lazy(() => import("@/modules/supervisor/training/page"));
+const SupervisorReportsPage = lazy(() => import("@/modules/supervisor/reports/page"));
 const SystemDashboardPage = lazy(() => import("@/modules/system/dashboard-page"));
 const SystemInsightsPage = lazy(() => import("@/modules/system/insights/page"));
 const SystemOperationsPage = lazy(() => import("@/modules/system/operations/page"));
 const SystemCmsMonitoringPage = lazy(() => import("@/modules/system/cms-monitoring/page"));
+const SystemProjectOverviewPage = lazy(() => import("@/modules/system/project-overview/page"));
 const SystemProjectMonitoringPage = lazy(() => import("@/modules/system/project-monitoring/page"));
 const SystemControlCenterPage = lazy(() => import("@/modules/system/control-center/page"));
+const SystemGovernancePage = lazy(() => import("@/modules/system/governance/page"));
+const SystemAuditPage = lazy(() => import("@/modules/system/audit/page"));
 const SystemApiCatalogPage = lazy(() => import("@/modules/system/api-catalog/page"));
 const SystemApiMonitoringPage = lazy(() => import("@/modules/system/api-monitoring/page"));
 const SystemTrainingViewsPage = lazy(() => import("@/modules/system/training-views/page"));
@@ -359,6 +363,9 @@ function WorkbenchRouter() {
       <Route path="/supervisor/qna-review">
         <SupervisorQnaReviewPage />
       </Route>
+      <Route path="/supervisor/reports">
+        <SupervisorReportsPage />
+      </Route>
       <Route path="/supervisor" component={SupervisorDashboardPage} />
       <Route path="/lifeguard/handover">
         <LifeguardHandoverPage />
@@ -402,9 +409,7 @@ function WorkbenchRouter() {
       <Route path="/system/cms-monitoring" component={SystemCmsMonitoringPage} />
       <Route path="/system/operations" component={SystemOperationsPage} />
       <Route path="/system/insights" component={SystemInsightsPage} />
-      <Route path="/system/governance">
-        <Redirect to="/system/project-overview" />
-      </Route>
+      <Route path="/system/governance" component={SystemGovernancePage} />
       <Route path="/system/linebot-management">
         <Redirect to="/system/monitoring/400line" />
       </Route>
@@ -459,12 +464,16 @@ function WorkbenchRouter() {
         <Redirect to="/system/watchdog?tab=integrations" />
       </Route>
       <Route path="/system/audit">
-        <Redirect to="/system/operations?tab=audit" />
+        <SystemAuditPage />
       </Route>
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
-      <Route path="/system/project-overview" component={SystemControlCenterPage} />
+      <Route path="/system/control-center/cms-monitoring">
+        <Redirect to="/system/cms-monitoring" />
+      </Route>
+      <Route path="/system/control-center" component={SystemControlCenterPage} />
+      <Route path="/system/project-overview" component={SystemProjectOverviewPage} />
       <Route path="/system/overview">
         <Redirect to="/system/project-overview" />
       </Route>

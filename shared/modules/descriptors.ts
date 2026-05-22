@@ -134,9 +134,8 @@ const supervisorNavigationOrder = [
 ];
 
 const systemNavigationOrder = [
+  "system-project-overview",
   "system-control-center",
-  "system-watchdog",
-  "system-operations",
   "system-insights",
   "system-monitoring-400line",
   "system-monitoring-schedule",
@@ -189,9 +188,8 @@ const supervisorHomeOrder = [
 ];
 
 const systemHomeOrder = [
+  "system-project-overview",
   "system-control-center",
-  "system-watchdog",
-  "system-operations",
   "system-insights",
   "system-monitoring-400line",
   "system-monitoring-schedule",
@@ -249,9 +247,10 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     "announcement-groups": { shortName: "公告群組綁定", routePath: getPrimaryRoute("announcement-groups", "supervisor"), iconKey: "message-square-warning", menuOrder: 7, cardOrder: 7, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "ACTION_SUBMIT"] },
     handover: { shortName: "交接事項", routePath: getPrimaryRoute("handover", "supervisor"), iconKey: "message-square-text", menuOrder: 8, cardOrder: 8, navVisible: true, cardVisible: true },
     "employee-training": { shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "supervisor"), iconKey: "graduation-cap", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
+    "supervisor-reports": { shortName: "報表", routePath: getPrimaryRoute("supervisor-reports", "supervisor"), iconKey: "bar-chart-3", menuOrder: 10, cardOrder: 10, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/supervisor/dashboard", telemetryEvents: ["PAGE_VIEW"] },
   },
   system: {
-    "system-control-center": { shortName: "控制中心", routePath: "/system/project-overview", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "SYSTEM_CONTROL_CENTER_VIEW"] },
+    "system-control-center": { shortName: "控制中心", routePath: "/system/control-center", iconKey: "gauge", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "SYSTEM_CONTROL_CENTER_VIEW"] },
     "system-watchdog": { shortName: "Watchdog", routePath: "/system/watchdog", iconKey: "shield-check", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW", "WATCHDOG_EVENT_VIEW", "INTEGRATION_STATUS_VIEW"] },
     "system-operations": { shortName: "運維協助", routePath: "/system/operations", iconKey: "link", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/operations/recent-assists", telemetryEvents: ["PAGE_VIEW", "OPS_RESET_SESSION", "OPS_REFRESH_CACHE", "OPS_RESEND_NOTIFICATION"] },
     "system-insights": { shortName: "行為洞察", routePath: "/system/insights", iconKey: "gauge", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/insights/overview", telemetryEvents: ["PAGE_VIEW", "INSIGHTS_VIEW", "INSIGHTS_DRILL_DOWN"] },
@@ -365,6 +364,28 @@ const descriptorFromModule = (module: ModuleDefinition): ModuleDescriptor => {
 };
 
 const extraDescriptors: ModuleDescriptor[] = [
+  {
+    id: "system-project-overview",
+    name: "跨專案總覽",
+    description: "Cross-project system overview for 400CMS, 400LINE, schedule and collab course monitoring status.",
+    domain: "system",
+    stage: "bff-wired",
+    roles: ["system"],
+    defaultEnabled: true,
+    navVisible: true,
+    cardVisible: true,
+    routePath: "/system/project-overview",
+    bffEndpoint: "/api/bff/system/project-monitoring",
+    iconKey: "network",
+    menuOrder: 1,
+    cardOrder: 1,
+    requiredPermissions: ["system:overview:read"],
+    dependencies: ["system-control-center", "system-monitoring-400line", "system-monitoring-schedule", "system-monitoring-collab-course"],
+    searchKeywords: ["跨專案總覽", "400CMS", "400LINE", "排班管理系統", "偕同課系統"],
+    telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW"],
+    emptyStateText: "跨專案總覽目前沒有狀態資料。",
+    notConnectedText: "跨專案總覽已註冊，但 BFF 尚未接線。",
+  },
   {
     id: "employee-home",
     name: "員工首頁",

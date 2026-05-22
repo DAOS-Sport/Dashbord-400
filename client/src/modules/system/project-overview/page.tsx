@@ -3,15 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   ArrowUpRight,
-  Clock,
   RefreshCw,
   XCircle,
-  AlertOctagon,
   History,
   Activity,
   Layers,
-  TrendingDown,
-  TrendingUp,
   Rocket,
   ShieldCheck,
   CircleCheck,
@@ -21,13 +17,11 @@ import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { apiGet } from "@/shared/api/client";
 import { cn } from "@/lib/utils";
 import { fetchSystemProjectMonitoring } from "../project-monitoring/api";
-import { fetchApiMonitoring } from "../api-monitoring/api";
 import type {
   SparklineBucket,
   SystemProjectStatus,
   SystemProjectSummary,
 } from "@shared/system/project-monitoring-contract";
-import type { ApiMonitoringError } from "@shared/system/api-monitoring-contract";
 
 // ============================================================================
 // SystemProjectSummary contract fields used here:
@@ -113,69 +107,6 @@ function formatRelative(iso: string): string {
   return `${day} 天前`;
 }
 
-const ERROR_BADGE_TONE: Record<string, string> = {
-  "5xx": "bg-[#ffe8eb] text-[#791f1f]",
-  "4xx": "bg-[#fff6e7] text-[#633806]",
-  timeout: "bg-[#fff6e7] text-[#633806]",
-  aborted: "bg-[#eef2f6] text-[#536175]",
-};
-
-function badgeToneFor(err: ApiMonitoringError): string {
-  if (err.statusCode && err.statusCode >= 500) return ERROR_BADGE_TONE["5xx"];
-  if (err.statusCode && err.statusCode >= 400) return ERROR_BADGE_TONE["4xx"];
-  return ERROR_BADGE_TONE[err.errorType] ?? "bg-[#eef2f6] text-[#536175]";
-}
-
-// Group errors by route + statusCode/errorType so 24 repeated 403s
-// become one row with a count, not 24 rows of noise.
-interface ErrorGroup {
-  key: string;
-  route: string;
-  statusCode?: number;
-  errorType: string;
-  count: number;
-  latest: ApiMonitoringError;
-  hint: string;
-}
-
-function groupErrors(errors: ApiMonitoringError[]): ErrorGroup[] {
-  const groups = new Map<string, ErrorGroup>();
-  for (const err of errors) {
-    const key = `${err.route}|${err.statusCode ?? err.errorType}`;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.count += 1;
-      if (new Date(err.occurredAt) > new Date(existing.latest.occurredAt)) {
-        existing.latest = err;
-      }
-    } else {
-      groups.set(key, {
-        key,
-        route: err.route,
-        statusCode: err.statusCode,
-        errorType: err.errorType,
-        count: 1,
-        latest: err,
-        hint: hintFor(err),
-      });
-    }
-  }
-  return Array.from(groups.values()).sort((a, b) => {
-    if (a.count !== b.count) return b.count - a.count;
-    return new Date(b.latest.occurredAt).getTime() - new Date(a.latest.occurredAt).getTime();
-  });
-}
-
-function hintFor(err: ApiMonitoringError): string {
-  if (err.statusCode === 401) return "session 過期";
-  if (err.statusCode === 403) return "角色檢查未通過";
-  if (err.statusCode === 404) return "路由不存在";
-  if (err.statusCode && err.statusCode >= 500) return "後端錯誤";
-  if (err.errorType === "timeout") return "請求逾時";
-  if (err.errorType === "aborted") return "客戶端取消";
-  return err.errorType;
-}
-
 // ---------- sub-components ----------
 
 function CompactStatusHeader({
@@ -259,23 +190,14 @@ function KpiCard({
   value,
   unit,
   hint,
-  trend,
   progress,
 }: {
   label: string;
   value: string | number;
   unit?: string;
   hint?: string;
-  trend?: { direction: "up" | "down"; label: string; tone: "good" | "bad" | "neutral" };
   progress?: number;
 }) {
-  const trendTone =
-    trend?.tone === "good"
-      ? "text-[#188249]"
-      : trend?.tone === "bad"
-        ? "text-[#dc2626]"
-        : "text-[#637185]";
-  const TrendIcon = trend?.direction === "down" ? TrendingDown : TrendingUp;
   return (
     <WorkbenchCard className="p-3">
       <p className="text-[11px] font-bold text-[#637185]">{label}</p>
@@ -284,12 +206,6 @@ function KpiCard({
           {value}
         </span>
         {unit && <span className="text-[11px] font-bold text-[#8b9aae]">{unit}</span>}
-        {trend && (
-          <span className={cn("ml-1 inline-flex items-center gap-0.5 text-[10px] font-black", trendTone)}>
-            <TrendIcon className="h-3 w-3" />
-            {trend.label}
-          </span>
-        )}
       </div>
       {typeof progress === "number" && (
         <div className="mt-2 h-[3px] overflow-hidden rounded-[2px] bg-[#eef2f6]">
@@ -309,39 +225,20 @@ function KpiCard({
 
 function KpiStrip({
   healthScore,
-  errors24h,
-  errorsTrend,
   pending,
   alerts24h,
 }: {
   healthScore: number;
-  errors24h: number;
-  errorsTrend?: number;
   pending: number;
   alerts24h: number;
 }) {
-  const trend =
-    typeof errorsTrend === "number" && errorsTrend !== 0
-      ? {
-          direction: errorsTrend < 0 ? ("down" as const) : ("up" as const),
-          label: `${Math.abs(errorsTrend)}%`,
-          tone: errorsTrend < 0 ? ("good" as const) : ("bad" as const),
-        }
-      : undefined;
-
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-2 sm:grid-cols-3">
       <KpiCard
         label="系統健康度"
         value={healthScore}
         unit="/ 100"
         progress={healthScore}
-      />
-      <KpiCard
-        label="24h 錯誤"
-        value={errors24h}
-        trend={trend}
-        hint={trend ? "較昨日比較" : "尚無昨日基準"}
       />
       <KpiCard
         label="待處理"
@@ -597,80 +494,6 @@ function ProjectPortalSection({
   );
 }
 
-function ErrorGroupsCard({
-  errors,
-  isLoading,
-}: {
-  errors: ApiMonitoringError[];
-  isLoading: boolean;
-}) {
-  const groups = useMemo(() => groupErrors(errors).slice(0, 5), [errors]);
-
-  return (
-    <WorkbenchCard className="flex flex-col p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <AlertOctagon className="h-3.5 w-3.5 text-[#dc2626]" />
-          <h2 className="text-[13px] font-black text-[#10233f]">近 24h 錯誤 · 分組</h2>
-          <span className="rounded-full bg-[#ffe8eb] px-1.5 py-0.5 text-[10px] font-black text-[#dc2626]">
-            {groups.length} 組 · {errors.length} 筆
-          </span>
-        </div>
-        <Link
-          href="/system/watchdog?tab=alerts"
-          className="text-[10px] font-black text-[#5e6e84] hover:text-[#10233f]"
-        >
-          全部 →
-        </Link>
-      </div>
-      {isLoading ? (
-        <div className="space-y-1.5">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-12 animate-pulse rounded-[6px] bg-[#f3f6fb]" />
-          ))}
-        </div>
-      ) : groups.length === 0 ? (
-        <p className="rounded-[6px] bg-[#fbfcfd] px-3 py-6 text-center text-[12px] font-bold text-[#637185]">
-          最近 24h 無錯誤 🎉
-        </p>
-      ) : (
-        <ul className="flex flex-1 flex-col gap-1.5">
-          {groups.map((g) => (
-            <li key={g.key}>
-              <Link
-                href="/system/watchdog?tab=alerts"
-                className="group flex items-center gap-2.5 rounded-[6px] bg-[#fbfcfd] p-2 hover:bg-white hover:ring-1 hover:ring-[#dfe7ef]"
-                data-testid={`error-group-${g.key}`}
-              >
-                <span
-                  className={cn(
-                    "inline-flex h-5 min-w-[36px] items-center justify-center rounded-[4px] px-1.5 text-[10px] font-black",
-                    badgeToneFor(g.latest),
-                  )}
-                >
-                  {g.statusCode ?? g.errorType}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[11px] font-bold text-[#10233f]">
-                    {g.route}
-                  </p>
-                  <p className="text-[10px] font-bold text-[#8b9aae]">
-                    最近 {formatRelative(g.latest.occurredAt)} · {g.hint}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-[13px] font-black leading-none text-[#10233f]">{g.count}</p>
-                  <p className="text-[9px] font-bold text-[#8b9aae]">次</p>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </WorkbenchCard>
-  );
-}
-
 function activityIcon(kind: ActivityEntry["kind"]) {
   if (kind === "fix") return <CircleCheck className="h-3 w-3 text-[#188249]" />;
   if (kind === "security") return <ShieldCheck className="h-3 w-3 text-[#188249]" />;
@@ -839,12 +662,6 @@ export default function SystemProjectOverviewPage() {
     queryFn: fetchSystemProjectMonitoring,
     refetchInterval: 30_000,
   });
-  const apiMonQuery = useQuery({
-    queryKey: ["/api/bff/system/api-monitoring", "all"],
-    queryFn: () => fetchApiMonitoring("all"),
-    refetchInterval: 60_000,
-    retry: 1,
-  });
   const watchdogQuery = useQuery({
     queryKey: ["/api/bff/system/watchdog-events", "project-overview"],
     queryFn: fetchWatchdogEvents,
@@ -888,7 +705,6 @@ export default function SystemProjectOverviewPage() {
     return Math.round(sum / nonGovernance.length);
   }, [nonGovernance]);
 
-  const recentErrors = apiMonQuery.data?.recentErrors ?? [];
   const events = watchdogQuery.data?.items ?? [];
 
   const cutoff = Date.now() - 24 * 3_600_000;
@@ -910,14 +726,13 @@ export default function SystemProjectOverviewPage() {
 
   const handleRefresh = () => {
     projectsQuery.refetch();
-    apiMonQuery.refetch();
     watchdogQuery.refetch();
     opsQuery.refetch();
     activityQuery.refetch();
   };
 
   return (
-    <RoleShell role="system" title="IT 首頁" subtitle="IT PROJECT OVERVIEW">
+    <RoleShell role="system" title="跨專案總覽" subtitle="IT PROJECT OVERVIEW">
       <div
         className="mx-auto max-w-[1440px] space-y-3"
         data-testid="system-project-overview-page"
@@ -926,11 +741,7 @@ export default function SystemProjectOverviewPage() {
           attention={attention}
           hasError={hasError}
           generatedAt={generatedAt}
-          isFetching={
-            projectsQuery.isFetching ||
-            apiMonQuery.isFetching ||
-            watchdogQuery.isFetching
-          }
+          isFetching={projectsQuery.isFetching || watchdogQuery.isFetching}
           isError={projectsQuery.isError}
           onRefresh={handleRefresh}
           projectCount={allItems.length}
@@ -938,7 +749,6 @@ export default function SystemProjectOverviewPage() {
 
         <KpiStrip
           healthScore={healthScore}
-          errors24h={recentErrors.length}
           pending={pending}
           alerts24h={recentEvents.length}
         />
@@ -946,17 +756,12 @@ export default function SystemProjectOverviewPage() {
         <ProjectPortalSection items={allItems} isLoading={projectsQuery.isLoading} />
 
         <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
-          <ErrorGroupsCard
-            errors={recentErrors}
-            isLoading={apiMonQuery.isLoading}
-          />
+          <TimelineCard events={recentEvents} isLoading={watchdogQuery.isLoading} />
           <RecentActivityCard
             items={recentActivity}
             isLoading={activityQuery.isLoading}
           />
         </div>
-
-        <TimelineCard events={recentEvents} isLoading={watchdogQuery.isLoading} />
       </div>
     </RoleShell>
   );

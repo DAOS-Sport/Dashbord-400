@@ -3,6 +3,8 @@ import type { AppContainer } from "../../app/container";
 import type {
   ActionCategory,
   ActionMonitoringDto,
+  ActionMonitoringOperatorSummary,
+  ActionMonitoringRoleSummary,
   ActionMonitoringRow,
   ActionMonitoringStatus,
   ActionMonitoringSummary,
@@ -72,6 +74,9 @@ const deriveStatus = (failureCount: number, totalCount: number): ActionMonitorin
   return "healthy";
 };
 
+const successRate = (successCount: number, totalCount: number) =>
+  totalCount > 0 ? Math.round((successCount / totalCount) * 1000) / 10 : 100;
+
 const buildTrend = (records: AuditLogRecord[]): ActionMonitoringTrendBucket[] => {
   const now = new Date();
   now.setMinutes(0, 0, 0);
@@ -122,7 +127,7 @@ const buildDto = async (container: AppContainer): Promise<ActionMonitoringDto> =
       totalCount,
       successCount,
       failureCount,
-      successRate: totalCount > 0 ? Math.round((successCount / totalCount) * 1000) / 10 : 100,
+      successRate: successRate(successCount, totalCount),
       status: deriveStatus(failureCount, totalCount),
       lastActorId: latest?.actorId ?? null,
       lastResultStatus: latest?.resultStatus ?? null,
@@ -148,7 +153,61 @@ const buildDto = async (container: AppContainer): Promise<ActionMonitoringDto> =
     lastUpdatedAt: generatedAt,
   };
 
-  return { generatedAt, summary, rows };
+  const byRole: ActionMonitoringRoleSummary[] = Array.from(
+    recent.reduce((groups, record) => {
+      const key = record.role || "unknown";
+      groups.set(key, [...(groups.get(key) ?? []), record]);
+      return groups;
+    }, new Map<string, AuditLogRecord[]>()).entries(),
+  ).map(([role, items]) => {
+    const sorted = [...items].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const totalCount = items.length;
+    const failureCount = items.filter(isFailure).length;
+    const successCount = totalCount - failureCount;
+    const operators = new Set(items.map((item) => item.actorId || "system"));
+    const latest = sorted[0];
+    return {
+      role,
+      totalCount,
+      successCount,
+      failureCount,
+      successRate: successRate(successCount, totalCount),
+      uniqueOperators: operators.size,
+      lastActorId: latest?.actorId ?? null,
+      lastAction: latest?.action ?? null,
+      lastOccurredAt: latest?.timestamp ?? null,
+    };
+  }).sort((a, b) => b.failureCount - a.failureCount || b.totalCount - a.totalCount || a.role.localeCompare(b.role));
+
+  const byOperator: ActionMonitoringOperatorSummary[] = Array.from(
+    recent.reduce((groups, record) => {
+      const key = record.actorId || "system";
+      groups.set(key, [...(groups.get(key) ?? []), record]);
+      return groups;
+    }, new Map<string, AuditLogRecord[]>()).entries(),
+  ).map(([actorId, items]) => {
+    const sorted = [...items].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const totalCount = items.length;
+    const failureCount = items.filter(isFailure).length;
+    const successCount = totalCount - failureCount;
+    const latest = sorted[0];
+    return {
+      actorId,
+      role: latest?.role ?? null,
+      facilityKey: latest?.facilityKey ?? null,
+      totalCount,
+      successCount,
+      failureCount,
+      successRate: successRate(successCount, totalCount),
+      actionCount: new Set(items.map((item) => item.action)).size,
+      lastAction: latest?.action ?? null,
+      lastResource: latest?.resource ?? null,
+      lastResultStatus: latest?.resultStatus ?? null,
+      lastOccurredAt: latest?.timestamp ?? null,
+    };
+  }).sort((a, b) => b.failureCount - a.failureCount || b.totalCount - a.totalCount || a.actorId.localeCompare(b.actorId));
+
+  return { generatedAt, summary, rows, byRole, byOperator };
 };
 
 export const registerActionMonitoringRoutes = (app: Express, container: AppContainer) => {

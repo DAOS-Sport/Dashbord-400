@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ChevronLeft, Database, GitBranch, Layers3, Network, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ClipboardList, Database, GitBranch, Layers3, Network, Search, Server, ShieldCheck, Users, X } from "lucide-react";
 import type { ModuleDefinition } from "@shared/modules";
 import { getModuleArchitectureCoverage, getModuleArchitectureGroups, moduleStatusLabels } from "@shared/modules";
 import { NotConnectedCard } from "@/components/shared/not-connected-card";
@@ -9,8 +9,9 @@ import { RoleShell } from "@/modules/workbench/role-shell";
 import { WorkbenchCard } from "@/shared/ui-kit/workbench-card";
 import { apiGet } from "@/shared/api/client";
 import { cn } from "@/lib/utils";
+import { fetchSystemApiCatalog, type SystemControlCenterDto } from "../control-center/api";
 
-type TabKey = "registry" | "relations" | "topology" | "audit" | "raw";
+type TabKey = "registry" | "api-surface" | "relations" | "topology" | "audit" | "raw";
 
 interface AuditLogItem {
   id?: number;
@@ -26,6 +27,7 @@ interface AuditLogItem {
 
 const tabs: Array<{ id: TabKey; label: string }> = [
   { id: "registry", label: "Module Registry" },
+  { id: "api-surface", label: "API Surface" },
   { id: "relations", label: "Function Relations" },
   { id: "topology", label: "Topology" },
   { id: "audit", label: "Audit Raw" },
@@ -45,12 +47,80 @@ const statusClass: Record<string, string> = {
 const fetchRegistry = () => apiGet<{ items: ModuleDefinition[] }>("/api/system/module-registry");
 const fetchAuditLogs = () => apiGet<{ items: AuditLogItem[] }>("/api/audit/logs?limit=40");
 
+const roleIcon = {
+  employee: Users,
+  lifeguard: ShieldCheck,
+  supervisor: ClipboardList,
+  system: Server,
+} as const;
+
+function RoleApiSurfaceCard({ surface }: { surface: SystemControlCenterDto["roleApiSurfaces"][number] }) {
+  const Icon = roleIcon[surface.role];
+  return (
+    <WorkbenchCard className="flex min-h-[380px] flex-col p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] bg-[#f3f6fb] text-[#10233f] ring-1 ring-[#dfe7ef]">
+            <Icon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate text-[16px] font-black text-[#10233f]">{surface.label}</h3>
+            <p className="mt-1 text-[12px] font-bold text-[#637185]">{surface.moduleCount} modules / {surface.apiCount} APIs</p>
+          </div>
+        </div>
+        <span className="rounded-full bg-[#f3f6fb] px-2.5 py-1 text-[11px] font-black text-[#536175] ring-1 ring-[#dfe7ef]">
+          BFF {surface.bffCount}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {[
+          ["Proxy", surface.proxyCount],
+          ["Legacy", surface.legacyCount],
+          ["Partial", surface.partialCount],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-[8px] bg-[#f3f6fb] px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-[#8b9aae]">{label}</p>
+            <p className="mt-1 text-[18px] font-black text-[#10233f]">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-hidden">
+        {surface.topModules.slice(0, 4).map((module) => (
+          <div key={module.moduleId} className="rounded-[8px] border border-[#edf1f6] bg-white p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-black text-[#10233f]">{module.label}</p>
+                <p className="mt-1 truncate text-[11px] font-bold text-[#8b9aae]">{module.routePath ?? module.moduleId}</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-[#f3f6fb] px-2 py-0.5 text-[10px] font-black text-[#536175]">
+                {module.apiCount}
+              </span>
+            </div>
+            <div className="mt-2 space-y-1.5">
+              {module.primaryApis.slice(0, 2).map((api) => (
+                <div key={`${api.method}-${api.path}`} className="grid grid-cols-[48px_minmax(0,1fr)_52px] items-center gap-2 text-[11px]">
+                  <span className="font-mono font-black text-[#10233f]">{api.method}</span>
+                  <span className="truncate font-mono text-[#536175]">{api.path}</span>
+                  <span className="truncate text-right font-bold text-[#8b9aae]">{api.kind}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </WorkbenchCard>
+  );
+}
+
 export default function SystemGovernancePage() {
   const [tab, setTab] = useState<TabKey>("registry");
   const [search, setSearch] = useState("");
   const [selectedModule, setSelectedModule] = useState<ModuleDefinition | null>(null);
   const registryQuery = useQuery({ queryKey: ["/api/system/module-registry", "governance"], queryFn: fetchRegistry, retry: 1 });
   const auditQuery = useQuery({ queryKey: ["/api/audit/logs", "governance"], queryFn: fetchAuditLogs, retry: 1 });
+  const apiCatalogQuery = useQuery({ queryKey: ["/api/bff/system/api-catalog", "governance"], queryFn: fetchSystemApiCatalog, retry: 1 });
   const architectureGroups = useMemo(() => getModuleArchitectureGroups(), []);
   const coverage = useMemo(() => getModuleArchitectureCoverage(), []);
   const registryById = useMemo(() => {
@@ -158,6 +228,42 @@ export default function SystemGovernancePage() {
               ))}
             </div>
           </div>
+        ) : null}
+
+        {tab === "api-surface" ? (
+          <section className="space-y-4">
+            <WorkbenchCard className="p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-[16px] font-black text-[#10233f]">角色 API Surface</h2>
+                  <p className="mt-1 text-[13px] font-bold leading-6 text-[#637185]">依角色整理工作台模組與 API 邊界，資料來源為 API Catalog。</p>
+                </div>
+                <Link href="/system/api-catalog" className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#10233f] hover:bg-[#f3f6fb]">
+                  API Catalog
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </WorkbenchCard>
+            {apiCatalogQuery.isError ? (
+              <WorkbenchCard className="border-red-200 bg-red-50 p-5">
+                <p className="text-[13px] font-bold text-red-800">API Surface 資料無法載入，請確認 `/api/bff/system/api-catalog`。</p>
+              </WorkbenchCard>
+            ) : null}
+            <div className="grid gap-4 xl:grid-cols-4">
+              {(apiCatalogQuery.data?.roleApiSurfaces ?? []).map((surface) => (
+                <RoleApiSurfaceCard key={surface.role} surface={surface} />
+              ))}
+            </div>
+            {apiCatalogQuery.isLoading ? (
+              <div className="grid gap-4 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <WorkbenchCard key={index} className="min-h-[220px] animate-pulse bg-[#f8fafc] p-4">
+                    <span className="sr-only">載入 API Surface</span>
+                  </WorkbenchCard>
+                ))}
+              </div>
+            ) : null}
+          </section>
         ) : null}
 
         {tab === "relations" ? (
