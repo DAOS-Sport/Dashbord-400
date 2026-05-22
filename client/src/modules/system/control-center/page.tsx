@@ -8,7 +8,6 @@ import {
   Bot,
   Gauge,
   Network,
-  RefreshCw,
   Server,
   ShieldCheck,
 } from "lucide-react";
@@ -58,48 +57,56 @@ const badgeStyleClass = {
 
 const hubLinks = [
   {
+    tab: "watchdog",
     label: "Watchdog",
     href: "/system/watchdog",
     Icon: ShieldCheck,
     hint: "事件、整合、告警",
   },
   {
+    tab: "governance",
     label: "治理面",
     href: "/system/governance",
     Icon: Gauge,
     hint: "Registry、API Surface、Audit",
   },
   {
+    tab: "api-catalog",
     label: "API Catalog",
     href: "/system/api-catalog",
     Icon: Server,
     hint: "完整路由、模組、資料來源",
   },
   {
+    tab: "api-monitoring",
     label: "API 監控",
     href: "/system/monitoring",
     Icon: Server,
     hint: "各系統 API health",
   },
   {
+    tab: "400line",
     label: "400LINE",
     href: "/system/monitoring/400line",
     Icon: Bot,
     hint: "白名單與 LINE readiness",
   },
   {
+    tab: "operations",
     label: "運維協助",
     href: "/system/operations",
     Icon: Activity,
     hint: "使用者排查與 audit",
   },
   {
+    tab: "insights",
     label: "行為洞察",
     href: "/system/insights",
     Icon: Gauge,
     hint: "使用率與異常趨勢",
   },
   {
+    tab: "function-relations",
     label: "功能關係",
     href: "/system/function-relations",
     Icon: Network,
@@ -108,6 +115,21 @@ const hubLinks = [
 ] as const;
 
 type HubLink = (typeof hubLinks)[number];
+type HubTab = HubLink["tab"];
+
+const defaultHubTab: HubTab = "watchdog";
+
+const hubByTab = new Map<HubTab, HubLink>(hubLinks.map((item) => [item.tab, item]));
+const hubByHref = new Map<HubLink["href"], HubLink>(hubLinks.map((item) => [item.href, item]));
+
+const readControlCenterTab = (): HubTab => {
+  if (typeof window === "undefined") return defaultHubTab;
+  const tab = new URLSearchParams(window.location.search).get("tab") as HubTab | null;
+  return tab && hubByTab.has(tab) ? tab : defaultHubTab;
+};
+
+const hrefForTab = (tab: HubTab): HubLink["href"] => (hubByTab.get(tab) ?? hubLinks[0]).href;
+const tabForHref = (href: HubLink["href"]): HubTab => (hubByHref.get(href) ?? hubLinks[0]).tab;
 
 type QuickRow = {
   id: string;
@@ -167,36 +189,6 @@ function MetricCard({
       </div>
       <p className="mt-2 truncate text-[11px] text-slate-400">{hint}</p>
     </WorkbenchCard>
-  );
-}
-
-function MiniMetric({
-  label,
-  value,
-  tone = "normal",
-}: {
-  label: string;
-  value: string | number;
-  tone?: keyof typeof severityClass;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-2 text-[24px] font-bold leading-none tabular-nums tracking-tight",
-          tone === "critical"
-            ? "text-rose-600"
-            : tone === "warning"
-              ? "text-amber-600"
-              : "text-slate-900",
-        )}
-      >
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -509,84 +501,6 @@ function QuickViewContent({
         ? "catalog"
         : "control";
 
-  const metrics = isMonitoringView
-    ? [
-        {
-          label: "API 總數",
-          value: monitoring?.summary.totalApis ?? 0,
-          tone: "normal" as const,
-        },
-        {
-          label: "正常",
-          value: monitoring?.summary.healthyApis ?? 0,
-          tone: "normal" as const,
-        },
-        {
-          label: "警告",
-          value: monitoring?.summary.warningApis ?? 0,
-          tone: "warning" as const,
-        },
-        {
-          label: "異常",
-          value: monitoring?.summary.errorApis ?? 0,
-          tone: "critical" as const,
-        },
-      ]
-    : isCatalogView
-      ? [
-          {
-            label: "API",
-            value: catalog?.summary.totalApis ?? 0,
-            tone: "normal" as const,
-          },
-          {
-            label: "Modules",
-            value: catalog?.summary.registeredModules ?? 0,
-            tone: "normal" as const,
-          },
-          {
-            label: "Unmapped",
-            value: catalog?.summary.unmappedApis ?? 0,
-            tone:
-              (catalog?.summary.unmappedApis ?? 0) > 0
-                ? ("warning" as const)
-                : ("normal" as const),
-          },
-          {
-            label: "Inferred",
-            value: catalog?.summary.inferredModuleMatches ?? 0,
-            tone: "warning" as const,
-          },
-        ]
-      : [
-          {
-            label: "Critical",
-            value: data?.kpi.watchdogCritical24h ?? 0,
-            tone: "critical" as const,
-          },
-          {
-            label: "Audit 24h",
-            value: data?.kpi.audit24h ?? 0,
-            tone: "normal" as const,
-          },
-          {
-            label: "待處理",
-            value: data?.tiles.operations.pendingCount ?? 0,
-            tone:
-              (data?.tiles.operations.pendingCount ?? 0) > 0
-                ? ("warning" as const)
-                : ("normal" as const),
-          },
-          {
-            label: "治理缺口",
-            value: data?.tiles.governance.orphanCount ?? 0,
-            tone:
-              (data?.tiles.governance.orphanCount ?? 0) > 0
-                ? ("warning" as const)
-                : ("normal" as const),
-          },
-        ];
-
   const distribution = [
     {
       label: "正常",
@@ -643,13 +557,7 @@ function QuickViewContent({
       </div>
 
       <div className="bg-slate-50/40 p-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {metrics.map((metric) => (
-            <MiniMetric key={metric.label} {...metric} />
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
           <PaginatedBriefing
             rows={rows}
             page={page}
@@ -686,11 +594,11 @@ function QuickViewContent({
 
 export default function SystemControlCenterPage() {
   const [previewHref, setPreviewHref] =
-    useState<(typeof hubLinks)[number]["href"]>("/system/watchdog");
+    useState<HubLink["href"]>(() => hrefForTab(readControlCenterTab()));
   const [quickPage, setQuickPage] = useState(1);
   const [quickPageSize, setQuickPageSize] = useState(8);
 
-  const { data, isFetching, isError } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["/api/bff/system/control-center"],
     queryFn: fetchSystemControlCenter,
     refetchInterval: 15_000,
@@ -700,6 +608,13 @@ export default function SystemControlCenterPage() {
   const kpi = data?.kpi;
   const activePreview =
     hubLinks.find((item) => item.href === previewHref) ?? hubLinks[0];
+
+  const selectControlCenterTab = (href: HubLink["href"]) => {
+    setPreviewHref(href);
+    if (typeof window === "undefined") return;
+    const tab = tabForHref(href);
+    window.history.replaceState(null, "", `/system/control-center?tab=${tab}`);
+  };
 
   const monitoringProjectKey: ApiMonitoringProjectKey | null =
     previewHref === "/system/monitoring/400line"
@@ -733,6 +648,13 @@ export default function SystemControlCenterPage() {
   useEffect(() => {
     setQuickPage(1);
   }, [previewHref, quickPageSize]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => setPreviewHref(hrefForTab(readControlCenterTab()));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   if (isError && !data) {
     return (
@@ -799,31 +721,6 @@ export default function SystemControlCenterPage() {
         </div>
 
         <WorkbenchCard className="overflow-hidden p-0 border border-slate-200/80 shadow-sm rounded-xl">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3.5">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                System Control Center
-              </p>
-              <h2 className="mt-0.5 text-[15px] font-bold text-slate-900 tracking-tight">
-                控制中心
-              </h2>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">
-              <RefreshCw
-                className={cn(
-                  "h-3.5 w-3.5 text-slate-400",
-                  isFetching ? "animate-spin" : "",
-                )}
-              />
-              {data?.generatedAt
-                ? new Date(data.generatedAt).toLocaleTimeString("zh-TW", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : "同步中"}
-            </div>
-          </div>
-
           <div>
               <QuickViewContent
                 activePreview={activePreview}
@@ -835,7 +732,7 @@ export default function SystemControlCenterPage() {
                 onPageChange={setQuickPage}
                 onPageSizeChange={setQuickPageSize}
                 onSelectTab={(href) =>
-                  setPreviewHref(href as typeof previewHref)
+                  selectControlCenterTab(href as HubLink["href"])
                 }
               />
 
