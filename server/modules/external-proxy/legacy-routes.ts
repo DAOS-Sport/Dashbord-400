@@ -10,6 +10,21 @@ export const registerExternalProxyLegacyRoutes = (app: Express) => {
   const LINE_BOT_BASE = env.lineBotBaseUrl;
   const SMART_SCHEDULE_BASE = env.smartScheduleBaseUrl;
 
+  const markDeprecated = (res: import("express").Response, successor: string) => {
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Link", `<${successor}>; rel="successor-version"`);
+  };
+
+  app.use([
+    "/api/announcement-dashboard",
+    "/api/announcement-candidates",
+    "/api/announcement-reports",
+    "/api/facility-home",
+  ], (_req, res, next) => {
+    markDeprecated(res, "/api/bff/employee/announcements");
+    next();
+  });
+
   function proxyHeaders(upstreamUrl: string, jsonBody = false) {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (jsonBody) headers["Content-Type"] = "application/json";

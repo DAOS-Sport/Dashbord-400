@@ -16,6 +16,12 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 export function registerObjectStorageRoutes(app: Express): void {
   const objectStorageService = new ObjectStorageService();
 
+  app.use(["/api/uploads/request-url", "/objects"], (_req, res, next) => {
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Link", "</api/work-logs/upload>; rel=\"successor-version\"");
+    next();
+  });
+
   /**
    * Request a presigned URL for file upload.
    *
@@ -83,4 +89,3 @@ export function registerObjectStorageRoutes(app: Express): void {
     }
   });
 }
-

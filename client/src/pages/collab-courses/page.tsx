@@ -282,7 +282,7 @@ export function SupervisorCollabCoursesFrame() {
       title="偕同課課表"
       eyebrow="COLLAB COURSES"
       description="swim-scheduler 偕同課課表，依場館與週次篩選。"
-      layoutMode="default"
+      layoutMode="standard"
     >
       <CollabCoursesPage />
     </SupervisorModuleShell>

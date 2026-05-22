@@ -879,7 +879,7 @@ export default function SystemProjectOverviewPage() {
       ready: 100,
       degraded: 60,
       error: 0,
-      offline: 30,
+      not_connected: 30,
     };
     const sum = nonGovernance.reduce(
       (acc, i) => acc + (weights[i.status] ?? 50),

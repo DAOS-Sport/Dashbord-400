@@ -87,7 +87,7 @@ const probeEndpoint = async (
   adminPassword: string | undefined,
 ): Promise<ScheduleEndpointProbe> => {
   const checkedAt = new Date().toISOString();
-  const category = "system-overview";
+  const category = "overview";
 
   if (spec.auth === "skip" || spec.isMutating) {
     const isMutating = spec.isMutating;

@@ -3,6 +3,14 @@ import { join } from "node:path";
 import { MODULE_REGISTRY, type ModuleDefinition } from "../shared/modules";
 
 const repoRoot = process.cwd();
+const hardcodedColorPattern = /#[0-9A-Fa-f]{3,8}/g;
+const hardcodedColorStrictFiles = [
+  "client/src/modules/employee/home/employee-home-page.tsx",
+  "client/src/modules/system/watchdog/page.tsx",
+  "client/src/modules/supervisor/people/page.tsx",
+  "client/src/modules/system/cms-monitoring/page.tsx",
+  "client/src/modules/system/helper-status/page.tsx",
+];
 
 const hasBffBinding = (module: ModuleDefinition) =>
   Boolean(
@@ -30,6 +38,25 @@ const assert = (condition: boolean, message: string) => {
 };
 
 const designSystemIndex = read("client/src/design-system/components/index.ts");
+const colorBaseline = JSON.parse(read("docs/operations/ui-hardcoded-color-baseline.json")) as {
+  files: Record<string, number>;
+};
+
+for (const file of hardcodedColorStrictFiles) {
+  const count = (read(file).match(hardcodedColorPattern) ?? []).length;
+  assert(count === 0, `${file}: arbitrary hex colors are not allowed after Phase 4 token migration`);
+}
+
+for (const [file, baselineCount] of Object.entries(colorBaseline.files)) {
+  const count = existsSync(join(repoRoot, file))
+    ? (read(file).match(hardcodedColorPattern) ?? []).length
+    : 0;
+  assert(
+    count <= baselineCount,
+    `${file}: hardcoded color count increased from ${baselineCount} to ${count}; use design-system tokens instead`,
+  );
+}
+
 const missingContracts: string[] = [];
 const checkedContracts: string[] = [];
 

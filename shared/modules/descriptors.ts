@@ -251,7 +251,7 @@ const roleDescriptorOverrides: Record<WorkbenchRole, Record<string, Partial<Modu
     "employee-training": { shortName: "員工教材", routePath: getPrimaryRoute("employee-training", "supervisor"), iconKey: "graduation-cap", menuOrder: 9, cardOrder: 9, navVisible: true, cardVisible: true },
   },
   system: {
-    "system-control-center": { shortName: "控制中心 (已併入跨專案總覽)", routePath: "/system/project-overview", iconKey: "gauge", menuOrder: 50, cardOrder: 50, navVisible: false, cardVisible: false, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "SYSTEM_CONTROL_CENTER_VIEW"] },
+    "system-control-center": { shortName: "控制中心", routePath: "/system/project-overview", iconKey: "gauge", menuOrder: 1, cardOrder: 1, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/control-center", telemetryEvents: ["PAGE_VIEW", "SYSTEM_CONTROL_CENTER_VIEW"] },
     "system-watchdog": { shortName: "Watchdog", routePath: "/system/watchdog", iconKey: "shield-check", menuOrder: 2, cardOrder: 2, navVisible: true, cardVisible: true, telemetryEvents: ["PAGE_VIEW", "MODULE_HEALTH_VIEW", "WATCHDOG_EVENT_VIEW", "INTEGRATION_STATUS_VIEW"] },
     "system-operations": { shortName: "運維協助", routePath: "/system/operations", iconKey: "link", menuOrder: 4, cardOrder: 4, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/operations/recent-assists", telemetryEvents: ["PAGE_VIEW", "OPS_RESET_SESSION", "OPS_REFRESH_CACHE", "OPS_RESEND_NOTIFICATION"] },
     "system-insights": { shortName: "行為洞察", routePath: "/system/insights", iconKey: "gauge", menuOrder: 3, cardOrder: 3, navVisible: true, cardVisible: true, bffEndpoint: "/api/bff/system/insights/overview", telemetryEvents: ["PAGE_VIEW", "INSIGHTS_VIEW", "INSIGHTS_DRILL_DOWN"] },

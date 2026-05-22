@@ -77,6 +77,7 @@ import { useTrackEvent } from "@/shared/telemetry/useTrackEvent";
 import { getWorkbenchRoutes } from "@shared/navigation/workbench-routes";
 import { getCourtName, getCourtsBySchool, getSchoolName, type SchoolId } from "@/lib/court-utils";
 import { getEmployeeCourtSchoolsForFacility } from "@/modules/employee/courts-visibility";
+import { ShiftBoardCard } from "./shift-board-card";
 
 const toOptionalIso = (date: string, time: string) => {
   if (!date) return undefined;
@@ -216,13 +217,13 @@ function SectionTitle({
 }) {
   const actionClassName = cn(
     "inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-bold",
-    dark ? "text-[#9dd84f] hover:bg-white/10" : "text-[#007166] hover:bg-[#edf7f4]",
+    dark ? "text-accent-lime hover:bg-white/10" : "text-stitch-on-secondary-container hover:bg-emerald-50",
   );
   return (
     <div className="mb-4 flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <h2 className={cn("text-[15px] font-bold", dark ? "text-white" : "text-[#10233f]")}>{title}</h2>
-        <p className={cn("mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em]", dark ? "text-[#9dd84f]" : "text-[#8b9aae]")}>
+        <h2 className={cn("text-[15px] font-bold", dark ? "text-white" : "text-text-strong")}>{title}</h2>
+        <p className={cn("mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em]", dark ? "text-accent-lime" : "text-text-muted")}>
           {eyebrow}
         </p>
       </div>
@@ -266,7 +267,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
     <aside
       aria-hidden={collapsed}
       className={cn(
-        "hidden h-full min-h-0 shrink-0 overflow-hidden bg-[#1f3f68] text-white transition-[width,box-shadow] duration-200 md:flex",
+        "hidden h-full min-h-0 shrink-0 overflow-hidden bg-primary-navy-soft text-white transition-[width,box-shadow] duration-200 md:flex",
         collapsed ? "pointer-events-none w-0 shadow-none" : "w-[232px] shadow-[20px_0_40px_-32px_rgba(13,31,55,0.7)]",
       )}
     >
@@ -277,7 +278,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
 
         <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
           {!items.length && navigation.isLoading ? (
-            <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-[#d6e2ef]">導覽載入中…</div>
+            <div className="rounded-[8px] bg-white/8 px-3 py-3 text-[12px] font-bold text-slate-200">導覽載入中…</div>
           ) : null}
           {visibleItems.map((item) => {
             const Icon = item.icon;
@@ -289,12 +290,12 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
                 onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
                 className={cn(
                   "workbench-focus flex min-h-10 items-center gap-3 rounded-[8px] px-3 text-left text-[14px] font-bold transition",
-                  active ? "bg-gradient-to-r from-[#1cb4a3] to-[#9dd84f] text-white" : "text-[#d6e2ef] hover:bg-white/10",
+                  active ? "bg-gradient-to-r from-accent-teal to-accent-lime text-white" : "text-slate-200 hover:bg-white/10",
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ff4964] text-[10px]">{item.badge}</span> : null}
+                {item.badge ? <span className="grid h-5 w-5 place-items-center rounded-full bg-state-priority text-[10px]">{item.badge}</span> : null}
               </Link>
             );
           })}
@@ -307,14 +308,14 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
                 type="button"
                 className="flex w-full items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-white/10"
               >
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#007166] text-[12px] font-black">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-stitch-on-secondary-container text-[12px] font-black">
                   {userName.slice(0, 1)}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <p className="truncate text-[13px] font-bold">{userName}</p>
-                  <p className="truncate text-[11px] text-[#b6c7d9]">{userId} · 員工</p>
+                  <p className="truncate text-[11px] text-slate-300">{userId} · 員工</p>
                 </div>
-                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-[#9eacbc]" />
+                <ChevronUp className="h-3.5 w-3.5 shrink-0 text-text-muted" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" className="w-52">
@@ -323,7 +324,7 @@ function DesktopSidebar({ collapsed }: { collapsed: boolean }) {
                 className="gap-2"
                 data-testid="menu-item-widget-settings"
               >
-                <LayoutDashboard className="h-4 w-4 text-[#1f6fd1]" />
+                <LayoutDashboard className="h-4 w-4 text-blue-600" />
                 首頁版型設定
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -354,7 +355,7 @@ function TopBar({
   onToggleSidebar: () => void;
 }) {
   return (
-    <header className="z-20 shrink-0 border-b border-[#dfe7ef] bg-[#0d2a50] text-white md:bg-white/90 md:text-[#10233f] md:backdrop-blur-xl">
+    <header className="z-20 shrink-0 border-b border-border-default bg-primary-navy text-white md:bg-white/90 md:text-text-strong md:backdrop-blur-xl">
       <div className="flex h-14 w-full items-center justify-between gap-3 px-3 md:px-6">
         <div className="flex min-w-0 items-center gap-2">
           <button
@@ -362,7 +363,7 @@ function TopBar({
             aria-label={sidebarCollapsed ? "展開側欄" : "收合側欄"}
             aria-expanded={!sidebarCollapsed}
             onClick={onToggleSidebar}
-            className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 md:bg-[#eef5ff] md:text-[#1f6fd1]"
+            className="workbench-focus grid h-10 w-10 place-items-center rounded-[8px] bg-white/10 md:bg-blue-50 md:text-blue-600"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -404,35 +405,35 @@ function Hero({
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_170px] lg:items-end">
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#8b9aae]">Quick Search</p>
-        <label className="mt-2 flex min-h-14 items-center gap-3 rounded-[8px] border border-[#dfe7ef] bg-white px-4 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.25)]">
-          <Search className="h-4 w-4 shrink-0 text-[#9aa8ba]" />
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-muted">Quick Search</p>
+        <label className="mt-2 flex min-h-14 items-center gap-3 rounded-[8px] border border-border-default bg-white px-4 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.25)]">
+          <Search className="h-4 w-4 shrink-0 text-text-muted" />
           <input
             aria-label="快速搜尋"
             name="employee-workbench-search"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-[16px] font-bold text-[#10233f] outline-none placeholder:text-[#8b9aae]"
+            className="min-w-0 flex-1 bg-transparent text-[16px] font-bold text-text-strong outline-none placeholder:text-text-muted"
             placeholder="搜尋公告、交接、班表、入口、常見問題…"
           />
         </label>
         {searchQuery.trim().length >= 2 ? (
-          <div className="mt-2 max-w-[820px] rounded-[8px] border border-[#dfe7ef] bg-white p-2 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.45)]">
-            {isSearching ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">搜尋中…</div> : null}
-            {!isSearching && searchResults.length === 0 ? <div className="px-3 py-2 text-[12px] font-bold text-[#637185]">沒有找到符合的資訊。</div> : null}
+          <div className="mt-2 max-w-[820px] rounded-[8px] border border-border-default bg-white p-2 shadow-[0_18px_45px_-36px_rgba(15,34,58,0.45)]">
+            {isSearching ? <div className="px-3 py-2 text-[12px] font-bold text-text-body">搜尋中…</div> : null}
+            {!isSearching && searchResults.length === 0 ? <div className="px-3 py-2 text-[12px] font-bold text-text-body">沒有找到符合的資訊。</div> : null}
             {searchResults.map((item) => (
-              <Link key={item.id} href={item.href} className="flex min-h-11 items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-[#f7f9fb]">
-                <span className="shrink-0 rounded-[6px] bg-[#eef5ff] px-2 py-1 text-[11px] font-black text-[#1f6fd1]">{searchTypeLabel[item.type]}</span>
+              <Link key={item.id} href={item.href} className="flex min-h-11 items-center gap-3 rounded-[8px] px-3 py-2 hover:bg-surface-soft">
+                <span className="shrink-0 rounded-[6px] bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-600">{searchTypeLabel[item.type]}</span>
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-black text-[#10233f]">{item.title}</span>
-                  <span className="block truncate text-[11px] font-bold text-[#8b9aae]">{item.summary}</span>
+                  <span className="block truncate text-[13px] font-black text-text-strong">{item.title}</span>
+                  <span className="block truncate text-[11px] font-bold text-text-muted">{item.summary}</span>
                 </span>
               </Link>
             ))}
           </div>
         ) : null}
-        <p className="mt-3 flex items-center gap-2 text-[13px] font-medium text-[#637185]">
-          <CalendarDays className="h-4 w-4 text-[#007166]" />
+        <p className="mt-3 flex items-center gap-2 text-[13px] font-medium text-text-body">
+          <CalendarDays className="h-4 w-4 text-stitch-on-secondary-container" />
           {home.facility.businessDate}
         </p>
       </div>
@@ -441,13 +442,13 @@ function Hero({
       ) : home.weather.status === "degraded" ? (
         <DegradedCard title="天氣卡片" className="min-h-[128px]" />
       ) : (
-        <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,34,58,0.45)]">
+        <div className="rounded-[8px] border border-border-default bg-white p-4 shadow-[0_18px_40px_-32px_rgba(15,34,58,0.45)]">
           <div className="flex items-center gap-3">
-            <CloudSun className="h-10 w-10 text-[#ffc340]" />
+            <CloudSun className="h-10 w-10 text-amber-400" />
             <div>
-              <p className="text-[26px] font-black text-[#10233f]">{home.weather.data.temperatureC}°C</p>
-              <p className="text-[12px] font-bold text-[#637185]">{home.weather.data.label}</p>
-              <p className="text-[11px] text-[#8b9aae]">濕度 {home.weather.data.humidity}%</p>
+              <p className="text-[26px] font-black text-text-strong">{home.weather.data.temperatureC}°C</p>
+              <p className="text-[12px] font-bold text-text-body">{home.weather.data.label}</p>
+              <p className="text-[11px] text-text-muted">濕度 {home.weather.data.humidity}%</p>
             </div>
           </div>
         </div>
@@ -489,46 +490,46 @@ function HandoverCard({
                 className={cn(
                   "block w-full rounded-[8px] border p-3 text-left",
                   isDone
-                    ? "border-[#d1fae5] bg-[#f0fdf4]"
+                    ? "border-emerald-100 bg-emerald-50"
                     : isExpired
-                    ? "border-[#fecdd3] bg-[#fff1f2]"
-                    : "border-[#e6edf4] bg-[#fbfcfd]",
+                    ? "border-rose-200 bg-rose-50"
+                    : "border-border-subtle bg-surface-soft",
                 )}
               >
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className={cn(
                       "truncate text-[13px] font-black",
-                      isDone ? "text-[#065f46]" : isExpired ? "text-[#9f1239]" : "text-[#10233f]",
+                      isDone ? "text-emerald-800" : isExpired ? "text-rose-800" : "text-text-strong",
                     )}>{item.title}</p>
-                    <p className="mt-0.5 truncate text-[11px] font-bold text-[#8b9aae]">
+                    <p className="mt-0.5 truncate text-[11px] font-bold text-text-muted">
                       {item.preview || "尚無內容摘要"} · {item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}
                     </p>
                   </div>
                   {isDone && (
-                    <span className="shrink-0 rounded-full bg-[#d1fae5] px-1.5 py-0.5 text-[10px] font-black text-[#065f46]">已完成</span>
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-800">已完成</span>
                   )}
                   {isExpired && (
-                    <span className="shrink-0 rounded-full bg-[#fecdd3] px-1.5 py-0.5 text-[10px] font-black text-[#9f1239]">已逾期</span>
+                    <span className="shrink-0 rounded-full bg-rose-200 px-1.5 py-0.5 text-[10px] font-black text-rose-800">已逾期</span>
                   )}
                 </div>
               </button>
             );
           })}
           <div className="pt-1">
-            <button type="button" onClick={onOpenDrawer} className="workbench-focus min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
+            <button type="button" onClick={onOpenDrawer} className="workbench-focus min-h-9 rounded-[8px] bg-primary-navy px-3 text-[12px] font-black text-white">
               新增交辦事項
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex min-h-[128px] flex-col items-center justify-center rounded-[8px] bg-[#f7f9fb] px-4 py-5 text-center">
-          <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-[#6d7c90] shadow-sm">
+        <div className="flex min-h-[128px] flex-col items-center justify-center rounded-[8px] bg-surface-soft px-4 py-5 text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-text-body shadow-sm">
             <MessageSquareText className="h-5 w-5" />
           </div>
-          <p className="mt-3 text-[15px] font-black text-[#10233f]">尚未設定交辦事項</p>
-          <p className="mt-1 text-[12px] font-medium text-[#637185]">請新增交辦事項</p>
-          <button type="button" onClick={onOpenDrawer} className="workbench-focus mt-4 min-h-9 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
+          <p className="mt-3 text-[15px] font-black text-text-strong">尚未設定交辦事項</p>
+          <p className="mt-1 text-[12px] font-medium text-text-body">請新增交辦事項</p>
+          <button type="button" onClick={onOpenDrawer} className="workbench-focus mt-4 min-h-9 rounded-[8px] bg-primary-navy px-3 text-[12px] font-black text-white">
             新增交辦事項
           </button>
         </div>
@@ -600,89 +601,89 @@ function HandoverDrawer({
   });
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="交辦事項">
+    <div className="fixed inset-0 z-50 flex justify-end bg-primary-navy/35" role="dialog" aria-modal="true" aria-label="交辦事項">
       <button type="button" aria-label="關閉交辦事項" className="absolute inset-0 cursor-default" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-[420px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
-        <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">交辦事項</h2>
-            <p className="text-[12px] font-bold text-[#637185]">新增交辦事項並追蹤 pending 狀態</p>
+            <h2 className="text-[18px] font-black text-text-strong">交辦事項</h2>
+            <p className="text-[12px] font-bold text-text-body">新增交辦事項並追蹤 pending 狀態</p>
           </div>
-          <button type="button" onClick={onClose} className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[#536175]">
+          <button type="button" onClick={onClose} className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-surface-base text-text-body">
             ×
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <div className="rounded-[8px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
+          <div className="rounded-[8px] border border-border-default bg-surface-soft p-3">
             <div className="grid gap-2">
-              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-title">標題</label>
+              <label className="text-[12px] font-black text-text-body" htmlFor="home-handover-title">標題</label>
               <input
                 id="home-handover-title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none"
+                className="min-h-10 rounded-[8px] border border-border-default bg-white px-3 text-[13px] font-bold text-text-strong outline-none"
               />
-              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-content">內容</label>
+              <label className="text-[12px] font-black text-text-body" htmlFor="home-handover-content">內容</label>
               <textarea
                 id="home-handover-content"
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                className="min-h-24 rounded-[8px] border border-[#dfe7ef] bg-white p-3 text-[13px] font-bold text-[#10233f] outline-none"
+                className="min-h-24 rounded-[8px] border border-border-default bg-white p-3 text-[13px] font-bold text-text-strong outline-none"
               />
-              <label className="text-[12px] font-black text-[#536175]" htmlFor="home-handover-due-date">到期時間</label>
+              <label className="text-[12px] font-black text-text-body" htmlFor="home-handover-due-date">到期時間</label>
               <input
                 id="home-handover-due-date"
                 type="datetime-local"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
-                className="min-h-10 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[13px] font-bold text-[#10233f] outline-none"
+                className="min-h-10 rounded-[8px] border border-border-default bg-white px-3 text-[13px] font-bold text-text-strong outline-none"
               />
               <button
                 type="button"
                 disabled={!title.trim() || !content.trim() || !dueDate || createMutation.isPending}
                 onClick={() => createMutation.mutate()}
-                className="workbench-focus min-h-10 rounded-[8px] bg-[#0d2a50] px-3 text-[13px] font-black text-white disabled:opacity-50"
+                className="workbench-focus min-h-10 rounded-[8px] bg-primary-navy px-3 text-[13px] font-black text-white disabled:opacity-50"
               >
                 {createMutation.isPending ? "新增中..." : "新增交辦事項"}
               </button>
-              {createMutation.isError ? <p className="text-[11px] font-bold text-[#ff4964]">新增失敗，請確認欄位或稍後再試。</p> : null}
+              {createMutation.isError ? <p className="text-[11px] font-bold text-state-priority">新增失敗，請確認欄位或稍後再試。</p> : null}
             </div>
           </div>
           <div className="mt-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-[14px] font-black text-[#10233f]">Pending 交辦列表</h3>
-              <Link href="/employee/handover" className="text-[12px] font-black text-[#007166]">完整頁</Link>
+              <h3 className="text-[14px] font-black text-text-strong">Pending 交辦列表</h3>
+              <Link href="/employee/handover" className="text-[12px] font-black text-stitch-on-secondary-container">完整頁</Link>
             </div>
             {items.length ? items.map((item) => (
-              <article key={item.id} className="rounded-[8px] border border-[#e6edf4] bg-white p-3">
+              <article key={item.id} className="rounded-[8px] border border-border-subtle bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
-                    <p className="mt-1 line-clamp-2 text-[12px] font-medium text-[#637185]">{item.preview || "尚無內容摘要"}</p>
-                    <p className="mt-2 text-[11px] font-bold text-[#8b9aae]">{item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}</p>
+                    <p className="truncate text-[13px] font-black text-text-strong">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-[12px] font-medium text-text-body">{item.preview || "尚無內容摘要"}</p>
+                    <p className="mt-2 text-[11px] font-bold text-text-muted">{item.dueDate ? formatShortDateTime(item.dueDate) : "未設定到期"}</p>
                   </div>
                 </div>
                 {replyingId === item.id ? (
-                  <div className="mt-3 rounded-[8px] border border-[#dfe7ef] bg-[#fbfcfd] p-3">
-                    <label className="text-[12px] font-black text-[#536175]" htmlFor={`home-handover-reply-${item.id}`}>補充內容</label>
+                  <div className="mt-3 rounded-[8px] border border-border-default bg-surface-soft p-3">
+                    <label className="text-[12px] font-black text-text-body" htmlFor={`home-handover-reply-${item.id}`}>補充內容</label>
                     <textarea
                       id={`home-handover-reply-${item.id}`}
                       value={replyText}
                       onChange={(event) => setReplyText(event.target.value)}
                       maxLength={1200}
-                      className="mt-2 min-h-[86px] w-full rounded-[8px] border border-[#dfe7ef] bg-white p-3 text-[13px] font-bold leading-6 text-[#10233f] outline-none focus:border-[#0d2a50]"
+                      className="mt-2 min-h-[86px] w-full rounded-[8px] border border-border-default bg-white p-3 text-[13px] font-bold leading-6 text-text-strong outline-none focus:border-primary-navy"
                     />
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-[#8b9aae]">{replyText.length} / 1200 字</span>
+                      <span className="text-[11px] font-bold text-text-muted">{replyText.length} / 1200 字</span>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => { setReplyingId(null); setReplyText(""); }} className="min-h-8 rounded-[7px] border border-[#dfe7ef] bg-white px-3 text-[11px] font-black text-[#536175]">
+                        <button type="button" onClick={() => { setReplyingId(null); setReplyText(""); }} className="min-h-8 rounded-[7px] border border-border-default bg-white px-3 text-[11px] font-black text-text-body">
                           取消
                         </button>
                         <button
                           type="button"
                           disabled={!replyText.trim() || replyMutation.isPending}
                           onClick={() => replyMutation.mutate({ id: item.id, reportNote: replyText.trim() })}
-                          className="min-h-8 rounded-[7px] bg-[#0d2a50] px-3 text-[11px] font-black text-white disabled:opacity-50"
+                          className="min-h-8 rounded-[7px] bg-primary-navy px-3 text-[11px] font-black text-white disabled:opacity-50"
                         >
                           {replyMutation.isPending ? "送出中" : "送出補充"}
                         </button>
@@ -695,14 +696,14 @@ function HandoverDrawer({
                     type="button"
                     disabled={readMutation.isPending}
                     onClick={() => readMutation.mutate(item.id)}
-                    className="workbench-focus rounded-[8px] border border-[#dfe7ef] bg-white px-2 py-1 text-[11px] font-black text-[#536175] disabled:opacity-50"
+                    className="workbench-focus rounded-[8px] border border-border-default bg-white px-2 py-1 text-[11px] font-black text-text-body disabled:opacity-50"
                   >
                     標記已讀
                   </button>
                   <button
                     type="button"
                     onClick={() => { setReplyingId(item.id); setReplyText(""); }}
-                    className="workbench-focus rounded-[8px] border border-[#dfe7ef] bg-white px-2 py-1 text-[11px] font-black text-[#536175]"
+                    className="workbench-focus rounded-[8px] border border-border-default bg-white px-2 py-1 text-[11px] font-black text-text-body"
                   >
                     {replyingId === item.id ? "正在補充" : "回覆補充"}
                   </button>
@@ -710,7 +711,7 @@ function HandoverDrawer({
                     type="button"
                     disabled={completeMutation.isPending}
                     onClick={() => completeMutation.mutate(item.id)}
-                    className="workbench-focus shrink-0 rounded-[8px] bg-[#eaf8ef] px-2 py-1 text-[11px] font-black text-[#15935d] disabled:opacity-50"
+                    className="workbench-focus shrink-0 rounded-[8px] bg-emerald-50 px-2 py-1 text-[11px] font-black text-emerald-600 disabled:opacity-50"
                   >
                     完成
                   </button>
@@ -719,21 +720,21 @@ function HandoverDrawer({
                       type="button"
                       disabled={deleteMutation.isPending}
                       onClick={() => setConfirmingDeleteId(item.id)}
-                      className="workbench-focus rounded-[8px] border border-[#ffc6cf] bg-white px-2 py-1 text-[11px] font-black text-[#ff4964] disabled:opacity-50"
+                      className="workbench-focus rounded-[8px] border border-rose-200 bg-white px-2 py-1 text-[11px] font-black text-state-priority disabled:opacity-50"
                     >
                       刪除
                     </button>
                   ) : (
-                    <span className="flex flex-wrap gap-2 rounded-[8px] bg-[#fff0f1] p-1">
+                    <span className="flex flex-wrap gap-2 rounded-[8px] bg-rose-50 p-1">
                       <button
                         type="button"
                         disabled={deleteMutation.isPending}
                         onClick={() => deleteMutation.mutate(item.id)}
-                        className="min-h-8 rounded-[7px] bg-[#ff4964] px-2 text-[11px] font-black text-white disabled:opacity-50"
+                        className="min-h-8 rounded-[7px] bg-state-priority px-2 text-[11px] font-black text-white disabled:opacity-50"
                       >
                         {deleteMutation.isPending ? "刪除中" : "確認刪除"}
                       </button>
-                      <button type="button" onClick={() => setConfirmingDeleteId(null)} className="min-h-8 rounded-[7px] bg-white px-2 text-[11px] font-black text-[#536175]">
+                      <button type="button" onClick={() => setConfirmingDeleteId(null)} className="min-h-8 rounded-[7px] bg-white px-2 text-[11px] font-black text-text-body">
                         取消
                       </button>
                     </span>
@@ -741,7 +742,7 @@ function HandoverDrawer({
                 </div>
               </article>
             )) : (
-              <div className="rounded-[8px] bg-[#f7f9fb] p-5 text-center text-[13px] font-bold text-[#637185]">尚未設定交辦事項</div>
+              <div className="rounded-[8px] bg-surface-soft p-5 text-center text-[13px] font-bold text-text-body">尚未設定交辦事項</div>
             )}
           </div>
         </div>
@@ -766,54 +767,54 @@ function AnnouncementCard({ announcements, source }: { announcements: Announceme
   })();
   const [primaryAnnouncement, ...secondaryAnnouncements] = announcements.slice(0, 3);
   return (
-    <WorkbenchCard className="h-full border-[#f1c66c] bg-[#fffaf0] p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.45)]">
+    <WorkbenchCard className="h-full border-amber-300 bg-amber-50 p-5 shadow-[0_20px_48px_-36px_rgba(180,83,9,0.45)]">
       <SectionTitle title="群組重要公告" eyebrow="Pinned" action="全部公告" actionHref="/employee/announcements" />
       <div className="space-y-2.5">
         {primaryAnnouncement ? (
-          <div className="rounded-[8px] border border-[#efc36f] bg-white p-3.5 text-[#10233f]">
+          <div className="rounded-[8px] border border-amber-300 bg-white p-3.5 text-text-strong">
             <div className="mb-2 flex items-center gap-2">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-[#fff0d4] text-[#b45309]">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] bg-amber-100 text-amber-700">
                 <Bell className="h-4 w-4" />
               </span>
-              <span className="rounded-[4px] bg-[#fff1e7] px-1.5 py-0.5 text-[10px] font-black text-[#b45309]">
+              <span className="rounded-[4px] bg-orange-50 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
                 {primaryAnnouncement.priority === "required" ? "重要" : "提醒"}
               </span>
-              <span className="min-w-0 truncate text-[11px] font-bold text-[#8a6510]">
+              <span className="min-w-0 truncate text-[11px] font-bold text-amber-800">
                 {primaryAnnouncement.sourceLabel ? `${primaryAnnouncement.sourceLabel} · ` : ""}{primaryAnnouncement.effectiveRange}
               </span>
             </div>
             <p className="line-clamp-2 text-[14px] font-black leading-5">{primaryAnnouncement.title}</p>
             {/* Single-item view: show summary so user can read content without navigating */}
             {!secondaryAnnouncements.length && primaryAnnouncement.summary ? (
-              <p className="mt-1.5 line-clamp-3 text-[12px] font-bold leading-5 text-[#6b5b2e]">{primaryAnnouncement.summary}</p>
+              <p className="mt-1.5 line-clamp-3 text-[12px] font-bold leading-5 text-amber-900">{primaryAnnouncement.summary}</p>
             ) : null}
             {primaryAnnouncement.isExpiringSoon ? (
-              <span className="mt-2 inline-flex rounded-[4px] bg-[#fef2f2] px-1.5 py-0.5 text-[10px] font-black text-[#dc2626]">即將結束</span>
+              <span className="mt-2 inline-flex rounded-[4px] bg-red-50 px-1.5 py-0.5 text-[10px] font-black text-red-600">即將結束</span>
             ) : null}
             {primaryAnnouncement.overlayNote ? (
-              <p className="mt-2 line-clamp-1 text-[11px] font-bold text-[#b45309]">{primaryAnnouncement.overlayNote}</p>
+              <p className="mt-2 line-clamp-1 text-[11px] font-bold text-amber-700">{primaryAnnouncement.overlayNote}</p>
             ) : null}
           </div>
         ) : (
-          <div className="rounded-[8px] border border-dashed border-[#f1d394] bg-white/55 p-5 text-center text-[13px] font-bold text-[#8a6510]">
+          <div className="rounded-[8px] border border-dashed border-amber-200 bg-white/55 p-5 text-center text-[13px] font-bold text-amber-800">
             <span>{sourceMessage}</span>
             {source?.meta.lastSyncAt ? (
-              <span className="mt-1.5 block text-[10px] font-bold text-[#b8975a]">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
+              <span className="mt-1.5 block text-[10px] font-bold text-amber-600">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
             ) : null}
           </div>
         )}
         {secondaryAnnouncements.length ? (
-          <div className="divide-y divide-[#f3dfb4] overflow-hidden rounded-[8px] border border-[#f3dfb4] bg-white/70">
+          <div className="divide-y divide-amber-200 overflow-hidden rounded-[8px] border border-amber-200 bg-white/70">
             {secondaryAnnouncements.map((item) => (
               <Link key={item.id} href="/employee/announcements" className="flex min-h-[54px] items-center gap-3 px-3 py-2.5 text-left transition hover:bg-white">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-[#d98216]" />
+                <span className="h-2 w-2 shrink-0 rounded-full bg-amber-600" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-black text-[#10233f]">{item.title}</span>
-                  <span className="mt-0.5 block truncate text-[10px] font-bold text-[#8b6b2a]">
+                  <span className="block truncate text-[12px] font-black text-text-strong">{item.title}</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-bold text-amber-800">
                     {item.sourceLabel ? `${item.sourceLabel} · ` : ""}{item.effectiveRange}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-[4px] bg-[#fff1e7] px-1.5 py-0.5 text-[10px] font-black text-[#b45309]">
+                <span className="shrink-0 rounded-[4px] bg-orange-50 px-1.5 py-0.5 text-[10px] font-black text-amber-700">
                   提醒
                 </span>
               </Link>
@@ -861,14 +862,14 @@ function AddResourceForm({
   const canSubmit = title.trim().length > 0 && !mutation.isPending;
 
   return (
-    <div className="rounded-[8px] border border-dashed border-[#cfd9e5] bg-[#fbfcfd] p-3">
+    <div className="rounded-[8px] border border-dashed border-border-emphasis bg-surface-soft p-3">
       <div className="grid gap-2">
         <input
           aria-label={titlePlaceholder}
           name={`${category}-title`}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+          className="min-h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold text-text-strong outline-none"
           placeholder={titlePlaceholder}
         />
         <input
@@ -876,7 +877,7 @@ function AddResourceForm({
           name={`${category}-content`}
           value={content}
           onChange={(event) => setContent(event.target.value)}
-          className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+          className="min-h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold text-text-strong outline-none"
           placeholder={contentPlaceholder}
         />
         {urlPlaceholder ? (
@@ -887,7 +888,7 @@ function AddResourceForm({
             inputMode="url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold text-[#10233f] outline-none"
+            className="min-h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold text-text-strong outline-none"
             placeholder={urlPlaceholder}
           />
         ) : null}
@@ -895,32 +896,32 @@ function AddResourceForm({
           type="button"
           disabled={!canSubmit}
           onClick={() => mutation.mutate()}
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white disabled:opacity-50"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-[8px] bg-primary-navy px-3 text-[12px] font-black text-white disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
           {mutation.isPending ? "新增中…" : "新增"}
         </button>
-        {mutation.isError ? <p className="text-[11px] font-bold text-[#ff4964]">新增失敗，請確認欄位格式。</p> : null}
+        {mutation.isError ? <p className="text-[11px] font-bold text-state-priority">新增失敗，請確認欄位格式。</p> : null}
       </div>
     </div>
   );
 }
 
 function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onChanged: () => void }) {
-  if (!campaigns.length) return <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增活動檔期 / 課程快訊。</div>;
+  if (!campaigns.length) return <div className="rounded-[8px] bg-surface-soft px-4 py-3 text-center text-[12px] font-bold text-text-muted">尚未新增活動檔期 / 課程快訊。</div>;
   return (
     <div className="space-y-3">
       {campaigns.map((campaign) => (
-        <div key={campaign.id} className="rounded-[8px] bg-[#f7f9fb] p-3">
+        <div key={campaign.id} className="rounded-[8px] bg-surface-soft p-3">
           <a href={campaign.linkUrl || "#"} className="flex items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[8px] bg-[#eaf8ef] text-[#15935d]">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-[8px] bg-emerald-50 text-emerald-600">
               <CalendarDays className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-black text-[#10233f]">{campaign.title}</p>
-              <p className="mt-1 truncate text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</p>
+              <p className="truncate text-[13px] font-black text-text-strong">{campaign.title}</p>
+              <p className="mt-1 truncate text-[11px] font-bold text-text-body">{campaign.effectiveRange}</p>
             </div>
-            <span className={`rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-[#fef2f2] text-[#dc2626]" : campaign.statusLabel === "即將開始" ? "bg-[#eff6ff] text-[#2563eb]" : "bg-white text-[#15935d]"}`}>{campaign.statusLabel}</span>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-red-50 text-red-600" : campaign.statusLabel === "即將開始" ? "bg-blue-50 text-blue-600" : "bg-white text-emerald-600"}`}>{campaign.statusLabel}</span>
           </a>
           <EmployeeResourceActions resourceId={campaign.resourceId} title={campaign.title} content={campaign.effectiveRange} url={campaign.linkUrl} onChanged={onChanged} />
         </div>
@@ -930,16 +931,16 @@ function EventList({ campaigns, onChanged }: { campaigns: CampaignSummary[]; onC
 }
 
 function DocumentList({ documents, onChanged }: { documents: DocumentSummary[]; onChanged: () => void }) {
-  if (!documents.length) return <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增常用文件。</div>;
+  if (!documents.length) return <div className="rounded-[8px] bg-surface-soft px-4 py-3 text-center text-[12px] font-bold text-text-muted">尚未新增常用文件。</div>;
   return (
     <div className="space-y-2">
       {documents.map((doc) => (
-        <div key={doc.id} className="rounded-[8px] px-2 py-2 hover:bg-[#f7f9fb]">
+        <div key={doc.id} className="rounded-[8px] px-2 py-2 hover:bg-surface-soft">
           <a href={doc.url || "#"} className="flex min-h-12 w-full items-center gap-3 text-left">
-            <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
+            <FileText className="h-5 w-5 shrink-0 text-blue-600" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
-              <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
+              <span className="block truncate text-[13px] font-black text-text-strong">{doc.title}</span>
+              <span className="block truncate text-[11px] font-medium text-text-muted">{doc.description || `更新：${doc.updatedAt}`}</span>
             </span>
           </a>
           <EmployeeResourceActions resourceId={doc.resourceId} title={doc.title} content={doc.description} url={doc.url} onChanged={onChanged} />
@@ -955,15 +956,15 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged, source }: { camp
     <WorkbenchCard className="h-full p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[15px] font-bold text-[#10233f]">活動檔期 / 課程快訊</h2>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">Events</p>
+          <h2 className="text-[15px] font-bold text-text-strong">活動檔期 / 課程快訊</h2>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">Events</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => setShowComposer((current) => !current)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+          <button type="button" onClick={() => setShowComposer((current) => !current)} className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-stitch-on-secondary-container hover:bg-emerald-50">
             新增快訊
             <span aria-hidden>＋</span>
           </button>
-          <Link href="/employee/activity-periods" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-[#007166] hover:bg-[#edf7f4]">
+          <Link href="/employee/activity-periods" className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-[11px] font-bold text-stitch-on-secondary-container hover:bg-emerald-50">
             查看更多
             <span aria-hidden>→</span>
           </Link>
@@ -986,21 +987,21 @@ function CompactEventsCard({ campaigns, facilityKey, onChanged, source }: { camp
       ) : null}
       <div className="space-y-2">
         {campaigns.length ? campaigns.slice(0, 4).map((campaign) => (
-          <Link key={campaign.id} href="/employee/activity-periods" className="flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2 hover:bg-[#f7f9fb]">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-[#eaf8ef] text-[#15935d]">
+          <Link key={campaign.id} href="/employee/activity-periods" className="flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2 hover:bg-surface-soft">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-emerald-50 text-emerald-600">
               <CalendarDays className="h-4 w-4" />
             </div>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-black text-[#10233f]">{campaign.title}</span>
-              <span className="block truncate text-[11px] font-bold text-[#637185]">{campaign.effectiveRange}</span>
+              <span className="block truncate text-[13px] font-black text-text-strong">{campaign.title}</span>
+              <span className="block truncate text-[11px] font-bold text-text-body">{campaign.effectiveRange}</span>
             </span>
-            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-[#fef2f2] text-[#dc2626]" : campaign.statusLabel === "即將開始" ? "bg-[#eff6ff] text-[#2563eb]" : "bg-[#edf8f2] text-[#15935d]"}`}>{campaign.statusLabel}</span>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${campaign.statusLabel === "即將結束" ? "bg-red-50 text-red-600" : campaign.statusLabel === "即將開始" ? "bg-blue-50 text-blue-600" : "bg-surface-soft text-emerald-600"}`}>{campaign.statusLabel}</span>
           </Link>
         )) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">
+          <div className="rounded-[8px] bg-surface-soft px-4 py-3 text-center text-[12px] font-bold text-text-muted">
             <span>目前沒有活動快訊</span>
             {source?.meta.lastSyncAt ? (
-              <span className="mt-1 block text-[10px] font-bold text-[#adb9c8]">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
+              <span className="mt-1 block text-[10px] font-bold text-text-body">上次更新：{formatShortDateTime(source.meta.lastSyncAt)}</span>
             ) : null}
           </div>
         )}
@@ -1017,16 +1018,16 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
         {documents.length ? documents.slice(0, 4).map((doc) => {
           const className = cn(
             "flex min-h-12 items-center gap-3 rounded-[8px] px-2 py-2",
-            doc.url ? "hover:bg-[#f7f9fb]" : "cursor-not-allowed opacity-70",
+            doc.url ? "hover:bg-surface-soft" : "cursor-not-allowed opacity-70",
           );
           const content = (
             <>
-              <FileText className="h-5 w-5 shrink-0 text-[#1f6fd1]" />
+              <FileText className="h-5 w-5 shrink-0 text-blue-600" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-black text-[#10233f]">{doc.title}</span>
-                <span className="block truncate text-[11px] font-medium text-[#8b9aae]">{doc.description || `更新：${doc.updatedAt}`}</span>
+                <span className="block truncate text-[13px] font-black text-text-strong">{doc.title}</span>
+                <span className="block truncate text-[11px] font-medium text-text-muted">{doc.description || `更新：${doc.updatedAt}`}</span>
               </span>
-              {doc.url ? <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8ba]" /> : <span className="shrink-0 rounded-full bg-[#eef2f6] px-2 py-1 text-[10px] font-black text-[#637185]">未綁連結</span>}
+              {doc.url ? <ChevronRight className="h-4 w-4 shrink-0 text-text-muted" /> : <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-text-body">未綁連結</span>}
             </>
           );
           return doc.url && isInternalHref(doc.url) ? (
@@ -1047,7 +1048,7 @@ function CompactDocumentsCard({ documents }: { documents: DocumentSummary[] }) {
             </a>
           );
         }) : (
-          <div className="rounded-[8px] bg-[#fbfcfd] px-4 py-3 text-center text-[12px] font-bold text-[#8b9aae]">尚未新增常用文件。</div>
+          <div className="rounded-[8px] bg-surface-soft px-4 py-3 text-center text-[12px] font-bold text-text-muted">尚未新增常用文件。</div>
         )}
       </div>
     </WorkbenchCard>
@@ -1107,8 +1108,8 @@ function CourtsScrollCard({ schools, onOpenDrawer }: { schools: SchoolId[]; onOp
   const primarySchool = selectedSchools[0] ?? "xinbei";
 
   const schoolBadgeClass: Record<SchoolId, string> = {
-    xinbei: "bg-[#dbeafe] text-[#1d4ed8]",
-    sanchong: "bg-[#dcfce7] text-[#15803d]",
+    xinbei: "bg-surface-soft text-text-body",
+    sanchong: "bg-surface-soft text-text-body",
   };
 
   if (!selectedSchools.length) return null;
@@ -1122,36 +1123,36 @@ function CourtsScrollCard({ schools, onOpenDrawer }: { schools: SchoolId[]; onOp
         actionHref={`/employee/courts/${primarySchool}`}
       />
       {isLoading ? (
-        <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
+        <div className="rounded-[8px] bg-surface-soft p-4 text-center text-[12px] font-bold text-text-muted">
           場租資料載入中…
         </div>
       ) : allReservations.length === 0 ? (
-        <div className="rounded-[8px] bg-[#f7f9fb] p-4 text-center text-[12px] font-bold text-[#8b9aae]">
+        <div className="rounded-[8px] bg-surface-soft p-4 text-center text-[12px] font-bold text-text-muted">
           今日尚無場租紀錄。
         </div>
       ) : (
-        <div className="overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-[#d4dde8]">
+        <div className="overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-surface-soft">
           <div className="flex gap-3" style={{ minWidth: "max-content" }}>
             {allReservations.map(({ school, reservation }) => (
               <Link
                 key={`${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
                 href={`/employee/courts/${school}?date=${reservation.date}`}
-                className="workbench-focus flex w-[148px] shrink-0 flex-col justify-between rounded-[10px] border border-[#e3eaf2] bg-white p-3 shadow-[0_1px_4px_rgba(15,34,58,0.07)] transition hover:border-[#b6d0f5] hover:bg-[#f3f8ff]"
+                className="workbench-focus flex w-[148px] shrink-0 flex-col justify-between rounded-[10px] border border-border-default bg-white p-3 shadow-[0_1px_4px_rgba(15,34,58,0.07)] transition hover:border-border-default hover:bg-surface-soft"
                 data-testid={`card-court-rsv-${school}-${reservation.id ?? reservation.court}-${reservation.startTime}`}
               >
                 <span className={cn("mb-2 self-start rounded-full px-2 py-0.5 text-[10px] font-black", schoolBadgeClass[school])}>
                   {getSchoolName(school)}
                 </span>
-                <p className="line-clamp-2 text-[13px] font-black leading-snug text-[#10233f]">
+                <p className="line-clamp-2 text-[13px] font-black leading-snug text-text-strong">
                   {reservation.customerName || "未命名場租"}
                 </p>
-                <p className="mt-1 truncate text-[11px] font-bold text-[#637185]">
+                <p className="mt-1 truncate text-[11px] font-bold text-text-body">
                   {getCourtName(reservation.court)}
                 </p>
-                <p className="mt-0.5 truncate text-[10px] font-bold text-[#8b9aae]">
+                <p className="mt-0.5 truncate text-[10px] font-bold text-text-muted">
                   {reservation.serviceName || "一般場租"}
                 </p>
-                <span className="mt-2 font-mono text-[12px] font-black tabular-nums text-[#007166]">
+                <span className="mt-2 font-mono text-[12px] font-black tabular-nums text-stitch-on-secondary-container">
                   {reservation.startTime}
                 </span>
               </Link>
@@ -1163,12 +1164,12 @@ function CourtsScrollCard({ schools, onOpenDrawer }: { schools: SchoolId[]; onOp
         <button
           type="button"
           onClick={onOpenDrawer}
-          className="text-[12px] font-black text-[#007166] hover:underline"
+          className="text-[12px] font-black text-stitch-on-secondary-container hover:underline"
           data-testid="button-courts-open-drawer"
         >
           依學校分類查看 →
         </button>
-        <span className="text-[11px] font-bold text-[#8b9aae]">{allReservations.length} 筆今日場租</span>
+        <span className="text-[11px] font-bold text-text-muted">{allReservations.length} 筆今日場租</span>
       </div>
     </WorkbenchCard>
   );
@@ -1210,26 +1211,26 @@ function CourtsDetailDrawer({
   } satisfies Record<SchoolId, typeof xinbeiQuery>;
 
   const schoolHeaderClass: Record<SchoolId, string> = {
-    xinbei: "bg-[#1d4ed8] text-white",
-    sanchong: "bg-[#15803d] text-white",
+    xinbei: "bg-surface-soft text-white",
+    sanchong: "bg-surface-soft text-white",
   };
 
   const selectedSchools = schools.filter((school, index, list) => list.indexOf(school) === index);
   const primarySchool = selectedSchools[0] ?? "xinbei";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#0d1f37]/35" role="dialog" aria-modal="true" aria-label="場租查看">
+    <div className="fixed inset-0 z-50 flex justify-end bg-primary-navy/35" role="dialog" aria-modal="true" aria-label="場租查看">
       <button type="button" aria-label="關閉場租" className="absolute inset-0 cursor-default" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-[400px] flex-col bg-white shadow-[0_24px_60px_-24px_rgba(15,34,58,0.55)]">
-        <div className="flex items-center justify-between border-b border-[#e6edf4] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
           <div>
-            <h2 className="text-[18px] font-black text-[#10233f]">今日場租</h2>
-            <p className="mt-0.5 text-[12px] font-bold text-[#637185]">依學校場地分類</p>
+            <h2 className="text-[18px] font-black text-text-strong">今日場租</h2>
+            <p className="mt-0.5 text-[12px] font-bold text-text-body">依學校場地分類</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-[#f3f6f9] text-[20px] text-[#536175]"
+            className="workbench-focus grid h-9 w-9 place-items-center rounded-[8px] bg-surface-base text-[20px] text-text-body"
             aria-label="關閉"
           >
             ×
@@ -1261,26 +1262,26 @@ function CourtsDetailDrawer({
                   </span>
                 </div>
                 {q.isLoading ? (
-                  <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">載入中…</div>
+                  <div className="rounded-[8px] bg-surface-soft p-3 text-center text-[12px] font-bold text-text-muted">載入中…</div>
                 ) : q.isError ? (
-                  <div className="rounded-[8px] border border-[#ffd7dd] bg-[#fff5f6] p-3 text-[12px] font-bold text-[#d7334f]">資料暫時無法載入。</div>
+                  <div className="rounded-[8px] border border-border-default bg-surface-soft p-3 text-[12px] font-bold text-text-body">資料暫時無法載入。</div>
                 ) : rsvs.length === 0 ? (
-                  <div className="rounded-[8px] bg-[#f7f9fb] p-3 text-center text-[12px] font-bold text-[#8b9aae]">今日尚無場租。</div>
+                  <div className="rounded-[8px] bg-surface-soft p-3 text-center text-[12px] font-bold text-text-muted">今日尚無場租。</div>
                 ) : (
                   <div className="space-y-2">
                     {rsvs.map((r) => (
                       <div
                         key={`${r.id ?? r.court}-${r.startTime}`}
-                        className="flex items-center justify-between gap-3 rounded-[8px] border border-[#e3eaf2] bg-[#fbfcfd] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-[8px] border border-border-default bg-surface-soft px-3 py-2"
                         data-testid={`drawer-court-rsv-${school}-${r.id ?? r.court}`}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-black text-[#10233f]">{r.customerName || "未命名場租"}</p>
-                          <p className="mt-0.5 truncate text-[11px] font-bold text-[#637185]">
+                          <p className="truncate text-[13px] font-black text-text-strong">{r.customerName || "未命名場租"}</p>
+                          <p className="mt-0.5 truncate text-[11px] font-bold text-text-body">
                             {getCourtName(r.court)} · {r.serviceName || "一般場租"}
                           </p>
                         </div>
-                        <span className="shrink-0 font-mono text-[12px] font-black tabular-nums text-[#007166]">
+                        <span className="shrink-0 font-mono text-[12px] font-black tabular-nums text-stitch-on-secondary-container">
                           {r.startTime}
                         </span>
                       </div>
@@ -1292,17 +1293,17 @@ function CourtsDetailDrawer({
           })}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-[#e6edf4] p-4">
+        <div className="grid grid-cols-2 gap-2 border-t border-border-subtle p-4">
           <Link
             href={`/employee/courts/${primarySchool}`}
-            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white"
+            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-primary-navy px-3 text-[12px] font-black text-white"
             data-testid="link-courts-full-page"
           >
             完整查看
           </Link>
           <Link
             href={`/employee/courts/${primarySchool}/search`}
-            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#edf7f4] px-3 text-[12px] font-black text-[#007166]"
+            className="workbench-focus inline-flex min-h-9 items-center justify-center rounded-[8px] bg-emerald-50 px-3 text-[12px] font-black text-stitch-on-secondary-container"
             data-testid="link-courts-search"
           >
             搜尋場租
@@ -1315,30 +1316,30 @@ function CourtsDetailDrawer({
 
 function TodayTutoringCard() {
   return (
-    <WorkbenchCard className="h-full border-[#e3eaf2] bg-[#fbfcfd] p-5 opacity-80">
+    <WorkbenchCard className="h-full border-border-default bg-surface-soft p-5 opacity-80">
       <SectionTitle title="今日家教預約" eyebrow="Tutoring" showAction={false} />
-      <div className="rounded-[8px] border border-dashed border-[#d9e2ec] bg-white/55 p-3 text-[#9aa7b8]">
+      <div className="rounded-[8px] border border-dashed border-border-default bg-white/55 p-3 text-text-body">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-black">今日</p>
             <p className="mt-1 text-[24px] font-black tabular-nums">0</p>
             <p className="text-[11px] font-bold">筆預約</p>
           </div>
-          <span className="rounded-full border border-[#d9e2ec] bg-[#f7f9fb] px-2 py-1 text-[10px] font-black text-[#9aa7b8]">
+          <span className="rounded-full border border-border-default bg-surface-soft px-2 py-1 text-[10px] font-black text-text-body">
             即將加入
           </span>
         </div>
 
         <div className="mt-3 space-y-2">
-          <div className="text-[10px] font-mono font-black text-[#b3bfcc]">10:00-11:00</div>
-          <div className="rounded-[8px] bg-[#f4f7fa] p-2.5">
+          <div className="text-[10px] font-mono font-black text-text-body">10:00-11:00</div>
+          <div className="rounded-[8px] bg-surface-soft p-2.5">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[14px] font-black text-[#a8b4c3]">教練課程</span>
-              <span className="text-[12px] font-bold text-[#b3bfcc]">一對多家教</span>
+              <span className="text-[14px] font-black text-text-body">教練課程</span>
+              <span className="text-[12px] font-bold text-text-body">一對多家教</span>
             </div>
             <div className="mt-2 flex gap-1.5">
               {[0, 1, 2].map((item) => (
-                <span key={item} className="grid h-7 w-7 place-items-center rounded-full bg-[#e6ebf1] text-[#b3bfcc]">
+                <span key={item} className="grid h-7 w-7 place-items-center rounded-full bg-surface-soft text-text-body">
                   <GraduationCap className="h-3.5 w-3.5" />
                 </span>
               ))}
@@ -1346,234 +1347,7 @@ function TodayTutoringCard() {
           </div>
         </div>
       </div>
-      <p className="mt-3 text-[11px] font-bold leading-5 text-[#a8b4c3]">家教預約模組規劃中；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
-    </WorkbenchCard>
-  );
-}
-
-const formatShiftClock = (value?: string) => {
-  if (!value) return "--:--";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "--:--";
-  return parsed.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false });
-};
-
-const formatBoardDateHeader = (value?: string) => {
-  if (!value) return "";
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-TW", { month: "long", day: "numeric", weekday: "short" }).format(parsed);
-};
-
-const fmtShiftHHMM = (iso: string): string => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "--:--";
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-};
-
-// ── Shift board helpers ──────────────────────────────────────────────────────
-
-type FlatShiftPerson = {
-  userId: string;
-  name: string;
-  role: string;
-  isCurrentUser: boolean;
-  start: string;
-  end: string;
-  isCurrent: boolean;
-  isFuture: boolean;
-};
-
-
-type RoleGroup = "櫃台" | "救生" | "守望" | "其他";
-const ROLE_GROUP_ORDER: RoleGroup[] = ["櫃台", "救生", "守望", "其他"];
-
-function classifyRoleGroup(role: string): RoleGroup {
-  if (role === "櫃台") return "櫃台";
-  if (role.includes("救生")) return "救生";
-  if (role.includes("守望")) return "守望";
-  return "其他";
-}
-
-type PersonWithStatus = { person: FlatShiftPerson; status: "active" | "upcoming" | "finished" };
-
-function ShiftRoleBlock({
-  label,
-  labelClass,
-  people,
-}: {
-  label: string;
-  labelClass: string;
-  people: PersonWithStatus[];
-}) {
-  if (!people.length) return null;
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-1.5">
-        <p className={cn("text-[11px] font-black uppercase tracking-[0.08em]", labelClass)}>{label}</p>
-        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#eef2f6] px-1 text-[10px] font-black text-[#637185]">
-          {people.length}
-        </span>
-      </div>
-      <div className="space-y-2">
-        {people.map(({ person, status }) => (
-          <div key={person.userId} className="flex items-center justify-between gap-2" data-testid={`row-shift-person-${person.userId}`}>
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className={cn(
-                  "truncate text-[14px] font-bold leading-snug",
-                  status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]",
-                )}
-              >
-                {person.name}
-              </span>
-              {status === "active" && (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
-                  上班中
-                </span>
-              )}
-            </div>
-            <span className={cn("shrink-0 font-mono text-[11px] font-bold tabular-nums", status === "finished" ? "text-[#c8d3de]" : "text-[#637185]")}>
-              {fmtShiftHHMM(person.start)}–{fmtShiftHHMM(person.end)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function buildMorningEveningFromBoard(shifts: ShiftBoardDto["shifts"]): { morning: FlatShiftPerson[]; evening: FlatShiftPerson[] } {
-  const morning = new Map<string, FlatShiftPerson>();
-  const evening = new Map<string, FlatShiftPerson>();
-  const prio = (p: { isCurrent: boolean; isFuture: boolean }) => p.isCurrent ? 2 : p.isFuture ? 1 : 0;
-  for (const s of shifts) {
-    const sh = s.start ? new Date(s.start).getHours() : 0;
-    const eh = s.end ? new Date(s.end).getHours() : 0;
-    const toMorning = sh < 12;
-    const toEvening = sh >= 12 || (sh < 12 && eh > 12);
-    for (const p of s.people) {
-      const entry: FlatShiftPerson = { ...p, start: s.start, end: s.end, isCurrent: s.isCurrent, isFuture: s.isFuture };
-      if (toMorning) { const ex = morning.get(p.userId); if (!ex || prio(entry) > prio(ex)) morning.set(p.userId, entry); }
-      if (toEvening) { const ex = evening.get(p.userId); if (!ex || prio(entry) > prio(ex)) evening.set(p.userId, entry); }
-    }
-  }
-  return { morning: Array.from(morning.values()), evening: Array.from(evening.values()) };
-}
-
-function buildRoleGroupMap(people: FlatShiftPerson[]): Map<RoleGroup, PersonWithStatus[]> {
-  const map = new Map<RoleGroup, PersonWithStatus[]>();
-  for (const person of people) {
-    const g = classifyRoleGroup(person.role);
-    const status: "active" | "upcoming" | "finished" = person.isCurrent ? "active" : person.isFuture ? "upcoming" : "finished";
-    const arr = map.get(g) ?? [];
-    arr.push({ person, status });
-    map.set(g, arr);
-  }
-  return map;
-}
-
-// ── ShiftBoardCard ───────────────────────────────────────────────────────────
-
-const ROLE_GROUP_LABEL_CLASS: Record<RoleGroup, string> = {
-  "櫃台": "text-[#127558]",
-  "救生": "text-[#2a5fd1]",
-  "守望": "text-[#7a3fcf]",
-  "其他": "text-[#637185]",
-};
-
-function ShiftBoardCard({ board }: { board?: ShiftBoardDto }) {
-  const shifts = board?.shifts ?? [];
-  const dateLabel = formatBoardDateHeader(board?.date);
-  const facilityName = board?.facility?.name ?? "";
-  const headerSubtitle = [facilityName, dateLabel].filter(Boolean).join(" · ");
-  const lastSyncLabel = board?.sourceStatus.lastSyncedAt
-    ? new Date(board.sourceStatus.lastSyncedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false })
-    : null;
-
-
-  return (
-    <WorkbenchCard className="flex h-full flex-col overflow-hidden p-5">
-      {/* Header */}
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-[16px] font-black text-[#10233f]">今日班表</h2>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8b9aae]">SHIFT</span>
-          </div>
-          {headerSubtitle ? (
-            <p className="mt-1 text-[12px] font-bold text-[#8b9aae]" data-testid="text-shift-board-subtitle">{headerSubtitle}</p>
-          ) : null}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8b9aae]">本日</p>
-          <p className="text-[18px] font-black leading-none text-[#10233f]" data-testid="text-shift-board-total">
-            {board?.totalCount ?? 0} <span className="text-[12px] font-bold text-[#637185]">人</span>
-          </p>
-        </div>
-      </div>
-
-      {/* Body */}
-      {!board ? (
-        <NotConnectedCard title="今日班表" reason="external_pending" />
-      ) : !board.sourceStatus.connected ? (
-        <DegradedCard title="今日班表" />
-      ) : shifts.length === 0 ? (
-        <div className="rounded-[10px] bg-[#fbfcfd] p-6 text-center text-[13px] font-bold text-[#637185]">今日尚無班表</div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {(() => {
-            const { morning, evening } = buildMorningEveningFromBoard(shifts);
-            const morningMap = buildRoleGroupMap(morning);
-            const eveningMap = buildRoleGroupMap(evening);
-            return (
-              <div className="grid grid-cols-2 divide-x divide-[#f0f4f8]">
-                <div className="flex flex-col">
-                  <div className="border-b border-[#f0f4f8] px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#2f9e5b]">早班</p>
-                    <p className="text-[9px] font-bold text-[#8b9aae]">12:00 前</p>
-                  </div>
-                  <div className="space-y-4 px-3 py-3">
-                    {ROLE_GROUP_ORDER.map((g) => {
-                      const people = morningMap.get(g) ?? [];
-                      return people.length ? <ShiftRoleBlock key={g} label={g} labelClass={ROLE_GROUP_LABEL_CLASS[g]} people={people} /> : null;
-                    })}
-                    {!morning.length && <div className="py-4 text-center text-[12px] font-bold text-[#8b9aae]">無早班</div>}
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <div className="border-b border-[#f0f4f8] px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#2f6fe8]">晚班</p>
-                    <p className="text-[9px] font-bold text-[#8b9aae]">12:00 後</p>
-                  </div>
-                  <div className="space-y-4 px-3 py-3">
-                    {ROLE_GROUP_ORDER.map((g) => {
-                      const people = eveningMap.get(g) ?? [];
-                      return people.length ? <ShiftRoleBlock key={g} label={g} labelClass={ROLE_GROUP_LABEL_CLASS[g]} people={people} /> : null;
-                    })}
-                    {!evening.length && <div className="py-4 text-center text-[12px] font-bold text-[#8b9aae]">無晚班</div>}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-3 flex shrink-0 items-center justify-between border-t border-[#f0f4f8] pt-2 text-[11px]">
-        <span className="font-bold text-[#8b9aae]">
-          {lastSyncLabel ? `最後同步 ${lastSyncLabel}` : "尚未同步"}
-        </span>
-        <Link
-          href="/employee/shift"
-          className="font-black text-[#007166] hover:underline"
-          data-testid="link-shift-view-all"
-        >
-          前往完整班表 →
-        </Link>
-      </div>
+      <p className="mt-3 text-[11px] font-bold leading-5 text-text-body">家教預約模組規劃中；正式開放後會依時間排序顯示教練、課程比例與學生簽到狀態。</p>
     </WorkbenchCard>
   );
 }
@@ -1588,9 +1362,9 @@ function BottomNav() {
   });
   const items = toEmployeeNavigationItems(navigation.data?.items).slice(0, 5);
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#e5ecf3] bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-border-default bg-white px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden">
       {!items.length && navigation.isLoading ? (
-        <div className="col-span-5 rounded-[8px] bg-[#f7f9fb] px-3 py-3 text-center text-[12px] font-bold text-[#637185]">導覽載入中…</div>
+        <div className="col-span-5 rounded-[8px] bg-surface-soft px-3 py-3 text-center text-[12px] font-bold text-text-body">導覽載入中…</div>
       ) : null}
       {items.map((item) => {
         const Icon = item.icon;
@@ -1600,7 +1374,7 @@ function BottomNav() {
             key={item.id}
             href={item.href}
             onClick={() => trackEvent("NAV_CLICK", { moduleId: item.id, moduleRoute: item.href })}
-            className={cn("workbench-focus flex min-h-12 flex-col items-center justify-center gap-1 rounded-[8px] text-[11px] font-black", active ? "bg-[#eef5ff] text-[#1f6fd1]" : "text-[#6c7a8e]")}
+            className={cn("workbench-focus flex min-h-12 flex-col items-center justify-center gap-1 rounded-[8px] text-[11px] font-black", active ? "bg-blue-50 text-blue-600" : "text-text-body")}
           >
             <Icon className="h-5 w-5" />
             <span className="max-w-full truncate px-1">{item.label}</span>
@@ -1613,7 +1387,7 @@ function BottomNav() {
 
 function LoadingState() {
   return (
-    <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-6">
+    <div className="grid min-h-dvh place-items-center bg-surface-soft p-6">
       <div className="w-full max-w-sm rounded-[8px] bg-white px-5 py-4 shadow-lg">
         <DreamLoader compact label="Dreams 工作台資料載入中" />
       </div>
@@ -1640,18 +1414,18 @@ function EmployeeHomeContent() {
 
   if (error || !data) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-[#f4f7fb] p-6">
+      <div className="grid min-h-dvh place-items-center bg-surface-soft p-6">
         <WorkbenchCard className="w-full max-w-md p-6 text-center">
-          <Gauge className="mx-auto h-10 w-10 text-[#ef7d22]" />
-          <h1 className="mt-4 text-[20px] font-black text-[#10233f]">工作台暫時無法載入</h1>
-          <p className="mt-2 text-[14px] text-[#637185]">BFF 資料來源尚未回應，請稍後再試。</p>
+          <Gauge className="mx-auto h-10 w-10 text-text-body" />
+          <h1 className="mt-4 text-[20px] font-black text-text-strong">工作台暫時無法載入</h1>
+          <p className="mt-2 text-[14px] text-text-body">BFF 資料來源尚未回應，請稍後再試。</p>
         </WorkbenchCard>
       </div>
     );
   }
 
   return (
-    <div className="workbench-shell h-dvh overflow-hidden bg-[#f3f6fb]">
+    <div className="workbench-shell h-dvh overflow-hidden bg-surface-base">
       <div className="flex h-full min-w-0">
         <DesktopSidebar collapsed={sidebarCollapsed} />
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
@@ -1711,9 +1485,9 @@ function EmployeeHomeContent() {
               {homeSlots.enabledKeys.size === 0 ? (
                 <motion.div variants={riseIn}>
                   <WorkbenchCard className="p-6 text-center">
-                    <p className="text-[15px] font-black text-[#10233f]">目前沒有啟用的首頁模組</p>
-                    <p className="mt-1 text-[12px] font-bold text-[#637185]">可到員工設定重新啟用首頁卡片。</p>
-                    <Link href="/employee/settings" className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[8px] bg-[#0d2a50] px-4 text-[12px] font-black text-white">
+                    <p className="text-[15px] font-black text-text-strong">目前沒有啟用的首頁模組</p>
+                    <p className="mt-1 text-[12px] font-bold text-text-body">可到員工設定重新啟用首頁卡片。</p>
+                    <Link href="/employee/settings" className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[8px] bg-primary-navy px-4 text-[12px] font-black text-white">
                       開啟員工設定
                     </Link>
                   </WorkbenchCard>

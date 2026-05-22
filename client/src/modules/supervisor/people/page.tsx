@@ -35,25 +35,25 @@ function StaffRows({ title, items, empty }: { title: string; items: StaffMemberS
   return (
     <WorkbenchCard className="p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-black text-[#10233f]">{title}</h2>
-        <span className="rounded-full bg-[#eef5ff] px-2 py-1 text-[11px] font-black text-[#2f6fe8]">{items.length} 人</span>
+        <h2 className="text-[15px] font-black text-text-strong">{title}</h2>
+        <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-600">{items.length} 人</span>
       </div>
       <div className="grid gap-2">
         {items.slice(0, 18).map((item, index) => (
-          <div key={`${item.employeeNumber ?? item.name}-${index}`} className="flex min-h-[54px] items-center gap-3 rounded-[8px] bg-[#fbfcfd] px-3 py-2">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#eaf8ef] text-[12px] font-black text-[#15935d]">
+          <div key={`${item.employeeNumber ?? item.name}-${index}`} className="flex min-h-[54px] items-center gap-3 rounded-[8px] bg-surface-soft px-3 py-2">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-50 text-[12px] font-black text-emerald-600">
               {item.name.slice(0, 1)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-black text-[#10233f]">{item.name}</p>
-              <p className="truncate text-[11px] font-bold text-[#8b9aae]">{roleLabel(item)} {item.timeRange ? `· ${item.timeRange}` : ""}</p>
+              <p className="truncate text-[13px] font-black text-text-strong">{item.name}</p>
+              <p className="truncate text-[11px] font-bold text-text-muted">{roleLabel(item)} {item.timeRange ? `· ${item.timeRange}` : ""}</p>
             </div>
-            <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", item.status === "active" ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#eef2f6] text-[#637185]")}>
+            <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", item.status === "active" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-text-body")}>
               {item.status === "active" ? "當班" : "下一班"}
             </span>
           </div>
         ))}
-        {!items.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">{empty}</div> : null}
+        {!items.length ? <div className="rounded-[8px] bg-surface-soft p-5 text-center text-[13px] font-bold text-text-body">{empty}</div> : null}
       </div>
     </WorkbenchCard>
   );
@@ -66,15 +66,15 @@ function AttachmentGrid({ item }: { item: SupervisorFacilityModuleItemDto }) {
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
       {attachments.map((attachment) => (
         attachment.kind === "image" ? (
-          <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-[8px] border border-[#dfe7ef] bg-white">
+          <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-[8px] border border-border-default bg-white">
             <img src={attachment.url} alt={attachment.label} className="h-28 w-full object-cover transition group-hover:scale-[1.02]" />
-            <span className="flex min-h-8 items-center gap-2 px-2 text-[11px] font-black text-[#536175]">
+            <span className="flex min-h-8 items-center gap-2 px-2 text-[11px] font-black text-text-body">
               <ImageIcon className="h-3.5 w-3.5" />
               {attachment.label}
             </span>
           </a>
         ) : (
-          <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="flex min-h-12 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#0d2a50]">
+          <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer" className="flex min-h-12 items-center gap-2 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-black text-primary-navy">
             <ImageIcon className="h-4 w-4" />
             {attachment.label}
           </a>
@@ -94,26 +94,26 @@ const moduleIcon = {
 
 function ModuleBlock({ title, items, empty }: { title: string; items: SupervisorFacilityModuleItemDto[]; empty: string }) {
   return (
-    <div className="rounded-[8px] border border-[#e6edf4] bg-white p-4">
+    <div className="rounded-[8px] border border-border-subtle bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-[14px] font-black text-[#10233f]">{title}</h3>
-        <span className="rounded-full bg-[#eef2f6] px-2 py-1 text-[10px] font-black text-[#637185]">{items.length} 筆</span>
+        <h3 className="text-[14px] font-black text-text-strong">{title}</h3>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-text-body">{items.length} 筆</span>
       </div>
       <div className="grid gap-3">
         {items.slice(0, 6).map((item) => (
-          <article key={item.id} className="rounded-[8px] bg-[#fbfcfd] p-3">
+          <article key={item.id} className="rounded-[8px] bg-surface-soft p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-black text-[#10233f]">{item.title}</p>
-                {item.meta ? <p className="mt-1 truncate text-[11px] font-bold text-[#8b9aae]">{item.meta}</p> : null}
+                <p className="truncate text-[13px] font-black text-text-strong">{item.title}</p>
+                {item.meta ? <p className="mt-1 truncate text-[11px] font-bold text-text-muted">{item.meta}</p> : null}
               </div>
-              <span className="shrink-0 rounded-full bg-[#eaf8ef] px-2 py-1 text-[10px] font-black text-[#15935d]">{item.status}</span>
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600">{item.status}</span>
             </div>
-            {item.description ? <p className="mt-2 line-clamp-3 text-[12px] font-bold leading-5 text-[#536175]">{item.description}</p> : null}
+            {item.description ? <p className="mt-2 line-clamp-3 text-[12px] font-bold leading-5 text-text-body">{item.description}</p> : null}
             <AttachmentGrid item={item} />
           </article>
         ))}
-        {!items.length ? <div className="rounded-[8px] bg-[#fbfcfd] p-5 text-center text-[13px] font-bold text-[#637185]">{empty}</div> : null}
+        {!items.length ? <div className="rounded-[8px] bg-surface-soft p-5 text-center text-[13px] font-bold text-text-body">{empty}</div> : null}
       </div>
     </div>
   );
@@ -131,13 +131,13 @@ function FrontDeskModules({ modules, fallbackItems }: { modules?: SupervisorFaci
       }];
   return (
     <div className="grid gap-4">
-      <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
+      <div className="rounded-[8px] border border-border-default bg-white p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#0d2a50]">Front Desk</p>
-            <h2 className="mt-1 text-[16px] font-black text-[#10233f]">櫃台端模組狀態</h2>
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-primary-navy">Front Desk</p>
+            <h2 className="mt-1 text-[16px] font-black text-text-strong">櫃台端模組狀態</h2>
           </div>
-          <span className="rounded-full bg-[#eef2f6] px-3 py-1 text-[11px] font-black text-[#637185]">{visibleModules.length} 項</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-text-body">{visibleModules.length} 項</span>
         </div>
         <div className="grid gap-3">
           {visibleModules.map((module) => (
@@ -179,20 +179,20 @@ function ShiftPersonRow({ shift }: { shift: ShiftSummary }) {
   const name = shift.employeeName ?? shift.label.split("/")[0]?.trim() ?? "—";
   return (
     <div className="flex items-center gap-2.5" data-testid={`row-shift-person-${shift.id}`}>
-      <span className={cn("text-[15px] font-bold leading-snug", status === "finished" ? "text-[#c8d3de]" : "text-[#10233f]")}>
+      <span className={cn("text-[15px] font-bold leading-snug", status === "finished" ? "text-slate-300" : "text-text-strong")}>
         {name}
       </span>
-      <span className="font-mono text-[12px] font-bold text-[#8b9aae]">
+      <span className="font-mono text-[12px] font-bold text-text-muted">
         {fmtShiftTime(shift.startsAt)}–{fmtShiftTime(shift.endsAt)}
       </span>
       {status === "active" && (
-        <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eaf8ef] px-2 py-0.5 text-[10px] font-black text-[#15935d]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#15935d]" />
+        <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
           上班中
         </span>
       )}
       {status === "finished" && (
-        <span className="ml-auto shrink-0 text-[10px] font-bold text-[#c8d3de]">已結束</span>
+        <span className="ml-auto shrink-0 text-[10px] font-bold text-slate-300">已結束</span>
       )}
     </div>
   );
@@ -235,63 +235,63 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-[#007166]" />
+          <CalendarDays className="h-4 w-4 text-stitch-on-secondary-container" />
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#007166]">Smart Schedule</p>
-            <h2 className="text-[15px] font-black text-[#10233f]">今日排班</h2>
+            <p className="text-[11px] font-black uppercase tracking-[0.12em] text-stitch-on-secondary-container">Smart Schedule</p>
+            <h2 className="text-[15px] font-black text-text-strong">今日排班</h2>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {data && (
-            <span className="text-[12px] font-bold text-[#8b9aae]">{data.date}</span>
+            <span className="text-[12px] font-bold text-text-muted">{data.date}</span>
           )}
           {data && data.activeCount > 0 && (
-            <span className="rounded-full bg-[#eaf8ef] px-2.5 py-0.5 text-[11px] font-black text-[#15935d]">
+            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-black text-emerald-600">
               {data.activeCount} 人在班
             </span>
           )}
           <button type="button" onClick={() => refetch()} aria-label="重新整理排班" data-testid="button-refresh-schedule">
-            <RefreshCw className={cn("h-4 w-4 text-[#637185]", isFetching && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4 text-text-body", isFetching && "animate-spin")} />
           </button>
         </div>
       </div>
 
       {/* States */}
       {isLoading && (
-        <div className="border-t border-[#f0f4f8] px-5 py-6 text-[13px] font-bold text-[#8b9aae]">載入排班中…</div>
+        <div className="border-t border-border-subtle px-5 py-6 text-[13px] font-bold text-text-muted">載入排班中…</div>
       )}
       {!isLoading && (isError || (data && !connected)) && (
-        <div className="border-t border-[#f0f4f8] px-5 py-6">
-          <p className="text-[13px] font-bold text-[#b05c00]">目前無法取得 Smart Schedule 資料</p>
-          <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">
+        <div className="border-t border-border-subtle px-5 py-6">
+          <p className="text-[13px] font-bold text-amber-700">目前無法取得 Smart Schedule 資料</p>
+          <p className="mt-1 text-[12px] font-bold text-text-muted">
             {data?.sourceStatus?.errorMessage ?? "排班系統可能暫時無法連線，請稍後再試。"}
           </p>
         </div>
       )}
       {!isLoading && data && connected && shifts.length === 0 && (
-        <div className="border-t border-[#f0f4f8] px-5 py-6 text-[13px] font-bold text-[#8b9aae]">今日尚無排班資料。</div>
+        <div className="border-t border-border-subtle px-5 py-6 text-[13px] font-bold text-text-muted">今日尚無排班資料。</div>
       )}
 
       {/* 早班 / 晚班 雙欄 */}
       {!isLoading && data && connected && shifts.length > 0 && (
         <>
-          <div className="grid grid-cols-2 divide-x divide-[#f0f4f8] border-t border-[#f0f4f8]">
+          <div className="grid grid-cols-2 divide-x divide-border-subtle border-t border-border-subtle">
             {/* 早班 */}
             <div>
-              <div className="border-b border-[#f0f4f8] px-4 py-2.5">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f9e5b]">早班</p>
-                <p className="text-[10px] font-bold text-[#8b9aae]">12:00 前</p>
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-600">早班</p>
+                <p className="text-[10px] font-bold text-text-muted">12:00 前</p>
               </div>
               {morningShifts.length === 0 ? (
-                <div className="px-4 py-5 text-[12px] font-bold text-[#8b9aae]">無早班人員</div>
+                <div className="px-4 py-5 text-[12px] font-bold text-text-muted">無早班人員</div>
               ) : (
-                <div className="divide-y divide-[#f0f4f8]">
-                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-[#8b9aae]" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
-                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-[#10233f]" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
+                <div className="divide-y divide-border-subtle">
+                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-text-muted" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
+                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-text-strong" shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
                   {morningShifts.filter((s) => classifyShiftRole(s.role) === "other").length > 0 && (
                     <ShiftRoleSection
                       label={morningShifts.find((s) => classifyShiftRole(s.role) === "other")?.role || "其他"}
-                      labelClass="text-[12px] font-black text-[#536175]"
+                      labelClass="text-[12px] font-black text-text-body"
                       shifts={morningShifts.filter((s) => classifyShiftRole(s.role) === "other")}
                     />
                   )}
@@ -300,20 +300,20 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
             </div>
             {/* 晚班 */}
             <div>
-              <div className="border-b border-[#f0f4f8] px-4 py-2.5">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#2f6fe8]">晚班</p>
-                <p className="text-[10px] font-bold text-[#8b9aae]">12:00 後</p>
+              <div className="border-b border-border-subtle px-4 py-2.5">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-blue-600">晚班</p>
+                <p className="text-[10px] font-bold text-text-muted">12:00 後</p>
               </div>
               {eveningShifts.length === 0 ? (
-                <div className="px-4 py-5 text-[12px] font-bold text-[#8b9aae]">無晚班人員</div>
+                <div className="px-4 py-5 text-[12px] font-bold text-text-muted">無晚班人員</div>
               ) : (
-                <div className="divide-y divide-[#f0f4f8]">
-                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-[#8b9aae]" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
-                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-[#10233f]" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
+                <div className="divide-y divide-border-subtle">
+                  <ShiftRoleSection label="櫃台" labelClass="text-[11px] font-black tracking-wide text-text-muted" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "counter")} />
+                  <ShiftRoleSection label="救生" labelClass="text-[13px] font-black text-text-strong" shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "lifeguard")} />
                   {eveningShifts.filter((s) => classifyShiftRole(s.role) === "other").length > 0 && (
                     <ShiftRoleSection
                       label={eveningShifts.find((s) => classifyShiftRole(s.role) === "other")?.role || "其他"}
-                      labelClass="text-[12px] font-black text-[#536175]"
+                      labelClass="text-[12px] font-black text-text-body"
                       shifts={eveningShifts.filter((s) => classifyShiftRole(s.role) === "other")}
                     />
                   )}
@@ -322,9 +322,9 @@ function TodaySchedulePanel({ facilityKey }: { facilityKey: string }) {
             </div>
           </div>
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-[#f0f4f8] bg-[#f8fafc] px-5 py-2.5">
-            <span className="text-[11px] font-bold text-[#8b9aae]">本日共計</span>
-            <span className="text-[12px] font-black text-[#10233f]">{data.totalCount} 人次</span>
+          <div className="flex items-center justify-between border-t border-border-subtle bg-slate-50 px-5 py-2.5">
+            <span className="text-[11px] font-bold text-text-muted">本日共計</span>
+            <span className="text-[12px] font-black text-text-strong">{data.totalCount} 人次</span>
           </div>
         </>
       )}
@@ -369,9 +369,9 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
       <RoleShell role="supervisor" title="場館詳細" subtitle="FACILITY DETAIL · 此場館不在目前主管授權範圍內。">
         <WorkbenchCard className="grid min-h-[320px] place-items-center p-8 text-center">
           <div>
-            <p className="text-[18px] font-black text-[#10233f]">找不到可管理的場館</p>
-            <p className="mt-2 text-[13px] font-bold text-[#637185]">此場館不存在，或目前帳號沒有該館權限。</p>
-            <Link href="/supervisor/facilities" className="workbench-focus mt-5 inline-flex min-h-10 items-center rounded-[8px] bg-[#0d2a50] px-4 text-[13px] font-black text-white">
+            <p className="text-[18px] font-black text-text-strong">找不到可管理的場館</p>
+            <p className="mt-2 text-[13px] font-bold text-text-body">此場館不存在，或目前帳號沒有該館權限。</p>
+            <Link href="/supervisor/facilities" className="workbench-focus mt-5 inline-flex min-h-10 items-center rounded-[8px] bg-primary-navy px-4 text-[13px] font-black text-white">
               回到場館列表
             </Link>
           </div>
@@ -388,7 +388,7 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
     >
       <div className="space-y-4">
         {dashboardQuery.isLoading ? (
-          <div className="rounded-[8px] bg-white p-6 text-[13px] font-bold text-[#637185]">載入場館狀態中...</div>
+          <div className="rounded-[8px] bg-white p-6 text-[13px] font-bold text-text-body">載入場館狀態中...</div>
         ) : null}
 
         <WorkbenchMetricCluster
@@ -409,14 +409,14 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
             <WorkbenchCard className="p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h2 className="text-[15px] font-black text-[#10233f]">授權場館詳細資訊</h2>
-                  <p className="mt-1 text-[12px] font-bold text-[#8b9aae]">每張卡只保留館別、當班、下一班、櫃台交接與救生水質狀態。</p>
+                  <h2 className="text-[15px] font-black text-text-strong">授權場館詳細資訊</h2>
+                  <p className="mt-1 text-[12px] font-bold text-text-muted">每張卡只保留館別、當班、下一班、櫃台交接與救生水質狀態。</p>
                 </div>
-                <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-[8px] border border-[#dfe7ef] bg-white px-3 lg:w-80">
-                  <Search className="h-4 w-4 shrink-0 text-[#8b9aae]" />
+                <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-[8px] border border-border-default bg-white px-3 lg:w-80">
+                  <Search className="h-4 w-4 shrink-0 text-text-muted" />
                   <input value={query} onChange={(event) => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-[13px] font-bold outline-none" placeholder="搜尋館別" />
                   <button type="button" onClick={() => dashboardQuery.refetch()} aria-label="重新整理">
-                    <RefreshCw className={cn("h-4 w-4 text-[#637185]", dashboardQuery.isFetching && "animate-spin")} />
+                    <RefreshCw className={cn("h-4 w-4 text-text-body", dashboardQuery.isFetching && "animate-spin")} />
                   </button>
                 </div>
               </div>
@@ -432,10 +432,10 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                 const hasToday = todayCount > 0;
                 return (
                   <WorkbenchCard key={facility.facilityKey} className="overflow-hidden p-0">
-                    <div className="flex items-start justify-between gap-3 border-b border-[#edf1f6] p-4">
+                    <div className="flex items-start justify-between gap-3 border-b border-border-subtle p-4">
                       <div className="min-w-0">
-                        <h2 className="truncate text-[17px] font-black text-[#10233f]">{facility.facilityName}</h2>
-                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">
+                        <h2 className="truncate text-[17px] font-black text-text-strong">{facility.facilityName}</h2>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.12em] text-text-muted">
                           <MapPin className="h-3 w-3" />
                           {facility.area} · {facility.facilityKey}
                         </p>
@@ -445,32 +445,32 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
                       </SupervisorPill>
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-4 text-[12px] font-black">
-                      <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">今日排班</p>
-                        <p className="mt-1 text-[20px] text-[#15935d]">{todayCount}</p>
-                        <p className="truncate text-[11px] text-[#637185]">{todayPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
+                      <div className="rounded-[8px] bg-surface-soft p-3">
+                        <p className="text-text-muted">今日排班</p>
+                        <p className="mt-1 text-[20px] text-emerald-600">{todayCount}</p>
+                        <p className="truncate text-[11px] text-text-body">{todayPeople.map((item) => item.name).slice(0, 3).join("、") || "尚無資料"}</p>
                       </div>
-                      <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">當班／待接</p>
-                        <p className="mt-1 text-[20px] text-[#2f6fe8]">{facility.onShift + facility.next}</p>
-                        <p className="truncate text-[11px] text-[#637185]">
+                      <div className="rounded-[8px] bg-surface-soft p-3">
+                        <p className="text-text-muted">當班／待接</p>
+                        <p className="mt-1 text-[20px] text-blue-600">{facility.onShift + facility.next}</p>
+                        <p className="truncate text-[11px] text-text-body">
                           {nextPeople.slice(0, 3).map((item) => item.name).join("、") ||
                             (facility.onShift > 0 ? `${facility.onShift} 人在班` : "無")}
                         </p>
                       </div>
-                      <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">櫃台交接事項</p>
-                        <p className="mt-1 text-[20px] text-[#0d2a50]">{facility.openHandovers ?? 0}</p>
-                        <p className="text-[11px] text-[#637185]">未完成 {facility.incompleteTasks ?? 0}</p>
+                      <div className="rounded-[8px] bg-surface-soft p-3">
+                        <p className="text-text-muted">櫃台交接事項</p>
+                        <p className="mt-1 text-[20px] text-primary-navy">{facility.openHandovers ?? 0}</p>
+                        <p className="text-[11px] text-text-body">未完成 {facility.incompleteTasks ?? 0}</p>
                       </div>
-                      <div className="rounded-[8px] bg-[#fbfcfd] p-3">
-                        <p className="text-[#8b9aae]">救生水質檢測</p>
-                        <p className="mt-1 text-[20px] text-[#007166]">{facility.lifeguardWaterQualityCount ?? 0}</p>
-                        <p className="text-[11px] text-[#637185]">附件 {facility.lifeguardAttachmentCount ?? 0}</p>
+                      <div className="rounded-[8px] bg-surface-soft p-3">
+                        <p className="text-text-muted">救生水質檢測</p>
+                        <p className="mt-1 text-[20px] text-stitch-on-secondary-container">{facility.lifeguardWaterQualityCount ?? 0}</p>
+                        <p className="text-[11px] text-text-body">附件 {facility.lifeguardAttachmentCount ?? 0}</p>
                       </div>
                     </div>
-                    <div className="border-t border-[#edf1f6] bg-[#f8fafc] px-4 py-3 text-right">
-                      <Link href={getFacilityDetailHref(facility.facilityKey)} className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] bg-[#0d2a50] px-3 text-[12px] font-black text-white">
+                    <div className="border-t border-border-subtle bg-slate-50 px-4 py-3 text-right">
+                      <Link href={getFacilityDetailHref(facility.facilityKey)} className="workbench-focus inline-flex min-h-9 items-center rounded-[8px] bg-primary-navy px-3 text-[12px] font-black text-white">
                         查看場館狀態
                       </Link>
                     </div>
@@ -484,30 +484,30 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
         {detailMode && selectedFacility ? (
           <>
             <WorkbenchCard className="overflow-hidden p-0">
-              <div className="flex flex-col gap-4 border-b border-[#edf1f6] p-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex flex-col gap-4 border-b border-border-subtle p-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#007166]">Facility Detail</p>
-                  <h2 className="mt-2 truncate text-[24px] font-black text-[#10233f]">{selectedFacility.facilityName}</h2>
-                  <p className="mt-1 text-[12px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">{selectedFacility.area} · {selectedFacility.facilityKey}</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-stitch-on-secondary-container">Facility Detail</p>
+                  <h2 className="mt-2 truncate text-[24px] font-black text-text-strong">{selectedFacility.facilityName}</h2>
+                  <p className="mt-1 text-[12px] font-black uppercase tracking-[0.12em] text-text-muted">{selectedFacility.area} · {selectedFacility.facilityKey}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <SupervisorPill tone={selectedFacility.onShift > 0 ? "green" : "amber"}>
                     {selectedFacility.onShift > 0 ? "營運中" : "待排班"}
                   </SupervisorPill>
-                  <Link href="/supervisor/facilities" className="workbench-focus inline-flex min-h-10 items-center rounded-[8px] border border-[#dfe7ef] bg-white px-4 text-[12px] font-black text-[#536175]">
+                  <Link href="/supervisor/facilities" className="workbench-focus inline-flex min-h-10 items-center rounded-[8px] border border-border-default bg-white px-4 text-[12px] font-black text-text-body">
                     返回全部場館
                   </Link>
                 </div>
               </div>
-              <div className="grid border-b border-[#edf1f6] md:grid-cols-4">
+              <div className="grid border-b border-border-subtle md:grid-cols-4">
                 {[
-                  ["當班", selectedFacility.onShift, "text-[#15935d]"],
-                  ["下一班", selectedFacility.next, "text-[#2f6fe8]"],
-                  ["櫃台交接", selectedFacility.openHandovers ?? 0, "text-[#0d2a50]"],
-                  ["救生水質", selectedFacility.lifeguardWaterQualityCount ?? 0, "text-[#007166]"],
+                  ["當班", selectedFacility.onShift, "text-emerald-600"],
+                  ["下一班", selectedFacility.next, "text-blue-600"],
+                  ["櫃台交接", selectedFacility.openHandovers ?? 0, "text-primary-navy"],
+                  ["救生水質", selectedFacility.lifeguardWaterQualityCount ?? 0, "text-stitch-on-secondary-container"],
                 ].map(([label, value, color]) => (
-                  <div key={String(label)} className="border-b border-r border-[#edf1f6] p-4 last:border-r-0 md:border-b-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">{label}</p>
+                  <div key={String(label)} className="border-b border-r border-border-subtle p-4 last:border-r-0 md:border-b-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-muted">{label}</p>
                     <p className={cn("mt-1 text-[26px] font-black", color)}>{value}</p>
                   </div>
                 ))}
@@ -521,41 +521,41 @@ export default function SupervisorPeoplePage({ facilityKey: routeFacilityKey }: 
               <StaffRows title="下一班人員" items={detailQuery.data?.staffing.next ?? []} empty="目前沒有下一班資料。" />
             </div>
 
-            {detailQuery.isLoading ? <div className="rounded-[8px] bg-white p-5 text-[13px] font-bold text-[#637185]">載入單館模組概況中...</div> : null}
+            {detailQuery.isLoading ? <div className="rounded-[8px] bg-white p-5 text-[13px] font-bold text-text-body">載入單館模組概況中...</div> : null}
             {detailQuery.isError ? (
-              <div className="flex items-center justify-between rounded-[8px] border border-[#fde8e8] bg-[#fff8f8] p-4">
-                <p className="text-[13px] font-bold text-[#c94444]">模組概況載入失敗，請稍後再試。</p>
-                <button type="button" onClick={() => detailQuery.refetch()} className="min-h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-black text-[#536175] hover:bg-[#f5f7fa]">重試</button>
+              <div className="flex items-center justify-between rounded-[8px] border border-red-100 bg-red-50 p-4">
+                <p className="text-[13px] font-bold text-red-600">模組概況載入失敗，請稍後再試。</p>
+                <button type="button" onClick={() => detailQuery.refetch()} className="min-h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-black text-text-body hover:bg-slate-100">重試</button>
               </div>
             ) : null}
             {detailQuery.data ? (
               <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
                 <FrontDeskModules modules={detailQuery.data.frontDesk.modules} fallbackItems={detailQuery.data.frontDesk.items} />
                 <div className="grid gap-4">
-                  <div className="rounded-[8px] border border-[#dfe7ef] bg-white p-4">
+                  <div className="rounded-[8px] border border-border-default bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-[#007166]">Lifeguard Modules</p>
-                        <h2 className="mt-1 text-[16px] font-black text-[#10233f]">救生功能模組概況</h2>
+                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-stitch-on-secondary-container">Lifeguard Modules</p>
+                        <h2 className="mt-1 text-[16px] font-black text-text-strong">救生功能模組概況</h2>
                       </div>
-                      <span className="rounded-full bg-[#eaf8ef] px-3 py-1 text-[11px] font-black text-[#15935d]">{detailQuery.data.lifeguard.waterQualityStatus}</span>
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600">{detailQuery.data.lifeguard.waterQualityStatus}</span>
                     </div>
                     <div className="grid gap-3">
                       {detailQuery.data.lifeguard.modules.map((module) => {
                         const Icon = moduleIcon[module.id as keyof typeof moduleIcon] ?? ClipboardList;
                         return (
-                          <div key={module.id} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
+                          <div key={module.id} className="rounded-[8px] border border-border-subtle bg-surface-soft p-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex min-w-0 items-center gap-3">
-                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-white text-[#007166]">
+                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-white text-stitch-on-secondary-container">
                                   <Icon className="h-4 w-4" />
                                 </span>
                                 <div className="min-w-0">
-                                  <p className="truncate text-[13px] font-black text-[#10233f]">{module.label}</p>
-                                  <p className="text-[11px] font-bold text-[#8b9aae]">{module.status === "ready" ? "已有回報" : "尚無回報"}</p>
+                                  <p className="truncate text-[13px] font-black text-text-strong">{module.label}</p>
+                                  <p className="text-[11px] font-bold text-text-muted">{module.status === "ready" ? "已有回報" : "尚無回報"}</p>
                                 </div>
                               </div>
-                              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-[#0d2a50]">{module.count}</span>
+                              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-primary-navy">{module.count}</span>
                             </div>
                             <div className="mt-3">
                               <ModuleBlock title={`${module.label}明細`} items={module.items} empty="目前沒有明細。" />

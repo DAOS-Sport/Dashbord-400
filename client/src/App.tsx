@@ -1,69 +1,12 @@
-import { useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState, type ErrorInfo, type ReactNode } from "react";
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AdminLaneRentals from "@/pages/admin/lane-rentals";
-import AdminParkingDashboard from "@/pages/admin/parking/dashboard";
-import AdminParkingVehicles from "@/pages/admin/parking/vehicles";
-import AdminParkingPlans from "@/pages/admin/parking/plans";
-import AdminParkingContracts from "@/pages/admin/parking/contracts";
-import AdminParkingPayments from "@/pages/admin/parking/payments";
-import ParkingSignPage from "@/pages/parking/sign";
-import CourtsCalendarPage from "@/pages/courts/calendar";
-import CourtsWeekPage from "@/pages/courts/week";
-import CourtsMonthPage from "@/pages/courts/month";
-import CourtsSearchPage from "@/pages/courts/search";
-import CourtsAdminPage from "@/pages/courts/admin";
-import NotFound from "@/pages/not-found";
-import { EmployeeCollabCoursesFrame, SupervisorCollabCoursesFrame } from "@/pages/collab-courses/page";
-import PortalLogin from "@/pages/portal/portal-login";
-import PortalHome from "@/pages/portal/portal-home";
-import PortalSetup from "@/pages/portal/portal-setup";
-import PortalAnnouncements from "@/pages/portal/portal-announcements";
-import PortalHandover from "@/pages/portal/portal-handover";
-import PortalCampaigns from "@/pages/portal/portal-campaigns";
-import PortalShift from "@/pages/portal/portal-shift";
-import PortalAnnouncementDetail from "@/pages/portal/portal-announcement-detail";
-import PortalManage from "@/pages/portal/portal-manage";
-import PortalAnalytics from "@/pages/portal/portal-analytics";
-import PortalReview from "@/pages/portal/portal-review";
-import PortalWorkLog from "@/pages/portal/portal-work-log";
-import EmployeeHomePage from "@/modules/employee/home/employee-home-page";
-import EmployeeActivityPeriodsPage from "@/modules/employee/activity-periods/page";
-import EmployeeAnnouncementsPage from "@/modules/employee/announcements/page";
-import EmployeeDocumentsPage from "@/modules/employee/documents/page";
-import EmployeeHandoverPage, { LifeguardHandoverPage } from "@/modules/employee/handover/page";
-import EmployeeMorePage from "@/modules/employee/more/page";
-import EmployeeQnaPage from "@/modules/employee/qna/page";
-import EmployeeShiftPage from "@/modules/employee/shift/page";
-import EmployeeSettingsPage from "@/modules/employee/settings/page";
-import EmployeeTrainingPage from "@/modules/employee/training/page";
 import { EmployeeShell } from "@/modules/employee/employee-shell";
-import LifeguardHomePage from "@/modules/lifeguard/home/page";
-import { EmployeeLostAndFoundPage, LifeguardOperationDetailPage } from "@/modules/lifeguard/operation-detail-page";
-import SupervisorDashboardPage from "@/modules/supervisor/dashboard-page";
-import SupervisorAnnouncementGroupsPage from "@/modules/supervisor/announcement-groups/page";
-import SupervisorGroupBroadcastsPage from "@/modules/supervisor/group-broadcasts/page";
-import SupervisorAnnouncementsPage from "@/modules/supervisor/announcements/page";
-import SupervisorPeoplePage from "@/modules/supervisor/people/page";
-import SupervisorHandoverPage from "@/modules/supervisor/handover/page";
-import SupervisorQnaReviewPage from "@/modules/supervisor/qna-review/page";
-import SupervisorTrainingPage from "@/modules/supervisor/training/page";
 import { SupervisorModuleShell } from "@/modules/supervisor/module-shell";
-import SystemDashboardPage from "@/modules/system/dashboard-page";
-import SystemInsightsPage from "@/modules/system/insights/page";
-import SystemOperationsPage from "@/modules/system/operations/page";
-import SystemCmsMonitoringPage from "@/modules/system/cms-monitoring/page";
-import SystemProjectMonitoringPage from "@/modules/system/project-monitoring/page";
-import SystemProjectOverviewPage from "@/modules/system/project-overview/page";
-import SystemApiMonitoringPage from "@/modules/system/api-monitoring/page";
-import SystemTrainingViewsPage from "@/modules/system/training-views/page";
-import SystemWatchdogPage from "@/modules/system/watchdog/page";
-import SystemFunctionRelationsPage from "@/modules/system/function-relations/page";
-import WorkbenchLoginPage from "@/modules/workbench/login-page";
-import DesignSystemShowcase from "@/design-system/__demo__/showcase";
+import { ErrorState } from "@/design-system/components";
 import { DreamLoader } from "@/shared/ui-kit/dream-loader";
 import { useAuthMe, useSwitchRole } from "@/shared/auth/session";
 import { roleHomePath, type AuthMeDto, type WorkbenchRole } from "@shared/auth/me";
@@ -72,6 +15,125 @@ import { getFacilityConfig } from "@/config/facility-configs";
 import { apiPost } from "@/shared/api/client";
 import { getCorrelationId } from "@/shared/telemetry/correlation";
 import { getRedirectForLegacyPath } from "@shared/navigation/workbench-routes";
+
+const AdminLaneRentals = lazy(() => import("@/pages/admin/lane-rentals"));
+const AdminParkingDashboard = lazy(() => import("@/pages/admin/parking/dashboard"));
+const AdminParkingVehicles = lazy(() => import("@/pages/admin/parking/vehicles"));
+const AdminParkingPlans = lazy(() => import("@/pages/admin/parking/plans"));
+const AdminParkingContracts = lazy(() => import("@/pages/admin/parking/contracts"));
+const AdminParkingPayments = lazy(() => import("@/pages/admin/parking/payments"));
+const ParkingSignPage = lazy(() => import("@/pages/parking/sign"));
+const CourtsCalendarPage = lazy(() => import("@/pages/courts/calendar"));
+const CourtsWeekPage = lazy(() => import("@/pages/courts/week"));
+const CourtsMonthPage = lazy(() => import("@/pages/courts/month"));
+const CourtsSearchPage = lazy(() => import("@/pages/courts/search"));
+const CourtsAdminPage = lazy(() => import("@/pages/courts/admin"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const EmployeeCollabCoursesFrame = lazy(() => import("@/pages/collab-courses/page").then((module) => ({ default: module.EmployeeCollabCoursesFrame })));
+const SupervisorCollabCoursesFrame = lazy(() => import("@/pages/collab-courses/page").then((module) => ({ default: module.SupervisorCollabCoursesFrame })));
+const PortalLogin = lazy(() => import("@/pages/portal/portal-login"));
+const PortalHome = lazy(() => import("@/pages/portal/portal-home"));
+const PortalSetup = lazy(() => import("@/pages/portal/portal-setup"));
+const PortalAnnouncements = lazy(() => import("@/pages/portal/portal-announcements"));
+const PortalHandover = lazy(() => import("@/pages/portal/portal-handover"));
+const PortalCampaigns = lazy(() => import("@/pages/portal/portal-campaigns"));
+const PortalShift = lazy(() => import("@/pages/portal/portal-shift"));
+const PortalAnnouncementDetail = lazy(() => import("@/pages/portal/portal-announcement-detail"));
+const PortalManage = lazy(() => import("@/pages/portal/portal-manage"));
+const PortalAnalytics = lazy(() => import("@/pages/portal/portal-analytics"));
+const PortalReview = lazy(() => import("@/pages/portal/portal-review"));
+const PortalWorkLog = lazy(() => import("@/pages/portal/portal-work-log"));
+const EmployeeHomePage = lazy(() => import("@/modules/employee/home/employee-home-page"));
+const EmployeeActivityPeriodsPage = lazy(() => import("@/modules/employee/activity-periods/page"));
+const EmployeeAnnouncementsPage = lazy(() => import("@/modules/employee/announcements/page"));
+const EmployeeDocumentsPage = lazy(() => import("@/modules/employee/documents/page"));
+const EmployeeHandoverPage = lazy(() => import("@/modules/employee/handover/page"));
+const LifeguardHandoverPage = lazy(() => import("@/modules/employee/handover/page").then((module) => ({ default: module.LifeguardHandoverPage })));
+const EmployeeMorePage = lazy(() => import("@/modules/employee/more/page"));
+const EmployeeQnaPage = lazy(() => import("@/modules/employee/qna/page"));
+const EmployeeShiftPage = lazy(() => import("@/modules/employee/shift/page"));
+const EmployeeSettingsPage = lazy(() => import("@/modules/employee/settings/page"));
+const EmployeeTrainingPage = lazy(() => import("@/modules/employee/training/page"));
+const LifeguardHomePage = lazy(() => import("@/modules/lifeguard/home/page"));
+const EmployeeLostAndFoundPage = lazy(() => import("@/modules/lifeguard/operation-detail-page").then((module) => ({ default: module.EmployeeLostAndFoundPage })));
+const LifeguardOperationDetailPage = lazy(() => import("@/modules/lifeguard/operation-detail-page").then((module) => ({ default: module.LifeguardOperationDetailPage })));
+const SupervisorDashboardPage = lazy(() => import("@/modules/supervisor/dashboard-page"));
+const SupervisorAnnouncementGroupsPage = lazy(() => import("@/modules/supervisor/announcement-groups/page"));
+const SupervisorGroupBroadcastsPage = lazy(() => import("@/modules/supervisor/group-broadcasts/page"));
+const SupervisorAnnouncementsPage = lazy(() => import("@/modules/supervisor/announcements/page"));
+const SupervisorPeoplePage = lazy(() => import("@/modules/supervisor/people/page"));
+const SupervisorHandoverPage = lazy(() => import("@/modules/supervisor/handover/page"));
+const SupervisorQnaReviewPage = lazy(() => import("@/modules/supervisor/qna-review/page"));
+const SupervisorTrainingPage = lazy(() => import("@/modules/supervisor/training/page"));
+const SystemDashboardPage = lazy(() => import("@/modules/system/dashboard-page"));
+const SystemInsightsPage = lazy(() => import("@/modules/system/insights/page"));
+const SystemOperationsPage = lazy(() => import("@/modules/system/operations/page"));
+const SystemCmsMonitoringPage = lazy(() => import("@/modules/system/cms-monitoring/page"));
+const SystemProjectMonitoringPage = lazy(() => import("@/modules/system/project-monitoring/page"));
+const SystemControlCenterPage = lazy(() => import("@/modules/system/control-center/page"));
+const SystemApiCatalogPage = lazy(() => import("@/modules/system/api-catalog/page"));
+const SystemApiMonitoringPage = lazy(() => import("@/modules/system/api-monitoring/page"));
+const SystemTrainingViewsPage = lazy(() => import("@/modules/system/training-views/page"));
+const SystemWatchdogPage = lazy(() => import("@/modules/system/watchdog/page"));
+const SystemFunctionRelationsPage = lazy(() => import("@/modules/system/function-relations/page"));
+const WorkbenchLoginPage = lazy(() => import("@/modules/workbench/login-page"));
+const DesignSystemShowcase = lazy(() => import("@/design-system/__demo__/showcase"));
+
+class RouteErrorBoundary extends Component<
+  { children: ReactNode; scope: "workbench" | "portal" },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[${this.props.scope}:route-error]`, error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="grid min-h-dvh place-items-center bg-surface-base p-6">
+        <ErrorState
+          title={this.props.scope === "portal" ? "員工入口暫時無法顯示" : "工作台暫時無法顯示"}
+          description={this.state.error.message || "畫面載入時發生錯誤，請重新整理後再試。"}
+          action={
+            <button
+              type="button"
+              className="rounded-ds-sm bg-surface-base px-3 py-2 text-label-sm font-bold text-text-strong ring-1 ring-border-subtle"
+              onClick={() => window.location.reload()}
+            >
+              重新整理
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+}
+
+function RouteSuspense({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="grid min-h-dvh place-items-center bg-surface-base">
+          <DreamLoader label="頁面載入中" />
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+}
+
+function DevRouteThrow({ scope }: { scope: "workbench" | "portal" }) {
+  if (!import.meta.env.DEV) return null;
+  if (new URLSearchParams(window.location.search).get("throwBoundary") !== scope) return null;
+  throw new Error(`${scope} boundary verification`);
+}
 
 function PortalAuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading } = usePortalAuth();
@@ -119,15 +181,16 @@ function PortalIndexPage() {
 
 function PortalRouter() {
   return (
-    <Switch>
-      <Route path="/portal/login" component={PortalLogin} />
-      <Route path="/portal/:facilityKey/announcements/:id">
-        {(params) => (
-          <GuardedPortalPage>
-            <PortalAnnouncementDetail facilityKey={params.facilityKey} announcementId={params.id} />
-          </GuardedPortalPage>
-        )}
-      </Route>
+    <RouteSuspense>
+      <Switch>
+        <Route path="/portal/login" component={PortalLogin} />
+        <Route path="/portal/:facilityKey/announcements/:id">
+          {(params) => (
+            <GuardedPortalPage>
+              <PortalAnnouncementDetail facilityKey={params.facilityKey} announcementId={params.id} />
+            </GuardedPortalPage>
+          )}
+        </Route>
       <Route path="/portal/:facilityKey/announcements">
         {(params) => (
           <GuardedPortalPage>
@@ -191,14 +254,16 @@ function PortalRouter() {
           </GuardedPortalPage>
         )}
       </Route>
-      <Route path="/portal" component={PortalIndexPage} />
-    </Switch>
+        <Route path="/portal" component={PortalIndexPage} />
+      </Switch>
+    </RouteSuspense>
   );
 }
 
 function WorkbenchRouter() {
   return (
-    <Switch>
+    <RouteSuspense>
+      <Switch>
       <Route path="/">
         <Redirect to="/system/project-overview" />
       </Route>
@@ -364,6 +429,7 @@ function WorkbenchRouter() {
       <Route path="/system/monitoring/collab-course">
         <SystemApiMonitoringPage projectKey="collab-course" />
       </Route>
+      <Route path="/system/api-catalog" component={SystemApiCatalogPage} />
       <Route path="/system/line-whitelist">
         <Redirect to="/system/monitoring/400line?tab=whitelist" />
       </Route>
@@ -398,7 +464,7 @@ function WorkbenchRouter() {
       <Route path="/system/training-views">
         <SystemTrainingViewsPage />
       </Route>
-      <Route path="/system/project-overview" component={SystemProjectOverviewPage} />
+      <Route path="/system/project-overview" component={SystemControlCenterPage} />
       <Route path="/system/overview">
         <Redirect to="/system/project-overview" />
       </Route>
@@ -474,8 +540,9 @@ function WorkbenchRouter() {
       </Route>
       <Route path="/employee/home" component={EmployeeHomePage} />
       <Route path="/employee" component={EmployeeHomePage} />
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </RouteSuspense>
   );
 }
 
@@ -559,7 +626,12 @@ function WorkbenchAuthGate() {
     return <Redirect to={firstAllowedWorkbenchPath(session)} />;
   }
 
-  return <WorkbenchRouter />;
+  return (
+    <RouteErrorBoundary scope="workbench">
+      <DevRouteThrow scope="workbench" />
+      <WorkbenchRouter />
+    </RouteErrorBoundary>
+  );
 }
 
 function WidgetTelemetryCapture() {
@@ -667,7 +739,11 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Switch>
-            <Route path="/parking/sign/:token" component={ParkingSignPage} />
+            <Route path="/parking/sign/:token">
+              <RouteSuspense>
+                <ParkingSignPage />
+              </RouteSuspense>
+            </Route>
           </Switch>
           <Toaster />
         </TooltipProvider>
@@ -690,7 +766,9 @@ function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <DesignSystemShowcase />
+          <RouteSuspense>
+            <DesignSystemShowcase />
+          </RouteSuspense>
           <DebugDreamLoaderOverlay />
           <Toaster />
         </TooltipProvider>
@@ -703,7 +781,12 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           {isWorkbench ? <WidgetTelemetryCapture /> : null}
-          {isLogin ? <LoginRedirector /> : isWorkbench ? <WorkbenchAuthGate /> : <PortalRouter />}
+          {isLogin ? <LoginRedirector /> : isWorkbench ? <WorkbenchAuthGate /> : (
+            <RouteErrorBoundary scope="portal">
+              <DevRouteThrow scope="portal" />
+              <PortalRouter />
+            </RouteErrorBoundary>
+          )}
           <DebugDreamLoaderOverlay />
           <Toaster />
         </TooltipProvider>
@@ -712,9 +795,11 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <NotFound />
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+        <RouteSuspense>
+          <NotFound />
+        </RouteSuspense>
         <DebugDreamLoaderOverlay />
         <Toaster />
       </TooltipProvider>
@@ -723,7 +808,11 @@ function App() {
 }
 
 function LoginRedirector() {
-  return <WorkbenchLoginPage />;
+  return (
+    <RouteSuspense>
+      <WorkbenchLoginPage />
+    </RouteSuspense>
+  );
 }
 
 export default App;

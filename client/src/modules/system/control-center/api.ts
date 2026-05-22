@@ -42,11 +42,116 @@ export interface SystemControlCenterDto {
     role?: string;
     createdAt: string;
   }>;
+  roleApiSurfaces: Array<{
+    role: "employee" | "lifeguard" | "supervisor" | "system";
+    label: string;
+    moduleCount: number;
+    apiCount: number;
+    bffCount: number;
+    legacyCount: number;
+    proxyCount: number;
+    partialCount: number;
+    topModules: Array<{
+      moduleId: string;
+      label: string;
+      routePath?: string;
+      status: string;
+      apiCount: number;
+      bffCount: number;
+      legacyCount: number;
+      primaryApis: Array<{
+        method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+        path: string;
+        kind: string;
+        status: string;
+      }>;
+    }>;
+  }>;
   generatedAt: string;
 }
 
 export const fetchSystemControlCenter = () =>
   apiGet<SystemControlCenterDto>("/api/bff/system/control-center");
+
+export interface SystemApiCatalogDto {
+  generatedAt: string;
+  source: {
+    router: string;
+    routeManifest: string;
+    moduleRegistry: string;
+    inventory: string;
+  };
+  summary: {
+    totalApis: number;
+    registeredModules: number;
+    projects: Record<string, number>;
+    features: Record<string, number>;
+    roles: Record<string, number>;
+    unmappedApis: number;
+    inferredModuleMatches: number;
+  };
+  roleApiSurfaces: SystemControlCenterDto["roleApiSurfaces"];
+  entries: Array<{
+    method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+    path: string;
+    handlerFile: string;
+    auth: string;
+    dataSource: string;
+    request: string;
+    response: string;
+    project: string;
+    feature: string;
+    role: string;
+    registryModules: Array<{
+      id: string;
+      label: string;
+      status: string;
+      visibleRoles: string[];
+      sourceOfTruth: string;
+      match: "exact" | "inferred";
+      dataSources: Array<{
+        table?: string;
+        entity?: string;
+        source: string;
+        status: string;
+        notes?: string;
+      }>;
+      integrations: Array<{
+        provider: string;
+        purpose: string;
+        status: string;
+        notes?: string;
+      }>;
+    }>;
+  }>;
+  moduleSources: Array<{
+    moduleId: string;
+    label: string;
+    project: string;
+    feature: string;
+    status: string;
+    visibleRoles: string[];
+    sourceOfTruth: string;
+    routeCount: number;
+    apiCount: number;
+    dataSources: Array<{
+      table?: string;
+      entity?: string;
+      source: string;
+      status: string;
+      notes?: string;
+    }>;
+    integrations: Array<{
+      provider: string;
+      purpose: string;
+      status: string;
+      notes?: string;
+    }>;
+  }>;
+}
+
+export const fetchSystemApiCatalog = () =>
+  apiGet<SystemApiCatalogDto>("/api/bff/system/api-catalog");
 
 export type HelperStatusDto = {
   generatedAt: string;

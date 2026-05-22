@@ -70,6 +70,12 @@ const lineBotProxy = (upstreamPath: string) => async (req: Request, res: Respons
 };
 
 export const registerLineBotRoutes = (app: Express, container: AppContainer) => {
+  app.use(["/api/internal/service-health", "/api/internal/interview-users"], (_req, res, next) => {
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Link", "</api/bff/system/line-bot/service-status>; rel=\"successor-version\"");
+    next();
+  });
+
   app.get("/api/bff/system/line-bot/service-status", requireSession, requireRole("system"), async (_req, res) => {
     const token = env.lineBotAdminToken;
     if (!token) return res.status(503).json({ message: "LINE_BOT_ADMIN_TOKEN not configured", services: [] });

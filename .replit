@@ -31,7 +31,7 @@ SESSION_TTL_SECONDS = "28800"
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npm", "run", "start"]
-build = ["npm", "run", "build"]
+build = ["sh", "-c", "npm run predeploy && npm run build"]
 publicDir = "dist/public"
 
 [workflows]
@@ -54,6 +54,14 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Pre-deploy checks"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run predeploy"
 
 # Secrets must be configured through Replit Secrets, not committed here.
 # Required: NEON_DATABASE_URL or DATABASE_URL.

@@ -140,12 +140,14 @@ export const registerSupervisorBffRoutes = (
             activeEmployees: [],
             currentOnDuty: [],
             nextOnDuty: [],
+            allTodayOnDuty: [],
             byFacility: facilityKeys.map((key) => ({
               facilityKey: key,
               facilityName: facilityLabel(key),
               active: 0,
               onShift: 0,
               next: 0,
+              todayTotal: 0,
             })),
           }),
           withTimeout(
@@ -306,7 +308,7 @@ export const registerSupervisorBffRoutes = (
         activeEmployees: [] as StaffMemberSummary[],
         currentOnDuty: [] as StaffMemberSummary[],
         nextOnDuty: [] as StaffMemberSummary[],
-        byFacility: [{ facilityKey, facilityName: facilityLabel(facilityKey), active: 0, onShift: 0, next: 0 }],
+        byFacility: [{ facilityKey, facilityName: facilityLabel(facilityKey), active: 0, onShift: 0, next: 0, todayTotal: 0 }],
       };
       const [staffing, handovers, waterQuality, coachDive, cleanup, laneIssues, lostItems, employeeResources, systemAnnouncements, groupBroadcastRows, laneRentals, courtReservations] = await Promise.all([
         withTimeout(buildStaffingSummary(container, [facilityKey]), 2500, staffingFallback).catch(() => staffingFallback),

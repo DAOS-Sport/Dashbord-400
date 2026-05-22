@@ -24,6 +24,7 @@ import { registerSystemOperationsRoutes } from "./operations-routes";
 import { registerProjectMonitoringRoutes } from "./project-monitoring-routes";
 import { registerApiMonitoringRoutes } from "./api-monitoring-routes";
 import { registerActionMonitoringRoutes } from "./action-monitoring-routes";
+import { buildRoleApiSurfaces, buildSystemApiCatalog } from "./api-catalog-service";
 
 const readInternalToken = (req: Request) => {
   const auth = Array.isArray(req.headers.authorization) ? req.headers.authorization[0] : req.headers.authorization;
@@ -208,11 +209,16 @@ export const registerSystemRoutes = (app: Express, container: AppContainer) => {
         },
       },
       recentCriticalEvents,
+      roleApiSurfaces: buildRoleApiSurfaces(),
       generatedAt: new Date().toISOString(),
     };
 
     controlCenterCache = { expiresAt: Date.now() + 5_000, data };
     return res.json(data);
+  });
+
+  app.get("/api/bff/system/api-catalog", requireSession, requireRole("system"), (_req, res) => {
+    res.json(buildSystemApiCatalog());
   });
 
   app.get("/api/bff/system/health-overview", requireSession, requireRole("system"), (_req, res) => {

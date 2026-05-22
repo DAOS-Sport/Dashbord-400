@@ -36,15 +36,15 @@ const fetchWatchdogEvents = () => apiGet<{ items: WatchdogEventDto[] }>("/api/bf
 const fetchIntegrations = () => apiGet<IntegrationOverviewDto>("/api/bff/system/integration-overview");
 
 const statusToneCard: Record<string, string> = {
-  healthy: "bg-[#eaf8ef] text-[#007166]",
-  warning: "bg-[#fff6e7] text-[#9b6a00]",
-  error: "bg-[#ffe8eb] text-[#dc2626]",
-  not_connected: "bg-[#f3f6fb] text-[#6b7280]",
-  ready: "bg-[#eaf8ef] text-[#007166]",
-  degraded: "bg-[#fff6e7] text-[#9b6a00]",
-  telemetry_pending: "bg-[#fff6e7] text-[#9b6a00]",
-  critical: "bg-[#ffe8eb] text-[#dc2626]",
-  info: "bg-[#eef5ff] text-[#2f6fe8]",
+  healthy: "bg-emerald-50 text-stitch-on-secondary-container",
+  warning: "bg-surface-soft text-text-body",
+  error: "bg-surface-soft text-red-600",
+  not_connected: "bg-surface-base text-text-body",
+  ready: "bg-emerald-50 text-stitch-on-secondary-container",
+  degraded: "bg-surface-soft text-text-body",
+  telemetry_pending: "bg-surface-soft text-text-body",
+  critical: "bg-surface-soft text-red-600",
+  info: "bg-blue-50 text-blue-600",
 };
 
 const apiStatusRank: Record<ApiMonitoringStatus, number> = {
@@ -55,10 +55,10 @@ const apiStatusRank: Record<ApiMonitoringStatus, number> = {
 };
 
 const apiStatusDotClass = (s: ApiMonitoringStatus) => {
-  if (s === "healthy") return "bg-[#22c55e]";
-  if (s === "warning") return "bg-[#f59e0b]";
-  if (s === "error") return "bg-[#dc2626]";
-  return "bg-[#9ca3af]";
+  if (s === "healthy") return "bg-surface-soft";
+  if (s === "warning") return "bg-surface-soft";
+  if (s === "error") return "bg-red-600";
+  return "bg-surface-soft";
 };
 
 const tabs: Array<{ id: TabKey; label: string }> = [
@@ -96,7 +96,7 @@ function TrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   const totalErrors = cells.reduce((s, c) => s + c.errors, 0);
   const totalCalls = cells.reduce((s, c) => s + c.total, 0);
   const errorRatio = totalCalls > 0 ? totalErrors / totalCalls : 0;
-  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const stroke = !hasData ? "var(--ds-border-emphasis)" : errorRatio >= 0.5 ? "var(--ds-state-priority)" : errorRatio > 0 ? "var(--ds-state-must-read)" : "var(--ds-state-success)";
   const n = cells.length;
   const W = 120, H = 22, padX = 2, padY = 2;
   const w = W - padX * 2, h = H - padY * 2;
@@ -109,12 +109,12 @@ function TrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   return (
     <svg width={120} height={22} viewBox="0 0 120 22" aria-label="24h 趨勢折線" className="shrink-0">
       {!hasData ? (
-        <line x1={2} y1={11} x2={118} y2={11} stroke="#c8d0da" strokeWidth="1" strokeDasharray="2 2" />
+        <line x1={2} y1={11} x2={118} y2={11} stroke="var(--ds-border-emphasis)" strokeWidth="1" strokeDasharray="2 2" />
       ) : (
         <>
           <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
           {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="2" fill="#dc2626">
+            <circle key={i} cx={p.x} cy={p.y} r="2" fill="var(--ds-state-priority)">
               <title>{`${p.cell.hour ? new Date(p.cell.hour).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", hour12: false }) : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤`}</title>
             </circle>
           ))}
@@ -143,12 +143,12 @@ export default function SystemWatchdogPage() {
   const apiQuery = useQuery({
     queryKey: ["/api/bff/system/api-monitoring", "watchdog-apis"],
     queryFn: () => fetchApiMonitoring("all"),
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
   const eventsQuery = useQuery({
     queryKey: ["/api/bff/system/watchdog-events"],
     queryFn: fetchWatchdogEvents,
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
   });
   const integrationsQuery = useQuery({
     queryKey: ["/api/bff/system/integration-overview"],
@@ -201,7 +201,7 @@ export default function SystemWatchdogPage() {
                 onClick={() => setTab(item.id)}
                 className={cn(
                   "min-h-10 rounded-[8px] px-4 text-[13px] font-black transition",
-                  tab === item.id ? "bg-[#0d2a50] text-white" : "bg-white text-[#637185] hover:bg-[#f3f6fb]",
+                  tab === item.id ? "bg-primary-navy text-white" : "bg-white text-text-body hover:bg-surface-base",
                 )}
                 data-testid={`tab-${item.id}`}
               >
@@ -213,10 +213,10 @@ export default function SystemWatchdogPage() {
 
         {tab === "apis" ? (
           <WorkbenchCard className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-4">
               <div>
-                <h2 className="text-[16px] font-black text-[#10233f]">API 健康列表</h2>
-                <p className="mt-1 text-[12px] font-bold text-[#637185]">
+                <h2 className="text-[16px] font-black text-text-strong">API 健康列表</h2>
+                <p className="mt-1 text-[12px] font-bold text-text-body">
                   {summary
                     ? `共 ${(summary.connectedApis ?? 0) + (summary.notConnectedApis ?? 0)} 支 API · 已接線 ${summary.connectedApis ?? 0}（${summary.healthyApis} 正常 / ${summary.warningApis} 注意 / ${summary.errorApis} 錯誤）· 未連線 ${summary.notConnectedApis ?? 0} 支（預設隱藏，可切換篩選）`
                     : "讀取中…"}
@@ -228,13 +228,13 @@ export default function SystemWatchdogPage() {
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   placeholder="搜尋 path / label"
-                  className="h-9 w-44 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
+                  className="h-9 w-44 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
                   data-testid="search-api"
                 />
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as "all" | "connected" | ApiMonitoringStatus)}
-                  className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
+                  className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
                 >
                   <option value="connected">已接線（預設）</option>
                   <option value="all">all status</option>
@@ -246,7 +246,7 @@ export default function SystemWatchdogPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
+                  className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
                 >
                   <option value="all">all types</option>
                   {availableTypes.map((t) => (
@@ -257,7 +257,7 @@ export default function SystemWatchdogPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-[13px]">
-                <thead className="bg-[#f7f9fb] text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">
+                <thead className="bg-surface-soft text-[11px] font-black uppercase tracking-[0.12em] text-text-muted">
                   <tr>
                     <th className="px-4 py-3">狀態</th>
                     <th className="px-4 py-3">Method · Path</th>
@@ -268,13 +268,13 @@ export default function SystemWatchdogPage() {
                     <th className="px-4 py-3">趨勢 (24h · 小時)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#edf1f6]">
+                <tbody className="divide-y divide-border-subtle">
                   {apiRows.map((row) => (
                     <ApiRow key={row.id} row={row} onSelect={() => setSelectedApi(row)} />
                   ))}
                   {apiRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-[13px] font-bold text-[#637185]">
+                      <td colSpan={7} className="p-8 text-center text-[13px] font-bold text-text-body">
                         {apiQuery.isLoading ? "讀取中…" : "無符合條件的 API"}
                       </td>
                     </tr>
@@ -289,44 +289,44 @@ export default function SystemWatchdogPage() {
           <div className="space-y-4">
             {/* ── 近 24h API 錯誤 ─────────────────────────────── */}
             <WorkbenchCard className="overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-4">
                 <div>
-                  <h2 className="text-[16px] font-black text-[#10233f]">
+                  <h2 className="text-[16px] font-black text-text-strong">
                     近 24h API 錯誤
                     {(apiQuery.data?.recentErrors ?? []).length > 0 && (
-                      <span className="ml-2 rounded-full bg-[#ffe8eb] px-2 py-0.5 text-[11px] font-black text-[#dc2626]">
+                      <span className="ml-2 rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-black text-red-600">
                         {apiQuery.data!.recentErrors.length}
                       </span>
                     )}
                   </h2>
-                  <p className="mt-1 text-[12px] font-bold text-[#637185]">來自 API 監控的 4xx / 5xx / timeout / aborted 記錄，未標示已處理。</p>
+                  <p className="mt-1 text-[12px] font-bold text-text-body">來自 API 監控的 4xx / 5xx / timeout / aborted 記錄，未標示已處理。</p>
                 </div>
               </div>
               {apiQuery.isLoading ? (
                 <div className="space-y-2 p-4">
-                  {[1, 2, 3].map((n) => <div key={n} className="h-12 animate-pulse rounded-[8px] bg-[#f3f6fb]" />)}
+                  {[1, 2, 3].map((n) => <div key={n} className="h-12 animate-pulse rounded-[8px] bg-surface-base" />)}
                 </div>
               ) : (apiQuery.data?.recentErrors ?? []).length === 0 ? (
-                <div className="p-8 text-center text-[13px] font-bold text-[#637185]">最近 24h 無未解決 API 錯誤 🎉</div>
+                <div className="p-8 text-center text-[13px] font-bold text-text-body">最近 24h 無未解決 API 錯誤 🎉</div>
               ) : (
-                <div className="divide-y divide-[#edf1f6]">
+                <div className="divide-y divide-border-subtle">
                   {(apiQuery.data!.recentErrors as ApiMonitoringError[]).slice(0, 30).map((err) => (
                     <div key={err.id} className="grid gap-2 p-4 md:grid-cols-[140px_80px_1fr_120px_100px] md:items-center">
-                      <span className="text-[11px] font-bold text-[#637185]">
+                      <span className="text-[11px] font-bold text-text-body">
                         {new Date(err.occurredAt).toLocaleString("zh-TW")}
                       </span>
                       <span className={cn(
                         "w-fit rounded-[4px] px-1.5 py-0.5 text-[10px] font-black",
-                        err.errorType === "5xx" ? "bg-[#ffe8eb] text-[#dc2626]" :
-                        err.errorType === "4xx" ? "bg-[#fff6e7] text-[#9b6a00]" :
-                        err.errorType === "timeout" ? "bg-[#fff6e7] text-[#9b6a00]" :
-                        "bg-[#eef2f6] text-[#536175]"
+                        err.errorType === "5xx" ? "bg-surface-soft text-red-600" :
+                        err.errorType === "4xx" ? "bg-surface-soft text-text-body" :
+                        err.errorType === "timeout" ? "bg-surface-soft text-text-body" :
+                        "bg-slate-100 text-text-body"
                       )}>
                         {err.statusCode || err.errorType}
                       </span>
-                      <span className="truncate font-mono text-[12px] font-bold text-[#10233f]">{err.route}</span>
-                      <span className="text-[11px] font-bold text-[#8b9aae]">{err.errorType}</span>
-                      <span className="text-right font-mono text-[11px] font-bold text-[#8b9aae]">{err.durationMs}ms</span>
+                      <span className="truncate font-mono text-[12px] font-bold text-text-strong">{err.route}</span>
+                      <span className="text-[11px] font-bold text-text-muted">{err.errorType}</span>
+                      <span className="text-right font-mono text-[11px] font-bold text-text-muted">{err.durationMs}ms</span>
                     </div>
                   ))}
                 </div>
@@ -335,22 +335,22 @@ export default function SystemWatchdogPage() {
 
             {/* ── 系統 Watchdog events ──────────────────────────── */}
             <WorkbenchCard className="overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf1f6] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle p-4">
                 <div>
-                  <h2 className="text-[16px] font-black text-[#10233f]">
+                  <h2 className="text-[16px] font-black text-text-strong">
                     系統 Watchdog events
                     {events.length > 0 && (
-                      <span className="ml-2 rounded-full bg-[#fff6e7] px-2 py-0.5 text-[11px] font-black text-[#9b6a00]">
+                      <span className="ml-2 rounded-full bg-surface-soft px-2 py-0.5 text-[11px] font-black text-text-body">
                         {events.length}
                       </span>
                     )}
                   </h2>
-                  <p className="mt-1 text-[12px] font-bold text-[#637185]">系統主動偵測或後端寫入的異常事件，點擊可展開 payload。</p>
+                  <p className="mt-1 text-[12px] font-bold text-text-body">系統主動偵測或後端寫入的異常事件，點擊可展開 payload。</p>
                 </div>
                 <select
                   value={severityFilter}
                   onChange={(event) => setSeverityFilter(event.target.value)}
-                  className="h-9 rounded-[8px] border border-[#dfe7ef] bg-white px-3 text-[12px] font-bold"
+                  className="h-9 rounded-[8px] border border-border-default bg-white px-3 text-[12px] font-bold"
                 >
                   <option value="all">all severity</option>
                   <option value="critical">critical</option>
@@ -358,13 +358,13 @@ export default function SystemWatchdogPage() {
                   <option value="info">info</option>
                 </select>
               </div>
-              <div className="divide-y divide-[#edf1f6]">
+              <div className="divide-y divide-border-subtle">
                 {eventsQuery.isLoading ? (
                   <div className="space-y-2 p-4">
-                    {[1, 2].map((n) => <div key={n} className="h-10 animate-pulse rounded-[8px] bg-[#f3f6fb]" />)}
+                    {[1, 2].map((n) => <div key={n} className="h-10 animate-pulse rounded-[8px] bg-surface-base" />)}
                   </div>
                 ) : events.length === 0 ? (
-                  <div className="p-8 text-center text-[13px] font-bold text-[#637185]">
+                  <div className="p-8 text-center text-[13px] font-bold text-text-body">
                     目前沒有 Watchdog events。系統背景若偵測到異常會自動寫入此處。
                   </div>
                 ) : (
@@ -373,13 +373,13 @@ export default function SystemWatchdogPage() {
                       key={event.id}
                       type="button"
                       onClick={() => setSelectedEvent(event)}
-                      className="grid w-full gap-2 p-4 text-left hover:bg-[#fbfcfd] md:grid-cols-[160px_110px_1fr_160px_140px] md:items-center"
+                      className="grid w-full gap-2 p-4 text-left hover:bg-surface-soft md:grid-cols-[160px_110px_1fr_160px_140px] md:items-center"
                     >
-                      <span className="text-[12px] font-bold text-[#637185]">{new Date(event.observedAt).toLocaleString("zh-TW")}</span>
+                      <span className="text-[12px] font-bold text-text-body">{new Date(event.observedAt).toLocaleString("zh-TW")}</span>
                       <span className={cn("w-fit rounded-full px-2 py-1 text-[10px] font-black uppercase", statusToneCard[event.severity] ?? statusToneCard.info)}>{event.severity}</span>
-                      <span className="truncate text-[13px] font-black text-[#10233f]">{event.message ?? event.serviceName}</span>
-                      <span className="truncate text-[12px] font-bold text-[#637185]">{event.serviceName}</span>
-                      <span className="truncate text-[12px] font-bold text-[#8b9aae]">{event.source}</span>
+                      <span className="truncate text-[13px] font-black text-text-strong">{event.message ?? event.serviceName}</span>
+                      <span className="truncate text-[12px] font-bold text-text-body">{event.serviceName}</span>
+                      <span className="truncate text-[12px] font-bold text-text-muted">{event.source}</span>
                     </button>
                   ))
                 )}
@@ -400,19 +400,19 @@ export default function SystemWatchdogPage() {
               <WorkbenchCard key={adapter.name} className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <div className={cn("grid h-10 w-10 place-items-center rounded-[8px]", adapter.configured ? "bg-[#eaf8ef] text-[#15935d]" : "bg-[#f3f6fb] text-[#6b7280]")}>
+                    <div className={cn("grid h-10 w-10 place-items-center rounded-[8px]", adapter.configured ? "bg-emerald-50 text-emerald-600" : "bg-surface-base text-text-body")}>
                       {adapter.configured ? <PlugZap className="h-5 w-5" /> : <Database className="h-5 w-5" />}
                     </div>
                     <div>
-                      <p className="text-[15px] font-black text-[#10233f]">{adapter.name}</p>
-                      <p className="mt-1 text-[12px] font-bold text-[#637185]">mode: {adapter.mode}</p>
+                      <p className="text-[15px] font-black text-text-strong">{adapter.name}</p>
+                      <p className="mt-1 text-[12px] font-bold text-text-body">mode: {adapter.mode}</p>
                     </div>
                   </div>
-                  <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", adapter.configured ? "bg-[#eaf8ef] text-[#007166]" : "bg-[#f3f6fb] text-[#6b7280]")}>
+                  <span className={cn("rounded-full px-2 py-1 text-[10px] font-black", adapter.configured ? "bg-emerald-50 text-stitch-on-secondary-container" : "bg-surface-base text-text-body")}>
                     {adapter.configured ? "connected" : "reserved"}
                   </span>
                 </div>
-                <button type="button" disabled className="mt-5 min-h-9 rounded-[8px] border border-[#dfe7ef] bg-[#f7f9fb] px-3 text-[12px] font-black text-[#8b9aae]">
+                <button type="button" disabled className="mt-5 min-h-9 rounded-[8px] border border-border-default bg-surface-soft px-3 text-[12px] font-black text-text-muted">
                   Test connection（下版啟用）
                 </button>
               </WorkbenchCard>
@@ -425,14 +425,14 @@ export default function SystemWatchdogPage() {
         ) : null}
 
         {selectedEvent ? (
-          <div className="fixed inset-0 z-50 flex justify-end bg-[#10233f]/30">
+          <div className="fixed inset-0 z-50 flex justify-end bg-text-strong/30">
             <div className="h-full w-full max-w-[620px] overflow-y-auto bg-white p-5 shadow-2xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">Watchdog payload</p>
-                  <h2 className="mt-1 text-[20px] font-black text-[#10233f]">{selectedEvent.message ?? selectedEvent.serviceName}</h2>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Watchdog payload</p>
+                  <h2 className="mt-1 text-[20px] font-black text-text-strong">{selectedEvent.message ?? selectedEvent.serviceName}</h2>
                 </div>
-                <button type="button" onClick={() => setSelectedEvent(null)} className="grid h-10 w-10 place-items-center rounded-[8px] border border-[#dfe7ef]">
+                <button type="button" onClick={() => setSelectedEvent(null)} className="grid h-10 w-10 place-items-center rounded-[8px] border border-border-default">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -444,13 +444,13 @@ export default function SystemWatchdogPage() {
                   ["service", selectedEvent.serviceName],
                   ["observedAt", selectedEvent.observedAt],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-[8px] bg-[#fbfcfd] p-3">
-                    <dt className="text-[11px] font-black uppercase tracking-[0.12em] text-[#8b9aae]">{label}</dt>
-                    <dd className="mt-1 font-mono text-[12px] font-bold text-[#10233f]">{value}</dd>
+                  <div key={label} className="rounded-[8px] bg-surface-soft p-3">
+                    <dt className="text-[11px] font-black uppercase tracking-[0.12em] text-text-muted">{label}</dt>
+                    <dd className="mt-1 font-mono text-[12px] font-bold text-text-strong">{value}</dd>
                   </div>
                 ))}
               </dl>
-              <pre className="mt-5 max-h-[520px] overflow-auto rounded-[8px] bg-[#0d2a50] p-4 text-[12px] leading-5 text-white">{payloadText(selectedEvent.payload)}</pre>
+              <pre className="mt-5 max-h-[520px] overflow-auto rounded-[8px] bg-primary-navy p-4 text-[12px] leading-5 text-white">{payloadText(selectedEvent.payload)}</pre>
             </div>
           </div>
         ) : null}
@@ -461,26 +461,26 @@ export default function SystemWatchdogPage() {
 
 function ApiRow({ row, onSelect }: { row: ApiMonitoringRow; onSelect: () => void }) {
   return (
-    <tr className="cursor-pointer align-middle transition hover:bg-[#fbfcfd]" onClick={onSelect} data-testid={`api-row-${row.id}`}>
+    <tr className="cursor-pointer align-middle transition hover:bg-surface-soft" onClick={onSelect} data-testid={`api-row-${row.id}`}>
       <td className="px-4 py-3">
-        <span className="inline-flex items-center gap-2 text-[11px] font-black text-[#10233f]">
+        <span className="inline-flex items-center gap-2 text-[11px] font-black text-text-strong">
           <span className={cn("h-2 w-2 rounded-full", apiStatusDotClass(row.status))} />
           {row.status}
         </span>
       </td>
       <td className="px-4 py-3 font-mono text-[11px] font-bold">
-        <span className="mr-2 inline-block rounded-[4px] bg-[#eef2f6] px-1.5 py-0.5 text-[10px] font-black text-[#536175]">{row.method}</span>
-        <span className="text-[#10233f]">{row.path}</span>
+        <span className="mr-2 inline-block rounded-[4px] bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-text-body">{row.method}</span>
+        <span className="text-text-strong">{row.path}</span>
       </td>
-      <td className="px-4 py-3 text-[12px] font-bold text-[#536175]">
+      <td className="px-4 py-3 text-[12px] font-bold text-text-body">
         {row.label}
-        {row.skipped && <span className="ml-2 inline-block rounded-[4px] bg-[#eef2f6] px-1.5 py-0.5 text-[10px] font-black text-[#8b9aae]" title="已排除計數">略過</span>}
+        {row.skipped && <span className="ml-2 inline-block rounded-[4px] bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-text-muted" title="已排除計數">略過</span>}
       </td>
-      <td className="px-4 py-3 text-right font-mono text-[12px] font-black text-[#10233f]">{row.totalCount.toLocaleString()}</td>
+      <td className="px-4 py-3 text-right font-mono text-[12px] font-black text-text-strong">{row.totalCount.toLocaleString()}</td>
       <td className="px-4 py-3 text-right font-mono text-[12px] font-black">
-        <span className={row.errorCount > 0 ? "text-[#dc2626]" : "text-[#8b9aae]"}>{row.errorCount}</span>
+        <span className={row.errorCount > 0 ? "text-red-600" : "text-text-muted"}>{row.errorCount}</span>
       </td>
-      <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-[#536175]">{formatMs(row.avgDurationMs)}</td>
+      <td className="px-4 py-3 text-right font-mono text-[12px] font-bold text-text-body">{formatMs(row.avgDurationMs)}</td>
       <td className="px-4 py-3">
         <TrendSparkline trend={row.trend} />
       </td>
@@ -495,7 +495,7 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   const totalErrors = cells.reduce((s, c) => s + c.errors, 0);
   const totalCalls = cells.reduce((s, c) => s + c.total, 0);
   const errorRatio = totalCalls > 0 ? totalErrors / totalCalls : 0;
-  const stroke = !hasData ? "#c8d0da" : errorRatio >= 0.5 ? "#dc2626" : errorRatio > 0 ? "#f59e0b" : "#22c55e";
+  const stroke = !hasData ? "var(--ds-border-emphasis)" : errorRatio >= 0.5 ? "var(--ds-state-priority)" : errorRatio > 0 ? "var(--ds-state-must-read)" : "var(--ds-state-success)";
   const W = 320, H = 72, padX = 4, padY = 6, labelH = 14;
   const w = W - padX * 2, h = H - padY * 2 - labelH;
   const n = cells.length;
@@ -518,17 +518,17 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
   const durationPolyline = durationValidPts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   return (
     <div className="space-y-2">
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-[#fbfcfd]" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="rounded-[6px] bg-surface-soft" style={{ height: "80px" }} aria-label="近 24h 每小時趨勢折線">
         {!hasData ? (
-          <line x1={padX} y1={(H - labelH) / 2} x2={W - padX} y2={(H - labelH) / 2} stroke="#c8d0da" strokeWidth="1" strokeDasharray="3 3" />
+          <line x1={padX} y1={(H - labelH) / 2} x2={W - padX} y2={(H - labelH) / 2} stroke="var(--ds-border-emphasis)" strokeWidth="1" strokeDasharray="3 3" />
         ) : (
           <>
             <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
             {hasDuration && durationValidPts.length > 1 && (
-              <polyline points={durationPolyline} fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="3 2" opacity="0.8" />
+              <polyline points={durationPolyline} fill="none" stroke="var(--ds-state-reminder)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="3 2" opacity="0.8" />
             )}
             {pts.filter((p) => p.cell.errors > 0).map((p, i) => (
-              <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="#dc2626">
+              <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="3" fill="var(--ds-state-priority)">
                 <title>{`${p.hour != null ? String(p.hour).padStart(2, "0") + ":00" : ""} · ${p.cell.total} 次 · ${p.cell.errors} 錯誤${p.cell.avgDurationMs != null ? ` · ${Math.round(p.cell.avgDurationMs)}ms` : ""}`}</title>
               </circle>
             ))}
@@ -536,18 +536,18 @@ function LargeTrendSparkline({ trend }: { trend: ApiMonitoringTrendBucket[] }) {
         )}
         {pts.filter((_, i) => i % 3 === 0).map((p, i) =>
           p.hour !== null ? (
-            <text key={i} x={p.x.toFixed(1)} y={H - 2} textAnchor="middle" fontSize="7" fill="#8b9aae" fontFamily="monospace">
+            <text key={i} x={p.x.toFixed(1)} y={H - 2} textAnchor="middle" fontSize="7" fill="var(--ds-text-muted)" fontFamily="monospace">
               {String(p.hour).padStart(2, "0")}
             </text>
           ) : null,
         )}
       </svg>
-      <div className="flex items-center gap-3 text-[10px] font-bold text-[#8b9aae]">
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#22c55e]" /> 正常</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#f59e0b]" /> 有錯誤</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-[#dc2626]" /> ≥50% 錯誤</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-[#dc2626]" /> 錯誤點</span>
-        <span className="flex items-center gap-1"><span className="inline-block h-[2px] w-4 rounded-[1px] bg-[#93c5fd]" style={{ borderTop: "1.5px dashed #93c5fd" }} /> Avg 延遲</span>
+      <div className="flex items-center gap-3 text-[10px] font-bold text-text-muted">
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-surface-soft" /> 正常</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-surface-soft" /> 有錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-[1px] bg-red-600" /> ≥50% 錯誤</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> 錯誤點</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-[2px] w-4 rounded-[1px] bg-surface-soft" style={{ borderTop: "1.5px dashed var(--ds-state-reminder)" }} /> Avg 延遲</span>
       </div>
     </div>
   );
@@ -574,20 +574,20 @@ function ApiDetailPanel({ row, onClose }: { row: ApiMonitoringRow; onClose: () =
   const unresolvedErrors = detail?.unresolvedErrorGroups ?? [];
   const recentRecords = detail?.recentRecords ?? [];
   const statusToneText: Record<ApiMonitoringStatus, { label: string; color: string }> = {
-    healthy: { label: "正常", color: "text-[#188249]" },
-    warning: { label: "注意", color: "text-[#9b6a00]" },
-    error: { label: "錯誤", color: "text-[#dc2626]" },
-    not_connected: { label: "未連線", color: "text-[#536175]" },
+    healthy: { label: "正常", color: "text-text-body" },
+    warning: { label: "注意", color: "text-text-body" },
+    error: { label: "錯誤", color: "text-red-600" },
+    not_connected: { label: "未連線", color: "text-text-body" },
   };
   const tone = statusToneText[row.status];
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[#10233f]/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-text-strong/30" onClick={onClose}>
       <div
         className="h-full w-full max-w-[720px] overflow-y-auto bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[#edf1f6] p-5">
+        <div className="flex items-start justify-between gap-3 border-b border-border-subtle p-5">
           <div className="flex items-center gap-3">
             <span className={cn("h-2.5 w-2.5 rounded-full", apiStatusDotClass(row.status))} />
             <span className={cn("text-[14px] font-black", tone.color)}>{tone.label}</span>
@@ -595,7 +595,7 @@ function ApiDetailPanel({ row, onClose }: { row: ApiMonitoringRow; onClose: () =
           <button
             type="button"
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-[8px] border border-[#dfe7ef] hover:bg-[#f3f6fb]"
+            className="grid h-9 w-9 place-items-center rounded-[8px] border border-border-default hover:bg-surface-base"
             data-testid="api-detail-close"
           >
             <X className="h-4 w-4" />
@@ -604,58 +604,58 @@ function ApiDetailPanel({ row, onClose }: { row: ApiMonitoringRow; onClose: () =
 
         <div className="flex items-start justify-between gap-4 px-5 py-5">
           <div className="min-w-0 flex-1">
-            <h2 className="text-[22px] font-black leading-tight text-[#10233f]">{row.label}</h2>
+            <h2 className="text-[22px] font-black leading-tight text-text-strong">{row.label}</h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className="rounded-[4px] bg-[#eef2f6] px-2 py-1 text-[11px] font-black text-[#536175]">{row.method}</span>
-              <span className="break-all font-mono text-[12px] font-bold text-[#536175]">{row.path}</span>
+              <span className="rounded-[4px] bg-slate-100 px-2 py-1 text-[11px] font-black text-text-body">{row.method}</span>
+              <span className="break-all font-mono text-[12px] font-bold text-text-body">{row.path}</span>
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <p className="font-mono text-[28px] font-black text-[#10233f]">{row.totalCount.toLocaleString()}</p>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">CALLS · 24H</p>
+            <p className="font-mono text-[28px] font-black text-text-strong">{row.totalCount.toLocaleString()}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">CALLS · 24H</p>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-3 px-5">
-          <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">Errors 24h</p>
-            <p className={cn("mt-1 font-mono text-[20px] font-black", row.errorCount > 0 ? "text-[#dc2626]" : "text-[#10233f]")}>
+          <div className="rounded-[8px] border border-border-subtle bg-surface-soft p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">Errors 24h</p>
+            <p className={cn("mt-1 font-mono text-[20px] font-black", row.errorCount > 0 ? "text-red-600" : "text-text-strong")}>
               {row.errorCount}
             </p>
           </div>
-          <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">Avg Duration</p>
-            <p className="mt-1 font-mono text-[20px] font-black text-[#10233f]">{formatMs(row.avgDurationMs)}</p>
+          <div className="rounded-[8px] border border-border-subtle bg-surface-soft p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">Avg Duration</p>
+            <p className="mt-1 font-mono text-[20px] font-black text-text-strong">{formatMs(row.avgDurationMs)}</p>
           </div>
-          <div className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8b9aae]">未解決 / 已解決</p>
-            <p className="mt-1 font-mono text-[20px] font-black text-[#10233f]">
-              {row.unresolvedErrorCount} <span className="text-[14px] text-[#8b9aae]">/ {row.resolvedErrorCount}</span>
+          <div className="rounded-[8px] border border-border-subtle bg-surface-soft p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">未解決 / 已解決</p>
+            <p className="mt-1 font-mono text-[20px] font-black text-text-strong">
+              {row.unresolvedErrorCount} <span className="text-[14px] text-text-muted">/ {row.resolvedErrorCount}</span>
             </p>
           </div>
         </div>
 
         <div className="space-y-2 px-5 py-5">
-          <h3 className="text-[13px] font-black text-[#10233f]">24h 趨勢 (每小時)</h3>
+          <h3 className="text-[13px] font-black text-text-strong">24h 趨勢 (每小時)</h3>
           <LargeTrendSparkline trend={trend} />
         </div>
 
         {detailQuery.isLoading ? (
-          <div className="px-5 py-3 text-[12px] font-bold text-[#637185]">讀取詳細資料中…</div>
+          <div className="px-5 py-3 text-[12px] font-bold text-text-body">讀取詳細資料中…</div>
         ) : (
           <>
             {unresolvedErrors.length > 0 && (
-              <div className="border-t border-[#edf1f6] px-5 py-5">
-                <h3 className="text-[13px] font-black text-[#10233f]">未解決錯誤 ({unresolvedErrors.length})</h3>
+              <div className="border-t border-border-subtle px-5 py-5">
+                <h3 className="text-[13px] font-black text-text-strong">未解決錯誤 ({unresolvedErrors.length})</h3>
                 <ul className="mt-3 space-y-2">
                   {unresolvedErrors.slice(0, 8).map((g) => (
-                    <li key={g.fingerprint} className="rounded-[8px] border border-[#edf1f6] bg-[#fbfcfd] p-3 text-[12px]">
+                    <li key={g.fingerprint} className="rounded-[8px] border border-border-subtle bg-surface-soft p-3 text-[12px]">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono font-black text-[#10233f]">{g.statusCode} · {g.errorType}</span>
-                        <span className="font-mono text-[11px] font-bold text-[#8b9aae]">{new Date(g.lastOccurredAt).toLocaleString("zh-TW")}</span>
+                        <span className="font-mono font-black text-text-strong">{g.statusCode} · {g.errorType}</span>
+                        <span className="font-mono text-[11px] font-bold text-text-muted">{new Date(g.lastOccurredAt).toLocaleString("zh-TW")}</span>
                       </div>
-                      <p className="mt-1 font-mono text-[11px] font-bold text-[#536175]">{g.route}</p>
-                      <p className="mt-1 text-[11px] font-bold text-[#637185]">出現 {g.count} 次{g.avgDurationMs != null ? ` · 平均 ${Math.round(g.avgDurationMs)}ms` : ""}</p>
+                      <p className="mt-1 font-mono text-[11px] font-bold text-text-body">{g.route}</p>
+                      <p className="mt-1 text-[11px] font-bold text-text-body">出現 {g.count} 次{g.avgDurationMs != null ? ` · 平均 ${Math.round(g.avgDurationMs)}ms` : ""}</p>
                     </li>
                   ))}
                 </ul>
@@ -663,14 +663,14 @@ function ApiDetailPanel({ row, onClose }: { row: ApiMonitoringRow; onClose: () =
             )}
 
             {recentRecords.length > 0 && (
-              <div className="border-t border-[#edf1f6] px-5 py-5">
-                <h3 className="text-[13px] font-black text-[#10233f]">最近呼叫 ({recentRecords.length})</h3>
+              <div className="border-t border-border-subtle px-5 py-5">
+                <h3 className="text-[13px] font-black text-text-strong">最近呼叫 ({recentRecords.length})</h3>
                 <ul className="mt-3 space-y-1">
                   {recentRecords.slice(0, 10).map((rec) => (
-                    <li key={rec.id} className="flex items-center justify-between gap-2 rounded-[6px] bg-[#fbfcfd] px-3 py-2 text-[11px]">
-                      <span className={cn("font-mono font-black", rec.errorType ? "text-[#dc2626]" : "text-[#188249]")}>{rec.statusCode}</span>
-                      <span className="flex-1 font-mono text-[#536175]">{rec.durationMs}ms</span>
-                      <span className="font-mono text-[#8b9aae]">{new Date(rec.occurredAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
+                    <li key={rec.id} className="flex items-center justify-between gap-2 rounded-[6px] bg-surface-soft px-3 py-2 text-[11px]">
+                      <span className={cn("font-mono font-black", rec.errorType ? "text-red-600" : "text-text-body")}>{rec.statusCode}</span>
+                      <span className="flex-1 font-mono text-text-body">{rec.durationMs}ms</span>
+                      <span className="font-mono text-text-muted">{new Date(rec.occurredAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
                     </li>
                   ))}
                 </ul>
